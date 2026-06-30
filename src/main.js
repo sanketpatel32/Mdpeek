@@ -77,7 +77,21 @@ async function rewatch(path) {
 }
 
 // ---------- viewport rendering (operates on active doc) ----------
+// Tracks the previously-rendered doc so we can sync its editor content back
+// into the doc BEFORE swapping to the new active doc (the <textarea> is shared,
+// so without this, switching away from an edit-mode tab would lose typed text).
+let _lastRenderedId = null;
+
 async function renderActive() {
+  // Sync the outgoing doc's editor content back into its model.
+  if (_lastRenderedId !== null && _lastRenderedId !== store.activeId) {
+    const prev = store.docs.find((d) => d.id === _lastRenderedId);
+    if (prev && prev.mode === 'edit' && prev.editor) {
+      prev.content = prev.editor.getValue();
+    }
+  }
+  _lastRenderedId = store.activeId;
+
   const doc = store.active();
   renderTabs(store);
   el.fileName.textContent = doc ? basename(doc.path) : 'No file';
@@ -133,6 +147,10 @@ async function closeTab(id) {
     const choice = confirm(`"${basename(doc.path)}" has unsaved changes. Close anyway?`);
     if (!choice) return;
   }
+  // Free the editor's event listeners before dropping the doc (the <textarea>
+  // is shared; without this, every closed edit-mode tab would leak a listener).
+  if (doc.editor) doc.editor.destroy();
+  if (_lastRenderedId === id) _lastRenderedId = null;
   store.close(id);
   // Always keep at least one tab open.
   if (store.docs.length === 0) {
