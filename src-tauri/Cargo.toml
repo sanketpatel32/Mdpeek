@@ -1,6 +1,6 @@
 [package]
 name = "mdpeek"
-version = "0.1.3"
+version = "0.1.4"
 description = "A lightweight Markdown viewer"
 authors = ["mdpeek"]
 edition = "2021"

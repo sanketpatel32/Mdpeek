@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-07-01
+
+### Added
+- **Zoom in / zoom out**: toolbar buttons (magnifier ±) or `Ctrl+=` / `Ctrl+-`.
+  `Ctrl+0` resets to 100%. Zoom level persists across launches. Range 50%–300%.
+
+### Fixed
+- Sidebar toggle now reliably collapses/expands the TOC pane (the `.toc:empty
+  { display: none }` rule was interfering; removed it and switched the collapsed
+  state to a clean `display: none`).
+
 ## [0.1.3] - 2026-07-01
 
 ### Added

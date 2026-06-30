@@ -17,7 +17,7 @@ const ICON_MOON =
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.1.3</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.1.4</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -36,6 +36,8 @@ const el = {
   save: document.getElementById('btn-save'),
   mode: document.getElementById('btn-mode'),
   sidebar: document.getElementById('btn-sidebar'),
+  zoomIn: document.getElementById('btn-zoom-in'),
+  zoomOut: document.getElementById('btn-zoom-out'),
   theme: document.getElementById('btn-theme'),
   fileName: document.getElementById('file-name'),
   tabStrip: document.getElementById('tab-strip'),
@@ -240,6 +242,35 @@ function toggleSidebar() {
   localStorage.setItem('mdpeek-sidebar', collapsed ? 'hidden' : 'visible');
 }
 
+// ---------- zoom (scales document + preview font-size) ----------
+let zoomLevel = 1; // 1.0 = 100%
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 3;
+const ZOOM_STEP = 0.1;
+const BASE_FONT_PX = 15;
+
+function applyZoom() {
+  const px = (BASE_FONT_PX * zoomLevel).toFixed(1) + 'px';
+  el.document.style.fontSize = px;
+  el.preview.style.fontSize = px;
+  localStorage.setItem('mdpeek-zoom', String(zoomLevel));
+}
+
+function zoomIn() {
+  zoomLevel = Math.min(ZOOM_MAX, +(zoomLevel + ZOOM_STEP).toFixed(2));
+  applyZoom();
+}
+
+function zoomOut() {
+  zoomLevel = Math.max(ZOOM_MIN, +(zoomLevel - ZOOM_STEP).toFixed(2));
+  applyZoom();
+}
+
+function zoomReset() {
+  zoomLevel = 1;
+  applyZoom();
+}
+
 // ---------- auto-update (perMachine install: UAC will prompt when applying) ----------
 async function applyUpdate(update) {
   toast('Downloading update…');
@@ -273,6 +304,8 @@ el.open.addEventListener('click', openFileDialog);
 el.save.addEventListener('click', saveActive);
 el.mode.addEventListener('click', toggleMode);
 el.sidebar.addEventListener('click', toggleSidebar);
+el.zoomIn.addEventListener('click', zoomIn);
+el.zoomOut.addEventListener('click', zoomOut);
 el.theme.addEventListener('click', toggleTheme);
 
 // Tab strip: click to switch, click × to close, click + for new
@@ -330,6 +363,15 @@ window.addEventListener('keydown', (e) => {
   } else if (k === 'b') {
     e.preventDefault();
     toggleSidebar();
+  } else if (e.key === '=' || e.key === '+') {
+    e.preventDefault();
+    zoomIn();
+  } else if (e.key === '-') {
+    e.preventDefault();
+    zoomOut();
+  } else if (e.key === '0') {
+    e.preventDefault();
+    zoomReset();
   }
 });
 
@@ -390,6 +432,13 @@ if (localStorage.getItem('mdpeek-sidebar') === 'hidden') {
   el.toc.classList.add('collapsed');
   el.sidebar.classList.remove('active');
 }
+
+// Restore zoom level.
+const savedZoom = parseFloat(localStorage.getItem('mdpeek-zoom'));
+if (savedZoom >= ZOOM_MIN && savedZoom <= ZOOM_MAX) {
+  zoomLevel = savedZoom;
+}
+applyZoom();
 
 (async () => {
   // Restore session, re-reading file contents from disk.
