@@ -1,0 +1,22 @@
+# Normalize line endings: LF in the repo, OS-native on checkout.
+# Stops the constant "LF will be replaced by CRLF" warnings on Windows.
+* text=auto eol=lf
+
+# Force LF for source code and config regardless of platform.
+*.js    text eol=lf
+*.mjs   text eol=lf
+*.ts    text eol=lf
+*.css   text eol=lf
+*.html  text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.rs    text eol=lf
+*.toml  text eol=lf
+
+# Binaries — never touch.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.ico   binary
+*.icns  binary
+*.exe   binary
