@@ -22,12 +22,17 @@ const releasesDir = join(root, 'releases');
 
 mkdirSync(releasesDir, { recursive: true });
 
-// Find the produced NSIS installer (name includes version + arch).
+// Find the NSIS installer for THIS version. The nsis dir accumulates old
+// installers across builds, so match the exact version to avoid picking a
+// stale one (e.g. mdpeek_0.0.1_x64-setup.exe when building 0.0.3).
 let installer = null;
 if (existsSync(nsisDir)) {
-  installer = readdirSync(nsisDir).find(
-    (f) => /^mdpeek.*-setup\.exe$/i.test(f),
-  );
+  const setupRe = new RegExp(`^mdpeek_${escapeRegex(version)}.*-setup\\.exe$`, 'i');
+  installer = readdirSync(nsisDir).find((f) => setupRe.test(f));
+}
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 const copied = [];
