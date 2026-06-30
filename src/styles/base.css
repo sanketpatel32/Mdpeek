@@ -336,6 +336,17 @@ main {
   color: var(--fg);
   margin: 0 0 8px;
 }
+.version-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 2px 8px;
+  border-radius: 999px;
+  vertical-align: middle;
+  margin-left: 4px;
+}
 .welcome p {
   font-size: 14px;
   margin: 0 0 24px;

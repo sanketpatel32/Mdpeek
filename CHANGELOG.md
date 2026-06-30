@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.4] - 2026-06-30
+
+### Added
+- Version badge on the welcome screen (visible marker for confirming the
+  running version after an auto-update).
+- `scripts/copy-release.js` now matches the exact version being built, so it
+  can't pick up a stale installer left in the nsis output dir from a previous
+  build. (This was a real bug found during install testing — v0.0.3 builds
+  were shipping the v0.0.1 binary.)
+
 ## [0.0.3] - 2026-06-30
 
 ### Added
