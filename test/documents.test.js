@@ -71,8 +71,16 @@ describe('DocumentStore', () => {
     store.close(d2.id);
     expect(store.docs).toHaveLength(2);
     expect(store.docs.find((x) => x.id === d2.id)).toBeUndefined();
-    // active falls back to a neighbor (d1 or d3)
-    expect([d1.id, d3.id]).toContain(store.activeId);
+    // close() prefers the NEXT neighbor (d3, the element now at idx) over the previous.
+    expect(store.activeId).toBe(d3.id);
+  });
+
+  it('close() active last tab activates the previous one', () => {
+    const d1 = store.open({ path: '/a.md', content: 'a' });
+    const d2 = store.open({ path: '/b.md', content: 'b' });
+    store.switch(d2.id);
+    store.close(d2.id); // no next neighbor → falls back to previous (d1)
+    expect(store.activeId).toBe(d1.id);
   });
 
   it('close() last doc leaves store empty (caller handles creating Untitled)', () => {
@@ -98,6 +106,48 @@ describe('DocumentStore', () => {
     store.switch(d1.id);
     store.close(d2.id);
     expect(cb).toHaveBeenCalledTimes(4); // open, open, switch, close
+  });
+
+  it('switch() to unknown id is a no-op (no emit, no activeId change)', () => {
+    const d = store.open({ path: '/a.md', content: 'a' });
+    const cb = vi.fn();
+    store.on('change', cb);
+    store.switch('does-not-exist');
+    expect(store.activeId).toBe(d.id);
+    expect(cb).not.toHaveBeenCalled();
+  });
+
+  it('switch() to already-active tab is a no-op (no spurious emit)', () => {
+    const d = store.open({ path: '/a.md', content: 'a' });
+    const cb = vi.fn();
+    store.on('change', cb);
+    store.switch(d.id); // already active
+    expect(cb).not.toHaveBeenCalled();
+  });
+
+  it('on() returns an unsubscribe that stops further callbacks', () => {
+    const cb = vi.fn();
+    const off = store.on('change', cb);
+    store.open({ path: '/a.md', content: 'a' });
+    expect(cb).toHaveBeenCalledTimes(1);
+    off();
+    store.open({ path: '/b.md', content: 'b' });
+    expect(cb).toHaveBeenCalledTimes(1); // no new call after unsubscribe
+  });
+
+  it('restore() falls back to docs[0] when activeId points at a filtered-out doc', () => {
+    // The bad doc (non-string content) gets filtered; activeId references it.
+    const data = {
+      docs: [
+        { id: 'good', path: '/a.md', content: 'a' },
+        { id: 'bad', path: '/b.md', content: 12345 }, // invalid → filtered
+      ],
+      activeId: 'bad',
+    };
+    store.restore(data);
+    expect(store.docs).toHaveLength(1);
+    expect(store.docs[0].id).toBe('good');
+    expect(store.activeId).toBe('good'); // fell back to docs[0]
   });
 
   it('serialize() returns plain array; round-trips via restore()', () => {

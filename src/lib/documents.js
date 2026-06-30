@@ -57,6 +57,7 @@ export class DocumentStore {
 
   switch(id) {
     if (!this.docs.find((d) => d.id === id)) return;
+    if (this.activeId === id) return; // no-op: switching to already-active tab
     this.activeId = id;
     this._emit('change');
   }
