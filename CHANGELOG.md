@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-07-01
+
+### Fixed
+- Switching to an empty/new tab no longer leaves the previous document's table
+  of contents visible in the sidebar. The TOC is cleared when the welcome
+  screen is shown.
+
 ## [0.1.1] - 2026-07-01
 
 ### Fixed
