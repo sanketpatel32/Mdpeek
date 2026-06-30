@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.7] - 2026-06-30
+
+### Changed
+- Document content now fills the full window width (removed the 1100px
+  `max-width` cap and the `margin: 0 auto` centering that left empty side
+  margins). The scrollbar sits flush at the right edge of the window, aligned
+  with the content. Side padding scales down on narrow windows (≤900px).
+
 ## [0.0.6] - 2026-06-30
 
 ### Fixed

@@ -1,28 +1,28 @@
 /* Rendered-markdown element styling.
-   Uses the full document pane up to a generous max; the user picked the window
-   size, so let the content breathe. Side padding shrinks on narrow windows. */
+   Content fills the full document pane width (no max-width cap, no centering).
+   Comfortable side padding keeps lines readable; the scrollbar sits flush at
+   the right edge of the pane, aligned with the window. */
 .markdown-body {
   width: 100%;
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 40px 5vw 96px;
+  margin: 0;
+  padding: 40px 48px 96px;
   line-height: 1.7;
   color: var(--fg);
   font-size: 15px;
 }
-@media (min-width: 1400px) {
+@media (max-width: 900px) {
   .markdown-body {
-    max-width: 1280px;
-    padding-left: 64px;
-    padding-right: 64px;
+    padding-left: 24px;
+    padding-right: 24px;
   }
 }
 /* Welcome hero takes over the document container (full-bleed, centered). */
 .markdown-body.has-welcome {
-  max-width: none;
   margin: 0;
   padding: 0;
 }
+
+
 
 /* headings */
 .markdown-body h1,
