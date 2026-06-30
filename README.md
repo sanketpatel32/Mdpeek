@@ -39,15 +39,35 @@ Electron-based viewers like MarkText (~90 MB) or mdview (~70 MB).
 
 ## Install
 
-Download `mdpeek-<version>-setup.exe` from the [`releases/`](./releases) folder
-(or the GitHub Releases page once published) and double-click it. The installer
-runs an ordinary Windows setup wizard and installs mdpeek to
-`C:\Program Files\mdpeek\`, with a Start Menu shortcut.
+### Option 1 — Terminal (one-liner)
+
+Open **PowerShell** (built into Windows 10/11) and paste:
+
+```powershell
+irm https://raw.githubusercontent.com/sanketpatel32/Mdpeek/main/install.ps1 | iex
+```
+
+This fetches the latest release, downloads the installer, and runs it (you'll
+get a UAC prompt — click **Yes**, then the setup wizard appears). Installs to
+`C:\Program Files\mdpeek\` with a Start Menu shortcut. Always installs the
+newest release.
+
+> Requires Windows 10 or 11. WebView2 ships with the OS.
+
+### Option 2 — Manual download
+
+Grab `mdpeek-<version>-setup.exe` from the [`releases/`](./releases) folder or
+the [Releases page](https://github.com/sanketpatel32/Mdpeek/releases) and
+double-click it.
 
 A portable single-file exe (`mdpeek-<version>-portable.exe`) is also provided —
 no install required, just run it.
 
-> Requires Windows 10 or 11. WebView2 ships with the OS.
+### After install
+
+- **Start menu** → mdpeek
+- **Right-click any `.md` file → Open with → mdpeek** (or set it as default)
+- The app checks for updates automatically on launch
 
 ## Build
 
