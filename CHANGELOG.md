@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-01
+
+### Fixed
+- Clicking `+` (new tab) now shows the welcome screen, not a blank page. Any
+  empty untouched tab displays the welcome hero until content is added.
+- Tab styling polished: clearer active state (surface background + border),
+  subtle "MD" file-type badge on saved-file tabs, close button fades in on
+  hover, close-on-hover turns red, better spacing.
+
 ## [0.1.0] - 2026-07-01
 
 ### Changed

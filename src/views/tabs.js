@@ -17,6 +17,14 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
+// Small "MD" file-type badge for saved files; a pencil dot for untitled.
+function iconFor(doc) {
+  if (doc.path) {
+    return '<span class="tab-icon">M&#8203;D</span>';
+  }
+  return '';
+}
+
 export function renderTabs(store) {
   const strip = document.getElementById('tab-strip');
   if (!strip) return;
@@ -24,11 +32,12 @@ export function renderTabs(store) {
   const html = store.docs
     .map((d) => {
       const active = d.id === store.activeId ? ' active' : '';
-      const dirty = d.dirty ? ' <span class="tab-dot">●</span>' : '';
+      const dirty = d.dirty ? '<span class="tab-dot" title="Unsaved changes">●</span>' : '';
+      const icon = iconFor(d);
       const title = escapeHtml(titleFor(d));
       return `<div class="tab${active}" data-id="${d.id}" title="${escapeHtml(d.path || 'Untitled')}">
-        <span class="tab-title">${title}</span>${dirty}
-        <span class="tab-close" data-id="${d.id}" title="Close (middle-click)">×</span>
+        ${icon}<span class="tab-title">${title}</span>${dirty}
+        <span class="tab-close" data-id="${d.id}" title="Close (Ctrl+W)">×</span>
       </div>`;
     })
     .join('');
