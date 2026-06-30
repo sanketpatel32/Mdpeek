@@ -23,6 +23,26 @@ pub fn run() {
 
     #[cfg(desktop)]
     {
+        // Single-instance: a second launch focuses this window and forwards its
+        // argv (e.g. a double-clicked .md) as an `open-file` event to the
+        // frontend, which opens it as a new tab instead of a new window.
+        builder = builder.plugin(
+            tauri_plugin_single_instance::init(|app, argv, _cwd| {
+                use tauri::{Manager, Emitter};
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                    // argv[0] is the exe; argv[1] (if present) is the file path.
+                    if argv.len() > 1 {
+                        let path = argv[1].clone();
+                        if let Ok(content) = std::fs::read_to_string(&path) {
+                            let payload = serde_json::json!({ "path": path, "content": content });
+                            let _ = window.emit("open-file", payload);
+                        }
+                    }
+                }
+            }),
+        );
         builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     }
 
