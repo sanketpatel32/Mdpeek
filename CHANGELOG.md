@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.8] - 2026-06-30
+
+### Added
+- **Multi-tab editing**: open multiple files as tabs in one window. Open via
+  drag-drop/Ctrl+O, Ctrl+N for a new blank tab, or double-click a .md while
+  mdpeek is running (opens as a tab in the existing window, not a new one).
+- **Session restore**: reopen mdpeek and your tabs come back. Open file paths +
+  active tab + Untitled-tab contents persist to localStorage; file contents are
+  re-read from disk on launch.
+- Tab strip UI: clickable tabs, × or middle-click to close, dirty indicator (●),
+  unsaved-changes confirm dialog on close.
+- Single-instance: a second launch focuses the running window and forwards the
+  opened file as a new tab.
+- New shortcuts: `Ctrl+N` new tab, `Ctrl+W` close tab.
+- Multi-file drag-drop: dropping several .md files opens each as its own tab.
+
+### Changed
+- Major internal refactor: single-document `state` replaced by a `DocumentStore`
+  (pure-logic, 29 unit tests). Toolbar/shortcuts/watcher/live-reload all
+  operate on the active document.
+
+### Fixed
+- (Refactor-quality) Switching away from an edit-mode tab now preserves unsaved
+  textarea content; closing a tab frees its editor listeners.
+
 ## [0.0.7] - 2026-06-30
 
 ### Changed
