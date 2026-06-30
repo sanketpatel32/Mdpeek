@@ -1,0 +1,52 @@
+.markdown-body {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 24px 32px;
+  line-height: 1.6;
+}
+.markdown-body h1,
+.markdown-body h2 {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+}
+.markdown-body a {
+  color: var(--accent);
+}
+.markdown-body pre {
+  background: var(--code-bg);
+  padding: 12px;
+  border-radius: 6px;
+  overflow: auto;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+}
+.markdown-body code {
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+.markdown-body :not(pre) > code {
+  background: var(--code-bg);
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 90%;
+}
+.markdown-body blockquote {
+  border-left: 4px solid var(--border);
+  margin: 0;
+  padding: 0 16px;
+  color: var(--muted);
+}
+.markdown-body table {
+  border-collapse: collapse;
+}
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+}
+.markdown-body img {
+  max-width: 100%;
+}
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--border);
+}

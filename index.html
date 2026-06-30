@@ -24,11 +24,28 @@
     />
   </head>
   <body>
-    <!-- App shell is wired in Task 11. Placeholder keeps the build green. -->
-    <main class="container">
-      <h1>mdpeek</h1>
-      <p>Scaffold ready. App shell arrives in a later task.</p>
+    <header class="toolbar">
+      <button id="btn-open" title="Open (Ctrl+O)">Open</button>
+      <button id="btn-save" title="Save (Ctrl+S)">Save</button>
+      <span class="spacer"></span>
+      <button id="btn-mode" title="Toggle edit (Ctrl+E)">View</button>
+      <button id="btn-theme" title="Toggle theme">☾</button>
+      <span id="file-name" class="file-name">No file</span>
+    </header>
+
+    <main id="view-mode" class="view-mode">
+      <aside id="toc" class="toc"></aside>
+      <article id="document" class="markdown-body"></article>
     </main>
+
+    <main id="edit-mode" class="edit-mode hidden">
+      <textarea id="editor" class="editor" spellcheck="false"></textarea>
+      <article id="preview" class="markdown-body"></article>
+    </main>
+
+    <div id="dropzone" class="dropzone hidden">Drop a .md file to open</div>
+    <div id="toast" class="toast hidden"></div>
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

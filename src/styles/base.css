@@ -1,0 +1,150 @@
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  -webkit-user-select: none;
+  user-select: none;
+}
+.toolbar button {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.toolbar button:hover {
+  background: var(--bg);
+  border-color: var(--border);
+}
+.spacer {
+  flex: 1;
+}
+.file-name {
+  color: var(--muted);
+  font-size: 12px;
+  padding-left: 8px;
+}
+
+main {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+}
+.view-mode {
+  width: 100%;
+}
+.toc {
+  width: 220px;
+  flex: 0 0 220px;
+  border-right: 1px solid var(--border);
+  padding: 16px 12px;
+  overflow: auto;
+  font-size: 13px;
+}
+.toc ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.toc li a {
+  color: var(--muted);
+  text-decoration: none;
+  display: block;
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+.toc li a:hover {
+  background: var(--surface);
+  color: var(--fg);
+}
+.toc-h2 {
+  padding-left: 12px;
+}
+.toc-h3 {
+  padding-left: 24px;
+}
+#document {
+  flex: 1;
+  overflow: auto;
+}
+
+.edit-mode {
+  width: 100%;
+}
+.editor {
+  width: 50%;
+  height: 100%;
+  resize: none;
+  border: none;
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 14px;
+  padding: 16px;
+  outline: none;
+}
+#preview {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.dropzone {
+  position: fixed;
+  inset: 0;
+  background: rgba(9, 105, 218, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: var(--accent);
+  pointer-events: none;
+  border: 3px dashed var(--accent);
+  z-index: 50;
+}
+.toast {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  z-index: 60;
+}
+.mermaid-error {
+  display: block;
+  background: var(--code-bg);
+  color: var(--muted);
+  padding: 8px;
+  font-family: monospace;
+  white-space: pre-wrap;
+}
