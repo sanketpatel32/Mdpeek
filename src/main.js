@@ -17,7 +17,7 @@ const ICON_MOON =
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.0.9</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.1.0</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -102,8 +102,10 @@ async function renderActive() {
     return;
   }
 
-  const labelMode = document.getElementById('label-mode');
-  if (labelMode) labelMode.textContent = doc.mode === 'edit' ? 'View' : 'Edit';
+  el.mode.title = doc.mode === 'edit'
+    ? 'Currently editing — click to view (Ctrl+E)'
+    : 'Currently viewing — click to edit (Ctrl+E)';
+  el.mode.classList.toggle('active', doc.mode === 'edit');
 
   if (doc.mode === 'edit') {
     el.viewMode.classList.add('hidden');
@@ -371,6 +373,11 @@ if (savedTheme === 'dark') applyTheme('dark');
   if (session && Array.isArray(session.docs) && session.docs.length > 0) {
     const restored = [];
     for (const s of session.docs) {
+      // Skip blank untouched Untitled tabs — restoring an empty tab would hide
+      // the welcome screen for no benefit.
+      if (s.path === null && (s.content === '' || s.content == null) && !s.dirty) {
+        continue;
+      }
       if (s.path) {
         try {
           const content = await invoke('read_file', { path: s.path });
@@ -381,11 +388,13 @@ if (savedTheme === 'dark') applyTheme('dark');
           restored.push(s);
         }
       } else {
-        // Untitled tab — content was persisted directly.
+        // Untitled tab with real content — content was persisted directly.
         restored.push(s);
       }
     }
-    store.restore({ docs: restored, activeId: session.activeId });
+    if (restored.length > 0) {
+      store.restore({ docs: restored, activeId: session.activeId });
+    }
   }
 
   // Cold-start: did Windows pass a file path on argv?

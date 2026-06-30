@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-01
+
+### Changed
+- **Tabs merged into the header** (browser/VS Code style): tabs sit on the left
+  edge of the top bar; toolbar buttons (Open/Save/Edit/Theme) moved to the right.
+  The separate tab strip below the header is gone — one clean row.
+- Toolbar buttons are now icon-only (no text labels) to save horizontal space
+  for tabs. Tooltips explain each.
+- Edit-mode toggle button shows an active (accent) state when editing.
+- Active tab shown with accent-soft highlight instead of a bottom border.
+
+### Fixed
+- Fresh launch now reliably shows the welcome screen. Blank untouched Untitled
+  tabs are no longer persisted to / restored from the session, so a relaunch
+  with no real files shows the welcome hero (not an empty tab).
+
 ## [0.0.9] - 2026-06-30
 
 ### Changed

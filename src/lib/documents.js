@@ -93,14 +93,18 @@ export class DocumentStore {
   // Plain-serializable snapshot for persistence.
   serialize() {
     return {
-      docs: this.docs.map((d) => ({
-        id: d.id,
-        path: d.path,
-        content: d.content,
-        mode: d.mode,
-        dirty: d.dirty,
-        scrollY: d.scrollY,
-      })),
+      // Skip blank untouched Untitled tabs — they shouldn't be restored on next
+      // launch (we'd rather show the welcome screen than an empty tab).
+      docs: this.docs
+        .filter((d) => d.path !== null || d.content !== '' || d.dirty)
+        .map((d) => ({
+          id: d.id,
+          path: d.path,
+          content: d.content,
+          mode: d.mode,
+          dirty: d.dirty,
+          scrollY: d.scrollY,
+        })),
       activeId: this.activeId,
     };
   }

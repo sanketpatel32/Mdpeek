@@ -25,10 +25,10 @@ body {
   height: var(--header-h);
   flex: 0 0 var(--header-h);
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: flex-start;
-  gap: 6px;
-  padding: 0 10px;
+  gap: 0;
+  padding: 0 8px 0 6px;
   background: var(--bg-elevated);
   border-bottom: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
@@ -36,6 +36,9 @@ body {
   user-select: none;
   position: relative;
   z-index: 20;
+}
+.header-spacer {
+  flex: 1 1 auto;
 }
 
 .brand {
@@ -89,8 +92,10 @@ body {
   background: var(--surface-hover);
   color: var(--fg);
 }
-.tool-btn:active {
-  background: var(--surface-active);
+.tool-btn:active,
+.tool-btn.active {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .tool-btn:focus-visible {
   outline: 2px solid var(--accent);
@@ -390,18 +395,16 @@ main {
   white-space: pre-wrap;
 }
 
-/* ---------- Tab strip ---------- */
+/* ---------- Tab strip (lives inside the header, left of the toolbar) ---------- */
 .tab-strip {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 4px 8px 0 8px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border-subtle);
+  gap: 1px;
+  padding: 0 4px 0 0;
   overflow-x: auto;
   scrollbar-width: none;
-  min-height: 34px;
+  min-width: 0;
 }
 .tab-strip::-webkit-scrollbar {
   height: 0;
@@ -411,12 +414,12 @@ main {
   align-items: center;
   gap: 6px;
   max-width: 200px;
-  padding: 5px 4px 5px 10px;
+  height: 100%;
+  padding: 0 4px 0 10px;
   background: transparent;
   color: var(--fg-secondary);
-  border: 1px solid transparent;
-  border-bottom: none;
-  border-radius: var(--radius) var(--radius) 0 0;
+  border: none;
+  border-radius: var(--radius);
   font-size: 12.5px;
   cursor: pointer;
   white-space: nowrap;
@@ -427,9 +430,8 @@ main {
   background: var(--surface-hover);
 }
 .tab.active {
-  background: var(--bg);
-  color: var(--fg);
-  border-color: var(--border-subtle);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .tab-title {
   overflow: hidden;
