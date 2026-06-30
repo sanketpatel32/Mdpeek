@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { renderMarkdown } from '../src/lib/renderer.js';
+import { renderMarkdown, enhanceDom } from '../src/lib/renderer.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fix = (name) => readFileSync(join(here, 'fixtures', name), 'utf8');
@@ -53,5 +53,46 @@ describe('renderMarkdown — XSS safety', () => {
     expect(html).not.toContain('javascript:alert');
     expect(html).not.toContain('onerror');
     expect(html.toLowerCase()).not.toContain('<script');
+  });
+});
+
+describe('renderMarkdown — edge cases', () => {
+  it('returns empty string for null/undefined/empty input', () => {
+    expect(renderMarkdown(null)).toBe('');
+    expect(renderMarkdown(undefined)).toBe('');
+    expect(renderMarkdown('')).toBe('');
+  });
+
+  it('falls back to plaintext for unknown languages', () => {
+    const html = renderMarkdown('```totally-made-up-lang\nhello\n```');
+    expect(html).toContain('class="hljs language-plaintext"');
+    expect(html).toContain('hello');
+  });
+});
+
+describe('enhanceDom', () => {
+  it('no-ops when there are no .mermaid nodes', async () => {
+    const div = document.createElement('div');
+    div.innerHTML = '<p>no diagrams here</p>';
+    await enhanceDom(div);
+    expect(div.innerHTML).toBe('<p>no diagrams here</p>');
+  });
+
+  it('marks a node with mermaid-error when mermaid fails to render', async () => {
+    const div = document.createElement('div');
+    div.innerHTML = '<div class="mermaid">not a real diagram @@@</div>';
+    const node = div.querySelector('.mermaid');
+    // Stub mermaid.render to reject, simulating a parse failure.
+    const mermaidMod = await import('mermaid');
+    const mermaid = mermaidMod.default;
+    const origRender = mermaid.render.bind(mermaid);
+    mermaid.render = async () => { throw new Error('boom'); };
+    try {
+      await enhanceDom(div);
+      expect(node.classList.contains('mermaid-error')).toBe(true);
+      expect(node.getAttribute('data-source')).toBe('not a real diagram @@@');
+    } finally {
+      mermaid.render = origRender;
+    }
   });
 });
