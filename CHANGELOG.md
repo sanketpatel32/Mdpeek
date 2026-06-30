@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-07-01
+
+### Added
+- **Sidebar toggle**: collapse/expand the table-of-contents sidebar with the
+  toolbar button (panel icon) or `Ctrl+B`. State persists across launches.
+
 ## [0.1.2] - 2026-07-01
 
 ### Fixed

@@ -151,6 +151,15 @@ main {
   overflow: auto;
   font-size: 13px;
   background: var(--surface);
+  transition: width 150ms ease, flex-basis 150ms ease, padding 150ms ease;
+}
+/* Collapsed sidebar: zero width, no content visible, no padding. */
+.toc.collapsed {
+  width: 0;
+  flex-basis: 0;
+  padding: 0;
+  border-right: none;
+  overflow: hidden;
 }
 .toc ul {
   list-style: none;

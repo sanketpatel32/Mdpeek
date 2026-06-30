@@ -17,7 +17,7 @@ const ICON_MOON =
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.1.2</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.1.3</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -35,6 +35,7 @@ const el = {
   open: document.getElementById('btn-open'),
   save: document.getElementById('btn-save'),
   mode: document.getElementById('btn-mode'),
+  sidebar: document.getElementById('btn-sidebar'),
   theme: document.getElementById('btn-theme'),
   fileName: document.getElementById('file-name'),
   tabStrip: document.getElementById('tab-strip'),
@@ -232,6 +233,13 @@ function toggleTheme() {
   applyTheme(next);
 }
 
+// ---------- sidebar (TOC) toggle ----------
+function toggleSidebar() {
+  const collapsed = el.toc.classList.toggle('collapsed');
+  el.sidebar.classList.toggle('active', !collapsed);
+  localStorage.setItem('mdpeek-sidebar', collapsed ? 'hidden' : 'visible');
+}
+
 // ---------- auto-update (perMachine install: UAC will prompt when applying) ----------
 async function applyUpdate(update) {
   toast('Downloading update…');
@@ -264,6 +272,7 @@ async function checkForUpdates(silent = false) {
 el.open.addEventListener('click', openFileDialog);
 el.save.addEventListener('click', saveActive);
 el.mode.addEventListener('click', toggleMode);
+el.sidebar.addEventListener('click', toggleSidebar);
 el.theme.addEventListener('click', toggleTheme);
 
 // Tab strip: click to switch, click × to close, click + for new
@@ -318,6 +327,9 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     const d = store.active();
     if (d) closeTab(d.id);
+  } else if (k === 'b') {
+    e.preventDefault();
+    toggleSidebar();
   }
 });
 
@@ -372,6 +384,12 @@ listen('open-file', (event) => {
 // ---------- init ----------
 const savedTheme = localStorage.getItem('mdpeek-theme');
 if (savedTheme === 'dark') applyTheme('dark');
+
+// Restore sidebar state (default visible).
+if (localStorage.getItem('mdpeek-sidebar') === 'hidden') {
+  el.toc.classList.add('collapsed');
+  el.sidebar.classList.remove('active');
+}
 
 (async () => {
   // Restore session, re-reading file contents from disk.
