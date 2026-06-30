@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-06-30
+
+### Added
+- **File association**: `.md`, `.markdown`, `.mdx` now appear in the Windows
+  "Open with" menu. Double-clicking a file with mdpeek set as default opens it
+  directly. Registered via a custom NSIS hook (`src-tauri/nsis/file-assoc.nsh`).
+- **Auto-update**: on startup the app checks GitHub Releases for a new version;
+  if found, a click-to-install toast appears (downloads the signed installer,
+  launches it elevated, and relaunches). Configured via `tauri-plugin-updater`
+  with a self-generated signing keypair. Per-machine install means UAC prompts
+  on each update — expected for Program Files apps.
+- `scripts/make-release.js`: signs the installer, generates `latest.json`, and
+  uploads both to the GitHub Release for the current version.
+
+### Changed
+- Updated bundled `latest.json` endpoint to `github.com/sanketpatel32/Mdpeek`.
+
 ## [0.0.2] - 2026-06-30
 
 ### Added

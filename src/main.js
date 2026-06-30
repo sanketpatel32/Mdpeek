@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { check } from '@tauri-apps/plugin-updater';
+import { relaunch } from '@tauri-apps/plugin-process';
 import { showDocument, buildToc } from './views/viewer.js';
 import { initEditor } from './views/editor.js';
 
@@ -45,11 +47,18 @@ const el = {
   dropzone: document.getElementById('dropzone'),
 };
 
-function toast(msg) {
+function toast(msg, opts = {}) {
   el.toast.textContent = msg;
   el.toast.classList.remove('hidden');
+  el.toast.style.cursor = opts.onClick ? 'pointer' : 'default';
+  el.toast.onclick = opts.onClick || null;
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => el.toast.classList.add('hidden'), 2000);
+  if (!opts.persistent) {
+    toast._t = setTimeout(() => {
+      el.toast.classList.add('hidden');
+      el.toast.onclick = null;
+    }, 2500);
+  }
 }
 
 function setFileName(path) {
@@ -207,6 +216,40 @@ listen('file-changed', (event) => {
   }
 });
 
+// --- launched by opening a .md file (double-click / Open with) ---
+listen('open-file', (event) => {
+  const { path, content } = event.payload;
+  loadContent(content, path);
+});
+
+// --- auto-update (perMachine install: UAC will prompt when applying) ---
+async function applyUpdate(update) {
+  toast('Downloading update…');
+  try {
+    await update.downloadAndInstall();
+    toast('Update installed — relaunching…');
+    await relaunch();
+  } catch (e) {
+    toast('Update failed: ' + e);
+  }
+}
+
+async function checkForUpdates(silent = false) {
+  try {
+    const update = await check();
+    if (update) {
+      toast(`Update available — v${update.version}. Click to install.`, {
+        persistent: true,
+        onClick: () => applyUpdate(update),
+      });
+    } else if (!silent) {
+      toast('You are on the latest version.');
+    }
+  } catch (e) {
+    if (!silent) toast('Update check failed: ' + e);
+  }
+}
+
 // --- init ---
 const savedTheme = localStorage.getItem('mdpeek-theme');
 if (savedTheme === 'dark') applyTheme('dark');
@@ -214,3 +257,7 @@ if (savedTheme === 'dark') applyTheme('dark');
 // Welcome / empty state — raw hero HTML (not rendered markdown).
 el.document.classList.add('has-welcome');
 el.document.innerHTML = WELCOME_HTML;
+
+// Check for updates in the background 3s after launch (silent: no toast if up-to-date).
+setTimeout(() => checkForUpdates(true), 3000);
+

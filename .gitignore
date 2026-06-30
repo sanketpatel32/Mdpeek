@@ -2,3 +2,6 @@ node_modules/
 src-tauri/target/
 dist/
 .vite/
+
+# Tauri signing private key — NEVER commit this. Keep it safe; lose it = no updates.
+.tauri/*.key
