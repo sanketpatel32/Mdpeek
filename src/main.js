@@ -17,7 +17,7 @@ const ICON_MOON =
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.0.8</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.0.9</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -399,9 +399,14 @@ if (savedTheme === 'dark') applyTheme('dark');
     /* ignore */
   }
 
-  // If still no tabs (fresh launch, no session, no argv), create one Untitled.
+  // If still no tabs (fresh launch, no session, no argv), show the welcome
+  // screen instead of an empty Untitled tab. The welcome hero offers Open /
+  // drag-drop / shortcuts — it's a better starting point than a blank page.
   if (store.docs.length === 0) {
-    newTab();
+    renderTabs(store); // empty tab strip (just the + button)
+    el.fileName.textContent = 'No file';
+    el.document.classList.add('has-welcome');
+    el.document.innerHTML = WELCOME_HTML;
   } else {
     await renderActive();
     if (store.active()) await rewatch(store.active().path);

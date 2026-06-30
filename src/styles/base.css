@@ -26,8 +26,9 @@ body {
   flex: 0 0 var(--header-h);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 12px 0 16px;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 0 10px;
   background: var(--bg-elevated);
   border-bottom: 1px solid var(--border);
   box-shadow: var(--shadow-sm);

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.9] - 2026-06-30
+
+### Changed
+- Fresh launch now shows the welcome screen (Open / drag-drop / shortcut hints)
+  instead of an empty Untitled tab. A blank tab is still one Ctrl+N away.
+- Removed the mdpeek logo + wordmark from the toolbar; the toolbar now spans
+  the full header width (more room for the file name and future controls).
+  The logo still appears on the welcome screen.
+
 ## [0.0.8] - 2026-06-30
 
 ### Added
