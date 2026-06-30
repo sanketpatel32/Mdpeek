@@ -1,11 +1,21 @@
-/* Rendered-markdown element styling */
+/* Rendered-markdown element styling.
+   Uses the full document pane up to a generous max; the user picked the window
+   size, so let the content breathe. Side padding shrinks on narrow windows. */
 .markdown-body {
-  max-width: 780px;
+  width: 100%;
+  max-width: 1100px;
   margin: 0 auto;
-  padding: 40px 48px 96px;
+  padding: 40px 5vw 96px;
   line-height: 1.7;
   color: var(--fg);
   font-size: 15px;
+}
+@media (min-width: 1400px) {
+  .markdown-body {
+    max-width: 1280px;
+    padding-left: 64px;
+    padding-right: 64px;
+  }
 }
 /* Welcome hero takes over the document container (full-bleed, centered). */
 .markdown-body.has-welcome {

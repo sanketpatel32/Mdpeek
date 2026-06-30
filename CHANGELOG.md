@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.5] - 2026-06-30
+
+### Fixed
+- Welcome-screen logo was broken in the installed app (404 on `/icon.png`).
+  Root cause: Vite only bundles files under `public/` or imported assets; the
+  root `icon.png` wasn't served. Fixed by adding `public/icon.png`.
+### Changed
+- Document pane now uses the full window width up to ~1100px (was capped at
+  780px, leaving large empty side margins). Side padding scales with window
+  width; widens further on large monitors (≥1400px).
+
 ## [0.0.4] - 2026-06-30
 
 ### Added
