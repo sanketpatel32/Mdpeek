@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>mdpeek</title>
+    <link rel="icon" type="image/png" href="/icon.png" />
     <link rel="stylesheet" href="/src/styles/themes.css" />
     <link rel="stylesheet" href="/src/styles/base.css" />
     <link rel="stylesheet" href="/src/styles/content.css" />
@@ -24,26 +25,66 @@
     />
   </head>
   <body>
-    <header class="toolbar">
-      <button id="btn-open" title="Open (Ctrl+O)">Open</button>
-      <button id="btn-save" title="Save (Ctrl+S)">Save</button>
-      <span class="spacer"></span>
-      <button id="btn-mode" title="Toggle edit (Ctrl+E)">View</button>
-      <button id="btn-theme" title="Toggle theme">☾</button>
-      <span id="file-name" class="file-name">No file</span>
+    <header class="app-header">
+      <div class="brand">
+        <img src="/icon.png" alt="mdpeek" class="brand-logo" />
+        <span class="brand-name">mdpeek</span>
+      </div>
+
+      <div class="toolbar">
+        <div class="tool-group">
+          <button id="btn-open" class="tool-btn" title="Open file (Ctrl+O)" aria-label="Open file">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span class="tool-label">Open</span>
+          </button>
+          <button id="btn-save" class="tool-btn" title="Save file (Ctrl+S)" aria-label="Save file">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            <span class="tool-label">Save</span>
+          </button>
+        </div>
+
+        <span class="tool-separator" aria-hidden="true"></span>
+
+        <button id="btn-mode" class="tool-btn" title="Toggle edit/view (Ctrl+E)" aria-label="Toggle edit mode">
+          <svg id="icon-mode" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+          <span class="tool-label" id="label-mode">Edit</span>
+        </button>
+
+        <span class="tool-separator" aria-hidden="true"></span>
+
+        <span id="file-name" class="file-name" title="No file loaded">No file</span>
+
+        <span class="tool-spacer"></span>
+
+        <button id="btn-theme" class="tool-btn icon-only" title="Toggle theme" aria-label="Toggle light/dark theme">
+          <svg id="icon-theme" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+      </div>
     </header>
 
     <main id="view-mode" class="view-mode">
-      <aside id="toc" class="toc"></aside>
+      <aside id="toc" class="toc" aria-label="Table of contents"></aside>
       <article id="document" class="markdown-body"></article>
     </main>
 
     <main id="edit-mode" class="edit-mode hidden">
-      <textarea id="editor" class="editor" spellcheck="false"></textarea>
-      <article id="preview" class="markdown-body"></article>
+      <div class="editor-pane">
+        <div class="pane-header">Source</div>
+        <textarea id="editor" class="editor" spellcheck="false" placeholder="Type markdown here..."></textarea>
+      </div>
+      <div class="preview-pane">
+        <div class="pane-header">Preview</div>
+        <article id="preview" class="markdown-body"></article>
+      </div>
     </main>
 
-    <div id="dropzone" class="dropzone hidden">Drop a .md file to open</div>
+    <div id="dropzone" class="dropzone hidden">
+      <div class="dropzone-inner">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <p>Drop a <code>.md</code> file to open</p>
+      </div>
+    </div>
+
     <div id="toast" class="toast hidden"></div>
 
     <script type="module" src="/src/main.js"></script>

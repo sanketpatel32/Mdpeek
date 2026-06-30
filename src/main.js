@@ -3,6 +3,25 @@ import { listen } from '@tauri-apps/api/event';
 import { showDocument, buildToc } from './views/viewer.js';
 import { initEditor } from './views/editor.js';
 
+// SVG icons for theme toggle (sun = light active, moon = dark active)
+const ICON_SUN =
+  '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>';
+const ICON_MOON =
+  '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
+
+const WELCOME_HTML = `
+  <div class="welcome">
+    <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
+    <h1>Welcome to mdpeek</h1>
+    <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
+    <div class="welcome-hints">
+      <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
+      <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>E</kbd> Toggle edit</span>
+      <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>S</kbd> Save</span>
+    </div>
+  </div>
+`;
+
 const state = {
   path: null,
   content: '',
@@ -49,6 +68,7 @@ async function loadContent(content, path) {
     }
   }
   if (state.mode === 'view') {
+    el.document.classList.remove('has-welcome');
     await showDocument(el.document, content);
     buildToc(el.document);
   } else if (state.editor) {
@@ -88,6 +108,7 @@ async function saveFile() {
 
 function setMode(mode) {
   state.mode = mode;
+  const labelMode = document.getElementById('label-mode');
   if (mode === 'edit') {
     el.viewMode.classList.add('hidden');
     el.editMode.classList.remove('hidden');
@@ -95,13 +116,15 @@ function setMode(mode) {
       state.editor = initEditor({ textarea: el.editor, preview: el.preview });
     }
     state.editor.setValue(state.content);
-    el.mode.textContent = 'Edit';
+    if (labelMode) labelMode.textContent = 'View';
+    el.mode.title = 'Switch to view (Ctrl+E)';
   } else {
     el.editMode.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     const current = state.editor ? state.editor.getValue() : state.content;
     showDocument(el.document, current).then(() => buildToc(el.document));
-    el.mode.textContent = 'View';
+    if (labelMode) labelMode.textContent = 'Edit';
+    el.mode.title = 'Switch to edit (Ctrl+E)';
   }
 }
 
@@ -115,7 +138,9 @@ function applyTheme(next) {
   localStorage.setItem('mdpeek-theme', next);
   document.getElementById('hljs-light').disabled = next === 'dark';
   document.getElementById('hljs-dark').disabled = next !== 'dark';
-  el.theme.textContent = next === 'dark' ? '☀' : '☾';
+  const iconTheme = document.getElementById('icon-theme');
+  if (iconTheme) iconTheme.innerHTML = next === 'dark' ? ICON_SUN : ICON_MOON;
+  el.theme.title = next === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
 }
 
 function toggleTheme() {
@@ -186,7 +211,6 @@ listen('file-changed', (event) => {
 const savedTheme = localStorage.getItem('mdpeek-theme');
 if (savedTheme === 'dark') applyTheme('dark');
 
-showDocument(
-  el.document,
-  '# mdpeek\n\nPress **Ctrl+O** to open a file, or drag one onto this window.\n\nToggle edit with **Ctrl+E**.',
-).then(() => buildToc(el.document));
+// Welcome / empty state — raw hero HTML (not rendered markdown).
+el.document.classList.add('has-welcome');
+el.document.innerHTML = WELCOME_HTML;
