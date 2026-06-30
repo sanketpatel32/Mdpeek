@@ -61,6 +61,7 @@ pub fn run() {
             commands::open_file,
             commands::save_file,
             commands::save_file_as,
+            commands::read_file,
             watcher::watch_path,
             get_initial_file,
         ])

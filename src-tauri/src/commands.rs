@@ -44,3 +44,8 @@ pub async fn save_file_as(content: String) -> Result<String, String> {
     fs::write(&path, &content).map_err(|e| e.to_string())?;
     Ok(path_str)
 }
+
+#[tauri::command]
+pub fn read_file(path: String) -> Result<String, String> {
+    fs::read_to_string(&path).map_err(|e| e.to_string())
+}
