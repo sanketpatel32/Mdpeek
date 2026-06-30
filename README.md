@@ -1,42 +1,71 @@
+<div align="center">
+
 # mdpeek
 
-A lightweight Markdown viewer/editor for Windows. Single job: render Markdown
-beautifully, with an optional live-edit mode.
+**A lightweight Markdown viewer for Windows.**
 
-Built with **Tauri 2 + vanilla JS**. The installer is a few megabytes because it
-uses the system WebView2 — no bundled Chromium (unlike Electron-based viewers
-such as MarkText or mdview, which weigh 70 MB+).
+Its single job: render Markdown beautifully — with an optional live-edit mode.
 
-## Features (v0.0.1)
+Built with Tauri 2 + vanilla JS. The installer is a few megabytes because it
+uses the system WebView2 (no bundled Chromium), making it ~95% smaller than
+Electron-based viewers like MarkText (~90 MB) or mdview (~70 MB).
 
-- GitHub-flavored Markdown rendering
-- Syntax-highlighted code blocks (highlight.js)
-- Math rendering via KaTeX (`$inline$` and `$$block$$`)
-- Mermaid diagrams (```` ```mermaid ```` fences)
-- Live preview while editing (`Ctrl+E` to toggle)
-- Live reload when the open file changes on disk
-- Light / dark theme
-- Drag-and-drop a `.md` file onto the window to open it
-- Sanitized HTML output (DOMPurify) — safe to open untrusted files
+[Features](#features) · [Install](#install) · [Build](#build) · [Changelog](CHANGELOG.md)
 
-## Shortcuts
+</div>
+
+---
+
+## Features
+
+- **GitHub-flavored Markdown** rendering
+- **Syntax highlighting** for code blocks (highlight.js)
+- **Math** via KaTeX — `$inline$` and `$$block$$`
+- **Mermaid diagrams** — ```` ```mermaid ```` fences
+- **Live preview** while editing — toggle with `Ctrl+E`
+- **Live reload** when the open file changes on disk
+- **Light / dark theme** with smooth transitions
+- **Drag-and-drop** a `.md` file onto the window to open it
+- **Sanitized output** (DOMPurify) — safe to open untrusted files
+
+### Keyboard shortcuts
 
 | Action            | Key       |
 | ----------------- | --------- |
 | Open file         | `Ctrl+O`  |
 | Save file         | `Ctrl+S`  |
 | Toggle edit/view  | `Ctrl+E`  |
-| Toggle theme      | toolbar ☾ |
+| Toggle theme      | toolbar ☀/☾ |
+
+## Install
+
+Download `mdpeek-<version>-setup.exe` from the [`releases/`](./releases) folder
+(or the GitHub Releases page once published) and double-click it. The installer
+runs an ordinary Windows setup wizard and installs mdpeek to
+`C:\Program Files\mdpeek\`, with a Start Menu shortcut.
+
+A portable single-file exe (`mdpeek-<version>-portable.exe`) is also provided —
+no install required, just run it.
+
+> Requires Windows 10 or 11. WebView2 ships with the OS.
 
 ## Build
 
-Requires Node 18+, Rust (stable), and Windows 10/11 (WebView2 ships with the OS).
+**Prerequisites:** Node.js 18+, Rust stable, Windows 10/11.
 
 ```bash
-npm install
-npm test            # renderer unit tests (Vitest)
-npm run tauri dev   # run locally
-npm run tauri build # produce installer in src-tauri/target/release/bundle/nsis/
+npm install            # install dependencies
+npm test               # run unit tests (10 tests, Vitest)
+npm run tauri dev      # launch in dev mode (hot reload)
+npm run tauri:build    # build production installer -> releases/
+```
+
+`npm run tauri:build` produces versioned artifacts in `releases/`:
+
+```
+releases/
+├── mdpeek-0.0.2-setup.exe      # NSIS GUI installer
+└── mdpeek-0.0.2-portable.exe   # standalone binary, no install
 ```
 
 ## Project layout
@@ -46,11 +75,15 @@ src/lib/renderer.js     MD -> HTML pipeline (marked + DOMPurify + hljs + KaTeX +
 src/views/viewer.js     view mode: render + table of contents
 src/views/editor.js     edit mode: split textarea + live preview
 src/main.js             app wiring: open/save/toggle/theme, IPC, drag-drop
-src/styles/             themes.css (vars), base.css (layout), content.css (markdown)
+src/styles/             themes.css (design tokens), base.css (layout), content.css (markdown)
 src-tauri/src/          Rust backend: commands.rs (open/save), watcher.rs (live reload)
+scripts/copy-release.js postbuild: copies installer + portable exe into releases/
 test/                   Vitest unit tests + fixtures
 ```
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow, and
+[CHANGELOG.md](CHANGELOG.md) for release history.
+
 ## License
 
-MIT
+[MIT](LICENSE) © sanketpatel32
