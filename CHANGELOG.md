@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-06-30
+
+### Fixed
+- Double-clicking a `.md` file (with mdpeek set as default) now actually opens
+  it. Root cause: the old `setup` hook emitted an `open-file` event during app
+  startup, before the frontend listener was registered — a race the event lost.
+  Replaced with a pull-based `get_initial_file` command the frontend invokes
+  once the DOM is ready, so there's no race.
+
 ## [0.0.5] - 2026-06-30
 
 ### Fixed

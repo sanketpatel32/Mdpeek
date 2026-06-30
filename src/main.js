@@ -14,7 +14,7 @@ const ICON_MOON =
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.0.5</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.0.6</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -217,6 +217,8 @@ listen('file-changed', (event) => {
 });
 
 // --- launched by opening a .md file (double-click / Open with) ---
+// Cold start: frontend pulls any file passed on argv via get_initial_file.
+// (Hot second-open case is handled via the open-file event below.)
 listen('open-file', (event) => {
   const { path, content } = event.payload;
   loadContent(content, path);
@@ -254,9 +256,23 @@ async function checkForUpdates(silent = false) {
 const savedTheme = localStorage.getItem('mdpeek-theme');
 if (savedTheme === 'dark') applyTheme('dark');
 
-// Welcome / empty state — raw hero HTML (not rendered markdown).
-el.document.classList.add('has-welcome');
-el.document.innerHTML = WELCOME_HTML;
+// If launched by double-clicking a .md (or "Open with"), Windows passed the
+// file path as argv[1]. Pull it via the backend (pull-based, no race with
+// listener registration).
+(async () => {
+  try {
+    const initial = await invoke('get_initial_file');
+    if (initial) {
+      await loadContent(initial.content, initial.path);
+      return; // document loaded — skip the welcome screen
+    }
+  } catch {
+    /* fall through to welcome */
+  }
+  // Welcome / empty state — raw hero HTML (not rendered markdown).
+  el.document.classList.add('has-welcome');
+  el.document.innerHTML = WELCOME_HTML;
+})();
 
 // Check for updates in the background 3s after launch (silent: no toast if up-to-date).
 setTimeout(() => checkForUpdates(true), 3000);
