@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-01
+
+### Added — editor overhaul
+- **Line-number gutter** on the source pane, synced to scroll.
+- **Smart Tab / Shift+Tab** — inserts 2 spaces at the caret; indents or outdents
+  every selected line.
+- **List continuation** — pressing `Enter` on a `- item` or `1. item` line
+  inserts a new matching marker (ordered lists increment). `Enter` on an empty
+  list item exits the list. `Enter` after an unclosed ` ``` ` fence closes it.
+- **Auto-pair** — typing `(` `[` `{` inserts the closer and skips over it when
+  retyped; `"` `'` `` ` `` pair when not adjacent to a word char; Backspace on
+  an empty pair deletes both.
+- **Markdown wrap shortcuts** — `Ctrl+B` / `Ctrl+I` / `` Ctrl+` `` wrap the
+  selection in `**` / `*` / `` ` `` (toggle off if already wrapped).
+- **Find** — `Ctrl+F` opens a find bar with live match count and next/prev
+  navigation (`Enter` / `Shift+Enter` / `F3`), `Esc` to close.
+
+### Fixed
+- Switching tabs in edit mode no longer loses the caret position or scroll
+  offset — each tab's editor state is now captured on switch and restored on
+  return (previously only the text was preserved).
+
 ## [0.1.4] - 2026-07-01
 
 ### Added

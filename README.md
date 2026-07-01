@@ -33,6 +33,11 @@ Chromium), making it ~95% smaller than Electron-based viewers like MarkText
 
 ### Editing
 - **Live preview** — split-pane editor with debounced re-render (`Ctrl+E`)
+- **Line numbers** — synced gutter on the source pane
+- **Smart editing** — Tab/Shift+Tab indent, list continuation on `Enter`,
+  auto-pair brackets/quotes, auto-close code fences
+- **Markdown shortcuts** — `Ctrl+B` / `Ctrl+I` / `` Ctrl+` `` for bold / italic / code
+- **Find** — `Ctrl+F` with match count and next/prev navigation
 - **Auto-save** indicator (●) with unsaved-changes confirmation
 - **Live reload** — file changes on disk update automatically
 
@@ -100,10 +105,23 @@ Download from the [Releases page](https://github.com/sanketpatel32/Mdpeek/releas
 | Save | `Ctrl+S` |
 | Toggle edit / view | `Ctrl+E` |
 | Toggle sidebar | `Ctrl+B` |
-| Zoom in | `Ctrl+=` |
-| Zoom out | `Ctrl+-` |
-| Zoom reset | `Ctrl+0` |
+| Zoom in / out / reset | `Ctrl+=` / `Ctrl+-` / `Ctrl+0` |
 | Toggle theme | toolbar ☀/☾ |
+
+**Edit mode only:**
+
+| Action | Key |
+| --- | --- |
+| Bold | `Ctrl+B` (wraps selection in `**`) |
+| Italic | `Ctrl+I` (wraps selection in `*`) |
+| Inline code | `` Ctrl+` `` (wraps selection in `` ` ``) |
+| Find | `Ctrl+F` (Enter / Shift+Enter = next / prev, Esc closes) |
+| Indent / outdent | `Tab` / `Shift+Tab` (2 spaces; indents selected lines) |
+| List continuation | `Enter` on a `- item` / `1. item` line |
+| Close code fence | `Enter` after an unclosed ` ``` ` line |
+
+> Note: `Ctrl+B` is **bold** while the editor is focused and **sidebar toggle**
+> while viewing — the editor captures it so both can share the same chord.
 
 ---
 

@@ -213,6 +213,69 @@ main {
   background: var(--surface);
   border-bottom: 1px solid var(--border-subtle);
 }
+
+/* Find bar — sits between the pane header and the editor. */
+.find-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.find-input {
+  flex: 1;
+  max-width: 320px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12.5px;
+  outline: none;
+}
+.find-input:focus {
+  border-color: var(--accent);
+}
+.find-count {
+  font-size: 11px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 34px;
+  text-align: center;
+}
+
+/* editor-wrap = gutter + textarea side by side, sharing one scroll context. */
+.editor-wrap {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+.gutter {
+  flex: 0 0 auto;
+  min-width: 44px;
+  padding: 16px 8px 16px 12px; /* matches .editor top/bottom padding */
+  overflow: hidden; /* sync via scrollTop in JS, no visible scrollbar */
+  background: var(--surface);
+  border-right: 1px solid var(--border-subtle);
+  color: var(--fg-muted);
+  font-family: "SFMono-Regular", "Cascadia Code", Consolas, "Liberation Mono",
+    monospace;
+  font-size: 13.5px;
+  line-height: 1.6;
+  text-align: right;
+  user-select: none;
+  white-space: pre;
+  /* The gutter scrolls with the textarea via JS (onScroll → gutter.scrollTop).
+     Hide its scrollbar so the gutter looks static even as it tracks scroll. */
+  scrollbar-width: none;
+}
+.gutter::-webkit-scrollbar {
+  display: none;
+}
 .editor {
   flex: 1;
   width: 100%;
@@ -226,6 +289,7 @@ main {
   line-height: 1.6;
   padding: 16px 20px;
   outline: none;
+  tab-size: 2;
 }
 #preview {
   flex: 1;

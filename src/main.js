@@ -17,7 +17,7 @@ const ICON_MOON =
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.1.4</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.2.0</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -46,6 +46,8 @@ const el = {
   document: document.getElementById('document'),
   toc: document.getElementById('toc'),
   editor: document.getElementById('editor'),
+  gutter: document.getElementById('gutter'),
+  findBar: document.getElementById('find-bar'),
   preview: document.getElementById('preview'),
   toast: document.getElementById('toast'),
   dropzone: document.getElementById('dropzone'),
@@ -80,17 +82,19 @@ async function rewatch(path) {
 }
 
 // ---------- viewport rendering (operates on active doc) ----------
-// Tracks the previously-rendered doc so we can sync its editor content back
-// into the doc BEFORE swapping to the new active doc (the <textarea> is shared,
-// so without this, switching away from an edit-mode tab would lose typed text).
+// Tracks the previously-rendered doc so we can sync its editor content + caret
+// + scroll position back into the doc BEFORE swapping to the new active doc.
+// The <textarea> is shared across all tabs, so without this capture a tab
+// switch would lose typed text and the caret/scroll position.
 let _lastRenderedId = null;
 
 async function renderActive() {
-  // Sync the outgoing doc's editor content back into its model.
+  // Sync the outgoing doc's editor content + caret + scroll back into its model.
   if (_lastRenderedId !== null && _lastRenderedId !== store.activeId) {
     const prev = store.docs.find((d) => d.id === _lastRenderedId);
     if (prev && prev.mode === 'edit' && prev.editor) {
       prev.content = prev.editor.getValue();
+      prev.editorState = prev.editor.getState();
     }
   }
   _lastRenderedId = store.activeId;
@@ -120,9 +124,16 @@ async function renderActive() {
     el.viewMode.classList.add('hidden');
     el.editMode.classList.remove('hidden');
     if (!doc.editor) {
-      doc.editor = initEditor({ textarea: el.editor, preview: el.preview });
+      doc.editor = initEditor({
+        textarea: el.editor,
+        preview: el.preview,
+        gutter: el.gutter,
+        findBar: el.findBar,
+      });
     }
     doc.editor.setValue(doc.content);
+    // Restore the caret + scroll captured when we last switched away.
+    if (doc.editorState) doc.editor.setState(doc.editorState);
   } else {
     el.editMode.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
