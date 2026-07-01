@@ -123,15 +123,6 @@ body {
   width: 12px;
 }
 
-.file-name {
-  font-size: 13px;
-  color: var(--fg-muted);
-  max-width: 240px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* ---------- Main layout ---------- */
 main {
   flex: 1;

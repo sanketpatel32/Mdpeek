@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-01
+
+### Changed
+- **New app icon** — replaced the previous illustration with a clean,
+  simple logo (blue rounded tile + white document + down-arrow) that renders
+  crisply at all sizes, including the 16px taskbar. Eliminates the black jagged
+  edges visible on the old icon at small sizes.
+
+### Removed
+- Dropped the redundant filename label from the right side of the toolbar —
+  the active file's name is already shown in its tab.
+
 ## [0.2.0] - 2026-07-01
 
 ### Added — editor overhaul

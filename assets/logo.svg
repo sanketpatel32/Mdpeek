@@ -1,0 +1,18 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0969da"/>
+      <stop offset="1" stop-color="#0550b8"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded-square app tile -->
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+  <!-- White document card -->
+  <rect x="248" y="232" width="528" height="640" rx="48" fill="#ffffff"/>
+  <!-- Markdown lines: three text rows, the middle one (bold) wider -->
+  <rect x="336" y="336" width="352" height="44" rx="22" fill="#0969da"/>
+  <rect x="336" y="448" width="288" height="44" rx="22" fill="#c8d7e8"/>
+  <rect x="336" y="560" width="320" height="44" rx="22" fill="#c8d7e8"/>
+  <!-- Down-arrow ("peek" / view): a bold chevron pointing into the document -->
+  <path d="M512 696 L640 824 L752 712" stroke="#0969da" stroke-width="56" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

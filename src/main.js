@@ -17,7 +17,7 @@ const ICON_MOON =
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.2.0</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.2.1</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -39,7 +39,6 @@ const el = {
   zoomIn: document.getElementById('btn-zoom-in'),
   zoomOut: document.getElementById('btn-zoom-out'),
   theme: document.getElementById('btn-theme'),
-  fileName: document.getElementById('file-name'),
   tabStrip: document.getElementById('tab-strip'),
   viewMode: document.getElementById('view-mode'),
   editMode: document.getElementById('edit-mode'),
@@ -101,7 +100,6 @@ async function renderActive() {
 
   const doc = store.active();
   renderTabs(store);
-  el.fileName.textContent = doc ? basename(doc.path) : 'No file';
 
   // No doc, or an empty untouched Untitled tab → show the welcome screen
   // (the Open / drag-drop / shortcut hints) instead of a blank page.
@@ -497,7 +495,6 @@ applyZoom();
   // drag-drop / shortcuts — it's a better starting point than a blank page.
   if (store.docs.length === 0) {
     renderTabs(store); // empty tab strip (just the + button)
-    el.fileName.textContent = 'No file';
     el.document.classList.add('has-welcome');
     el.document.innerHTML = WELCOME_HTML;
   } else {
