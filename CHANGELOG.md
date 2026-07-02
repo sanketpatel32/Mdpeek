@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-07-02
+
+### Added
+- **Copy button on code blocks** — hover any fenced code block in the rendered
+  view to reveal a copy button (top-right). One click copies the code to the
+  clipboard with a checkmark confirmation. Works in both view and edit-preview
+  panes.
+
 ## [0.2.1] - 2026-07-01
 
 ### Changed

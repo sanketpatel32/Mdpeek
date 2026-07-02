@@ -118,6 +118,40 @@
   font-size: 13px;
   line-height: 1.55;
   margin: 0 0 1em;
+  position: relative;
+}
+/* Copy button — appears on hover, anchored to the top-right of the code block.
+   Hidden until hover so it doesn't clutter static reading. */
+.copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.markdown-body pre:hover .copy-btn,
+.copy-btn:focus-visible {
+  opacity: 1;
+}
+.copy-btn:hover {
+  color: var(--fg);
+  background: var(--bg);
+}
+.copy-btn.copied {
+  opacity: 1;
+  color: #2da44e;
+  border-color: #2da44e;
 }
 .markdown-body code {
   font-family: "SFMono-Regular", "Cascadia Code", Consolas, "Liberation Mono",

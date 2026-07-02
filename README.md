@@ -27,6 +27,7 @@ Chromium), making it ~95% smaller than Electron-based viewers like MarkText
 ### Rendering
 - **GitHub-flavored Markdown** — headings, tables, task lists, strikethrough
 - **Syntax highlighting** for 190+ languages (highlight.js)
+- **Copy button** on every fenced code block — hover to reveal, one click to copy
 - **Math** via KaTeX — `$inline$` and `$$block$$`
 - **Mermaid diagrams** — flowcharts, sequence diagrams, gantt charts
 - **Sanitized output** (DOMPurify) — safe to open untrusted files

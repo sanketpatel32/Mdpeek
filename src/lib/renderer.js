@@ -48,6 +48,65 @@ export function renderMarkdown(md) {
 
 export async function enhanceDom(container) {
   if (typeof window === 'undefined') return;
+  enhanceCodeBlocks(container);
+  await enhanceMermaid(container);
+}
+
+// Adds a copy button to each <pre> that contains a <code> block. One delegated
+// listener per container — avoids a listener per button (the rendered DOM is
+// rebuilt on every keystroke in edit mode, so per-button listeners would leak).
+export function enhanceCodeBlocks(container) {
+  if (typeof window === 'undefined') return;
+  const pres = container.querySelectorAll('pre');
+  pres.forEach((pre) => {
+    if (pre.querySelector(':scope > code') && !pre.querySelector('.copy-btn')) {
+      const btn = document.createElement('button');
+      btn.className = 'copy-btn';
+      btn.type = 'button';
+      btn.setAttribute('aria-label', 'Copy code');
+      btn.title = 'Copy';
+      btn.innerHTML =
+        '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+      pre.append(btn);
+    }
+  });
+
+  if (!container.__copyHandler) {
+    const handler = async (e) => {
+      const btn = e.target.closest('.copy-btn');
+      if (!btn || !container.contains(btn)) return;
+      const pre = btn.parentElement;
+      const code = pre.querySelector('code');
+      if (!code) return;
+      try {
+        await navigator.clipboard.writeText(code.textContent);
+        flashCopied(btn);
+      } catch {
+        // clipboardwrite may fail in insecure contexts; fall back silently.
+      }
+    };
+    container.addEventListener('click', handler);
+    container.__copyHandler = handler;
+  }
+}
+
+// Briefly swap the button to a checkmark + "Copied" label so the user sees feedback.
+function flashCopied(btn) {
+  const LABEL = 'Copied';
+  if (btn.dataset.copied === '1') return;
+  btn.dataset.copied = '1';
+  btn.classList.add('copied');
+  btn.dataset.original = btn.innerHTML;
+  btn.innerHTML =
+    '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+  setTimeout(() => {
+    btn.innerHTML = btn.dataset.original;
+    btn.classList.remove('copied');
+    delete btn.dataset.copied;
+  }, 1200);
+}
+
+async function enhanceMermaid(container) {
   const nodes = container.querySelectorAll('.mermaid');
   if (nodes.length === 0) return;
   const mermaid = (await import('mermaid')).default;

@@ -111,3 +111,58 @@ describe('enhanceDom', () => {
     expect(node.classList.contains('mermaid-error')).toBe(false);
   });
 });
+
+describe('enhanceDom — copy buttons', () => {
+  it('adds a copy button to each <pre> with a <code> child', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML =
+      '<pre><code class="hljs language-js">const x = 1;</code></pre>' +
+      '<pre><code>plain</code></pre>';
+    await enhanceDom(div);
+    const btns = div.querySelectorAll('.copy-btn');
+    expect(btns).toHaveLength(2);
+    btns.forEach((b) => {
+      expect(b.getAttribute('aria-label')).toBe('Copy code');
+    });
+  });
+
+  it('does not add a button to a <pre> without <code>', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = '<pre>just text, no code tag</pre>';
+    await enhanceDom(div);
+    expect(div.querySelectorAll('.copy-btn')).toHaveLength(0);
+  });
+
+  it('is idempotent — enhancing twice adds no duplicate buttons', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = '<pre><code>x</code></pre>';
+    await enhanceDom(div);
+    await enhanceDom(div);
+    expect(div.querySelectorAll('.copy-btn')).toHaveLength(1);
+  });
+
+  it('copies code text to clipboard on click and flashes "copied"', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    const div = document.createElement('div');
+    document.body.innerHTML = '';
+    document.body.append(div);
+    div.innerHTML = '<pre><code class="hljs language-js">const x = 1;</code></pre>';
+    await enhanceDom(div);
+
+    const btn = div.querySelector('.copy-btn');
+    btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    // clipboard.writeText is called synchronously; the flash is async but the
+    // call itself is immediate.
+    expect(writeText).toHaveBeenCalledWith('const x = 1;');
+  });
+});
