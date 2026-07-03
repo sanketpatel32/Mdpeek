@@ -7,12 +7,6 @@
   </defs>
   <!-- Rounded-square app tile -->
   <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
-  <!-- White document card -->
-  <rect x="248" y="232" width="528" height="640" rx="48" fill="#ffffff"/>
-  <!-- Markdown lines: three text rows, the middle one (bold) wider -->
-  <rect x="336" y="336" width="352" height="44" rx="22" fill="#0969da"/>
-  <rect x="336" y="448" width="288" height="44" rx="22" fill="#c8d7e8"/>
-  <rect x="336" y="560" width="320" height="44" rx="22" fill="#c8d7e8"/>
-  <!-- Down-arrow ("peek" / view): a bold chevron pointing into the document -->
-  <path d="M512 696 L640 824 L752 712" stroke="#0969da" stroke-width="56" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Bold white "M" for Markdown — strong, simple, reads at 16px -->
+  <path d="M232 752 L232 272 L376 272 L512 472 L648 272 L792 272 L792 752 L672 752 L672 448 L552 624 L472 624 L352 448 L352 752 Z" fill="#ffffff"/>
 </svg>

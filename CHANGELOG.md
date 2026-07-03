@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-07-02
+
+### Changed
+- **Redesigned app icon** — replaced the document+arrow design with a bold,
+  unambiguous white "M" (for Markdown) on a blue rounded tile. The simpler
+  shape stays crisp and recognizable at every size, from 16px taskbar to 512px
+  welcome screen.
+- **Icon consistency fix** — the welcome-screen/favicon icon is now generated
+  from the same source as the taskbar and installer icons (previously each was
+  resized independently, causing visible differences).
+- Stopped tracking mobile (`android/`/`ios/`) icon sets that `tauri icon`
+  regenerates — not used by this Windows-only app.
+
 ## [0.2.2] - 2026-07-02
 
 ### Added
