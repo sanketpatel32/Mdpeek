@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-07-02
+
+### Added
+- **`.txt` file support** — plain text files now open the same way as Markdown
+  (double-click → Open With, drag-and-drop, file dialog). Registered as a
+  separate "Plain Text" association (distinct ProgID) so it shows correctly in
+  the Windows Open With menu rather than being labelled "Markdown Document".
+
 ## [0.2.3] - 2026-07-02
 
 ### Changed

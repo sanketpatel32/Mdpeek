@@ -11,6 +11,7 @@ pub struct OpenResult {
 pub async fn open_file() -> Result<OpenResult, String> {
     let file = rfd::AsyncFileDialog::new()
         .add_filter("Markdown", &["md", "markdown", "mdx"])
+        .add_filter("Text", &["txt"])
         .pick_file()
         .await
         .ok_or_else(|| "cancelled".to_string())?;

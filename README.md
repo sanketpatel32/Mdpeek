@@ -52,7 +52,7 @@ Chromium), making it ~95% smaller than Electron-based viewers like MarkText
 
 ### System integration
 - **Installs to** `C:\Program Files\mdpeek\` (like VS Code)
-- **File associations** — `.md`, `.markdown`, `.mdx` appear in Windows "Open with"
+- **File associations** — `.md`, `.markdown`, `.mdx`, `.txt` appear in Windows "Open with"
 - **Auto-update** — checks GitHub for new versions on launch; one-click install
 - **Terminal install** — one PowerShell command, no manual download
 

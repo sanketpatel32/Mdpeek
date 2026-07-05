@@ -17,7 +17,7 @@ const ICON_MOON =
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.2.3</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.2.4</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -404,8 +404,8 @@ window.addEventListener('drop', async (e) => {
   const files = e.dataTransfer?.files;
   if (!files || files.length === 0) return;
   for (const file of Array.from(files)) {
-    if (!/\.(md|markdown|mdx)$/i.test(file.name)) {
-      toast('Not a markdown file: ' + file.name);
+    if (!/\.(md|markdown|mdx|txt)$/i.test(file.name)) {
+      toast('Not a supported file: ' + file.name);
       continue;
     }
     const text = await file.text();
