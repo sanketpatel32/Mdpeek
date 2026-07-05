@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-07-06
+
+### Added
+- **Right-click context menu on tabs** — Close, Close others, Close to the
+  right, Close all. Items that would be no-ops are disabled (e.g. "Close to
+  the right" is greyed out on the rightmost tab). When closing multiple tabs,
+  a single combined confirm covers all unsaved changes instead of one dialog
+  per tab.
+
 ## [0.2.6] - 2026-07-03
 
 ### Added

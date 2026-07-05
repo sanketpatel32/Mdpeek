@@ -566,3 +566,45 @@ main {
   background: var(--surface-hover);
   color: var(--fg);
 }
+
+/* ---------- Tab context menu ---------- */
+/* Rendered at the end of <body> so it overlays everything. Toggled via the
+   .hidden class; positioned via inline left/top set in JS. */
+.ctx-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 168px;
+  padding: 4px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+  user-select: none;
+}
+.ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.ctx-item:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+.ctx-item:disabled {
+  color: var(--fg-muted);
+  cursor: default;
+}
+.ctx-sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border-subtle);
+}

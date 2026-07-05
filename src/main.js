@@ -17,7 +17,7 @@ const ICON_MOON =
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.2.6</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.2.7</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -50,6 +50,7 @@ const el = {
   preview: document.getElementById('preview'),
   toast: document.getElementById('toast'),
   dropzone: document.getElementById('dropzone'),
+  ctxMenu: document.getElementById('ctx-menu'),
 };
 
 // ---------- helpers ----------
@@ -202,6 +203,57 @@ async function closeTab(id) {
   } else if (store.active()) {
     await rewatch(store.active().path);
   }
+}
+
+// Close every doc in `ids`. If any are dirty, show ONE combined confirm
+// (rather than N separate dialogs) listing how many unsaved tabs will close.
+// Returns true if the close went ahead, false if the user cancelled.
+async function closeDocs(ids) {
+  const toClose = ids.filter((id) => store.docs.find((d) => d.id === id));
+  if (toClose.length === 0) return false;
+  const dirtyCount = toClose.filter((id) => {
+    const d = store.docs.find((x) => x.id === id);
+    return d && d.dirty;
+  }).length;
+  if (dirtyCount > 0) {
+    const noun = dirtyCount === 1 ? 'tab has unsaved changes' : 'tabs have unsaved changes';
+    if (!confirm(`${dirtyCount} ${noun}. Close anyway?`)) return false;
+  }
+  // Switch to the target tab first (if it isn't active) so rewatch at the end
+  // targets the right doc; the closing loop handles activeId fallout.
+  for (const id of toClose) {
+    const doc = store.docs.find((d) => d.id === id);
+    if (!doc) continue;
+    if (doc.editor) doc.editor.destroy();
+    if (_lastRenderedId === id) _lastRenderedId = null;
+    store.close(id);
+  }
+  if (store.docs.length === 0) {
+    newTab();
+  } else if (store.active()) {
+    await rewatch(store.active().path);
+  }
+  return true;
+}
+
+// Context-menu actions for a tab.
+async function ctxAction(action, tabId) {
+  const doc = store.docs.find((d) => d.id === tabId);
+  if (!doc) return;
+  const idx = store.docs.findIndex((d) => d.id === tabId);
+  if (action === 'close') {
+    await closeTab(tabId);
+  } else if (action === 'close-others') {
+    await closeDocs(store.docs.filter((d) => d.id !== tabId).map((d) => d.id));
+  } else if (action === 'close-right') {
+    await closeDocs(store.docs.slice(idx + 1).map((d) => d.id));
+  } else if (action === 'close-all') {
+    await closeDocs(store.docs.map((d) => d.id));
+  }
+}
+
+function hideCtxMenu() {
+  el.ctxMenu.classList.add('hidden');
 }
 
 // ---------- file open dialog ----------
@@ -367,6 +419,59 @@ el.tabStrip.addEventListener('mousedown', (e) => {
   const tab = e.target.closest('.tab');
   if (tab) closeTab(tab.dataset.id);
 });
+
+// Right-click → context menu. Only when the cursor is over an actual tab
+// (right-clicking the + button or empty strip area does nothing special).
+el.tabStrip.addEventListener('contextmenu', (e) => {
+  const tab = e.target.closest('.tab');
+  if (!tab) return;
+  e.preventDefault();
+  const id = tab.dataset.id;
+  const idx = store.docs.findIndex((d) => d.id === id);
+  // Disable items that would be no-ops (e.g. "Close others" with only one tab,
+  // "Close to the right" when the tab is already the last one).
+  const onlyTab = store.docs.length === 1;
+  const isLast = idx === store.docs.length - 1;
+  const items = el.ctxMenu.querySelectorAll('.ctx-item');
+  items.forEach((btn) => {
+    const a = btn.dataset.action;
+    btn.disabled = false;
+    if (a === 'close-others' && onlyTab) btn.disabled = true;
+    if (a === 'close-right' && (onlyTab || isLast)) btn.disabled = true;
+    if (a === 'close-all' && onlyTab) btn.disabled = true;
+    btn.dataset.tabId = id;
+  });
+  el.ctxMenu.classList.remove('hidden');
+  // Clamp so the menu never overflows the window edge.
+  const rect = el.ctxMenu.getBoundingClientRect();
+  el.ctxMenu.classList.add('hidden');
+  const x = Math.min(e.clientX, window.innerWidth - rect.width - 4);
+  const y = Math.min(e.clientY, window.innerHeight - rect.height - 4);
+  el.ctxMenu.style.left = x + 'px';
+  el.ctxMenu.style.top = y + 'px';
+  el.ctxMenu.classList.remove('hidden');
+});
+
+// Clicking a menu item runs the action and closes the menu.
+el.ctxMenu.addEventListener('click', (e) => {
+  const btn = e.target.closest('.ctx-item');
+  if (!btn || btn.disabled) return;
+  const { action, tabId } = btn.dataset;
+  hideCtxMenu();
+  ctxAction(action, tabId);
+});
+
+// Dismiss the menu on any outside click, Escape, scroll, or tab switch.
+window.addEventListener('mousedown', (e) => {
+  if (!el.ctxMenu.classList.contains('hidden') && !el.ctxMenu.contains(e.target)) {
+    hideCtxMenu();
+  }
+});
+window.addEventListener('blur', hideCtxMenu);
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') hideCtxMenu();
+});
+el.tabStrip.addEventListener('scroll', hideCtxMenu, { passive: true });
 
 // Editor textarea: mark active doc dirty on input
 el.editor.addEventListener('input', () => {
