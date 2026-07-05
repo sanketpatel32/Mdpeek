@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { showDocument, buildToc } from './views/viewer.js';
 import { initEditor } from './views/editor.js';
 import { renderTabs } from './views/tabs.js';
@@ -17,7 +18,7 @@ const ICON_MOON =
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.2.7</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.2.8</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -393,6 +394,24 @@ el.sidebar.addEventListener('click', toggleSidebar);
 el.zoomIn.addEventListener('click', zoomIn);
 el.zoomOut.addEventListener('click', zoomOut);
 el.theme.addEventListener('click', toggleTheme);
+
+// Link clicks inside rendered markdown: external URLs open in the system
+// browser via the opener plugin (the default would navigate the WebView2
+// itself, leaving the app). In-document #anchor links still scroll normally.
+// Delegated on document so it covers both #document (view mode) and #preview
+// (edit mode) without a per-render listener.
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a');
+  if (!a) return;
+  const href = a.getAttribute('href') || '';
+  // Let in-document anchors use the browser's native scroll-to-element.
+  if (href.startsWith('#')) return;
+  // Route recognized external schemes to the OS handler.
+  if (/^(https?:|mailto:|tel:|sms:)/i.test(href)) {
+    e.preventDefault();
+    openUrl(href).catch((err) => toast('Could not open link: ' + fmtErr(err)));
+  }
+});
 
 // Tab strip: click to switch, click × to close, click + for new
 el.tabStrip.addEventListener('click', async (e) => {

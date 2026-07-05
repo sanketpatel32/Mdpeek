@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-07-06
+
+### Fixed
+- **Links now open in the system browser** — clicking an `http(s)` / `mailto` /
+  `tel` / `sms` link inside rendered markdown used to navigate the app's own
+  WebView, leaving mdpeek showing the linked page instead of the document.
+  External links are now routed through the OS default browser via
+  `tauri-plugin-opener`. In-document `#anchor` links (table-of-contents
+  navigation, footnotes) still scroll within the document as before.
+
 ## [0.2.7] - 2026-07-06
 
 ### Added
