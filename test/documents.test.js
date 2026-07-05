@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DocumentStore, createDocument } from '../src/lib/documents.js';
+import { DocumentStore, createDocument, isPlainPath } from '../src/lib/documents.js';
 
 describe('createDocument', () => {
   it('creates a doc with defaults', () => {
@@ -7,6 +7,7 @@ describe('createDocument', () => {
     expect(d.path).toBe('/a.md');
     expect(d.content).toBe('# hi');
     expect(d.mode).toBe('view');
+    expect(d.plain).toBe(false);
     expect(d.dirty).toBe(false);
     expect(d.scrollY).toBe(0);
     expect(d.editor).toBe(null);
@@ -16,6 +17,33 @@ describe('createDocument', () => {
   it('untitled docs have null path', () => {
     const d = createDocument({ content: '' });
     expect(d.path).toBe(null);
+    expect(d.plain).toBe(false);
+  });
+
+  it('marks .txt docs as plain and opens them in edit mode', () => {
+    const d = createDocument({ path: 'C:\\Users\\me\\notes.txt', content: 'hi' });
+    expect(d.plain).toBe(true);
+    expect(d.mode).toBe('edit');
+  });
+
+  it('case-insensitive .txt detection', () => {
+    expect(createDocument({ path: '/a.TXT' }).plain).toBe(true);
+    expect(createDocument({ path: '/a.Txt' }).plain).toBe(true);
+  });
+
+  it('markdown and mdx docs are not plain', () => {
+    expect(createDocument({ path: '/a.md' }).plain).toBe(false);
+    expect(createDocument({ path: '/a.mdx' }).plain).toBe(false);
+    expect(createDocument({ path: '/a.markdown' }).plain).toBe(false);
+  });
+});
+
+describe('isPlainPath', () => {
+  it('true only for .txt paths', () => {
+    expect(isPlainPath('/a.txt')).toBe(true);
+    expect(isPlainPath('/a.md')).toBe(false);
+    expect(isPlainPath(null)).toBe(false);
+    expect(isPlainPath('')).toBe(false);
   });
 });
 
@@ -174,5 +202,21 @@ describe('DocumentStore', () => {
     expect(() => store.restore(null)).not.toThrow();
     expect(() => store.restore({ docs: 'not-an-array' })).not.toThrow();
     expect(store.docs).toEqual([]);
+  });
+
+  it('restore() re-derives plain flag + edit mode from .txt path', () => {
+    // Simulate a serialized snapshot (plain flag isn't in the serialized form —
+    // it's re-derived from path on restore).
+    store.restore({
+      docs: [
+        { id: 'x', path: '/notes.txt', content: 'plain', mode: 'view', dirty: false, scrollY: 0 },
+        { id: 'y', path: '/readme.md', content: '# md', mode: 'view', dirty: false, scrollY: 0 },
+      ],
+      activeId: 'x',
+    });
+    expect(store.docs[0].plain).toBe(true);
+    expect(store.docs[0].mode).toBe('edit'); // plain forces edit mode even if snapshot said view
+    expect(store.docs[1].plain).toBe(false);
+    expect(store.docs[1].mode).toBe('view');
   });
 });

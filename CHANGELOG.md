@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-07-03
+
+### Added
+- **Notepad-style editing for `.txt` files** — plain-text files now open
+  directly in a full-width editor with no markdown preview pane, no "Source"
+  header, and no view/edit toggle. Markdown features (smart Tab, list
+  continuation, auto-pair, find bar, gutter) still work; only the preview and
+  its affordances are hidden. `Ctrl+E` is a no-op for plain docs.
+
 ## [0.2.5] - 2026-07-02
 
 ### Fixed — stability & cleanup pass

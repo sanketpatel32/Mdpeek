@@ -191,6 +191,17 @@ main {
 .preview-pane {
   border-left: 1px solid var(--border-subtle);
 }
+/* Plain-text (.txt) docs: no preview pane, editor goes full width, and the
+   "Source" header is hidden (it only makes sense when split against Preview). */
+.edit-mode.plain .preview-pane {
+  display: none;
+}
+.edit-mode.plain .editor-pane {
+  width: 100%;
+}
+.edit-mode.plain .editor-pane > .pane-header {
+  display: none;
+}
 .pane-header {
   flex: 0 0 32px;
   display: flex;

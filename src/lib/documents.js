@@ -6,12 +6,21 @@ function newId() {
   return `doc-${Date.now().toString(36)}-${_idCounter}`;
 }
 
+// A doc is "plain" when it's a .txt file — plain-text docs skip the markdown
+// preview entirely and open in a full-width editor (Notepad-style). Anything
+// else (.md / .markdown / .mdx / untitled) is treated as markdown.
+export function isPlainPath(path) {
+  return !!path && /\.txt$/i.test(path);
+}
+
 export function createDocument({ path = null, content = '', mode = 'view' } = {}) {
+  const plain = isPlainPath(path);
   return {
     id: newId(),
     path, // string | null (null = Untitled, not yet saved)
     content,
-    mode, // 'view' | 'edit'
+    mode: plain ? 'edit' : mode, // plain docs always open in edit mode
+    plain, // true = no markdown preview, full-width editor
     dirty: false,
     scrollY: 0,
     editor: null, // lazy-init in main.js when entering edit mode
@@ -113,15 +122,21 @@ export class DocumentStore {
     if (!data || !Array.isArray(data.docs)) return;
     this.docs = data.docs
       .filter((d) => d && typeof d.content === 'string')
-      .map((d) => ({
-        id: typeof d.id === 'string' ? d.id : newId(),
-        path: typeof d.path === 'string' ? d.path : null,
-        content: d.content,
-        mode: d.mode === 'edit' ? 'edit' : 'view',
-        dirty: false, // never restore as dirty — content was just re-read
-        scrollY: Number.isFinite(d.scrollY) ? d.scrollY : 0,
-        editor: null,
-      }));
+      .map((d) => {
+        const path = typeof d.path === 'string' ? d.path : null;
+        const plain = isPlainPath(path);
+        return {
+          id: typeof d.id === 'string' ? d.id : newId(),
+          path,
+          content: d.content,
+          // plain docs are always in edit mode; markdown honors the snapshot.
+          mode: plain ? 'edit' : d.mode === 'edit' ? 'edit' : 'view',
+          plain,
+          dirty: false, // never restore as dirty — content was just re-read
+          scrollY: Number.isFinite(d.scrollY) ? d.scrollY : 0,
+          editor: null,
+        };
+      });
     this.activeId = this.docs.find((d) => d.id === data.activeId)
       ? data.activeId
       : (this.docs[0]?.id || null);

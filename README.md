@@ -34,6 +34,8 @@ Chromium), making it ~95% smaller than Electron-based viewers like MarkText
 
 ### Editing
 - **Live preview** — split-pane editor with debounced re-render (`Ctrl+E`)
+- **Plain-text mode** — `.txt` files open in a full-width editor with no preview
+  (Notepad-style); markdown files keep the split view
 - **Line numbers** — synced gutter on the source pane
 - **Smart editing** — Tab/Shift+Tab indent, list continuation on `Enter`,
   auto-pair brackets/quotes, auto-close code fences

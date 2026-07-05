@@ -17,7 +17,7 @@ const ICON_MOON =
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.2.5</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.2.6</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -122,6 +122,8 @@ async function renderActive() {
   const isEmpty = !doc || (doc.path === null && doc.content === '');
   if (isEmpty) {
     el.editMode.classList.add('hidden');
+    el.editMode.classList.remove('plain');
+    el.mode.classList.remove('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = ''; // clear stale TOC from the previous document
     el.document.classList.add('has-welcome');
@@ -133,6 +135,10 @@ async function renderActive() {
     ? 'Currently editing — click to view (Ctrl+E)'
     : 'Currently viewing — click to edit (Ctrl+E)';
   el.mode.classList.toggle('active', doc.mode === 'edit');
+  // Plain-text docs have no markdown preview — hide the toggle and expand the
+  // editor to full width.
+  el.mode.classList.toggle('hidden', !!doc.plain);
+  el.editMode.classList.toggle('plain', !!doc.plain);
 
   if (doc.mode === 'edit') {
     el.viewMode.classList.add('hidden');
@@ -240,6 +246,7 @@ async function saveActive() {
 function toggleMode() {
   const doc = store.active();
   if (!doc) return;
+  if (doc.plain) return; // plain-text docs have no preview to toggle to
   // Capture content before switching out of edit mode.
   if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
   doc.mode = doc.mode === 'view' ? 'edit' : 'view';
