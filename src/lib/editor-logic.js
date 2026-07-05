@@ -63,11 +63,9 @@ function insertAt(text, at, insert, caret) {
 const LIST_RE = /^(\s*)([-*+]\s+|\d+[.)]\s+)/;
 
 export function handleEnter(text, start, end) {
-  // Always replace any selection with a newline first.
+  // Replace any selection with a plain newline.
   if (start !== end) {
-    return insertAt(text, start, '\n' + text.slice(end).match(/^[^\n]*/)[0], start + 1).text === text
-      ? { text: text.slice(0, start) + '\n' + text.slice(end), start: start + 1, end: start + 1 }
-      : { text: text.slice(0, start) + '\n' + text.slice(end), start: start + 1, end: start + 1 };
+    return { text: text.slice(0, start) + '\n' + text.slice(end), start: start + 1, end: start + 1 };
   }
 
   const [lineStart] = lineRange(text, start);

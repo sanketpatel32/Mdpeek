@@ -19,11 +19,3 @@ export function loadSession() {
     return null; // corrupt JSON — caller treats as no session
   }
 }
-
-export function clearSession() {
-  try {
-    localStorage.removeItem(KEY);
-  } catch {
-    /* ignore */
-  }
-}

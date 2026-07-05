@@ -17,7 +17,7 @@ const ICON_MOON =
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.2.4</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.2.5</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -53,6 +53,17 @@ const el = {
 };
 
 // ---------- helpers ----------
+const TOAST_TIMEOUT_MS = 2500;
+const UPDATE_CHECK_DELAY_MS = 3000; // let the UI settle before the network call
+
+// Normalise thrown values into a readable string — Tauri commands reject with
+// strings, but JS errors and unknown rejections arrive as objects.
+function fmtErr(e) {
+  if (e == null) return 'unknown error';
+  if (typeof e === 'string') return e;
+  return e.message || String(e);
+}
+
 function toast(msg, opts = {}) {
   el.toast.textContent = msg;
   el.toast.classList.remove('hidden');
@@ -63,7 +74,7 @@ function toast(msg, opts = {}) {
     toast._t = setTimeout(() => {
       el.toast.classList.add('hidden');
       el.toast.onclick = null;
-    }, 2500);
+    }, TOAST_TIMEOUT_MS);
   }
 }
 
@@ -91,9 +102,14 @@ async function renderActive() {
   // Sync the outgoing doc's editor content + caret + scroll back into its model.
   if (_lastRenderedId !== null && _lastRenderedId !== store.activeId) {
     const prev = store.docs.find((d) => d.id === _lastRenderedId);
-    if (prev && prev.mode === 'edit' && prev.editor) {
-      prev.content = prev.editor.getValue();
-      prev.editorState = prev.editor.getState();
+    if (prev) {
+      if (prev.mode === 'edit' && prev.editor) {
+        prev.content = prev.editor.getValue();
+        prev.editorState = prev.editor.getState();
+      } else if (prev.mode === 'view') {
+        // Capture the document's scroll so switching back restores it.
+        prev.scrollY = el.document.scrollTop;
+      }
     }
   }
   _lastRenderedId = store.activeId;
@@ -138,6 +154,8 @@ async function renderActive() {
     el.document.classList.remove('has-welcome');
     await showDocument(el.document, doc.content);
     buildToc(el.document);
+    // Restore the document scroll captured when we last switched away.
+    if (doc.scrollY) el.document.scrollTop = doc.scrollY;
   }
 }
 
@@ -186,7 +204,7 @@ async function openFileDialog() {
     const res = await invoke('open_file');
     await openPath(res.path, res.content);
   } catch (e) {
-    if (e !== 'cancelled') toast('Open failed: ' + e);
+    if (e !== 'cancelled') toast('Open failed: ' + fmtErr(e));
   }
 }
 
@@ -205,7 +223,7 @@ async function saveActive() {
       store.clearDirty(doc.id);
       toast('Saved');
     } catch (e) {
-      if (e !== 'cancelled') toast('Save failed: ' + e);
+      if (e !== 'cancelled') toast('Save failed: ' + fmtErr(e));
     }
     return;
   }
@@ -214,7 +232,7 @@ async function saveActive() {
     store.clearDirty(doc.id);
     toast('Saved');
   } catch (e) {
-    toast('Save failed: ' + e);
+    toast('Save failed: ' + fmtErr(e));
   }
 }
 
@@ -288,7 +306,7 @@ async function applyUpdate(update) {
     toast('Update installed — relaunching…');
     await relaunch();
   } catch (e) {
-    toast('Update failed: ' + e);
+    toast('Update failed: ' + fmtErr(e));
   }
 }
 
@@ -304,7 +322,7 @@ async function checkForUpdates(silent = false) {
       toast('You are on the latest version.');
     }
   } catch (e) {
-    if (!silent) toast('Update check failed: ' + e);
+    if (!silent) toast('Update check failed: ' + fmtErr(e));
   }
 }
 
@@ -415,22 +433,26 @@ window.addEventListener('drop', async (e) => {
 });
 
 // ---------- live reload (file changed on disk) — update active doc ----------
+// listen() returns a promise; if registration fails we log instead of letting
+// it reject silently at startup.
 listen('file-changed', (event) => {
   const doc = store.active();
   if (!doc || !doc.path) return;
   doc.content = event.payload;
   if (doc.mode === 'view') {
-    showDocument(el.document, event.payload).then(() => buildToc(el.document));
+    showDocument(el.document, event.payload)
+      .then(() => buildToc(el.document))
+      .catch((e) => toast('Reload failed: ' + fmtErr(e)));
   } else if (doc.editor) {
     doc.editor.setValue(event.payload);
   }
-});
+}).catch((e) => console.error('file-changed listener failed:', e));
 
 // Opened via external double-click (cold start: get_initial_file; hot: open-file event)
 listen('open-file', (event) => {
   const { path, content } = event.payload;
-  openPath(path, content);
-});
+  openPath(path, content).catch((e) => toast('Open failed: ' + fmtErr(e)));
+}).catch((e) => console.error('open-file listener failed:', e));
 
 // ---------- init ----------
 const savedTheme = localStorage.getItem('mdpeek-theme');
@@ -503,5 +525,7 @@ applyZoom();
   }
 })();
 
-// Check for updates in the background 3s after launch (silent: no toast if up-to-date).
-setTimeout(() => checkForUpdates(true), 3000);
+// Check for updates in the background a few seconds after launch (silent: no
+// toast if up-to-date). Delayed so the network call doesn't contend with
+// initial render + session restore.
+setTimeout(() => checkForUpdates(true), UPDATE_CHECK_DELAY_MS);

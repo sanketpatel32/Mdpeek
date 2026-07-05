@@ -55,7 +55,7 @@ export async function enhanceDom(container) {
 // Adds a copy button to each <pre> that contains a <code> block. One delegated
 // listener per container — avoids a listener per button (the rendered DOM is
 // rebuilt on every keystroke in edit mode, so per-button listeners would leak).
-export function enhanceCodeBlocks(container) {
+function enhanceCodeBlocks(container) {
   if (typeof window === 'undefined') return;
   const pres = container.querySelectorAll('pre');
   pres.forEach((pre) => {
@@ -90,9 +90,9 @@ export function enhanceCodeBlocks(container) {
   }
 }
 
-// Briefly swap the button to a checkmark + "Copied" label so the user sees feedback.
+// Briefly swap the button to a checkmark so the user sees feedback.
+const COPY_FLASH_MS = 1200;
 function flashCopied(btn) {
-  const LABEL = 'Copied';
   if (btn.dataset.copied === '1') return;
   btn.dataset.copied = '1';
   btn.classList.add('copied');
@@ -103,8 +103,12 @@ function flashCopied(btn) {
     btn.innerHTML = btn.dataset.original;
     btn.classList.remove('copied');
     delete btn.dataset.copied;
-  }, 1200);
+  }, COPY_FLASH_MS);
 }
+
+// Monotonic counter for mermaid render IDs — Math.random() can collide across
+// concurrent re-renders in edit mode, producing duplicate SVG IDs.
+let _mmdSeq = 0;
 
 async function enhanceMermaid(container) {
   const nodes = container.querySelectorAll('.mermaid');
@@ -116,11 +120,14 @@ async function enhanceMermaid(container) {
   });
   for (const node of nodes) {
     const code = node.textContent;
-    const id = 'mmd-' + Math.random().toString(36).slice(2, 9);
+    const id = 'mmd-' + (++_mmdSeq);
     try {
       const { svg } = await mermaid.render(id, code);
       node.innerHTML = svg;
     } catch {
+      // Clear any partial/error SVG mermaid may have inserted, then mark the
+      // node so CSS can show a friendly placeholder.
+      node.innerHTML = '';
       node.classList.add('mermaid-error');
       node.setAttribute('data-source', code);
     }

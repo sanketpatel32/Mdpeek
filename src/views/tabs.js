@@ -17,7 +17,7 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
-// Small "MD" file-type badge for saved files; a pencil dot for untitled.
+// Small "MD" file-type badge for saved files; no badge for untitled tabs.
 function iconFor(doc) {
   if (doc.path) {
     return '<span class="tab-icon">M&#8203;D</span>';

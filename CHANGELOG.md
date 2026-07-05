@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-07-02
+
+### Fixed — stability & cleanup pass
+- **View-mode scroll now restores on tab switch** — `scrollY` was persisted and
+  restored but never actually applied; switching away from a doc and back used
+  to lose your reading position.
+- **Unhandled promise rejections** in the `file-changed` and `open-file`
+  listeners are now caught and surfaced as toasts instead of failing silently.
+- **Mermaid render IDs** switched from `Math.random()` to a monotonic counter,
+  preventing duplicate SVG IDs during rapid re-renders in edit mode.
+- **Mermaid error nodes** now clear any partial SVG before showing the error
+  placeholder, preventing DOM accumulation across re-renders.
+- **Release script** (`make-release.js`) rewritten so any failure exits
+  non-zero — previously a thrown error inside the dynamic import left the script
+  reporting success with no updater manifest uploaded.
+
+### Removed — dead code
+- Collapsed a confused dead branch in `handleEnter` (both ternary arms were
+  identical) to a single clear line.
+- Removed unused `clearSession` export from `persistence.js`.
+- Un-exported internal `enhanceCodeBlocks` helper from `renderer.js`.
+- Normalized error messages via a `fmtErr()` helper (handles JS Errors, strings,
+  and unknown rejections consistently).
+
 ## [0.2.4] - 2026-07-02
 
 ### Added
