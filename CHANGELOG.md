@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-07-06
+
+### Changed — startup performance
+- **61% smaller entry bundle** — switched from the full `highlight.js` build
+  (190+ languages, ~1MB) to the curated "common" subset (~36 languages, ~300KB).
+  Covers js, ts, python, rust, go, java, c, cpp, c#, bash, json, yaml, sql, html,
+  css, markdown, and more — unknown languages still fall back to plaintext
+  gracefully. Entry chunk: 1,271 KB → 498 KB (413 KB → 161 KB gzipped).
+- **Parallel session restore** — when reopening the app with multiple tabs,
+  file contents are now read from disk concurrently instead of one at a time.
+  Restoring N tabs is now a single round-trip's wait, not N.
+
 ## [0.2.8] - 2026-07-06
 
 ### Fixed

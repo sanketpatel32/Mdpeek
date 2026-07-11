@@ -18,7 +18,7 @@ const ICON_MOON =
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.2.8</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.2.9</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -603,30 +603,32 @@ if (savedZoom >= ZOOM_MIN && savedZoom <= ZOOM_MAX) {
 applyZoom();
 
 (async () => {
-  // Restore session, re-reading file contents from disk.
+  // Restore session, re-reading file contents from disk in PARALLEL (was
+  // sequential — N tabs meant N round-trip waits before the UI rendered).
   const session = loadSession();
   if (session && Array.isArray(session.docs) && session.docs.length > 0) {
-    const restored = [];
-    for (const s of session.docs) {
+    const candidates = session.docs.filter((s) => {
       // Skip blank untouched Untitled tabs — restoring an empty tab would hide
       // the welcome screen for no benefit.
       if (s.path === null && (s.content === '' || s.content == null) && !s.dirty) {
-        continue;
+        return false;
       }
-      if (s.path) {
+      return true;
+    });
+    // Read all on-disk files concurrently; untitled tabs pass through as-is.
+    const restored = await Promise.all(
+      candidates.map(async (s) => {
+        if (!s.path) return s; // untitled — content was persisted directly
         try {
           const content = await invoke('read_file', { path: s.path });
-          restored.push({ ...s, content });
+          return { ...s, content };
         } catch {
           // File missing since last session — keep last-known content so the
           // user can save-as. Mark path so the tab still shows its name.
-          restored.push(s);
+          return s;
         }
-      } else {
-        // Untitled tab with real content — content was persisted directly.
-        restored.push(s);
-      }
-    }
+      }),
+    );
     if (restored.length > 0) {
       store.restore({ docs: restored, activeId: session.activeId });
     }

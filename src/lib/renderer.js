@@ -1,6 +1,11 @@
 import { Marked } from 'marked';
 import DOMPurify from 'dompurify';
-import hljs from 'highlight.js';
+// Import the curated "common" subset (~36 languages: js, ts, python, rust, go,
+// bash, json, yaml, sql, html, css, etc.) instead of the full 190+ language
+// build. This cuts the entry chunk by ~700KB without affecting the vast
+// majority of real-world docs. Unknown languages gracefully fall back to
+// plaintext (handled below).
+import hljs from 'highlight.js/lib/common';
 import markedKatex from 'marked-katex-extension';
 
 function escapeHtml(s) {
