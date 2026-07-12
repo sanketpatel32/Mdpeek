@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-06
+
+### Changed — UI refinement pass (impeccable)
+- **Blockquotes redesigned** — removed the colored side-stripe border (a banned
+  pattern) in favor of a full border + neutral surface tint. Reads as a calmer,
+  more integrated callout.
+- **Tinted neutrals** — the light theme no longer uses clinical pure `#ffffff`
+  for the page background. Neutrals are tinted ~0.5% toward the blue accent,
+  giving surfaces subtle warmth without being perceptibly "blue." Shadow colors
+  also shifted off pure black.
+- **Motion curves** — all transitions and the toast animation now use an
+  ease-out-quart cubic-bezier instead of generic `ease`, per the motion law.
+  State changes decelerate naturally.
+- **Keyboard focus on tabs** — tabs now show a visible focus ring on keyboard
+  navigation (previously only mouse hover/active states existed).
+
+### Fixed
+- Removed em dashes from user-facing copy (tooltips, toasts) per copy rules.
+
 ## [0.2.9] - 2026-07-06
 
 ### Changed — startup performance

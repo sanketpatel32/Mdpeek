@@ -18,7 +18,7 @@ const ICON_MOON =
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.2.9</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.3.0</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -134,8 +134,8 @@ async function renderActive() {
   }
 
   el.mode.title = doc.mode === 'edit'
-    ? 'Currently editing — click to view (Ctrl+E)'
-    : 'Currently viewing — click to edit (Ctrl+E)';
+    ? 'Editing. Click to view (Ctrl+E)'
+    : 'Viewing. Click to edit (Ctrl+E)';
   el.mode.classList.toggle('active', doc.mode === 'edit');
   // Plain-text docs have no markdown preview — hide the toggle and expand the
   // editor to full width.
@@ -363,7 +363,7 @@ async function applyUpdate(update) {
   toast('Downloading update…');
   try {
     await update.downloadAndInstall();
-    toast('Update installed — relaunching…');
+    toast('Update installed. Relaunching…');
     await relaunch();
   } catch (e) {
     toast('Update failed: ' + fmtErr(e));
@@ -374,7 +374,7 @@ async function checkForUpdates(silent = false) {
   try {
     const update = await check();
     if (update) {
-      toast(`Update available — v${update.version}. Click to install.`, {
+      toast(`Update available: v${update.version}. Click to install.`, {
         persistent: true,
         onClick: () => applyUpdate(update),
       });

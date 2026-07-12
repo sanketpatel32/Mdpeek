@@ -1,19 +1,22 @@
-/* Design tokens — Light (default) */
+/* Design tokens — Light (default)
+   Neutrals tinted slightly toward the blue accent (chroma ~0.005–0.01) per the
+   design law: never use pure #fff or #000. The tint is barely perceptible but
+   gives the surface warmth instead of clinical flatness. */
 :root {
   /* surfaces */
-  --bg: #ffffff;
+  --bg: #fbfcfd;
   --bg-elevated: #ffffff;
-  --surface: #f7f8fa;
-  --surface-hover: #eef0f3;
-  --surface-active: #e4e7eb;
+  --surface: #f5f7fa;
+  --surface-hover: #ebeef3;
+  --surface-active: #e0e4eb;
 
   /* text */
-  --fg: #1f2328;
+  --fg: #1c2128;
   --fg-secondary: #57606a;
   --fg-muted: #8b949e;
 
   /* lines */
-  --border: #d8dee4;
+  --border: #d5dbe3;
   --border-subtle: #e8ebef;
 
   /* accents */
@@ -23,13 +26,13 @@
   --danger: #cf222e;
 
   /* code */
-  --code-bg: #f6f8fa;
-  --code-border: #e1e4e8;
+  --code-bg: #f4f6f9;
+  --code-border: #dfe3e9;
 
-  /* effects */
-  --shadow-sm: 0 1px 2px rgba(31, 35, 40, 0.06);
-  --shadow-md: 0 3px 8px rgba(31, 35, 40, 0.08);
-  --shadow-lg: 0 8px 24px rgba(31, 35, 40, 0.12);
+  /* effects — tinted shadow, not pure black */
+  --shadow-sm: 0 1px 2px rgba(28, 33, 40, 0.07);
+  --shadow-md: 0 3px 8px rgba(28, 33, 40, 0.09);
+  --shadow-lg: 0 8px 24px rgba(28, 33, 40, 0.13);
 
   /* shape */
   --radius-sm: 4px;
@@ -37,7 +40,8 @@
   --radius-lg: 10px;
 
   --header-h: 52px;
-  --transition: 150ms ease;
+  /* ease-out-quart: decelerating curve for natural state transitions */
+  --transition: 150ms cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 /* Design tokens — Dark */

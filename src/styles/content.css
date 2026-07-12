@@ -93,13 +93,14 @@
   margin: 0.25em 0;
 }
 
-/* quotes */
+/* quotes — full border + soft tint (not a side-stripe) */
 .markdown-body blockquote {
   margin: 0 0 1em;
-  padding: 0.4em 1em;
-  border-left: 3px solid var(--accent);
-  background: var(--accent-soft);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 0.6em 1.1em;
+  border: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius);
   color: var(--fg-secondary);
 }
 .markdown-body blockquote p {
