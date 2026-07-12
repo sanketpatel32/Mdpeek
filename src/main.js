@@ -18,7 +18,7 @@ const ICON_MOON =
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.3.1</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.3.2</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -108,6 +108,12 @@ async function renderActive() {
       if (prev.mode === 'edit' && prev.editor) {
         prev.content = prev.editor.getValue();
         prev.editorState = prev.editor.getState();
+        // CRITICAL: destroy the outgoing editor's listeners. The <textarea> is
+        // shared across all tabs; without this, switching between edit-mode
+        // tabs stacks N keydown/input handlers on it, and every editor action
+        // (Tab, Enter, auto-pair, Ctrl+B) applies N times, corrupting content.
+        prev.editor.destroy();
+        prev.editor = null;
       } else if (prev.mode === 'view') {
         // Capture the document's scroll so switching back restores it.
         prev.scrollY = el.document.scrollTop;
@@ -175,6 +181,16 @@ store.on('change', () => {
   renderActive();
   persist();
 });
+
+// Debounced persist on every editor keystroke. Without this, the session only
+// saved on the FIRST edit per tab (markDirty emits 'change' once, when dirty
+// flips false→true). Now content is re-serialized ~1s after typing stops, so a
+// crash/power-loss doesn't lose everything after the first character.
+let _persistTimer = null;
+function persistSoon() {
+  clearTimeout(_persistTimer);
+  _persistTimer = setTimeout(persist, 1000);
+}
 
 // ---------- open / new / close ----------
 async function openPath(path, content) {
@@ -492,10 +508,11 @@ window.addEventListener('keydown', (e) => {
 });
 el.tabStrip.addEventListener('scroll', hideCtxMenu, { passive: true });
 
-// Editor textarea: mark active doc dirty on input
+// Editor textarea: mark active doc dirty on input + debounced re-persist.
 el.editor.addEventListener('input', () => {
   const doc = store.active();
   if (doc) store.markDirty(doc.id);
+  persistSoon();
 });
 
 // Keyboard shortcuts

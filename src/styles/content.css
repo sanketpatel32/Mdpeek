@@ -114,7 +114,6 @@
   margin: 0 0 1em;
   padding: 0.6em 1.1em;
   border: 1px solid var(--border);
-  border-left: 1px solid var(--border);
   background: var(--surface);
   border-radius: var(--radius);
   color: var(--fg-secondary);

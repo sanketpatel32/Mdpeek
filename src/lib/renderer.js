@@ -51,10 +51,14 @@ export function renderMarkdown(md) {
   return DOMPurify.sanitize(raw);
 }
 
-export async function enhanceDom(container) {
+// Enhance rendered DOM: copy buttons on code blocks + mermaid diagrams.
+// Options:
+//   { mermaid: false } — skip mermaid rendering (expensive; used for the
+//   edit-mode live preview where diagrams would re-layout on every keystroke).
+export async function enhanceDom(container, { mermaid: renderMermaid = true } = {}) {
   if (typeof window === 'undefined') return;
   enhanceCodeBlocks(container);
-  await enhanceMermaid(container);
+  if (renderMermaid) await enhanceMermaid(container);
 }
 
 // Adds a copy button to each <pre> that contains a <code> block. One delegated

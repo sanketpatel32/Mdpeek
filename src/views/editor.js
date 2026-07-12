@@ -23,9 +23,12 @@ export function initEditor({ textarea, preview, gutter = null, findBar = null, d
   const listeners = []; // [target, type, fn] — cleaned up in destroy()
 
   // ----- live preview (debounced) -----
+  // Skip mermaid rendering here: it's expensive (layout engine) and the
+  // edit-mode preview re-renders on every keystroke. Diagrams render fully
+  // when the doc is viewed in view mode.
   async function refresh() {
     preview.innerHTML = renderMarkdown(textarea.value);
-    await enhanceDom(preview);
+    await enhanceDom(preview, { mermaid: false });
   }
   function schedule() {
     clearTimeout(timer);

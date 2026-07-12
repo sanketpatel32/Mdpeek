@@ -192,7 +192,7 @@ export function findMatches(text, query, caseSensitive = false) {
   const needle = caseSensitive ? query : query.toLowerCase();
   const out = [];
   let i = 0;
-  while (i <= hay.length) {
+  while (i < hay.length) {
     const idx = hay.indexOf(needle, i);
     if (idx === -1) break;
     out.push({ start: idx, end: idx + needle.length });

@@ -1,43 +1,44 @@
 /* Design tokens — Light (default)
    Neutrals tinted slightly toward the blue accent (chroma ~0.005–0.01) per the
    design law: never use pure #fff or #000. The tint is barely perceptible but
-   gives the surface warmth instead of clinical flatness. */
+   gives the surface warmth instead of clinical flatness.
+   macOS premium feel: softer surfaces, layered shadows, taller header. */
 :root {
-  /* surfaces */
-  --bg: #fbfcfd;
+  /* surfaces — warm-tinted neutrals, not clinical white */
+  --bg: #f9f9fb;
   --bg-elevated: #ffffff;
-  --surface: #f5f7fa;
-  --surface-hover: #ebeef3;
-  --surface-active: #e0e4eb;
+  --surface: #f2f3f7;
+  --surface-hover: #e9ebf1;
+  --surface-active: #dfe2ea;
 
   /* text */
-  --fg: #1c2128;
-  --fg-secondary: #57606a;
-  --fg-muted: #8b949e;
+  --fg: #1d1d1f;
+  --fg-secondary: #515154;
+  --fg-muted: #86868b;
 
-  /* lines */
-  --border: #d5dbe3;
-  --border-subtle: #e8ebef;
+  /* lines — softer, more natural */
+  --border: #d2d4dc;
+  --border-subtle: #e5e6ec;
 
-  /* accents */
-  --accent: #0969da;
-  --accent-hover: #0860c0;
-  --accent-soft: rgba(9, 105, 218, 0.08);
-  --danger: #cf222e;
+  /* accents — macOS system blue */
+  --accent: #0071e3;
+  --accent-hover: #0060c0;
+  --accent-soft: rgba(0, 113, 227, 0.09);
+  --danger: #ff3b30;
 
   /* code */
-  --code-bg: #f4f6f9;
-  --code-border: #dfe3e9;
+  --code-bg: #f2f3f7;
+  --code-border: #e5e6ec;
 
-  /* effects — tinted shadow, not pure black */
-  --shadow-sm: 0 1px 2px rgba(28, 33, 40, 0.07);
-  --shadow-md: 0 3px 8px rgba(28, 33, 40, 0.09);
-  --shadow-lg: 0 8px 24px rgba(28, 33, 40, 0.13);
+  /* effects — macOS-style layered, soft shadows */
+  --shadow-sm: 0 1px 3px rgba(29, 29, 31, 0.05), 0 1px 2px rgba(29, 29, 31, 0.03);
+  --shadow-md: 0 4px 12px rgba(29, 29, 31, 0.08), 0 1px 3px rgba(29, 29, 31, 0.04);
+  --shadow-lg: 0 12px 32px rgba(29, 29, 31, 0.12), 0 4px 12px rgba(29, 29, 31, 0.06);
 
-  /* shape */
-  --radius-sm: 4px;
-  --radius: 6px;
-  --radius-lg: 10px;
+  /* shape — larger radii for friendlier corners */
+  --radius-sm: 5px;
+  --radius: 8px;
+  --radius-lg: 12px;
 
   --header-h: 52px;
   /* ease-out-quart: decelerating curve for natural state transitions */
@@ -46,40 +47,55 @@
   --ease: cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-/* Design tokens — Dark */
+/* Design tokens — Dark
+   macOS dark-mode inspired: true neutrals, elevated surfaces, soft borders. */
 :root[data-theme="dark"] {
-  --bg: #0d1117;
-  --bg-elevated: #161b22;
-  --surface: #161b22;
-  --surface-hover: #20262e;
-  --surface-active: #2a313a;
+  --bg: #1c1c1e;
+  --bg-elevated: #2c2c2e;
+  --surface: #2c2c2e;
+  --surface-hover: #3a3a3c;
+  --surface-active: #48484a;
 
-  --fg: #e6edf3;
-  --fg-secondary: #9198a1;
-  --fg-muted: #6e7681;
+  --fg: #f5f5f7;
+  --fg-secondary: #aeaeb2;
+  --fg-muted: #636366;
 
-  --border: #30363d;
-  --border-subtle: #21262d;
+  --border: #3a3a3c;
+  --border-subtle: #2c2c2e;
 
-  --accent: #4493f8;
-  --accent-hover: #5da3ff;
-  --accent-soft: rgba(68, 147, 248, 0.12);
-  --danger: #f85149;
+  --accent: #0a84ff;
+  --accent-hover: #409cff;
+  --accent-soft: rgba(10, 132, 255, 0.15);
+  --danger: #ff453a;
 
-  --code-bg: #161b22;
-  --code-border: #30363d;
+  --code-bg: #2c2c2e;
+  --code-border: #3a3a3c;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 3px 8px rgba(0, 0, 0, 0.35);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
 }
 
-/* Smooth theme switch */
+/* Smooth theme switch — scoped to UI chrome only (NOT markdown content,
+   which is re-rendered on every keystroke in edit mode and would flicker
+   as fresh elements animate their color/background from initial values). */
 html {
   background: var(--bg);
 }
-html,
-body * {
+.app-header,
+.toolbar,
+.tool-btn,
+.tab,
+.tab-close,
+.tab-new,
+.pane-header,
+.toc,
+.toast,
+.ctx-menu,
+.ctx-item,
+.dropzone-inner,
+.welcome,
+.find-bar {
   transition: background-color var(--transition), border-color var(--transition),
     color var(--transition);
 }

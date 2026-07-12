@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-07-13
+
+### Fixed — critical bugs (from code-quality audit)
+- **Multi-tab editor corruption** — switching between edit-mode tabs stacked
+  duplicate keydown/input listeners on the shared `<textarea>`. Every editor
+  action (Tab, Enter, auto-pair, Ctrl+B) applied N times, corrupting content.
+  The outgoing tab's editor instance is now destroyed on switch.
+- **Session data loss** — the session only persisted on the FIRST edit per tab
+  (markDirty emitted 'change' once). A crash after typing a paragraph lost
+  everything but the first character. Now re-persists 1s after typing stops.
+- **Edit-mode typing lag** — mermaid diagrams (expensive layout engine) were
+  re-rendering on every keystroke in the live preview. Now skipped in edit
+  mode; diagrams render fully in view mode.
+- **Dropzone blur broken on WebKit** — added missing `-webkit-backdrop-filter`.
+- **Re-render flicker** — the global `body *` color transition was animating
+  freshly rendered markdown elements on every keystroke. Scoped to UI chrome.
+
+### Changed — macOS premium design
+- **Refined color palette** — warmer neutrals (Apple-style `#1d1d1f` text,
+  `#f9f9fb` surface), macOS system blue (`#0071e3`), softer borders.
+- **Dark mode overhaul** — true macOS dark-mode neutrals (`#1c1c1e` bg,
+  `#2c2c2e` elevated), brighter accent (`#0a84ff`).
+- **Softer shadows** — two-layer macOS-style shadows (ambient + key) replace
+  the flat single-layer ones.
+- **Larger radii** — 8px default (was 6px), 12px large (was 10px), 5px small
+  (was 4px) for friendlier, more polished corners.
+- **Header** — hairline border replaces heavy box-shadow for a cleaner top bar.
+- **Welcome screen** — larger 84px logo with deeper shadow, tighter heading
+  letter-spacing (-0.02em).
+- **Active tabs** — subtle shadow + softer border for a floating-card feel.
+
 ## [0.3.1] - 2026-07-06
 
 ### Added — smooth animations throughout
