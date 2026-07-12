@@ -10,6 +10,22 @@
   color: var(--fg);
   font-size: 15px;
 }
+/* When a document is rendered in the view pane, its top-level children fade
+   + rise in subtly. Scoped to #document (view mode) only, NOT #preview, so the
+   debounced edit-mode re-render doesn't flicker on every keystroke. */
+#document.markdown-body:not(.has-welcome) > * {
+  animation: content-in 280ms cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+@keyframes content-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 @media (max-width: 900px) {
   .markdown-body {
     padding-left: 24px;
@@ -139,11 +155,14 @@
   color: var(--fg-muted);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
+  transform: scale(0.85);
+  transition: opacity 150ms var(--ease, ease), transform 150ms var(--ease, ease),
+    color 120ms ease, background 120ms ease, border-color 120ms ease;
 }
 .markdown-body pre:hover .copy-btn,
 .copy-btn:focus-visible {
   opacity: 1;
+  transform: scale(1);
 }
 .copy-btn:hover {
   color: var(--fg);
@@ -151,6 +170,7 @@
 }
 .copy-btn.copied {
   opacity: 1;
+  transform: scale(1);
   color: #2da44e;
   border-color: #2da44e;
 }

@@ -42,6 +42,8 @@
   --header-h: 52px;
   /* ease-out-quart: decelerating curve for natural state transitions */
   --transition: 150ms cubic-bezier(0.25, 1, 0.5, 1);
+  /* Shared easing token for UI animations (tabs, buttons, sidebar). */
+  --ease: cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 /* Design tokens — Dark */

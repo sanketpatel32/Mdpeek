@@ -87,12 +87,18 @@ body {
   font-size: 13px;
   cursor: pointer;
   white-space: nowrap;
+  transition: background-color 150ms var(--ease), color 150ms var(--ease),
+    transform 100ms var(--ease);
 }
 .tool-btn:hover {
   background: var(--surface-hover);
   color: var(--fg);
 }
-.tool-btn:active,
+.tool-btn:active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  transform: scale(0.94);
+}
 .tool-btn.active {
   background: var(--accent-soft);
   color: var(--accent);
@@ -143,10 +149,19 @@ main {
   overflow: auto;
   font-size: 13px;
   background: var(--surface);
+  transition: width 220ms var(--ease), min-width 220ms var(--ease),
+    flex-basis 220ms var(--ease), padding 220ms var(--ease), opacity 180ms var(--ease);
 }
-/* Collapsed sidebar: completely hidden, document takes full width. */
+/* Collapsed sidebar: slides away smoothly, document expands to full width. */
 .toc.collapsed {
-  display: none;
+  width: 0;
+  min-width: 0;
+  flex: 0 0 0;
+  padding-left: 0;
+  padding-right: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 .toc ul {
   list-style: none;
@@ -344,25 +359,24 @@ main {
   position: fixed;
   bottom: 24px;
   left: 50%;
-  transform: translateX(-50%) translateY(0);
   background: var(--bg-elevated);
   color: var(--fg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 10px 18px;
   font-size: 13px;
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg);
   z-index: 60;
-  animation: toast-in 200ms cubic-bezier(0.25, 1, 0.5, 1);
+  animation: toast-in 360ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(8px);
+    transform: translateX(-50%) translateY(16px) scale(0.96);
   }
   to {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
+    transform: translateX(-50%) translateY(0) scale(1);
   }
 }
 
@@ -398,18 +412,39 @@ main {
   text-align: center;
   color: var(--fg-secondary);
 }
+.welcome > * {
+  animation: welcome-fade-up 500ms cubic-bezier(0.25, 1, 0.5, 1) both;
+}
 .welcome-logo {
   width: 72px;
   height: 72px;
   border-radius: var(--radius-lg);
   margin-bottom: 20px;
   box-shadow: var(--shadow-md);
+  animation-delay: 0ms;
 }
 .welcome h1 {
   font-size: 24px;
   font-weight: 600;
   color: var(--fg);
   margin: 0 0 8px;
+  animation-delay: 80ms;
+}
+.welcome p {
+  animation-delay: 160ms;
+}
+.welcome-hints {
+  animation-delay: 240ms;
+}
+@keyframes welcome-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .version-badge {
   display: inline-block;
@@ -496,16 +531,22 @@ main {
   -webkit-user-select: none;
   user-select: none;
   flex-shrink: 0;
+  transition: background-color 180ms var(--ease), color 180ms var(--ease),
+    border-color 180ms var(--ease), transform 180ms var(--ease);
 }
 .tab:hover {
   background: var(--surface-hover);
   color: var(--fg);
+  transform: translateY(-1px);
 }
 .tab.active {
   background: var(--surface);
   color: var(--fg);
   border-color: var(--border);
   font-weight: 500;
+}
+.tab.active:hover {
+  transform: none;
 }
 .tab:focus-visible {
   outline: 2px solid var(--accent);
@@ -545,15 +586,20 @@ main {
   font-size: 15px;
   line-height: 1;
   color: var(--fg-muted);
-  opacity: 0.6;
+  opacity: 0;
+  transform: scale(0.7);
+  transition: opacity 150ms var(--ease), transform 150ms var(--ease),
+    background-color 120ms var(--ease), color 120ms var(--ease);
 }
 .tab:hover .tab-close,
 .tab.active .tab-close {
   opacity: 1;
+  transform: scale(1);
 }
 .tab-close:hover {
   background: var(--surface-active);
   color: var(--danger);
+  transform: scale(1.12);
 }
 .tab-new {
   background: transparent;
@@ -565,10 +611,16 @@ main {
   border-radius: var(--radius-sm);
   cursor: pointer;
   margin-left: 4px;
+  transition: background-color 150ms var(--ease), color 150ms var(--ease),
+    transform 150ms var(--ease);
 }
 .tab-new:hover {
   background: var(--surface-hover);
   color: var(--fg);
+  transform: scale(1.1);
+}
+.tab-new:active {
+  transform: scale(0.92);
 }
 
 /* ---------- Tab context menu ---------- */
@@ -585,6 +637,18 @@ main {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
   font-size: 13px;
   user-select: none;
+  transform-origin: top left;
+  animation: ctx-in 140ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+@keyframes ctx-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 .ctx-item {
   display: flex;
@@ -599,6 +663,7 @@ main {
   text-align: left;
   border-radius: var(--radius-sm);
   cursor: pointer;
+  transition: background-color 100ms var(--ease), color 100ms var(--ease);
 }
 .ctx-item:hover:not(:disabled) {
   background: var(--accent-soft);

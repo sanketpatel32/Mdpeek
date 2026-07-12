@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-06
+
+### Added — smooth animations throughout
+- **Welcome screen** staggered entrance: logo, title, description, and hints
+  cascade in with a fade-up over ~500ms.
+- **Document content** fades + rises in subtly when you switch tabs or open a
+  file (view mode only; the edit-mode live preview doesn't flicker).
+- **Sidebar** now slides away smoothly instead of snapping (width + opacity
+  transition replaces the old `display: none` toggle).
+- **Toast** springs in with a subtle overshoot (back-out easing) for a more
+  tactile feel.
+- **Context menu** scales in from the click point.
+- **Copy button** on code blocks scales in on hover instead of a bare fade.
+
+### Changed — micro-interactions
+- **Tabs** lift 1px on hover; active tabs stay grounded.
+- **Toolbar buttons** depress (scale 0.94) on click.
+- **Close buttons** scale from 0.7 → 1 on hover, with a bump to 1.12 on hover.
+- **New-tab (+) button** scales up on hover, down on press.
+- Shared `--ease` token (ease-out-quart) added for consistent motion curves.
+
 ## [0.3.0] - 2026-07-06
 
 ### Changed — UI refinement pass (impeccable)
