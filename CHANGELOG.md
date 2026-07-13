@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-07-13
+
+### Fixed
+- **Zoom shortcuts now match reliably** — Ctrl+= / Ctrl+- / Ctrl+0 were checking
+  the raw `e.key` instead of the normalized lowercase value, causing them to
+  miss on some keyboard layouts. Now uses the same normalized key as the other
+  shortcuts, and also handles `_` (Shift+-) as a zoom-out trigger.
+- **Edit button works on untitled tabs** — clicking Edit on a fresh Untitled
+  tab used to do nothing (the welcome-screen check blocked it). Now it opens
+  the editor so you can start writing immediately. The welcome screen only
+  shows for view mode; edit mode always shows the editor.
+
 ## [0.3.3] - 2026-07-13
 
 ### Added

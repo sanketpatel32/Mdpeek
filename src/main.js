@@ -19,7 +19,7 @@ const ICON_MOON =
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.3.3</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.3.4</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -127,9 +127,10 @@ async function renderActive() {
   const doc = store.active();
   renderTabs(store);
 
-  // No doc, or an empty untouched Untitled tab → show the welcome screen
-  // (the Open / drag-drop / shortcut hints) instead of a blank page.
-  const isEmpty = !doc || (doc.path === null && doc.content === '');
+  // No doc, or an empty untouched Untitled tab in VIEW mode → show the welcome
+  // screen. If the user explicitly switched to edit mode, show the editor even
+  // for an empty untitled tab so they can start writing.
+  const isEmpty = !doc || (doc.path === null && doc.content === '' && doc.mode === 'view');
   if (isEmpty) {
     el.editMode.classList.add('hidden');
     el.editMode.classList.remove('plain');
@@ -585,13 +586,13 @@ window.addEventListener('keydown', (e) => {
   } else if (k === 'b') {
     e.preventDefault();
     toggleSidebar();
-  } else if (e.key === '=' || e.key === '+') {
+  } else if (k === '=' || k === '+') {
     e.preventDefault();
     zoomIn();
-  } else if (e.key === '-') {
+  } else if (k === '-' || k === '_') {
     e.preventDefault();
     zoomOut();
-  } else if (e.key === '0') {
+  } else if (k === '0') {
     e.preventDefault();
     zoomReset();
   }
