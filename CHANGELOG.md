@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-07-13
+
+### Added — theme picker
+- **Six themes** — the light/dark toggle is now a dropdown with **Light**, **Dark**,
+  **Solarized Light**, **Solarized Dark**, **Dracula**, and **Nord**. Each theme
+  restyles the whole UI (surfaces, accents, syntax highlighting) consistently.
+- **Color-swatch previews** — each theme in the dropdown shows a two-tone chip so
+  you can tell themes apart at a glance. The active theme is marked with a check.
+- **Matching code highlighting** — code blocks swap their highlight.js theme
+  (github / github-dark / solarized-light / solarized-dark / dracula / nord) to
+  stay consistent with the selected UI theme.
+- Your choice persists across sessions; the dropdown closes on outside-click or
+  `Esc`.
+
 ## [0.4.1] - 2026-07-13
 
 ### Changed

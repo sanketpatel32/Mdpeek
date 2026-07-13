@@ -12,6 +12,8 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"
     />
+    <!-- One hljs theme is enabled at a time, driven by the active app theme.
+         applyTheme() toggles `disabled` on each link so code blocks match. -->
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css"
@@ -21,6 +23,30 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css"
       id="hljs-dark"
+      disabled
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/solarized-light.min.css"
+      id="hljs-solar-light"
+      disabled
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/solarized-dark.min.css"
+      id="hljs-solar-dark"
+      disabled
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/dracula.min.css"
+      id="hljs-dracula"
+      disabled
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/nord.min.css"
+      id="hljs-nord"
       disabled
     />
   </head>
@@ -53,9 +79,44 @@
           <span class="update-dot" aria-hidden="true"></span>
           <span class="update-label">v—</span>
         </button>
-        <button id="btn-theme" class="tool-btn icon-only" title="Toggle theme" aria-label="Toggle light/dark theme">
-          <svg id="icon-theme" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-        </button>
+        <div class="theme-menu-wrap">
+          <button id="btn-theme" class="tool-btn icon-only" title="Theme" aria-label="Choose theme" aria-haspopup="true" aria-expanded="false">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M12 2a10 10 0 0 0 0 20z" fill="currentColor" stroke="none"/></svg>
+          </button>
+          <div id="theme-menu" class="ctx-menu theme-menu hidden" role="menu" aria-label="Themes">
+            <button class="ctx-item theme-item" data-theme="light" role="menuitem">
+              <span class="theme-swatch" data-sw="light" aria-hidden="true"></span>
+              <span class="theme-name">Light</span>
+              <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+            <button class="ctx-item theme-item" data-theme="dark" role="menuitem">
+              <span class="theme-swatch" data-sw="dark" aria-hidden="true"></span>
+              <span class="theme-name">Dark</span>
+              <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+            <div class="ctx-sep"></div>
+            <button class="ctx-item theme-item" data-theme="solar-light" role="menuitem">
+              <span class="theme-swatch" data-sw="solar-light" aria-hidden="true"></span>
+              <span class="theme-name">Solarized Light</span>
+              <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+            <button class="ctx-item theme-item" data-theme="solar-dark" role="menuitem">
+              <span class="theme-swatch" data-sw="solar-dark" aria-hidden="true"></span>
+              <span class="theme-name">Solarized Dark</span>
+              <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+            <button class="ctx-item theme-item" data-theme="dracula" role="menuitem">
+              <span class="theme-swatch" data-sw="dracula" aria-hidden="true"></span>
+              <span class="theme-name">Dracula</span>
+              <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+            <button class="ctx-item theme-item" data-theme="nord" role="menuitem">
+              <span class="theme-swatch" data-sw="nord" aria-hidden="true"></span>
+              <span class="theme-name">Nord</span>
+              <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+          </div>
+        </div>
       </div>
     </header>
 

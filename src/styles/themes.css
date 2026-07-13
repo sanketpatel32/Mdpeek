@@ -76,6 +76,122 @@
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
 }
 
+/* ---- Solarized Light (Ethan Schoonover) ----
+   Warm cream paper + muted rainbow accents. */
+:root[data-theme="solar-light"] {
+  --bg: #fdf6e3;
+  --bg-elevated: #eee8d5;
+  --surface: #eee8d5;
+  --surface-hover: #e4dcc3;
+  --surface-active: #d6cba8;
+
+  --fg: #073642;
+  --fg-secondary: #586e75;
+  --fg-muted: #93a1a1;
+
+  --border: #ddd6c1;
+  --border-subtle: #e9e1c9;
+
+  --accent: #268bd2;
+  --accent-hover: #1e6fa7;
+  --accent-soft: rgba(38, 139, 210, 0.12);
+  --danger: #dc322f;
+
+  --code-bg: #eee8d5;
+  --code-border: #ddd6c1;
+
+  --shadow-sm: 0 1px 3px rgba(101, 123, 131, 0.08);
+  --shadow-md: 0 4px 12px rgba(101, 123, 131, 0.1);
+  --shadow-lg: 0 12px 32px rgba(101, 123, 131, 0.14);
+}
+
+/* ---- Solarized Dark ----
+   Deep blue base, the same restrained accent set inverted. */
+:root[data-theme="solar-dark"] {
+  --bg: #002b36;
+  --bg-elevated: #073642;
+  --surface: #073642;
+  --surface-hover: #0e4654;
+  --surface-active: #145566;
+
+  --fg: #fdf6e3;
+  --fg-secondary: #93a1a1;
+  --fg-muted: #586e75;
+
+  --border: #0e4654;
+  --border-subtle: #073642;
+
+  --accent: #268bd2;
+  --accent-hover: #4099d7;
+  --accent-soft: rgba(38, 139, 210, 0.18);
+  --danger: #dc322f;
+
+  --code-bg: #073642;
+  --code-border: #0e4654;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+}
+
+/* ---- Dracula ----
+   The cult dark theme: deep purple base, neon pink/green/purple accents. */
+:root[data-theme="dracula"] {
+  --bg: #282a36;
+  --bg-elevated: #343746;
+  --surface: #343746;
+  --surface-hover: #44475a;
+  --surface-active: #565b76;
+
+  --fg: #f8f8f2;
+  --fg-secondary: #b9bac9;
+  --fg-muted: #6272a4;
+
+  --border: #44475a;
+  --border-subtle: #383b4a;
+
+  --accent: #bd93f9;
+  --accent-hover: #caa6ff;
+  --accent-soft: rgba(189, 147, 249, 0.15);
+  --danger: #ff5555;
+
+  --code-bg: #21222c;
+  --code-border: #44475a;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+}
+
+/* ---- Nord ----
+   Arctic north-blizzard palette: cool blue-greys, frost blue accent. */
+:root[data-theme="nord"] {
+  --bg: #2e3440;
+  --bg-elevated: #3b4252;
+  --surface: #3b4252;
+  --surface-hover: #434c5e;
+  --surface-active: #4c566a;
+
+  --fg: #eceff4;
+  --fg-secondary: #d8dee9;
+  --fg-muted: #81a1c1;
+
+  --border: #434c5e;
+  --border-subtle: #3b4252;
+
+  --accent: #88c0d0;
+  --accent-hover: #9bcbd8;
+  --accent-soft: rgba(136, 192, 208, 0.15);
+  --danger: #bf616a;
+
+  --code-bg: #2e3440;
+  --code-border: #434c5e;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+}
+
 /* Smooth theme switch — scoped to UI chrome only (NOT markdown content,
    which is re-rendered on every keystroke in edit mode and would flicker
    as fresh elements animate their color/background from initial values). */
@@ -95,7 +211,8 @@ html {
 .ctx-item,
 .dropzone-inner,
 .welcome,
-.find-bar {
+.find-bar,
+.theme-menu-wrap {
   transition: background-color var(--transition), border-color var(--transition),
     color var(--transition);
 }

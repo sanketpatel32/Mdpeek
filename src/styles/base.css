@@ -729,6 +729,69 @@ main {
   background: var(--border-subtle);
 }
 
+/* ---------- Theme menu ---------- */
+/* The palette button + dropdown share a positioned wrapper so the menu can
+   anchor to the button. The menu is reused from .ctx-menu styling and only
+   adds swatch/check behavior. */
+.theme-menu-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.theme-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 196px;
+  padding: 5px;
+  z-index: 1000;
+}
+.theme-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+}
+/* The check only shows on the active theme. */
+.theme-item .theme-check {
+  margin-left: auto;
+  color: var(--accent);
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 140ms var(--ease), transform 140ms var(--ease);
+}
+.theme-item.active .theme-check {
+  opacity: 1;
+  transform: scale(1);
+}
+/* Color swatch: a real preview chip showing the theme's signature colors. */
+.theme-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  position: relative;
+  border: 1px solid var(--border);
+  background: linear-gradient(135deg, var(--sw-bg) 0 50%, var(--sw-accent) 50% 100%);
+  box-shadow: inset 0 0 0 2px var(--sw-bg);
+}
+.theme-swatch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sw-accent);
+  box-shadow: 0 0 0 1.5px var(--sw-bg);
+}
+.theme-swatch[data-sw="light"]       { --sw-bg: #ffffff; --sw-accent: #0071e3; }
+.theme-swatch[data-sw="dark"]        { --sw-bg: #1c1c1e; --sw-accent: #0a84ff; }
+.theme-swatch[data-sw="solar-light"] { --sw-bg: #fdf6e3; --sw-accent: #268bd2; }
+.theme-swatch[data-sw="solar-dark"]  { --sw-bg: #002b36; --sw-accent: #268bd2; }
+.theme-swatch[data-sw="dracula"]     { --sw-bg: #282a36; --sw-accent: #bd93f9; }
+.theme-swatch[data-sw="nord"]        { --sw-bg: #2e3440; --sw-accent: #88c0d0; }
+
 /* ---------- Close / modal dialog ---------- */
 .modal-overlay {
   position: fixed;
