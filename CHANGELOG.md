@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-13
+
+### Added — markdown engine overhaul
+- **Footnotes** — `text[^1]` with a `[^1]: note` definition now renders a real,
+  clickable footnote reference and a footnotes section at the bottom of the
+  document. Previously this syntax produced a broken link.
+- **Heading IDs** — every heading gets a GitHub-style slugified id
+  (`## Hello World` → `id="hello-world"`), so in-document `#anchor` links and
+  the table of contents point at stable targets. Duplicate headings get
+  `-2`, `-3` suffixes.
+- **GFM alert callouts** — `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`,
+  and `[!CAUTION]` blockquotes render as themed callout boxes with a colored
+  left border, tinted background, and an icon + title line (matching GitHub).
+- **Task list styling** — `- [x]` / `- [ ]` checkboxes now render as custom
+  accent-colored boxes with a check mark; completed items are muted.
+- **More syntax-highlight languages** — Dockerfile, TOML, INI, Makefile, LaTeX,
+  Nginx, Diff, Protobuf, and Groovy are now highlighted (dynamically loaded on
+  first use, so they add zero KB to the initial download).
+- **Link hardening** — every link in rendered markdown now carries
+  `target="_blank"` + `rel="noopener noreferrer"` (defense in depth alongside
+  the system-browser routing).
+- **Render cache** — identical markdown is now cached (LRU, 64 entries), so
+  tab switches and repeated edit-mode preview renders skip re-parsing.
+
+### Changed
+- `buildToc` reuses the renderer's slugified heading ids instead of always
+  assigning generic `h-N` ids.
+
+### Tests
+- Renderer tests grew from 14 → 22 (heading ids + dedupe, footnotes, alerts,
+  task lists, link hardening, render cache). 89/89 pass.
+
 ## [0.4.6] - 2026-07-13
 
 ### Added — settings dialog

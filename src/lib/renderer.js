@@ -7,6 +7,7 @@ import DOMPurify from 'dompurify';
 // plaintext (handled below).
 import hljs from 'highlight.js/lib/common';
 import markedKatex from 'marked-katex-extension';
+import markedFootnote from 'marked-footnote';
 
 function escapeHtml(s) {
   return s
@@ -15,11 +16,103 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;');
 }
 
+// ----------------------------- heading IDs --------------------------------
+// GitHub-compatible slug: lowercase, spaces→hyphens, strip everything that
+// isn't alphanumeric or hyphen. Empty result → null (caller falls back).
+function slugify(text) {
+  const slug = String(text)
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')   // strip punctuation (keep word chars, spaces, hyphens)
+    .replace(/[\s_]+/g, '-')     // spaces / underscores → single hyphen
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  return slug || null;
+}
+
+// Per-render slug dedupe map. Reset at the start of each renderMarkdown() call
+// so two docs rendered in the same session don't collide. Keys = slug,
+// values = count seen so far.
+let _slugCounts = new Map();
+function uniqueSlug(base) {
+  if (!base) return null;
+  const n = (_slugCounts.get(base) || 0) + 1;
+  _slugCounts.set(base, n);
+  return n === 1 ? base : `${base}-${n}`;
+}
+
+// --------------------- dynamic highlight.js languages --------------------
+// Languages beyond the "common" subset that we register on first use. Each is
+// a dynamic import — zero cost to the entry chunk until a doc actually uses it.
+const EXTRA_LANGS = [
+  'dockerfile', 'ini', 'properties', 'toml', 'makefile',
+  'latex', 'nginx', 'diff', 'protobuf', 'groovy',
+];
+const _registered = new Set();
+
+// Returns true if `lang` is or could be registered. Kicks off the dynamic
+// import for extras on first sighting (async, fire-and-forget — the current
+// render falls back to plaintext, the next render gets the real thing).
+async function ensureLang(lang) {
+  if (!lang || _registered.has(lang)) return _registered.has(lang);
+  const alias = hljs.getLanguage(lang); // already registered under an alias?
+  if (alias) {
+    _registered.add(lang);
+    return true;
+  }
+  const name = EXTRA_LANGS.includes(lang) ? lang : null;
+  if (!name) return false;
+  try {
+    const mod = await import(/* @vite-ignore */ `highlight.js/lib/languages/${name}.js`);
+    hljs.registerLanguage(name, mod.default);
+    _registered.add(name);
+    return true;
+  } catch {
+    return false; // import failed (offline / typo) — fall back to plaintext
+  }
+}
+
 function buildMarked() {
   const marked = new Marked();
   marked.use(markedKatex({ throwOnError: false }));
+  marked.use(markedFootnote());
   marked.use({
     renderer: {
+      // Override heading to inject slug-based ids. The token carries `text`
+      // (plain) and `tokens` (for inline rendering); we slugify the plain text
+      // and render the tokens for the inner HTML.
+      heading({ tokens, depth, text }) {
+        const inner = this.parser.parseInline(tokens);
+        const id = uniqueSlug(slugify(text));
+        const tag = `h${depth}`;
+        return id
+          ? `<${tag} id="${id}">${inner}</${tag}>`
+          : `<${tag}>${inner}</${tag}>`;
+      },
+      // GFM alert callouts: a blockquote whose first line is [!NOTE], [!TIP],
+      // [!IMPORTANT], [!WARNING], or [!CAUTION]. marked v18 doesn't ship alerts
+      // built-in, so we detect the marker in the first paragraph token, strip
+      // it, and render a themed callout instead of a plain blockquote.
+      blockquote({ tokens }) {
+        const alert = detectAlert(tokens);
+        if (!alert) {
+          return `<blockquote>\n${this.parser.parse(tokens)}</blockquote>`;
+        }
+        // Strip the consumed marker text from the first paragraph's leading
+        // text token so it doesn't appear in the rendered body.
+        const firstPara = tokens.find((t) => t.type === 'paragraph');
+        if (firstPara && firstPara.tokens && firstPara.tokens[0]) {
+          const t0 = firstPara.tokens[0];
+          const lead = t0.text || t0.raw || '';
+          t0.text = lead.replace(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i, '');
+        }
+        const body = this.parser.parse(tokens);
+        return (
+          `<blockquote class="markdown-alert markdown-alert-${alert.type}">` +
+          `<p class="markdown-alert-title">${alert.icon}${alert.type}</p>` +
+          `${body}</blockquote>`
+        );
+      },
       code({ text, lang }) {
         if (lang === 'mermaid') {
           // Escape so a fence containing `</div>` can't break out of the wrapper.
@@ -41,14 +134,89 @@ function buildMarked() {
   return marked;
 }
 
+// Inspect the first paragraph inside a blockquote for a GFM alert marker
+// like `[!NOTE]`. Returns { type, icon } or null. The marker comes through as
+// a paragraph token whose text starts with the bracketed keyword.
+const ALERT_TYPES = {
+  NOTE: '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>',
+  TIP: '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.546.896.546 1.595a.75.75 0 0 1-1.5 0c0-.372-.111-.61-.328-.926-.165-.242-.34-.464-.565-.7l-.214-.253C3.285 8.835 2.5 7.893 2.5 5.25 2.5 2.694 4.861.5 8 .5s5.5 2.194 5.5 4.75c0 3.643-1.785 4.585-2.71 5.7l-.214.253c-.217.265-.328.503-.328.926a.75.75 0 0 1-1.5 0c0-.699.262-1.184.546-1.595.203-.292.45-.584.673-.848l.214-.253c.56-.679.984-1.32.984-2.304 0-2.06-1.637-3.75-4-3.75ZM6.016 13.75a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"/></svg>',
+  IMPORTANT: '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.189l2.72-2.72a.749.749 0 0 1 .53-.219h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"/></svg>',
+  WARNING: '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"/></svg>',
+  CAUTION: '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M4.47.22A.749.749 0 0 1 5 0h6c.199 0 .389.079.53.22l4.25 4.25c.141.14.22.331.22.53v6a.749.749 0 0 1-.22.53l-4.25 4.25A.749.749 0 0 1 11 16H5a.749.749 0 0 1-.53-.22L.22 11.53A.749.749 0 0 1 0 11V5c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.31v5.38l3.81 3.81h5.38l3.81-3.81V5.31L10.69 1.5ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>',
+};
+function detectAlert(tokens) {
+  // The first child token is typically a paragraph whose text begins with the
+  // alert marker, e.g. "[!NOTE]". It may be split into text + the rest.
+  const first = tokens.find((t) => t.type === 'paragraph');
+  if (!first || !first.tokens) return null;
+  // Reconstruct the leading text from the paragraph's inline tokens.
+  let lead = '';
+  for (const t of first.tokens) {
+    if (t.type === 'text') lead += t.text || t.raw || '';
+    else break;
+    if (lead.length > 32) break; // marker is short; stop early
+  }
+  const m = lead.match(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i);
+  if (!m) return null;
+  const type = m[1].toUpperCase();
+  return { type, icon: ALERT_TYPES[type] || '' };
+}
+
 const marked = buildMarked();
+
+// ----------------------------- render cache --------------------------------
+// LRU-ish cache of raw-md → sanitized HTML. Capped at 64 entries; the oldest
+// is evicted on overflow. Keyed by content, so edits produce fresh keys and
+// stale entries naturally age out. Big win for tab-switch re-renders.
+const CACHE_MAX = 64;
+const _cache = new Map();
+function cacheGet(key) {
+  if (!_cache.has(key)) return undefined;
+  // Refresh recency: delete + re-set so the key moves to the end (newest).
+  const val = _cache.get(key);
+  _cache.delete(key);
+  _cache.set(key, val);
+  return val;
+}
+function cacheSet(key, val) {
+  if (_cache.size >= CACHE_MAX) {
+    // Map iterates in insertion order; first entry is oldest.
+    _cache.delete(_cache.keys().next().value);
+  }
+  _cache.set(key, val);
+}
+
+// --------------------------- DOMPurify hardening --------------------------
+// One-time hook: force every link to open safely (target=_blank + noopener).
+// Belt-and-suspenders alongside the opener-plugin click handler that already
+// routes external URLs to the system browser.
+let _purifyHookAdded = false;
+function ensurePurifyHook() {
+  if (_purifyHookAdded || typeof window === 'undefined') return;
+  _purifyHookAdded = true;
+  DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+    if (node.tagName === 'A' && node.getAttribute('href')) {
+      node.setAttribute('target', '_blank');
+      node.setAttribute('rel', 'noopener noreferrer');
+    }
+  });
+}
 
 // Note: DOMPurify requires a DOM `window`. It resolves automatically under
 // jsdom (tests) and inside the WebView2 (production), but cannot be called
 // from plain Node without one.
 export function renderMarkdown(md) {
-  const raw = marked.parse(md ?? '', { async: false });
-  return DOMPurify.sanitize(raw);
+  ensurePurifyHook();
+  const input = md ?? '';
+  const cached = cacheGet(input);
+  if (cached !== undefined) return cached;
+
+  // Reset slug dedupe so each render is self-contained.
+  _slugCounts = new Map();
+  const raw = marked.parse(input, { async: false });
+  const html = DOMPurify.sanitize(raw);
+  cacheSet(input, html);
+  return html;
 }
 
 // Enhance rendered DOM: copy buttons on code blocks + mermaid diagrams.
@@ -58,7 +226,24 @@ export function renderMarkdown(md) {
 export async function enhanceDom(container, { mermaid: renderMermaid = true } = {}) {
   if (typeof window === 'undefined') return;
   enhanceCodeBlocks(container);
+  // Kick off dynamic language registration for any fenced langs we don't yet
+  // have. Non-blocking — this render stays as-is; the next render picks them up.
+  registerVisibleLanguages(container);
   if (renderMermaid) await enhanceMermaid(container);
+}
+
+// Scan code blocks in the container and ensure their languages are registered.
+// Fire-and-forget; re-rendering after registration will show the highlight.
+async function registerVisibleLanguages(container) {
+  const langs = new Set();
+  container.querySelectorAll('code[class*="language-"]').forEach((c) => {
+    const m = c.className.match(/language-(\S+)/);
+    if (m) langs.add(m[1]);
+  });
+  for (const lang of langs) {
+    // Don't await — we don't want to block the current render.
+    ensureLang(lang);
+  }
 }
 
 // Adds a copy button to each <pre> that contains a <code> block. One delegated

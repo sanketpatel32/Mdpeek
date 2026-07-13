@@ -80,6 +80,68 @@ describe('renderMarkdown — edge cases', () => {
   });
 });
 
+describe('renderMarkdown — heading IDs', () => {
+  it('slugifies heading text into an id', () => {
+    const html = renderMarkdown('## Hello World');
+    expect(html).toContain('id="hello-world"');
+  });
+
+  it('dedupes identical headings with -2, -3 suffixes', () => {
+    const html = renderMarkdown('## Intro\n\n## Intro\n\n## Intro');
+    expect(html).toContain('id="intro"');
+    expect(html).toContain('id="intro-2"');
+    expect(html).toContain('id="intro-3"');
+  });
+});
+
+describe('renderMarkdown — footnotes', () => {
+  it('renders footnote refs and a definitions section', () => {
+    const html = renderMarkdown('See this[^1].\n\n[^1]: The note text.');
+    // A footnote reference (not the old broken link-to-"note" behavior).
+    expect(html).not.toMatch(/href="note"/);
+    // A footnotes definitions section at the bottom.
+    expect(html.toLowerCase()).toMatch(/footnotes|footnote/);
+    expect(html).toContain('The note text.');
+  });
+});
+
+describe('renderMarkdown — GFM alerts', () => {
+  it('renders > [!NOTE] as a markdown-alert blockquote', () => {
+    const html = renderMarkdown('> [!NOTE]\n> This is a note.');
+    expect(html).toContain('markdown-alert');
+    expect(html).toContain('NOTE');
+  });
+
+  it('renders > [!WARNING] with the WARNING class', () => {
+    const html = renderMarkdown('> [!WARNING]\n> Be careful.');
+    expect(html).toContain('markdown-alert-WARNING');
+  });
+});
+
+describe('renderMarkdown — task lists', () => {
+  it('renders - [x] / - [ ] as checkboxes', () => {
+    const html = renderMarkdown('- [x] done\n- [ ] todo');
+    expect(html).toContain('type="checkbox"');
+    expect(html).toContain('checked'); // the done item
+  });
+});
+
+describe('renderMarkdown — link hardening', () => {
+  it('adds target=_blank and rel=noopener to links', () => {
+    const html = renderMarkdown('[ex](https://example.com)');
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('rel="noopener noreferrer"');
+  });
+});
+
+describe('renderMarkdown — render cache', () => {
+  it('returns identical output for the same input (cached)', () => {
+    const a = renderMarkdown('## Same\n\ntext');
+    const b = renderMarkdown('## Same\n\ntext');
+    expect(b).toBe(a);
+  });
+});
+
 describe('enhanceDom', () => {
   it('no-ops when there are no .mermaid nodes', async () => {
     const { enhanceDom } = await import('../src/lib/renderer.js');

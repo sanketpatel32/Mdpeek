@@ -8,7 +8,9 @@ export async function showDocument(el, content) {
 }
 
 // Builds a table of contents from h1-h3 inside `root` and injects it into the
-// element with id="toc". Headings without an id get one assigned.
+// element with id="toc". The renderer assigns GitHub-style slug ids to headings
+// (see renderer.js); we reuse those so in-document anchors and TOC links point
+// at the same target. Headings without an id (e.g. empty text) get a fallback.
 export function buildToc(root) {
   const tocEl = document.getElementById('toc');
   if (!tocEl) return;

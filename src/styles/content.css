@@ -205,3 +205,134 @@
 .markdown-body tr:nth-child(2n) td {
   background: var(--surface);
 }
+
+/* ----------------------------- task lists -------------------------------- */
+/* GFM task lists render as <li><input type=checkbox>. Style the checkbox with
+   a custom accent-colored box + check, and mute completed items. */
+.markdown-body li:has(> input[type="checkbox"]) {
+  list-style: none;
+  margin-left: -1.4em;
+}
+.markdown-body input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0 0.5em 0 0;
+  vertical-align: -3px;
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-elevated);
+  cursor: default;
+  position: relative;
+  transition: background-color 120ms var(--ease, ease),
+    border-color 120ms var(--ease, ease);
+}
+.markdown-body input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.markdown-body input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 4.5px;
+  top: 1px;
+  width: 4px;
+  height: 8.5px;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+/* Completed task text is muted (GitHub style). */
+.markdown-body li:has(> input[type="checkbox"]:checked) {
+  color: var(--fg-muted);
+}
+
+/* ----------------------------- footnotes --------------------------------- */
+/* marked-footnote renders a <sup> reference and a <section footnotes> list. */
+.markdown-body .footnote-ref {
+  font-size: 0.8em;
+  color: var(--accent);
+  text-decoration: none;
+}
+.markdown-body .footnote-ref:hover {
+  text-decoration: underline;
+}
+.markdown-body section.footnotes {
+  margin-top: 2.5em;
+  padding-top: 1em;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 0.88em;
+  color: var(--fg-secondary);
+}
+.markdown-body section.footnotes ol {
+  padding-left: 1.4em;
+}
+.markdown-body section.footnotes li {
+  margin: 0.4em 0;
+}
+
+/* ----------------------------- alert callouts ---------------------------- */
+/* GFM alerts: > [!NOTE] / [!TIP] / [!IMPORTANT] / [!WARNING] / [!CAUTION].
+   Each gets a colored left border + tinted background + a bold title. */
+.markdown-body .markdown-alert {
+  margin: 0 0 1em;
+  padding: 0.7em 1.1em;
+  border-left: 3px solid var(--border);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--surface);
+}
+.markdown-body .markdown-alert > p:first-child {
+  margin-top: 0;
+}
+.markdown-body .markdown-alert > p:last-child {
+  margin-bottom: 0;
+}
+.markdown-body .markdown-alert-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 0.95em;
+  margin-bottom: 0.3em;
+}
+.markdown-body .markdown-alert-title svg {
+  flex-shrink: 0;
+}
+.markdown-body .markdown-alert-NOTE .markdown-alert-title,
+.markdown-body .markdown-alert-TIP .markdown-alert-title,
+.markdown-body .markdown-alert-IMPORTANT .markdown-alert-title,
+.markdown-body .markdown-alert-WARNING .markdown-alert-title,
+.markdown-body .markdown-alert-CAUTION .markdown-alert-title {
+  /* title color set per-type below */
+}
+.markdown-body .markdown-alert-NOTE {
+  border-left-color: #0969da;
+  background: rgba(9, 105, 218, 0.08);
+}
+.markdown-body .markdown-alert-NOTE .markdown-alert-title { color: #0969da; }
+
+.markdown-body .markdown-alert-TIP {
+  border-left-color: #1a7f37;
+  background: rgba(26, 127, 55, 0.08);
+}
+.markdown-body .markdown-alert-TIP .markdown-alert-title { color: #1a7f37; }
+
+.markdown-body .markdown-alert-IMPORTANT {
+  border-left-color: #8250df;
+  background: rgba(130, 80, 223, 0.08);
+}
+.markdown-body .markdown-alert-IMPORTANT .markdown-alert-title { color: #8250df; }
+
+.markdown-body .markdown-alert-WARNING {
+  border-left-color: #9a6700;
+  background: rgba(154, 103, 0, 0.1);
+}
+.markdown-body .markdown-alert-WARNING .markdown-alert-title { color: #9a6700; }
+
+.markdown-body .markdown-alert-CAUTION {
+  border-left-color: #cf222e;
+  background: rgba(207, 34, 46, 0.08);
+}
+.markdown-body .markdown-alert-CAUTION .markdown-alert-title { color: #cf222e; }
+
