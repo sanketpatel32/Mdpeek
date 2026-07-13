@@ -212,7 +212,9 @@ html {
 .dropzone-inner,
 .welcome,
 .find-bar,
-.theme-menu-wrap {
+.theme-menu-wrap,
+.window-controls,
+.window-btn {
   transition: background-color var(--transition), border-color var(--transition),
     color var(--transition);
 }

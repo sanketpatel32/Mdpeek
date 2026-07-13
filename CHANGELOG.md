@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-07-13
+
+### Changed — custom window controls
+- **Custom title bar buttons** — replaced the OS-native minimize / maximize /
+  close buttons with mdpeek-styled controls in the top-right. Minimalist glyphs
+  (`−`, `□`/`❐`, `✕`) that pick up the active theme; the close button turns red
+  on hover (Windows / Edge convention).
+- **Draggable header** — the empty header area now moves the window, and
+  double-clicking it toggles maximize, as expected for a frameless window.
+- The maximize button icon automatically swaps between the box and the restore
+  glyphs, staying correct even when you maximize via `Win+Up` or snap layouts.
+- **Minimize vs. close, clarified** — the `−` button minimizes to the taskbar;
+  the `✕` button still opens the existing Minimize-to-tray / Quit dialog
+  (unchanged from v0.4.0). Added the required window permissions to the
+  capability file.
+
 ## [0.4.2] - 2026-07-13
 
 ### Added — theme picker

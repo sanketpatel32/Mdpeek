@@ -51,10 +51,10 @@
     />
   </head>
   <body>
-    <header class="app-header">
+    <header class="app-header" data-tauri-drag-region>
       <div id="tab-strip" class="tab-strip"></div>
 
-      <span class="header-spacer"></span>
+      <span class="header-spacer" data-tauri-drag-region></span>
 
       <div class="toolbar">
         <button id="btn-open" class="tool-btn icon-only" title="Open file (Ctrl+O)" aria-label="Open file">
@@ -117,6 +117,19 @@
             </button>
           </div>
         </div>
+      </div>
+
+      <div class="window-controls">
+        <button class="window-btn" id="win-minimize" title="Minimize" aria-label="Minimize">
+          <svg viewBox="0 0 10 10" width="10" height="10"><line x1="0" y1="5" x2="10" y2="5" stroke="currentColor" stroke-width="1"/></svg>
+        </button>
+        <button class="window-btn" id="win-maximize" title="Maximize" aria-label="Maximize or restore">
+          <svg class="win-ico-max" viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="9" height="9"/></svg>
+          <svg class="win-ico-restore hidden" viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="2.5" width="7" height="7"/><path d="M2.5 2.5 V0.5 H9.5 V7.5 H7.5"/></svg>
+        </button>
+        <button class="window-btn win-close" id="win-close" title="Close" aria-label="Close">
+          <svg viewBox="0 0 10 10" width="10" height="10" stroke="currentColor" stroke-width="1"><line x1="0" y1="0" x2="10" y2="10"/><line x1="10" y1="0" x2="0" y2="10"/></svg>
+        </button>
       </div>
     </header>
 

@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { listen } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -26,7 +27,7 @@ const DEFAULT_THEME = 'light';
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.4.2</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.4.3</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -787,6 +788,36 @@ el.closeDialog.addEventListener('keydown', (e) => {
     hideCloseDialog();
   }
 });
+
+// ---------- custom window controls (decorations:false) ----------
+// Minimize → taskbar (distinct from "hide to tray"). Maximize toggles full/
+// restored, with the icon synced via the resize event so Win+Up / snap layouts
+// keep the glyph correct. Close reuses the existing tray/quit dialog flow.
+const appWindow = getCurrentWindow();
+const icoMax = document.querySelector('.win-ico-max');
+const icoRestore = document.querySelector('.win-ico-restore');
+
+document.getElementById('win-minimize').addEventListener('click', () => {
+  appWindow.minimize().catch((e) => console.error('minimize failed:', e));
+});
+document.getElementById('win-maximize').addEventListener('click', async () => {
+  await appWindow.toggleMaximize();
+});
+document.getElementById('win-close').addEventListener('click', () => {
+  showCloseDialog();
+});
+async function syncMaxIcon() {
+  let maximized = false;
+  try {
+    maximized = await appWindow.isMaximized();
+  } catch (e) {
+    console.error('isMaximized failed:', e);
+  }
+  icoMax.classList.toggle('hidden', maximized);
+  icoRestore.classList.toggle('hidden', !maximized);
+}
+appWindow.onResized(syncMaxIcon).catch(() => {}); // unlisten only matters on teardown
+syncMaxIcon();
 
 // ---------- drag & drop (supports multiple files → multiple tabs) ----------
 let dragDepth = 0;

@@ -30,7 +30,7 @@ body {
   align-items: stretch;
   justify-content: flex-start;
   gap: 0;
-  padding: 0 10px 0 8px;
+  padding: 0 0 0 8px;
   background: var(--bg-elevated);
   border-bottom: 1px solid var(--border-subtle);
   -webkit-user-select: none;
@@ -40,6 +40,51 @@ body {
 }
 .header-spacer {
   flex: 1 1 auto;
+}
+
+/* ---------- Window controls (custom title bar) ----------
+   With decorations:false, the OS caption buttons are gone; we draw our own
+   min/max/close in the top-right. Close turns red on hover (Windows/Edge
+   convention). The drag region lives on <header> via data-tauri-drag-region;
+   these buttons opt out with -webkit-app-region: no-drag as a safety net. */
+.window-controls {
+  display: flex;
+  align-items: stretch;
+  margin-left: 6px;
+}
+.window-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  background: transparent;
+  border: none;
+  color: var(--fg-secondary);
+  cursor: default;
+  -webkit-app-region: no-drag;
+  transition: background-color 120ms var(--ease), color 120ms var(--ease);
+}
+.window-btn:hover {
+  background: var(--surface-hover);
+  color: var(--fg);
+}
+.window-btn:active {
+  background: var(--surface-active);
+}
+.window-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.window-btn svg {
+  display: block;
+}
+.window-btn.win-close:hover {
+  background: var(--danger);
+  color: #ffffff;
+}
+.window-btn.win-close:active {
+  background: var(--danger);
+  filter: brightness(0.92);
 }
 
 .brand {
