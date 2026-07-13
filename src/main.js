@@ -34,7 +34,7 @@ const DEFAULT_THEME = 'light';
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.6.0</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.7.0</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -52,6 +52,7 @@ const el = {
   open: document.getElementById('btn-open'),
   save: document.getElementById('btn-save'),
   mode: document.getElementById('btn-mode'),
+  draw: document.getElementById('btn-draw'),
   sidebar: document.getElementById('btn-sidebar'),
   zoomIn: document.getElementById('btn-zoom-in'),
   zoomOut: document.getElementById('btn-zoom-out'),
@@ -70,6 +71,7 @@ const el = {
   preview: document.getElementById('preview'),
   toast: document.getElementById('toast'),
   dropzone: document.getElementById('dropzone'),
+  pdfDrawToolbar: document.getElementById('pdf-draw-toolbar'),
   ctxMenu: document.getElementById('ctx-menu'),
   closeDialog: document.getElementById('close-dialog'),
   closeRemember: document.getElementById('close-remember'),
@@ -209,6 +211,10 @@ async function renderActive() {
       _activePdf.destroy();
       _activePdf = null;
     }
+    // Hide the draw toolbar when leaving a PDF tab.
+    el.pdfDrawToolbar.classList.add('hidden');
+    // Reset draw tool button states.
+    document.querySelectorAll('.pdf-tool-btn').forEach((b) => b.classList.remove('active'));
   }
   _lastRenderedId = store.activeId;
 
@@ -230,10 +236,11 @@ async function renderActive() {
     return;
   }
 
-  // PDF: read-only viewer, no edit toggle, no TOC.
+  // PDF: read-only viewer, no edit toggle, no TOC. Draw toolbar available.
   if (doc.pdf) {
     el.editMode.classList.add('hidden');
     el.mode.classList.add('hidden');
+    el.draw.classList.remove('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
     el.document.classList.remove('has-welcome');
@@ -250,6 +257,9 @@ async function renderActive() {
     }).catch((e) => toast('Could not open PDF: ' + fmtErr(e)));
     return;
   }
+  // Non-PDF docs: ensure the draw toolbar + button are hidden.
+  el.pdfDrawToolbar.classList.add('hidden');
+  el.draw.classList.add('hidden');
 
   el.mode.title = doc.mode === 'edit'
     ? 'Editing. Click to view (Ctrl+E)'
@@ -524,6 +534,11 @@ function applyZoom() {
   el.document.style.fontSize = px;
   el.preview.style.fontSize = px;
   localStorage.setItem('mdpeek-zoom', String(zoomLevel));
+  // If a PDF is active, its pages + annotation strokes need re-rendering at
+  // the new scale. Defer a tick so the font-size change settles first.
+  if (_activePdf) {
+    setTimeout(() => _activePdf.rerenderAllStrokes(), 50);
+  }
 }
 
 // Reading-comfort: line spacing via a CSS variable (no zoom interaction).
@@ -790,6 +805,63 @@ document.getElementById('settings-line-numbers').addEventListener('change', (e) 
   localStorage.setItem('mdpeek-line-numbers', e.target.checked ? '1' : '0');
   applyLineNumbers();
 });
+
+// ---------- PDF drawing toolbar ----------
+// The toolbar floats over the document when a PDF tab is active. Tools toggle
+// draw mode on the active PDF controller; closing exits draw mode.
+let _pdfDrawTool = 'pen';   // current tool selection (persists across open/close)
+let _pdfDrawColor = '#1d1d1f';
+
+function pdfToggleToolbar() {
+  // Show/hide the toolbar — only meaningful when a PDF is active.
+  const doc = store.active();
+  if (doc && doc.pdf) {
+    el.pdfDrawToolbar.classList.toggle('hidden');
+    // Exiting: turn off draw mode on the controller.
+    if (el.pdfDrawToolbar.classList.contains('hidden') && _activePdf) {
+      _activePdf.setDrawMode(false);
+    }
+  }
+}
+
+function pdfSelectTool(tool) {
+  _pdfDrawTool = tool;
+  // Toggle the active class on the tool buttons.
+  document.getElementById('pdf-tool-pen').classList.toggle('active', tool === 'pen');
+  document.getElementById('pdf-tool-highlighter').classList.toggle('active', tool === 'highlighter');
+  document.getElementById('pdf-tool-eraser').classList.toggle('active', tool === 'eraser');
+  if (_activePdf) {
+    _activePdf.setTool(tool);
+    // Entering a tool activates draw mode (unless it's already active).
+    _activePdf.setDrawMode(true);
+  }
+}
+
+function pdfSelectColor(color) {
+  _pdfDrawColor = color;
+  document.querySelectorAll('.pdf-color-swatch').forEach((s) => {
+    s.classList.toggle('active', s.dataset.color === color);
+  });
+  if (_activePdf) _activePdf.setColor(color);
+}
+
+document.getElementById('pdf-tool-pen').addEventListener('click', () => pdfSelectTool('pen'));
+document.getElementById('pdf-tool-highlighter').addEventListener('click', () => pdfSelectTool('highlighter'));
+document.getElementById('pdf-tool-eraser').addEventListener('click', () => pdfSelectTool('eraser'));
+document.querySelectorAll('.pdf-color-swatch').forEach((s) => {
+  s.addEventListener('click', () => pdfSelectColor(s.dataset.color));
+});
+document.getElementById('pdf-tool-clear').addEventListener('click', () => {
+  if (_activePdf) _activePdf.clearAll();
+});
+document.getElementById('pdf-tool-close').addEventListener('click', () => {
+  el.pdfDrawToolbar.classList.add('hidden');
+  document.querySelectorAll('.pdf-tool-btn').forEach((b) => b.classList.remove('active'));
+  if (_activePdf) _activePdf.setDrawMode(false);
+});
+
+// The toolbar gear button (btn-draw, shown only on PDF tabs) toggles the draw toolbar.
+el.draw.addEventListener('click', () => pdfToggleToolbar());
 
 // Link clicks inside rendered markdown: external URLs open in the system
 // browser via the opener plugin (the default would navigate the WebView2
@@ -1109,13 +1181,15 @@ applyTheme(savedTheme && HLJS_FOR_THEME[savedTheme] ? savedTheme : DEFAULT_THEME
 const find = initFindBar({
   getMode: () => {
     const d = store.active();
-    return d ? d.mode : 'view';
+    if (!d) return 'view';
+    return d.pdf ? 'pdf' : d.mode;
   },
   getEditor: () => {
     const d = store.active();
     return d && d.editor ? d.editor : null;
   },
   getDocument: () => el.document,
+  getPdf: () => _activePdf,
 });
 
 // Restore sidebar state (default visible).

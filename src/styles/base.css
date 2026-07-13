@@ -1021,6 +1021,71 @@ mark.find-current {
   height: 20px;
 }
 
+/* ---------- PDF drawing toolbar ---------- */
+/* Floating pill at the top of the document pane, shown only on PDF tabs when
+   the user opens the draw toolbar. Modeled on the find overlay. */
+.pdf-draw-toolbar {
+  position: fixed;
+  top: calc(var(--header-h) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  animation: find-in 180ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+.pdf-draw-toolbar.hidden {
+  display: none !important;
+}
+.pdf-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--fg-secondary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 120ms var(--ease), color 120ms var(--ease);
+}
+.pdf-tool-btn:hover {
+  background: var(--surface-hover);
+  color: var(--fg);
+}
+.pdf-tool-btn.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.pdf-tool-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 4px;
+}
+.pdf-color-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 120ms var(--ease), transform 120ms var(--ease);
+}
+.pdf-color-swatch:hover {
+  transform: scale(1.15);
+}
+.pdf-color-swatch.active {
+  border-color: var(--fg);
+}
+
 /* ---------- Settings dialog ---------- */
 /* Wider variant of .modal to fit two-column setting rows comfortably. */
 .modal-wide {

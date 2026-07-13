@@ -26,6 +26,11 @@ let marks = [];     // [<mark>] in view mode; empty in edit mode
 let matchIdx = -1;
 let debounceTimer = null;
 
+// PDF search state.
+let pdfMatches = [];     // [{ page, start, end }] — flat offsets into per-page text
+let pdfHighlights = [];  // [<div>] overlay elements
+let pdfSearching = false;
+
 // Accessors handed in by main.js — let us ask for the live mode/editor/doc
 // without holding direct references (those change on every tab switch).
 let ctx = {
@@ -109,10 +114,13 @@ function wireOnce() {
 // Runs the current query against the active mode and updates count + highlights.
 function run() {
   clearMarks();
+  clearPdfHighlights();
   const doc = ctx.getDocument();
   const mode = ctx.getMode();
   if (mode === 'edit') {
     runEdit();
+  } else if (mode === 'pdf') {
+    runPdf(ctx.getPdf());
   } else {
     runView(doc);
   }
@@ -330,6 +338,8 @@ function step(forward) {
   const mode = ctx.getMode();
   if (mode === 'edit') {
     stepEdit(forward);
+  } else if (mode === 'pdf') {
+    stepPdf(forward);
   } else {
     stepView(forward);
   }
@@ -352,6 +362,132 @@ function stepEdit(forward) {
   showMatch(editor, ms[matchIdx], text, true);
 }
 
+// ---------- PDF search ----------
+// Search across all pages by extracting text via getTextContent (cached in
+// the controller). Matches are stored as { page, start, end } and highlighted
+// with overlay divs positioned over the text layer spans.
+async function runPdf(controller) {
+  if (!controller || !controller.pdfDoc || !query) {
+    pdfMatches = [];
+    matchIdx = -1;
+    return;
+  }
+  countEl.textContent = 'Searching…';
+  pdfMatches = [];
+  for (let page = 1; page <= controller.pdfDoc.numPages; page++) {
+    const text = controller.textCache.get(page) || '';
+    if (!text) continue;
+    const ms = findMatches(text, query, caseSensitive);
+    for (const m of ms) {
+      pdfMatches.push({ page, start: m.start, end: m.end });
+    }
+  }
+  if (pdfMatches.length === 0) {
+    matchIdx = -1;
+    return;
+  }
+  matchIdx = 0;
+  await highlightPdfMatches(controller);
+}
+
+// Position overlay divs over the matched text spans on each affected page.
+async function highlightPdfMatches(controller) {
+  clearPdfHighlights();
+  // Group matches by page.
+  const byPage = new Map();
+  for (let i = 0; i < pdfMatches.length; i++) {
+    const m = pdfMatches[i];
+    if (!byPage.has(m.page)) byPage.set(m.page, []);
+    byPage.get(m.page).push(i);
+  }
+  for (const [page, indices] of byPage) {
+    const textLayer = controller.textLayers.get(page);
+    if (!textLayer) continue;
+    const divs = textLayer.textDivs || [];
+    const text = controller.textCache.get(page) || '';
+    for (const idx of indices) {
+      const m = pdfMatches[idx];
+      // Compute the bounding rect of the matched character range by unioning
+      // the rects of the text spans that fall within [start, end).
+      const rect = spanRectForRange(divs, text, m.start, m.end);
+      if (!rect) continue;
+      const wrapper = controller.container.querySelector(
+        `.pdf-page[data-page-num="${page}"]`
+      );
+      if (!wrapper) continue;
+      const overlay = document.createElement('div');
+      overlay.className = 'pdf-search-highlight' + (idx === matchIdx ? ' pdf-search-current' : '');
+      overlay.style.left = rect.left + 'px';
+      overlay.style.top = rect.top + 'px';
+      overlay.style.width = rect.width + 'px';
+      overlay.style.height = rect.height + 'px';
+      wrapper.appendChild(overlay);
+      pdfHighlights.push(overlay);
+    }
+  }
+  // Scroll to the current match.
+  scrollToPdfMatch(controller);
+}
+
+// Given the text-layer spans and a flat [start,end) range, compute the union
+// bounding rect in page-relative coordinates. Each span carries its own text;
+// we reconstruct which spans the range covers by accumulating lengths.
+function spanRectForRange(divs, fullText, start, end) {
+  let offset = 0;
+  let minLeft = Infinity, minTop = Infinity, maxRight = -Infinity, maxBottom = -Infinity;
+  let found = false;
+  for (const span of divs) {
+    const len = (span.textContent || '').length;
+    const spanStart = offset;
+    const spanEnd = offset + len;
+    offset = spanEnd;
+    // Does this span overlap [start, end)?
+    if (spanEnd <= start || spanStart >= end) continue;
+    const rect = span.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) continue;
+    found = true;
+    // Convert to page-relative coords.
+    const parent = span.offsetParent;
+    if (!parent) continue;
+    const parentRect = parent.getBoundingClientRect();
+    minLeft = Math.min(minLeft, rect.left - parentRect.left);
+    minTop = Math.min(minTop, rect.top - parentRect.top);
+    maxRight = Math.max(maxRight, rect.right - parentRect.left);
+    maxBottom = Math.max(maxBottom, rect.bottom - parentRect.top);
+  }
+  if (!found) return null;
+  return {
+    left: minLeft,
+    top: minTop,
+    width: Math.max(1, maxRight - minLeft),
+    height: Math.max(1, maxBottom - minTop),
+  };
+}
+
+function stepPdf(forward) {
+  if (pdfMatches.length === 0) return;
+  matchIdx = (matchIdx + (forward ? 1 : -1) + pdfMatches.length) % pdfMatches.length;
+  // Restyle overlays + scroll.
+  for (const ov of pdfHighlights) {
+    ov.classList.remove('pdf-search-current');
+  }
+  if (pdfHighlights[matchIdx]) {
+    pdfHighlights[matchIdx].classList.add('pdf-search-current');
+  }
+  const controller = ctx.getPdf();
+  if (controller) scrollToPdfMatch(controller);
+}
+
+function scrollToPdfMatch(controller) {
+  if (!pdfHighlights[matchIdx]) return;
+  pdfHighlights[matchIdx].scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+function clearPdfHighlights() {
+  for (const ov of pdfHighlights) ov.remove();
+  pdfHighlights = [];
+}
+
 function stepView(forward) {
   const container = ctx.getDocument();
   if (!container || marks.length === 0) {
@@ -368,11 +504,15 @@ function stepView(forward) {
 }
 
 function updateCount() {
-  // For view mode the count = marks.length; for edit mode we re-count cheaply.
+  // For view mode the count = marks.length; for edit mode we re-count cheaply;
+  // for PDF the count = pdfMatches.length.
   let total;
-  if (ctx.getMode() === 'edit') {
+  const mode = ctx.getMode();
+  if (mode === 'edit') {
     const editor = ctx.getEditor();
     total = editor ? findMatches(editor.getValue(), query, caseSensitive).length : 0;
+  } else if (mode === 'pdf') {
+    total = pdfMatches.length;
   } else {
     total = marks.length;
   }
@@ -405,6 +545,8 @@ function close() {
   if (!overlay) return;
   clearTimeout(debounceTimer);
   clearMarks();
+  clearPdfHighlights();
+  pdfMatches = [];
   overlay.classList.add('hidden');
   matchIdx = -1;
   countEl.textContent = '0/0';

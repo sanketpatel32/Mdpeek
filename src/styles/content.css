@@ -350,16 +350,81 @@
   color: var(--danger);
 }
 .pdf-page {
+  position: relative;       /* anchor for textLayer + draw canvas overlays */
   display: flex;
   justify-content: center;
   margin: 0 auto 12px;
   padding: 0;
 }
-.pdf-page canvas {
+.pdf-page > canvas:not(.pdf-draw) {
   box-shadow: var(--shadow-md);
   border-radius: 2px;
   background: #ffffff;
   max-width: 100%;
   height: auto;
+}
+
+/* Drawing annotation canvas — overlaid on the page. Pointer-events toggled
+   by the controller (auto in draw mode, none otherwise). */
+.pdf-draw {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 3;
+  cursor: crosshair;
+  max-width: 100%;
+}
+
+/* --- Text layer (transparent spans for selection + search) ---
+   Ported from pdf.js's pdf_viewer.css — only the essential rules. The spans
+   are invisible (color: transparent) but selectable. */
+.pdf-page .textLayer {
+  color-scheme: only light;
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  z-index: 2;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+}
+.pdf-page .textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  user-select: text;
+}
+.pdf-page .textLayer .markedContent {
+  display: contents;
+}
+.pdf-page .textLayer ::selection {
+  background: rgba(0, 100, 255, 0.3);
+}
+.pdf-page .textLayer br::selection {
+  background: transparent;
+}
+/* When drawing is active, disable text selection so drawing doesn't fight it. */
+.pdf-viewer.drawing-active .textLayer {
+  pointer-events: none !important;
+}
+
+/* --- PDF search highlight overlays --- */
+.pdf-search-highlight {
+  position: absolute;
+  background: var(--accent-soft, rgba(0, 113, 227, 0.2));
+  border-radius: 1px;
+  pointer-events: none;
+  z-index: 1; /* behind the text layer so selection still works */
+  mix-blend-mode: multiply;
+}
+.pdf-search-current {
+  background: var(--accent, rgba(0, 113, 227, 0.45));
+  outline: 2px solid var(--accent, #0071e3);
 }
 

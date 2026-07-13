@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-13
+
+### Added — PDF text selection, search, and drawing annotations
+- **Text selection** — drag to select text inside a PDF, just like a normal web
+  page. Copy with Ctrl+C. Works via a transparent text layer (pdf.js
+  `TextLayer`) overlaid on each page.
+- **In-PDF search** — Ctrl+F now searches inside PDFs. Matches are highlighted
+  across all pages; next/prev scrolls through them. The find bar dispatches to
+  a dedicated PDF search path that extracts text per page (cached after first
+  search for instant next/prev).
+- **Drawing annotations** — a floating toolbar (pen, highlighter, eraser, 5
+  colors, clear-all) lets you mark up PDFs. Click the pen/pencil icon in the
+  toolbar (appears only on PDF tabs) to open it. Annotations are session-only
+  (clear on tab close). Strokes re-render correctly on zoom.
+
 ## [0.6.0] - 2026-07-13
 
 ### Added — PDF viewing
