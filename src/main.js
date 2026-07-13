@@ -6,10 +6,11 @@ import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { showDocument, buildToc } from './views/viewer.js';
+import { showPdf } from './views/pdf-viewer.js';
 import { initEditor } from './views/editor.js';
 import { initFindBar } from './views/find-bar.js';
 import { renderTabs } from './views/tabs.js';
-import { DocumentStore } from './lib/documents.js';
+import { DocumentStore, isPdfPath } from './lib/documents.js';
 import { saveSession, loadSession } from './lib/persistence.js';
 
 // ---------- themes ----------
@@ -33,7 +34,7 @@ const DEFAULT_THEME = 'light';
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.5.2</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.6.0</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -178,6 +179,7 @@ async function rewatch(path) {
 // The <textarea> is shared across all tabs, so without this capture a tab
 // switch would lose typed text and the caret/scroll position.
 let _lastRenderedId = null;
+let _activePdf = null; // controller for the currently-shown PDF (for teardown)
 
 async function renderActive() {
   // Sync the outgoing doc's editor content + caret + scroll back into its model.
@@ -197,10 +199,15 @@ async function renderActive() {
         // (Tab, Enter, auto-pair, Ctrl+B) applies N times, corrupting content.
         prev.editor.destroy();
         prev.editor = null;
-      } else if (prev.mode === 'view') {
+      } else if (prev.mode === 'view' || prev.pdf) {
         // Capture the document's scroll so switching back restores it.
         prev.scrollY = el.document.scrollTop;
       }
+    }
+    // Tear down the outgoing PDF viewer (frees memory + cancels render tasks).
+    if (_activePdf) {
+      _activePdf.destroy();
+      _activePdf = null;
     }
   }
   _lastRenderedId = store.activeId;
@@ -211,7 +218,7 @@ async function renderActive() {
   // No doc, or an empty untouched Untitled tab in VIEW mode → show the welcome
   // screen. If the user explicitly switched to edit mode, show the editor even
   // for an empty untitled tab so they can start writing.
-  const isEmpty = !doc || (doc.path === null && doc.content === '' && doc.mode === 'view');
+  const isEmpty = !doc || (doc.path === null && doc.content === '' && doc.mode === 'view' && !doc.pdf);
   if (isEmpty) {
     el.editMode.classList.add('hidden');
     el.editMode.classList.remove('plain');
@@ -220,6 +227,27 @@ async function renderActive() {
     el.toc.innerHTML = ''; // clear stale TOC from the previous document
     el.document.classList.add('has-welcome');
     el.document.innerHTML = WELCOME_HTML;
+    return;
+  }
+
+  // PDF: read-only viewer, no edit toggle, no TOC.
+  if (doc.pdf) {
+    el.editMode.classList.add('hidden');
+    el.mode.classList.add('hidden');
+    el.viewMode.classList.remove('hidden');
+    el.toc.innerHTML = '';
+    el.document.classList.remove('has-welcome');
+    // showPdf is async and lazy-loads pdf.js. Store the controller so we can
+    // tear it down on tab switch.
+    showPdf(el.document, doc.path).then((ctrl) => {
+      // Guard: if the user already switched away, tear down immediately.
+      if (_lastRenderedId !== doc.id) {
+        ctrl.destroy();
+      } else {
+        _activePdf = ctrl;
+        if (doc.scrollY) el.document.scrollTop = doc.scrollY;
+      }
+    }).catch((e) => toast('Could not open PDF: ' + fmtErr(e)));
     return;
   }
 
@@ -278,7 +306,9 @@ function persistSoon() {
 // ---------- open / new / close ----------
 async function openPath(path, content) {
   store.open({ path, content });
-  await rewatch(path);
+  // PDFs are read-only binary — no file-watcher (the text-based watcher would
+  // choke on bytes, and live-reload isn't meaningful for a PDF).
+  if (!isPdfPath(path)) await rewatch(path);
 }
 
 function newTab() {
@@ -424,6 +454,7 @@ function toggleMode() {
   const doc = store.active();
   if (!doc) return;
   if (doc.plain) return; // plain-text docs have no preview to toggle to
+  if (doc.pdf) return;   // PDFs are read-only — no edit mode
   // Capture content before switching out of edit mode.
   if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
   doc.mode = doc.mode === 'view' ? 'edit' : 'view';
@@ -1023,8 +1054,14 @@ window.addEventListener('drop', async (e) => {
   const files = e.dataTransfer?.files;
   if (!files || files.length === 0) return;
   for (const file of Array.from(files)) {
-    if (!/\.(md|markdown|mdx|txt)$/i.test(file.name)) {
+    if (!/\.(md|markdown|mdx|txt|pdf)$/i.test(file.name)) {
       toast('Not a supported file: ' + file.name);
+      continue;
+    }
+    // PDFs are binary — don't read as text. The PDF viewer loads them via the
+    // asset protocol using the file path (Tauri exposes it on desktop).
+    if (isPdfPath(file.name)) {
+      await openPath(file.path || file.name, '');
       continue;
     }
     const text = await file.text();
@@ -1039,6 +1076,9 @@ window.addEventListener('drop', async (e) => {
 listen('file-changed', (event) => {
   const doc = store.active();
   if (!doc || !doc.path) return;
+  // PDFs are binary + read-only — the text watcher isn't used for them
+  // (openPath skips rewatch), but guard anyway in case an event leaks through.
+  if (doc.pdf) return;
   doc.content = event.payload;
   if (doc.mode === 'view') {
     showDocument(el.document, event.payload)
@@ -1109,6 +1149,8 @@ applyLineNumbers();
     const restored = await Promise.all(
       candidates.map(async (s) => {
         if (!s.path) return s; // untitled — content was persisted directly
+        // PDFs restore from path alone — no content re-read (binary file).
+        if (isPdfPath(s.path)) return { ...s, content: '' };
         try {
           const content = await invoke('read_file', { path: s.path });
           return { ...s, content };

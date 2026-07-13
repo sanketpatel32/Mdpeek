@@ -10,6 +10,7 @@
 
 !define PROGID "mdpeek.md"
 !define PROGID_TXT "mdpeek.txt"
+!define PROGID_PDF "mdpeek.pdf"
 
 ; Helper: register one extension in the Open With list + point at our ProgID
 !macro _MPEEK_ASSOC_EXT EXT
@@ -30,6 +31,14 @@
   WriteRegStr HKCR "${PROGID_TXT}\shell\open\command" "" '"$INSTDIR\mdpeek.exe" "%1"'
 !macroend
 
+; Helper: register .pdf under its own ProgID (labelled "PDF Document").
+!macro _MPEEK_ASSOC_PDF
+  WriteRegStr HKCR ".pdf\OpenWithProgIDs" "${PROGID_PDF}" ""
+  WriteRegStr HKCR "${PROGID_PDF}" "" "PDF Document"
+  WriteRegStr HKCR "${PROGID_PDF}\DefaultIcon" "" "$INSTDIR\mdpeek.exe,0"
+  WriteRegStr HKCR "${PROGID_PDF}\shell\open\command" "" '"$INSTDIR\mdpeek.exe" "%1"'
+!macroend
+
 ; Helper: unregister one extension
 !macro _MPEEK_UNASSOC_EXT EXT
   DeleteRegValue HKCR ".${EXT}\OpenWithProgIDs" "${PROGID}"
@@ -42,6 +51,8 @@
   !insertmacro _MPEEK_ASSOC_EXT "mdx"
   ; Register .txt under its own ProgID.
   !insertmacro _MPEEK_ASSOC_TXT
+  ; Register .pdf under its own ProgID.
+  !insertmacro _MPEEK_ASSOC_PDF
   ; Notify Explorer that the file-association database changed so icons/menus refresh.
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'
 !macroend
@@ -51,6 +62,8 @@
   !insertmacro _MPEEK_UNASSOC_EXT "markdown"
   !insertmacro _MPEEK_UNASSOC_EXT "mdx"
   DeleteRegValue HKCR ".txt\OpenWithProgIDs" "${PROGID_TXT}"
+  DeleteRegValue HKCR ".pdf\OpenWithProgIDs" "${PROGID_PDF}"
   DeleteRegKey HKCR "${PROGID}"
   DeleteRegKey HKCR "${PROGID_TXT}"
+  DeleteRegKey HKCR "${PROGID_PDF}"
 !macroend

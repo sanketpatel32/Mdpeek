@@ -22,6 +22,16 @@ struct FilePayload {
     content: String,
 }
 
+/// Read a file for the frontend. PDFs are binary and can't be decoded as UTF-8,
+/// so we return empty content for them — the JS side detects PDFs by path and
+/// loads them via the asset protocol instead of through `content`.
+fn read_file_for_frontend(path: &str) -> Result<String, String> {
+    if path.to_lowercase().ends_with(".pdf") {
+        return Ok(String::new());
+    }
+    std::fs::read_to_string(path).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default();
@@ -39,7 +49,7 @@ pub fn run() {
                     // argv[0] is the exe; argv[1] (if present) is the file path.
                     if argv.len() > 1 {
                         let path = argv[1].clone();
-                        if let Ok(content) = std::fs::read_to_string(&path) {
+                        if let Ok(content) = read_file_for_frontend(&path) {
                             let payload = serde_json::json!({ "path": path, "content": content });
                             let _ = window.emit("open-file", payload);
                         }
@@ -153,7 +163,7 @@ fn quit_app(app: tauri::AppHandle) -> Result<(), String> {
 fn get_initial_file(state: tauri::State<PendingFile>) -> Result<Option<FilePayload>, String> {
     let mut guard = state.0.lock().map_err(|e| e.to_string())?;
     if let Some(path) = guard.take() {
-        match std::fs::read_to_string(&path) {
+        match read_file_for_frontend(&path) {
             Ok(content) => Ok(Some(FilePayload { path, content })),
             Err(e) => Err(format!("Could not read {}: {}", path, e)),
         }

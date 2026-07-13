@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-13
+
+### Added — PDF viewing
+- **Open and view `.pdf` files** inside mdpeek. Drag-drop, Ctrl+O, or
+  double-click a PDF in Explorer (mdpeek registers in the "Open with" menu).
+  Pages render cleanly as stacked canvases with crisp HiDPI support.
+- **Lazy-loaded** — pdf.js (~125 KB + worker) only downloads when you actually
+  open a PDF. Markdown-only users pay zero cost; startup time is unchanged.
+- **Read-only** — PDFs have no edit mode (the toggle is hidden). Zoom (Ctrl+= /
+  Ctrl+-) scales the rendered pages.
+- **Memory-safe** — switching away from a PDF tab tears down the viewer
+  (cancels pending renders, frees the pdf.js document). Switching back reloads
+  and restores your scroll position.
+- Pages render lazily as you scroll (IntersectionObserver), so large PDFs
+  don't try to render everything at once.
+- Corrupt or encrypted PDFs show a friendly error instead of crashing.
+- The PDF bytes are loaded via the Tauri asset protocol — they never pass
+  through the text-based content channel, so binary never touches String.
+
+### Changed
+- File dialog now offers a PDF filter (and "All files").
+- The Rust file-reading commands return empty content for `.pdf` paths instead
+  of failing on UTF-8 decode of binary bytes.
+- `.pdf` registered as a Windows file association (mdpeek appears in "Open with").
+
 ## [0.5.2] - 2026-07-13
 
 ### Added

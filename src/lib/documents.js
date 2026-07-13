@@ -13,17 +13,24 @@ export function isPlainPath(path) {
   return !!path && /\.txt$/i.test(path);
 }
 
+// A doc is a "pdf" when it's a .pdf file — rendered read-only via pdf.js.
+export function isPdfPath(path) {
+  return !!path && /\.pdf$/i.test(path);
+}
+
 export function createDocument({ path = null, content = '', mode = 'view', plain } = {}) {
   // `plain` override lets a fresh Untitled tab be plain text without a .txt
   // path (used by the new-tab-format preference). When omitted, plainness is
   // derived from the path as before.
   const isPlain = plain !== undefined ? plain : isPlainPath(path);
+  const isPdf = isPdfPath(path);
   return {
     id: newId(),
     path, // string | null (null = Untitled, not yet saved)
-    content,
-    mode: isPlain ? 'edit' : mode, // plain docs always open in edit mode
+    content: isPdf ? '' : content, // PDF bytes never ride this field
+    mode: isPlain ? 'edit' : (isPdf ? 'view' : mode), // PDFs are always view-only
     plain: isPlain, // true = no markdown preview, full-width editor
+    pdf: isPdf, // true = rendered via pdf.js, read-only
     dirty: false,
     scrollY: 0,
     editor: null, // lazy-init in main.js when entering edit mode
@@ -128,13 +135,15 @@ export class DocumentStore {
       .map((d) => {
         const path = typeof d.path === 'string' ? d.path : null;
         const plain = isPlainPath(path);
+        const pdf = isPdfPath(path);
         return {
           id: typeof d.id === 'string' ? d.id : newId(),
           path,
-          content: d.content,
-          // plain docs are always in edit mode; markdown honors the snapshot.
-          mode: plain ? 'edit' : d.mode === 'edit' ? 'edit' : 'view',
+          content: pdf ? '' : d.content,
+          // plain docs are always in edit mode; PDFs are always view; markdown honors the snapshot.
+          mode: plain ? 'edit' : pdf ? 'view' : d.mode === 'edit' ? 'edit' : 'view',
           plain,
+          pdf,
           dirty: false, // never restore as dirty — content was just re-read
           scrollY: Number.isFinite(d.scrollY) ? d.scrollY : 0,
           editor: null,

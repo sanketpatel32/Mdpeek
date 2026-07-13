@@ -331,3 +331,35 @@
 }
 .markdown-body .markdown-alert-CAUTION .markdown-alert-title { color: var(--alert-caution); }
 
+/* ----------------------------- PDF viewer -------------------------------- */
+/* The PDF container (renders stacked <canvas> pages, one per <div.pdf-page>). */
+.markdown-body.pdf-viewer {
+  padding: 24px 0 80px;
+  background: var(--surface);
+}
+.pdf-loading,
+.pdf-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  font-size: 14px;
+  color: var(--fg-muted);
+}
+.pdf-error {
+  color: var(--danger);
+}
+.pdf-page {
+  display: flex;
+  justify-content: center;
+  margin: 0 auto 12px;
+  padding: 0;
+}
+.pdf-page canvas {
+  box-shadow: var(--shadow-md);
+  border-radius: 2px;
+  background: #ffffff;
+  max-width: 100%;
+  height: auto;
+}
+
