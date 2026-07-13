@@ -3,6 +3,11 @@ mod watcher;
 
 use serde::Serialize;
 use std::sync::Mutex;
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    Manager, Emitter,
+};
 use watcher::WatcherState;
 
 /// Holds the most recent file path passed on the command line (either at launch
@@ -28,7 +33,6 @@ pub fn run() {
         // frontend, which opens it as a new tab instead of a new window.
         builder = builder.plugin(
             tauri_plugin_single_instance::init(|app, argv, _cwd| {
-                use tauri::{Manager, Emitter};
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();
@@ -57,6 +61,60 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(WatcherState::default())
         .manage(initial)
+        .setup(|app| {
+            // ---------- System tray ----------
+            // Tray icon: left-click shows the window, right-click opens a menu
+            // with Show / Quit. The icon reuses the app icon.
+            let show_item = MenuItem::with_id(app, "show", "Show mdpeek", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit mdpeek", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+
+            let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .tooltip("mdpeek")
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    "quit" => {
+                        app.exit(0);
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    // Double-click (or single-click-release) on the tray icon
+                    // shows + focuses the window.
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Intercept the close button. Instead of exiting, emit an event to
+            // the frontend, which decides (based on the user's preference)
+            // whether to minimize to tray or actually quit.
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let _ = window.emit("close-requested", ());
+                api.prevent_close();
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::open_file,
             commands::save_file,
@@ -64,9 +122,29 @@ pub fn run() {
             commands::read_file,
             watcher::watch_path,
             get_initial_file,
+            hide_to_tray,
+            quit_app,
         ])
         .run(tauri::generate_context!())
         .expect("error while running mdpeek");
+}
+
+/// Hide the window to the system tray (called by the frontend when the user
+/// picks "Minimize to tray" in the close dialog, or when "always minimize"
+/// is the saved preference).
+#[tauri::command]
+fn hide_to_tray(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.hide();
+    }
+    Ok(())
+}
+
+/// Actually quit the app (called by the frontend when the user picks "Quit").
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) -> Result<(), String> {
+    app.exit(0);
+    Ok(())
 }
 
 /// Frontend calls this once on startup to pull any file passed at launch.

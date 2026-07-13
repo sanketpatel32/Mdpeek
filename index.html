@@ -108,6 +108,22 @@
       <button class="ctx-item" data-action="close-all" role="menuitem">Close all</button>
     </div>
 
+    <div id="close-dialog" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="close-dialog-title">
+      <div class="modal">
+        <h2 id="close-dialog-title" class="modal-title">Close mdpeek</h2>
+        <p class="modal-text">Minimize to the system tray and keep running in the background, or quit completely?</p>
+        <label class="modal-remember">
+          <input type="checkbox" id="close-remember" />
+          <span>Always do this (don't ask again)</span>
+        </label>
+        <div class="modal-actions">
+          <button id="close-cancel" class="modal-btn modal-btn-secondary">Cancel</button>
+          <button id="close-quit" class="modal-btn modal-btn-secondary">Quit</button>
+          <button id="close-minimize" class="modal-btn modal-btn-primary">Minimize to tray</button>
+        </div>
+      </div>
+    </div>
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

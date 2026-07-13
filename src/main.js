@@ -19,7 +19,7 @@ const ICON_MOON =
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.3.5</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.4.0</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -54,6 +54,8 @@ const el = {
   toast: document.getElementById('toast'),
   dropzone: document.getElementById('dropzone'),
   ctxMenu: document.getElementById('ctx-menu'),
+  closeDialog: document.getElementById('close-dialog'),
+  closeRemember: document.getElementById('close-remember'),
 };
 
 // ---------- helpers ----------
@@ -598,6 +600,62 @@ window.addEventListener('keydown', (e) => {
     zoomReset();
   }
 }, true);
+
+// ---------- Close → minimize to tray, or quit? ----------
+// The Rust side intercepts the OS close and emits 'close-requested' instead.
+// We show a dialog with two choices + a "remember" checkbox. The saved
+// preference bypasses the dialog on future closes.
+const TRAY_PREF_KEY = 'mdpeek-close-action'; // 'tray' | 'quit' | null
+
+function doMinimizeToTray() {
+  invoke('hide_to_tray').catch((e) => toast('Could not minimize: ' + fmtErr(e)));
+}
+function doQuitApp() {
+  invoke('quit_app').catch((e) => toast('Could not quit: ' + fmtErr(e)));
+}
+
+function showCloseDialog() {
+  const saved = localStorage.getItem(TRAY_PREF_KEY);
+  if (saved === 'tray') {
+    doMinimizeToTray();
+    return;
+  }
+  if (saved === 'quit') {
+    doQuitApp();
+    return;
+  }
+  // No saved preference → show the dialog.
+  el.closeRemember.checked = false;
+  el.closeDialog.classList.remove('hidden');
+}
+
+function hideCloseDialog() {
+  el.closeDialog.classList.add('hidden');
+}
+
+function resolveClose(action) {
+  if (el.closeRemember.checked) {
+    localStorage.setItem(TRAY_PREF_KEY, action);
+  }
+  hideCloseDialog();
+  if (action === 'tray') doMinimizeToTray();
+  else doQuitApp();
+}
+
+listen('close-requested', () => {
+  showCloseDialog();
+}).catch((e) => console.error('close-requested listener failed:', e));
+
+document.getElementById('close-cancel').addEventListener('click', hideCloseDialog);
+document.getElementById('close-quit').addEventListener('click', () => resolveClose('quit'));
+document.getElementById('close-minimize').addEventListener('click', () => resolveClose('tray'));
+// Escape cancels the close (window stays open).
+el.closeDialog.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    e.stopPropagation();
+    hideCloseDialog();
+  }
+});
 
 // ---------- drag & drop (supports multiple files → multiple tabs) ----------
 let dragDepth = 0;

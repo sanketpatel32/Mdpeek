@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-13
+
+### Added — system tray + minimize-to-tray
+- **System tray icon** — mdpeek now lives in the Windows system tray (bottom-right
+  icon area). Left-click the tray icon (or double-click) to show the window.
+  Right-click for a menu: **Show mdpeek** / **Quit mdpeek**.
+- **Close dialog** — clicking the window close button no longer exits. Instead
+  a dialog asks: **Minimize to tray** or **Quit**? A "Always do this (don't ask
+  again)" checkbox remembers your choice for future closes.
+- Reset the remembered choice by clearing site data, or it can be extended
+  later with a settings panel.
+
+### Changed
+- This is a minor version bump (0.3 → 0.4) because the close behavior changed
+  meaningfully: the app stays alive in the background by default until you
+  explicitly quit.
+
 ## [0.3.5] - 2026-07-13
 
 ### Fixed
