@@ -13,14 +13,17 @@ export function isPlainPath(path) {
   return !!path && /\.txt$/i.test(path);
 }
 
-export function createDocument({ path = null, content = '', mode = 'view' } = {}) {
-  const plain = isPlainPath(path);
+export function createDocument({ path = null, content = '', mode = 'view', plain } = {}) {
+  // `plain` override lets a fresh Untitled tab be plain text without a .txt
+  // path (used by the new-tab-format preference). When omitted, plainness is
+  // derived from the path as before.
+  const isPlain = plain !== undefined ? plain : isPlainPath(path);
   return {
     id: newId(),
     path, // string | null (null = Untitled, not yet saved)
     content,
-    mode: plain ? 'edit' : mode, // plain docs always open in edit mode
-    plain, // true = no markdown preview, full-width editor
+    mode: isPlain ? 'edit' : mode, // plain docs always open in edit mode
+    plain: isPlain, // true = no markdown preview, full-width editor
     dirty: false,
     scrollY: 0,
     editor: null, // lazy-init in main.js when entering edit mode
@@ -48,7 +51,7 @@ export class DocumentStore {
     return this.docs.find((d) => d.id === this.activeId) || null;
   }
 
-  open({ path = null, content = '' }) {
+  open({ path = null, content = '', plain, mode } = {}) {
     // Duplicate check: files on disk (path != null) open once.
     if (path !== null) {
       const existing = this.docs.find((d) => d.path === path);
@@ -57,7 +60,7 @@ export class DocumentStore {
         return existing;
       }
     }
-    const doc = createDocument({ path, content });
+    const doc = createDocument({ path, content, plain, mode });
     this.docs.push(doc);
     this.activeId = doc.id;
     this._emit('change');

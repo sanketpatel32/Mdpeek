@@ -117,6 +117,9 @@
             </button>
           </div>
         </div>
+        <button id="btn-settings" class="tool-btn icon-only" title="Settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
       </div>
 
       <div class="window-controls">
@@ -191,6 +194,77 @@
         <h2 id="confirm-title" class="modal-title"></h2>
         <p id="confirm-text" class="modal-text"></p>
         <div id="confirm-actions" class="modal-actions"></div>
+      </div>
+    </div>
+
+    <div id="settings-dialog" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="modal modal-wide">
+        <h2 id="settings-title" class="modal-title">Settings</h2>
+        <div class="settings-body">
+          <div class="setting">
+            <div class="setting-text">
+              <div class="setting-label">New tab format</div>
+              <div class="setting-desc">What the + button and Ctrl+N create</div>
+            </div>
+            <div class="seg" data-setting="new-tab-format">
+              <button class="seg-btn" data-value="markdown" type="button">Markdown</button>
+              <button class="seg-btn" data-value="text" type="button">Plain Text</button>
+            </div>
+          </div>
+
+          <div class="setting">
+            <div class="setting-text">
+              <div class="setting-label">New tab opens in</div>
+              <div class="setting-desc">Starting mode for new markdown tabs</div>
+            </div>
+            <div class="seg" data-setting="new-tab-mode">
+              <button class="seg-btn" data-value="view" type="button">View</button>
+              <button class="seg-btn" data-value="edit" type="button">Edit</button>
+            </div>
+          </div>
+
+          <div class="setting">
+            <div class="setting-text">
+              <div class="setting-label">Theme</div>
+              <div class="setting-desc">Color scheme for the whole app</div>
+            </div>
+            <select id="settings-theme" class="setting-select" aria-label="Theme">
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="solar-light">Solarized Light</option>
+              <option value="solar-dark">Solarized Dark</option>
+              <option value="dracula">Dracula</option>
+              <option value="nord">Nord</option>
+            </select>
+          </div>
+
+          <div class="setting">
+            <div class="setting-text">
+              <div class="setting-label">Close button action</div>
+              <div class="setting-desc">What the window close (✕) button does</div>
+            </div>
+            <select id="settings-close-action" class="setting-select" aria-label="Close button action">
+              <option value="ask">Ask every time</option>
+              <option value="tray">Minimize to tray</option>
+              <option value="quit">Quit immediately</option>
+            </select>
+          </div>
+
+          <div class="setting">
+            <div class="setting-text">
+              <div class="setting-label">Find: match case</div>
+              <div class="setting-desc">Default for the Ctrl+F case-sensitive toggle</div>
+            </div>
+            <label class="setting-toggle">
+              <input type="checkbox" id="settings-find-case" />
+              <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="settings-reset" class="modal-btn" type="button">Reset to defaults</button>
+          <button id="settings-done" class="modal-btn modal-btn-primary" type="button">Done</button>
+        </div>
       </div>
     </div>
 

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-07-13
+
+### Added — settings dialog
+- **Settings modal** — a gear icon in the toolbar opens a single dialog listing
+  every preference. No more hunting through separate menus.
+- **New tab format** — choose whether the `+` button (and Ctrl+N) creates a
+  Markdown document or a Plain Text document. Plain-text tabs open as a
+  full-width editor with no preview, just like `.txt` files.
+- **New tab opens in** — set whether new Markdown tabs start in View or Edit
+  mode.
+- **Theme** picker, **close-button action** (Ask / Tray / Quit), and **Find:
+  match case** default are all surfaced here too. Theme and find-case apply
+  live; the rest take effect on the next relevant action.
+- **Reset to defaults** restores everything in one click.
+- Esc or clicking outside the card closes the dialog.
+
+### Changed
+- `createDocument` and `store.open` now accept an explicit `plain` override so
+  a fresh Untitled tab can be plain text without a `.txt` path. Existing
+  callers are unaffected (the param is optional with the old derive-from-path
+  behavior as the default).
+
 ## [0.4.5] - 2026-07-13
 
 ### Fixed — find bar focus bugs

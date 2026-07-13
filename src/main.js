@@ -28,7 +28,7 @@ const DEFAULT_THEME = 'light';
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.4.5</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.4.6</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -51,6 +51,8 @@ const el = {
   zoomOut: document.getElementById('btn-zoom-out'),
   theme: document.getElementById('btn-theme'),
   themeMenu: document.getElementById('theme-menu'),
+  settings: document.getElementById('btn-settings'),
+  settingsDialog: document.getElementById('settings-dialog'),
   update: document.getElementById('btn-update'),
   tabStrip: document.getElementById('tab-strip'),
   viewMode: document.getElementById('view-mode'),
@@ -275,7 +277,10 @@ async function openPath(path, content) {
 }
 
 function newTab() {
-  store.open({ path: null, content: '' });
+  const fmt = localStorage.getItem('mdpeek-new-tab-format') || 'markdown';
+  const modePref = localStorage.getItem('mdpeek-new-tab-mode') || 'view';
+  const plain = fmt === 'text';
+  store.open({ path: null, content: '', plain, mode: plain ? 'edit' : modePref });
 }
 
 async function closeTab(id) {
@@ -595,6 +600,109 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeThemeMenu();
+});
+
+// ---------- settings dialog ----------
+// One place to tune every preference. Each control reads/writes a localStorage
+// key and applies the change live where possible (theme, find-case). New-tab
+// prefs take effect on the next +/Ctrl+N. All controls are wired once.
+const SETTING_KEYS = [
+  'mdpeek-new-tab-format',
+  'mdpeek-new-tab-mode',
+  'mdpeek-theme',
+  'mdpeek-close-action',
+  'mdpeek-find-case',
+];
+
+function openSettings() {
+  syncSettingsControls();
+  el.settingsDialog.classList.remove('hidden');
+}
+function closeSettings() {
+  el.settingsDialog.classList.add('hidden');
+}
+
+// Read current pref values from localStorage and reflect them in the modal's
+// controls (active states, selected options, checkbox). Called on open and
+// after Reset.
+function syncSettingsControls() {
+  const fmt = localStorage.getItem('mdpeek-new-tab-format') || 'markdown';
+  setSegActive('new-tab-format', fmt);
+  const modePref = localStorage.getItem('mdpeek-new-tab-mode') || 'view';
+  setSegActive('new-tab-mode', modePref);
+
+  const themeSel = document.getElementById('settings-theme');
+  if (themeSel) themeSel.value = localStorage.getItem('mdpeek-theme') || 'light';
+
+  const closeSel = document.getElementById('settings-close-action');
+  if (closeSel) closeSel.value = localStorage.getItem('mdpeek-close-action') || 'ask';
+
+  const findCaseCb = document.getElementById('settings-find-case');
+  if (findCaseCb) findCaseCb.checked = localStorage.getItem('mdpeek-find-case') === '1';
+}
+
+function setSegActive(setting, value) {
+  const seg = el.settingsDialog.querySelector(`.seg[data-setting="${setting}"]`);
+  if (!seg) return;
+  seg.querySelectorAll('.seg-btn').forEach((b) => {
+    b.classList.toggle('active', b.dataset.value === value);
+  });
+}
+
+el.settings.addEventListener('click', () => openSettings());
+document.getElementById('settings-done').addEventListener('click', closeSettings);
+document.getElementById('settings-reset').addEventListener('click', () => {
+  for (const k of SETTING_KEYS) localStorage.removeItem(k);
+  // Apply defaults live.
+  applyTheme('light');
+  if (find) find.setCaseSensitive(false);
+  syncSettingsControls();
+});
+
+// Click outside the card closes the dialog.
+el.settingsDialog.addEventListener('click', (e) => {
+  if (e.target === el.settingsDialog) closeSettings();
+});
+// Esc closes (stopPropagation so it doesn't reach the find bar's Esc handler).
+el.settingsDialog.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    e.stopPropagation();
+    closeSettings();
+  }
+});
+
+// Segmented controls (new-tab-format, new-tab-mode).
+el.settingsDialog.querySelectorAll('.seg').forEach((seg) => {
+  seg.addEventListener('click', (e) => {
+    const btn = e.target.closest('.seg-btn');
+    if (!btn) return;
+    const setting = seg.dataset.setting;
+    const value = btn.dataset.value;
+    if (setting === 'new-tab-format') {
+      localStorage.setItem('mdpeek-new-tab-format', value);
+    } else if (setting === 'new-tab-mode') {
+      localStorage.setItem('mdpeek-new-tab-mode', value);
+    }
+    setSegActive(setting, value);
+  });
+});
+
+// Theme select — reuses the live applyTheme().
+document.getElementById('settings-theme').addEventListener('change', (e) => {
+  applyTheme(e.target.value);
+});
+
+// Close-action select.
+document.getElementById('settings-close-action').addEventListener('change', (e) => {
+  const v = e.target.value;
+  if (v === 'ask') localStorage.removeItem('mdpeek-close-action');
+  else localStorage.setItem('mdpeek-close-action', v);
+});
+
+// Find case toggle — updates the live find bar too.
+document.getElementById('settings-find-case').addEventListener('change', (e) => {
+  if (find) find.setCaseSensitive(e.target.checked);
+  else localStorage.setItem('mdpeek-find-case', e.target.checked ? '1' : '0');
 });
 
 // Link clicks inside rendered markdown: external URLs open in the system

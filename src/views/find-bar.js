@@ -71,13 +71,7 @@ function build() {
 
 // ---------- listeners (attached exactly once) ----------
 function wireOnce() {
-  caseBtn.addEventListener('click', () => {
-    caseSensitive = !caseSensitive;
-    localStorage.setItem(CASE_KEY, caseSensitive ? '1' : '0');
-    caseBtn.setAttribute('aria-pressed', String(caseSensitive));
-    caseBtn.classList.toggle('active', caseSensitive);
-    run();
-  });
+  caseBtn.addEventListener('click', () => setCaseSensitive(!caseSensitive));
 
   input.addEventListener('input', () => {
     query = input.value;
@@ -464,10 +458,22 @@ function refresh() {
   if (isOpen()) run();
 }
 
+// External entry point for the settings dialog to set case-sensitivity live.
+// Updates the button + persisted pref + re-runs the search if open.
+function setCaseSensitive(value) {
+  caseSensitive = !!value;
+  localStorage.setItem(CASE_KEY, caseSensitive ? '1' : '0');
+  if (caseBtn) {
+    caseBtn.setAttribute('aria-pressed', String(caseSensitive));
+    caseBtn.classList.toggle('active', caseSensitive);
+  }
+  if (isOpen()) run();
+}
+
 export function initFindBar(accessors) {
   if (created) return; // idempotent
   created = true;
   ctx = { ...ctx, ...accessors };
   build();
-  return { open, close, toggle, isOpen, refresh, findNext: () => step(true), findPrev: () => step(false) };
+  return { open, close, toggle, isOpen, refresh, setCaseSensitive, findNext: () => step(true), findPrev: () => step(false) };
 }

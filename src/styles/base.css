@@ -1016,3 +1016,137 @@ mark.find-current {
   width: 20px;
   height: 20px;
 }
+
+/* ---------- Settings dialog ---------- */
+/* Wider variant of .modal to fit two-column setting rows comfortably. */
+.modal-wide {
+  width: 480px;
+}
+.settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-bottom: 20px;
+  padding-right: 4px;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+}
+.setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.setting-text {
+  min-width: 0;
+}
+.setting-label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fg);
+  line-height: 1.3;
+}
+.setting-desc {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+/* Segmented control (e.g. Markdown | Plain Text). */
+.seg {
+  display: inline-flex;
+  padding: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  flex-shrink: 0;
+}
+.seg-btn {
+  border: none;
+  background: transparent;
+  color: var(--fg-secondary);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 5px 14px;
+  border-radius: calc(var(--radius) - 3px);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 120ms var(--ease), color 120ms var(--ease);
+}
+.seg-btn:hover {
+  color: var(--fg);
+}
+.seg-btn.active {
+  background: var(--bg-elevated);
+  color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Themed select dropdown. */
+.setting-select {
+  height: 30px;
+  min-width: 150px;
+  padding: 0 26px 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none' stroke='%2386868b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='1 1 5 5 9 1'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  transition: border-color 120ms var(--ease);
+}
+.setting-select:focus {
+  border-color: var(--accent);
+}
+
+/* Toggle switch (iOS/macOS style) for the find-case setting. */
+.setting-toggle {
+  position: relative;
+  display: inline-flex;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.setting-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.toggle-track {
+  width: 38px;
+  height: 22px;
+  background: var(--surface-active);
+  border-radius: 999px;
+  position: relative;
+  transition: background-color 180ms var(--ease);
+}
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  background: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 180ms var(--ease);
+}
+.setting-toggle input:checked + .toggle-track {
+  background: var(--accent);
+}
+.setting-toggle input:checked + .toggle-track .toggle-thumb {
+  transform: translateX(16px);
+}
+.setting-toggle input:focus-visible + .toggle-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
