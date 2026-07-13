@@ -33,7 +33,7 @@ const DEFAULT_THEME = 'light';
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.5.1</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.5.2</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -503,6 +503,12 @@ function applyReadingComfort() {
   applyZoom(); // pick up a possibly-changed base font
 }
 
+// Show/hide the editor gutter (line numbers). Default on.
+function applyLineNumbers() {
+  const show = localStorage.getItem('mdpeek-line-numbers') !== '0';
+  el.gutter.classList.toggle('hidden', !show);
+}
+
 function zoomIn() {
   zoomLevel = Math.min(ZOOM_MAX, +(zoomLevel + ZOOM_STEP).toFixed(2));
   applyZoom();
@@ -631,6 +637,7 @@ const SETTING_KEYS = [
   'mdpeek-find-case',
   'mdpeek-base-font',
   'mdpeek-line-height',
+  'mdpeek-line-numbers',
 ];
 
 function openSettings() {
@@ -664,6 +671,9 @@ function syncSettingsControls() {
 
   const lhSel = document.getElementById('settings-line-height');
   if (lhSel) lhSel.value = String(parseFloat(localStorage.getItem('mdpeek-line-height')) || 1.7);
+
+  const lineNumCb = document.getElementById('settings-line-numbers');
+  if (lineNumCb) lineNumCb.checked = localStorage.getItem('mdpeek-line-numbers') !== '0';
 }
 
 function setSegActive(setting, value) {
@@ -682,6 +692,7 @@ document.getElementById('settings-reset').addEventListener('click', () => {
   applyTheme('light');
   if (find) find.setCaseSensitive(false);
   applyReadingComfort();
+  applyLineNumbers();
   syncSettingsControls();
 });
 
@@ -741,6 +752,12 @@ document.getElementById('settings-font-size').addEventListener('change', (e) => 
 document.getElementById('settings-line-height').addEventListener('change', (e) => {
   localStorage.setItem('mdpeek-line-height', e.target.value);
   applyReadingComfort();
+});
+
+// Line numbers — toggle the editor gutter visibility.
+document.getElementById('settings-line-numbers').addEventListener('change', (e) => {
+  localStorage.setItem('mdpeek-line-numbers', e.target.checked ? '1' : '0');
+  applyLineNumbers();
 });
 
 // Link clicks inside rendered markdown: external URLs open in the system
@@ -1073,6 +1090,7 @@ if (savedZoom >= ZOOM_MIN && savedZoom <= ZOOM_MAX) {
   zoomLevel = savedZoom;
 }
 applyReadingComfort();
+applyLineNumbers();
 
 (async () => {
   // Restore session, re-reading file contents from disk in PARALLEL (was

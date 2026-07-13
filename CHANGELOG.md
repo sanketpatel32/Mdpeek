@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-07-13
+
+### Added
+- **Line numbers toggle** in Settings — turn the editor's line-number gutter on
+  or off. Off gives a cleaner, distraction-free writing surface (the editor
+  expands to full width). Default on. Applies immediately and persists.
+
 ## [0.5.1] - 2026-07-13
 
 ### Added — 4 new themes + reading comfort
