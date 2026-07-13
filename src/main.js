@@ -7,6 +7,7 @@ import { relaunch } from '@tauri-apps/plugin-process';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { showDocument, buildToc } from './views/viewer.js';
 import { initEditor } from './views/editor.js';
+import { initFindBar } from './views/find-bar.js';
 import { renderTabs } from './views/tabs.js';
 import { DocumentStore } from './lib/documents.js';
 import { saveSession, loadSession } from './lib/persistence.js';
@@ -27,7 +28,7 @@ const DEFAULT_THEME = 'light';
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.4.3</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.4.4</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -58,7 +59,6 @@ const el = {
   toc: document.getElementById('toc'),
   editor: document.getElementById('editor'),
   gutter: document.getElementById('gutter'),
-  findBar: document.getElementById('find-bar'),
   preview: document.getElementById('preview'),
   toast: document.getElementById('toast'),
   dropzone: document.getElementById('dropzone'),
@@ -175,6 +175,10 @@ let _lastRenderedId = null;
 async function renderActive() {
   // Sync the outgoing doc's editor content + caret + scroll back into its model.
   if (_lastRenderedId !== null && _lastRenderedId !== store.activeId) {
+    // Closing the find bar on tab switch prevents stale highlights from one
+    // doc lingering over another, and drops the textarea selection of a
+    // soon-to-be-destroyed editor.
+    if (find) find.close();
     const prev = store.docs.find((d) => d.id === _lastRenderedId);
     if (prev) {
       if (prev.mode === 'edit' && prev.editor) {
@@ -229,7 +233,6 @@ async function renderActive() {
         textarea: el.editor,
         preview: el.preview,
         gutter: el.gutter,
-        findBar: el.findBar,
       });
     }
     doc.editor.setValue(doc.content);
@@ -414,6 +417,7 @@ function toggleMode() {
   // Capture content before switching out of edit mode.
   if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
   doc.mode = doc.mode === 'view' ? 'edit' : 'view';
+  if (find) find.close(); // clear highlights/selection before the re-render
   renderActive();
 }
 
@@ -721,6 +725,14 @@ window.addEventListener('keydown', (e) => {
   } else if (k === 'b') {
     e.preventDefault();
     toggleSidebar();
+  } else if (k === 'f') {
+    e.preventDefault();
+    find.toggle();
+  } else if (k === 'g') {
+    // Ctrl+G = next, Ctrl+Shift+G = prev (repeat last search even when closed).
+    e.preventDefault();
+    if (e.shiftKey) find.findPrev();
+    else find.findNext();
   } else if (k === '=' || k === '+') {
     e.preventDefault();
     zoomIn();
@@ -731,6 +743,15 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     zoomReset();
   }
+}, true);
+
+// F3 (no modifier) = repeat last search. Shift+F3 = backward. Capture phase so
+// it works regardless of focus, and so WebView2 doesn't swallow it.
+window.addEventListener('keydown', (e) => {
+  if (e.key !== 'F3') return;
+  e.preventDefault();
+  if (e.shiftKey) find.findPrev();
+  else find.findNext();
 }, true);
 
 // ---------- Close → minimize to tray, or quit? ----------
@@ -858,7 +879,12 @@ listen('file-changed', (event) => {
   doc.content = event.payload;
   if (doc.mode === 'view') {
     showDocument(el.document, event.payload)
-      .then(() => buildToc(el.document))
+      .then(() => {
+        buildToc(el.document);
+        // The re-render wiped any <mark> highlights; re-apply if the find bar
+        // is open so the user doesn't see their search disappear.
+        if (find) find.refresh();
+      })
       .catch((e) => toast('Reload failed: ' + fmtErr(e)));
   } else if (doc.editor) {
     doc.editor.setValue(event.payload);
@@ -874,6 +900,20 @@ listen('open-file', (event) => {
 // ---------- init ----------
 const savedTheme = localStorage.getItem('mdpeek-theme');
 applyTheme(savedTheme && HLJS_FOR_THEME[savedTheme] ? savedTheme : DEFAULT_THEME);
+
+// Global find bar — single instance, idempotent. Accessors read live state so
+// the find module never holds stale references across tab/mode switches.
+const find = initFindBar({
+  getMode: () => {
+    const d = store.active();
+    return d ? d.mode : 'view';
+  },
+  getEditor: () => {
+    const d = store.active();
+    return d && d.editor ? d.editor : null;
+  },
+  getDocument: () => el.document,
+});
 
 // Restore sidebar state (default visible).
 if (localStorage.getItem('mdpeek-sidebar') === 'hidden') {

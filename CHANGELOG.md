@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-07-13
+
+### Added — unified find (Ctrl+F)
+- **Find now works in BOTH view and edit mode.** Previously Ctrl+F only
+  searched the editor textarea; in view mode (the default) it did nothing.
+  Now one find bar handles both.
+- **In view mode**, matches are highlighted inline in the rendered document
+  (`<mark>` chips), the current match is emphasized, and the view scrolls to
+  it. Matches inside code blocks (highlight.js spans) are found too.
+- **Idempotent bar.** Pressing Ctrl+F repeatedly never stacks listeners or
+  duplicates the bar — one element, created once, toggled via `.hidden`.
+- **Case-sensitive toggle** (the `Aa` button) — default case-insensitive,
+  click to match exact case. Remembered across sessions.
+- **Seed from selection** — opening find with text selected pre-fills the
+  query (single-line selections only).
+- **F3 / Ctrl+G repeat** — F3 or Ctrl+G finds the next match, Shift+F3 or
+  Ctrl+Shift+G the previous, even after the bar is closed.
+- **Esc clears then closes** — first Esc clears the query and highlights,
+  a second Esc closes the bar.
+- **Count display** shows `n/total`; the input outline turns red when there
+  are no matches.
+
+### Changed
+- The find bar moved out of `editor.js` into a standalone global module
+  (`src/views/find-bar.js`) that owns the whole feature. The editor's public
+  API gained `textarea()` and `focus()` accessors so the find module can drive
+  selection without duplicating state.
+
 ## [0.4.3] - 2026-07-13
 
 ### Changed — custom window controls

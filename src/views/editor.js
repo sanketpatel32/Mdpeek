@@ -6,8 +6,6 @@ import {
   wrapSelection,
   autoPair,
   handleBackspace,
-  findMatches,
-  nextMatchIndex,
   lineCount,
 } from '../lib/editor-logic.js';
 
@@ -18,7 +16,7 @@ import {
 // All fiddly selection math lives in editor-logic.js (unit-tested); this module
 // is the thin DOM glue that reads the textarea state, calls a logic function,
 // and writes the result back.
-export function initEditor({ textarea, preview, gutter = null, findBar = null, debounceMs = 150 }) {
+export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 }) {
   let timer = null;
   const listeners = []; // [target, type, fn] — cleaned up in destroy()
 
@@ -87,13 +85,7 @@ export function initEditor({ textarea, preview, gutter = null, findBar = null, d
       return;
     }
 
-    // Ctrl+F → open the find bar (owned here so the browser's native find never shows).
-    if (ctrl && (e.key === 'f' || e.key === 'F')) {
-      e.preventDefault();
-      e.stopPropagation();
-      openFind();
-      return;
-    }
+    // Ctrl+F is owned by the global find module now — no handler here.
 
     if (e.key === 'Tab') {
       e.preventDefault();
@@ -131,71 +123,8 @@ export function initEditor({ textarea, preview, gutter = null, findBar = null, d
   }
 
   // ----- find bar -----
-  let matches = [];
-  let matchIdx = -1;
-
-  function openFind() {
-    if (!findBar) return;
-    findBar.classList.remove('hidden');
-    const input = findBar.querySelector('.find-input');
-    if (input) {
-      input.focus();
-      input.select();
-    }
-  }
-  function closeFind() {
-    if (!findBar) return;
-    findBar.classList.add('hidden');
-    textarea.focus();
-  }
-  function updateCount() {
-    const countEl = findBar ? findBar.querySelector('.find-count') : null;
-    if (countEl) {
-      countEl.textContent = matches.length === 0 ? '0/0' : `${matchIdx + 1}/${matches.length}`;
-    }
-  }
-  function runFind(forward) {
-    if (!findBar) return;
-    const input = findBar.querySelector('.find-input');
-    const query = input ? input.value : '';
-    matches = findMatches(textarea.value, query, false);
-    if (matches.length === 0) {
-      matchIdx = -1;
-      updateCount();
-      return;
-    }
-    matchIdx = nextMatchIndex(matches, textarea.selectionStart, forward);
-    jumpTo(matches[matchIdx]);
-    updateCount();
-  }
-  function jumpTo(m) {
-    textarea.focus();
-    textarea.setSelectionRange(m.start, m.end);
-    // Approximate-scroll: line number * lineHeight, centered in the viewport.
-    const lineNum = textarea.value.slice(0, m.start).split('\n').length - 1;
-    const lineHeight = parseFloat(getComputedStyle(textarea).lineHeight);
-    textarea.scrollTop = Math.max(0, lineNum * lineHeight - textarea.clientHeight / 2);
-  }
-  function onFindKey(e) {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      runFind(!e.shiftKey); // Enter = next, Shift+Enter = prev
-    } else if (e.key === 'F3') {
-      e.preventDefault();
-      runFind(!e.shiftKey);
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      closeFind();
-    }
-  }
-  // Live-update match count as the user types the query.
-  function onFindInput() {
-    if (!findBar) return;
-    const query = findBar.querySelector('.find-input')?.value || '';
-    matches = findMatches(textarea.value, query, false);
-    matchIdx = matches.length === 0 ? -1 : nextMatchIndex(matches, textarea.selectionStart, true);
-    updateCount();
-  }
+  // Find is now owned by the global find module (src/views/find-bar.js).
+  // The textarea exposes textarea() + focus() so it can drive selection.
 
   // ----- wiring -----
   function on(type, target, fn) {
@@ -209,17 +138,6 @@ export function initEditor({ textarea, preview, gutter = null, findBar = null, d
   });
   on('keydown', textarea, onKeyDown);
   on('scroll', textarea, onScroll);
-  if (findBar) {
-    on('keydown', findBar, onFindKey);
-    const input = findBar.querySelector('.find-input');
-    if (input) on('input', input, onFindInput);
-    const prevBtn = findBar.querySelector('.find-prev');
-    const nextBtn = findBar.querySelector('.find-next');
-    const closeBtn = findBar.querySelector('.find-close');
-    if (prevBtn) on('click', prevBtn, () => runFind(false));
-    if (nextBtn) on('click', nextBtn, () => runFind(true));
-    if (closeBtn) on('click', closeBtn, closeFind);
-  }
 
   refresh();
   syncGutter();
@@ -234,6 +152,10 @@ export function initEditor({ textarea, preview, gutter = null, findBar = null, d
       return textarea.value;
     },
     refresh,
+    // Expose the raw textarea so the global find module can read lineHeight,
+    // scrollTop, etc. without duplicating state.
+    textarea: () => textarea,
+    focus: () => textarea.focus(),
     // Capture caret + scroll so a tab switch away and back preserves position.
     getState() {
       return {
@@ -248,8 +170,6 @@ export function initEditor({ textarea, preview, gutter = null, findBar = null, d
       textarea.setSelectionRange(state.start || 0, state.end || 0);
       textarea.scrollTop = state.scrollTop || 0;
     },
-    openFind,
-    closeFind,
     destroy() {
       clearTimeout(timer);
       for (const [target, type, fn] of listeners) target.removeEventListener(type, fn);

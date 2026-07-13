@@ -324,19 +324,61 @@ main {
   border-bottom: 1px solid var(--border-subtle);
 }
 
-/* Find bar — sits between the pane header and the editor. */
-.find-bar {
-  flex: 0 0 auto;
+/* ---------- Find bar (global, floating) ----------
+   One element appended to <body>, toggled via .hidden. Lives above content,
+   below modals. The card uses the elevated surface + shadow tokens so it reads
+   as a sheet floating over the document. */
+.find-overlay {
+  position: fixed;
+  top: calc(var(--header-h) + 12px);
+  right: 16px;
+  z-index: 80;
+  animation: find-in 180ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+.find-overlay.hidden {
+  display: none !important;
+}
+@keyframes find-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.find-bar-card {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 6px 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+.find-toggle {
+  height: 26px;
+  width: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--fg-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms var(--ease), color 120ms var(--ease),
+    border-color 120ms var(--ease);
+}
+.find-toggle:hover {
+  background: var(--surface-hover);
+  color: var(--fg);
+}
+.find-toggle.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent-soft);
 }
 .find-input {
-  flex: 1;
-  max-width: 320px;
+  width: 200px;
   height: 26px;
   padding: 0 8px;
   border: 1px solid var(--border);
@@ -345,16 +387,36 @@ main {
   color: var(--fg);
   font-size: 12.5px;
   outline: none;
+  transition: border-color 120ms var(--ease);
 }
 .find-input:focus {
   border-color: var(--accent);
+}
+.find-input.no-match {
+  border-color: var(--danger);
 }
 .find-count {
   font-size: 11px;
   color: var(--fg-muted);
   font-variant-numeric: tabular-nums;
-  min-width: 34px;
+  min-width: 38px;
   text-align: center;
+  user-select: none;
+}
+
+/* In-document match highlights (view mode). */
+mark.find-match {
+  background: var(--accent-soft);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+mark.find-current {
+  background: var(--accent);
+  color: #ffffff;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 3px;
 }
 
 /* editor-wrap = gutter + textarea side by side, sharing one scroll context. */

@@ -211,7 +211,9 @@ html {
 .ctx-item,
 .dropzone-inner,
 .welcome,
-.find-bar,
+.find-overlay,
+.find-bar-card,
+.find-toggle,
 .theme-menu-wrap,
 .window-controls,
 .window-btn {
