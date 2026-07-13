@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-07-13
+
+### Added
+- **Version status button** in the toolbar (pill-shaped, right of zoom-in).
+  Shows the current version with a colored status dot:
+  - **Grey, pulsing** — checking for updates
+  - **Green** — you're on the latest version
+  - **Blue, pulsing** — an update is available
+  - **Red** — update check failed (network error, etc.)
+  Click the button to manually check for updates, or to install a pending
+  update immediately instead of waiting for the toast.
+
 ## [0.3.2] - 2026-07-13
 
 ### Fixed — critical bugs (from code-quality audit)

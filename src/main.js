@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { getVersion } from '@tauri-apps/api/app';
 import { listen } from '@tauri-apps/api/event';
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
@@ -18,7 +19,7 @@ const ICON_MOON =
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.3.2</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.3.3</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -40,6 +41,7 @@ const el = {
   zoomIn: document.getElementById('btn-zoom-in'),
   zoomOut: document.getElementById('btn-zoom-out'),
   theme: document.getElementById('btn-theme'),
+  update: document.getElementById('btn-update'),
   tabStrip: document.getElementById('tab-strip'),
   viewMode: document.getElementById('view-mode'),
   editMode: document.getElementById('edit-mode'),
@@ -375,6 +377,34 @@ function zoomReset() {
 }
 
 // ---------- auto-update (perMachine install: UAC will prompt when applying) ----------
+// The version button shows: a dot (green = latest, amber = update available,
+// grey = checking/error) + the current version label. Click runs a manual check.
+
+let _pendingUpdate = null; // cached update object once detected
+
+function setUpdateStatus(state, versionLabel) {
+  const btn = el.update;
+  if (!btn) return;
+  btn.classList.remove('state-checking', 'state-latest', 'state-update', 'state-error');
+  if (state === 'checking') {
+    btn.classList.add('state-checking');
+    btn.title = 'Checking for updates…';
+  } else if (state === 'latest') {
+    btn.classList.add('state-latest');
+    btn.title = `You're on the latest version (v${versionLabel}). Click to check again.`;
+  } else if (state === 'update') {
+    btn.classList.add('state-update');
+    btn.title = `Update available (v${versionLabel}). Click to install.`;
+  } else if (state === 'error') {
+    btn.classList.add('state-error');
+    btn.title = 'Could not check for updates. Click to retry.';
+  }
+  if (versionLabel !== undefined) {
+    const label = btn.querySelector('.update-label');
+    if (label) label.textContent = `v${versionLabel}`;
+  }
+}
+
 async function applyUpdate(update) {
   toast('Downloading update…');
   try {
@@ -387,20 +417,37 @@ async function applyUpdate(update) {
 }
 
 async function checkForUpdates(silent = false) {
+  if (!silent) setUpdateStatus('checking');
   try {
     const update = await check();
     if (update) {
+      _pendingUpdate = update;
+      setUpdateStatus('update', update.version);
       toast(`Update available: v${update.version}. Click to install.`, {
         persistent: true,
         onClick: () => applyUpdate(update),
       });
-    } else if (!silent) {
-      toast('You are on the latest version.');
+    } else {
+      const v = await getVersion();
+      _pendingUpdate = null;
+      setUpdateStatus('latest', v);
+      if (!silent) toast(`You're on the latest version (v${v}).`);
     }
   } catch (e) {
+    setUpdateStatus('error');
     if (!silent) toast('Update check failed: ' + fmtErr(e));
   }
 }
+
+// Clicking the version button: if an update is pending, install it; otherwise
+// run a manual (non-silent) check.
+el.update.addEventListener('click', () => {
+  if (_pendingUpdate) {
+    applyUpdate(_pendingUpdate);
+  } else {
+    checkForUpdates(false);
+  }
+});
 
 // ---------- events ----------
 el.open.addEventListener('click', openFileDialog);
@@ -674,6 +721,18 @@ applyZoom();
     if (store.active()) await rewatch(store.active().path);
   }
 })();
+
+// Show the current version immediately (before the network check resolves) so
+// the button isn't blank during the first few seconds.
+getVersion()
+  .then((v) => {
+    // Only set the label; keep the 'checking' dot until the check completes.
+    const label = el.update.querySelector('.update-label');
+    if (label) label.textContent = `v${v}`;
+  })
+  .catch(() => {});
+
+setUpdateStatus('checking');
 
 // Check for updates in the background a few seconds after launch (silent: no
 // toast if up-to-date). Delayed so the network call doesn't contend with
