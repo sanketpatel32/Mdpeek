@@ -127,6 +127,9 @@ function run() {
 }
 
 // Edit mode: find over textarea content, select + scroll to current match.
+// Does NOT steal focus from the find input — we only set the selection range
+// and scroll the textarea so the match is visible. Focus moves to the editor
+// only on explicit navigation (Enter / next-prev button) via jumpEditFocus.
 function runEdit() {
   const editor = ctx.getEditor();
   if (!editor || !query) {
@@ -141,11 +144,14 @@ function runEdit() {
   }
   const caret = editor.getState().end;
   matchIdx = nextMatchIndex(ms, caret, true);
-  jumpEdit(editor, ms[matchIdx], text);
+  showMatch(editor, ms[matchIdx], text, false);
 }
 
-function jumpEdit(editor, m, text) {
-  editor.focus();
+// Visually show a match in the textarea: set selection + scroll. When
+// `focusEditor` is true (explicit navigation), move focus to the textarea;
+// otherwise leave focus where it is (find input keeps focus while typing).
+function showMatch(editor, m, text, focusEditor) {
+  if (focusEditor) editor.focus();
   editor.setState({ start: m.start, end: m.end });
   // Best-effort vertical centering: line-based, ignores wrapping.
   const lineNum = text.slice(0, m.start).split('\n').length - 1;
@@ -347,7 +353,9 @@ function stepEdit(forward) {
   }
   const caret = editor.getState().end;
   matchIdx = nextMatchIndex(ms, forward ? caret : editor.getState().start, forward);
-  jumpEdit(editor, ms[matchIdx], text);
+  // Explicit navigation (Enter / next-prev): move focus to the editor so the
+  // user can keep typing there if they wish.
+  showMatch(editor, ms[matchIdx], text, true);
 }
 
 function stepView(forward) {
@@ -410,7 +418,14 @@ function close() {
   // Return focus to the editor/document so keyboard shortcuts keep working.
   if (ctx.getMode() === 'edit') {
     const editor = ctx.getEditor();
-    if (editor) editor.focus();
+    if (editor) {
+      // Collapse any match selection so the user's next keystroke inserts
+      // instead of replacing a leftover highlighted match. Put the caret at
+      // the selection end so typing continues naturally.
+      const { end } = editor.getState();
+      editor.setState({ start: end, end, scrollTop: editor.textarea().scrollTop });
+      editor.focus();
+    }
   }
 }
 

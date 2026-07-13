@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-07-13
+
+### Fixed — find bar focus bugs
+- **Find bar no longer loses focus while typing** (Issue 1). Previously every
+  keystroke in the find input triggered a re-search that called
+  `editor.focus()`, yanking focus back to the textarea — so typing "m" would
+  disconnect the bar and you had to click back in for each letter. The
+  background search now updates the textarea selection WITHOUT stealing focus;
+  focus moves to the editor only on explicit navigation (Enter / next / prev).
+- **First character no longer swallowed after find** (Issue 2). The match
+  selection left in the textarea could eat the first character typed after
+  closing find. Closing the bar now collapses the selection to a caret so the
+  next keystroke inserts cleanly.
+
 ## [0.4.4] - 2026-07-13
 
 ### Added — unified find (Ctrl+F)
