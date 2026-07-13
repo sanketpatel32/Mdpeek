@@ -6,7 +6,7 @@
   width: 100%;
   margin: 0;
   padding: 40px 48px 96px;
-  line-height: 1.7;
+  line-height: var(--content-line-height, 1.7);
   color: var(--fg);
   font-size: 15px;
 }
@@ -299,40 +299,35 @@
 .markdown-body .markdown-alert-title svg {
   flex-shrink: 0;
 }
-.markdown-body .markdown-alert-NOTE .markdown-alert-title,
-.markdown-body .markdown-alert-TIP .markdown-alert-title,
-.markdown-body .markdown-alert-IMPORTANT .markdown-alert-title,
-.markdown-body .markdown-alert-WARNING .markdown-alert-title,
-.markdown-body .markdown-alert-CAUTION .markdown-alert-title {
-  /* title color set per-type below */
-}
+/* Per-type colors driven by --alert-* variables (defined per theme in
+   themes.css) so callouts stay readable on light AND dark themes. */
 .markdown-body .markdown-alert-NOTE {
-  border-left-color: #0969da;
-  background: rgba(9, 105, 218, 0.08);
+  border-left-color: var(--alert-note);
+  background: var(--alert-note-bg);
 }
-.markdown-body .markdown-alert-NOTE .markdown-alert-title { color: #0969da; }
+.markdown-body .markdown-alert-NOTE .markdown-alert-title { color: var(--alert-note); }
 
 .markdown-body .markdown-alert-TIP {
-  border-left-color: #1a7f37;
-  background: rgba(26, 127, 55, 0.08);
+  border-left-color: var(--alert-tip);
+  background: var(--alert-tip-bg);
 }
-.markdown-body .markdown-alert-TIP .markdown-alert-title { color: #1a7f37; }
+.markdown-body .markdown-alert-TIP .markdown-alert-title { color: var(--alert-tip); }
 
 .markdown-body .markdown-alert-IMPORTANT {
-  border-left-color: #8250df;
-  background: rgba(130, 80, 223, 0.08);
+  border-left-color: var(--alert-important);
+  background: var(--alert-important-bg);
 }
-.markdown-body .markdown-alert-IMPORTANT .markdown-alert-title { color: #8250df; }
+.markdown-body .markdown-alert-IMPORTANT .markdown-alert-title { color: var(--alert-important); }
 
 .markdown-body .markdown-alert-WARNING {
-  border-left-color: #9a6700;
-  background: rgba(154, 103, 0, 0.1);
+  border-left-color: var(--alert-warning);
+  background: var(--alert-warning-bg);
 }
-.markdown-body .markdown-alert-WARNING .markdown-alert-title { color: #9a6700; }
+.markdown-body .markdown-alert-WARNING .markdown-alert-title { color: var(--alert-warning); }
 
 .markdown-body .markdown-alert-CAUTION {
-  border-left-color: #cf222e;
-  background: rgba(207, 34, 46, 0.08);
+  border-left-color: var(--alert-caution);
+  background: var(--alert-caution-bg);
 }
-.markdown-body .markdown-alert-CAUTION .markdown-alert-title { color: #cf222e; }
+.markdown-body .markdown-alert-CAUTION .markdown-alert-title { color: var(--alert-caution); }
 

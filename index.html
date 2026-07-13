@@ -115,6 +115,27 @@
               <span class="theme-name">Nord</span>
               <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             </button>
+            <div class="ctx-sep"></div>
+            <button class="ctx-item theme-item" data-theme="github" role="menuitem">
+              <span class="theme-swatch" data-sw="github" aria-hidden="true"></span>
+              <span class="theme-name">GitHub</span>
+              <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+            <button class="ctx-item theme-item" data-theme="github-dark" role="menuitem">
+              <span class="theme-swatch" data-sw="github-dark" aria-hidden="true"></span>
+              <span class="theme-name">GitHub Dark</span>
+              <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+            <button class="ctx-item theme-item" data-theme="tokyo-night" role="menuitem">
+              <span class="theme-swatch" data-sw="tokyo-night" aria-hidden="true"></span>
+              <span class="theme-name">Tokyo Night</span>
+              <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+            <button class="ctx-item theme-item" data-theme="catppuccin" role="menuitem">
+              <span class="theme-swatch" data-sw="catppuccin" aria-hidden="true"></span>
+              <span class="theme-name">Catppuccin</span>
+              <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
           </div>
         </div>
         <button id="btn-settings" class="tool-btn icon-only" title="Settings" aria-label="Settings">
@@ -235,6 +256,10 @@
               <option value="solar-dark">Solarized Dark</option>
               <option value="dracula">Dracula</option>
               <option value="nord">Nord</option>
+              <option value="github">GitHub</option>
+              <option value="github-dark">GitHub Dark</option>
+              <option value="tokyo-night">Tokyo Night</option>
+              <option value="catppuccin">Catppuccin</option>
             </select>
           </div>
 
@@ -259,6 +284,31 @@
               <input type="checkbox" id="settings-find-case" />
               <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
             </label>
+          </div>
+
+          <div class="setting">
+            <div class="setting-text">
+              <div class="setting-label">Font size</div>
+              <div class="setting-desc">Base size for document text (zoom multiplies this)</div>
+            </div>
+            <select id="settings-font-size" class="setting-select" aria-label="Font size">
+              <option value="13">Small</option>
+              <option value="15">Medium</option>
+              <option value="17">Large</option>
+              <option value="19">Extra Large</option>
+            </select>
+          </div>
+
+          <div class="setting">
+            <div class="setting-text">
+              <div class="setting-label">Line spacing</div>
+              <div class="setting-desc">Vertical rhythm between lines of text</div>
+            </div>
+            <select id="settings-line-height" class="setting-select" aria-label="Line spacing">
+              <option value="1.5">Compact</option>
+              <option value="1.7">Normal</option>
+              <option value="2.0">Relaxed</option>
+            </select>
           </div>
         </div>
         <div class="modal-actions">

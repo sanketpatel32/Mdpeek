@@ -22,13 +22,18 @@ const HLJS_FOR_THEME = {
   'solar-dark': 'hljs-solar-dark',
   dracula: 'hljs-dracula',
   nord: 'hljs-nord',
+  // The four new themes reuse existing hljs stylesheets (no native match).
+  github: 'hljs-light',
+  'github-dark': 'hljs-dark',
+  'tokyo-night': 'hljs-dark',
+  catppuccin: 'hljs-dracula',
 };
 const DEFAULT_THEME = 'light';
 
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.5.0</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.5.1</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -477,13 +482,25 @@ let zoomLevel = 1; // 1.0 = 100%
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.1;
-const BASE_FONT_PX = 15;
+// Base font comes from the reading-comfort setting (default 15 = Medium).
+// Read fresh inside applyZoom so changing the setting applies without a reload.
+function baseFontPx() {
+  return parseInt(localStorage.getItem('mdpeek-base-font'), 10) || 15;
+}
 
 function applyZoom() {
-  const px = (BASE_FONT_PX * zoomLevel).toFixed(1) + 'px';
+  const px = (baseFontPx() * zoomLevel).toFixed(1) + 'px';
   el.document.style.fontSize = px;
   el.preview.style.fontSize = px;
   localStorage.setItem('mdpeek-zoom', String(zoomLevel));
+}
+
+// Reading-comfort: line spacing via a CSS variable (no zoom interaction).
+// Called on init and when the settings select changes.
+function applyReadingComfort() {
+  const lh = parseFloat(localStorage.getItem('mdpeek-line-height')) || 1.7;
+  document.documentElement.style.setProperty('--content-line-height', String(lh));
+  applyZoom(); // pick up a possibly-changed base font
 }
 
 function zoomIn() {
@@ -612,6 +629,8 @@ const SETTING_KEYS = [
   'mdpeek-theme',
   'mdpeek-close-action',
   'mdpeek-find-case',
+  'mdpeek-base-font',
+  'mdpeek-line-height',
 ];
 
 function openSettings() {
@@ -639,6 +658,12 @@ function syncSettingsControls() {
 
   const findCaseCb = document.getElementById('settings-find-case');
   if (findCaseCb) findCaseCb.checked = localStorage.getItem('mdpeek-find-case') === '1';
+
+  const fontSel = document.getElementById('settings-font-size');
+  if (fontSel) fontSel.value = String(parseInt(localStorage.getItem('mdpeek-base-font'), 10) || 15);
+
+  const lhSel = document.getElementById('settings-line-height');
+  if (lhSel) lhSel.value = String(parseFloat(localStorage.getItem('mdpeek-line-height')) || 1.7);
 }
 
 function setSegActive(setting, value) {
@@ -656,6 +681,7 @@ document.getElementById('settings-reset').addEventListener('click', () => {
   // Apply defaults live.
   applyTheme('light');
   if (find) find.setCaseSensitive(false);
+  applyReadingComfort();
   syncSettingsControls();
 });
 
@@ -703,6 +729,18 @@ document.getElementById('settings-close-action').addEventListener('change', (e) 
 document.getElementById('settings-find-case').addEventListener('change', (e) => {
   if (find) find.setCaseSensitive(e.target.checked);
   else localStorage.setItem('mdpeek-find-case', e.target.checked ? '1' : '0');
+});
+
+// Font size — persisted as the base; applyZoom multiplies it by the zoom level.
+document.getElementById('settings-font-size').addEventListener('change', (e) => {
+  localStorage.setItem('mdpeek-base-font', e.target.value);
+  applyReadingComfort();
+});
+
+// Line spacing — sets the CSS variable directly (no zoom interaction).
+document.getElementById('settings-line-height').addEventListener('change', (e) => {
+  localStorage.setItem('mdpeek-line-height', e.target.value);
+  applyReadingComfort();
 });
 
 // Link clicks inside rendered markdown: external URLs open in the system
@@ -1029,12 +1067,12 @@ if (localStorage.getItem('mdpeek-sidebar') === 'hidden') {
   el.sidebar.classList.remove('active');
 }
 
-// Restore zoom level.
+// Restore zoom level + reading-comfort prefs (font size, line spacing).
 const savedZoom = parseFloat(localStorage.getItem('mdpeek-zoom'));
 if (savedZoom >= ZOOM_MIN && savedZoom <= ZOOM_MAX) {
   zoomLevel = savedZoom;
 }
-applyZoom();
+applyReadingComfort();
 
 (async () => {
   // Restore session, re-reading file contents from disk in PARALLEL (was

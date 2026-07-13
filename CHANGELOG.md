@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-07-13
+
+### Added — 4 new themes + reading comfort
+- **GitHub** and **GitHub Dark** — GitHub.com's actual palettes (cool grey
+  surfaces, GitHub-blue links).
+- **Tokyo Night** — Enkia's deep-blue nightscape with pastel accents.
+- **Catppuccin (Mocha)** — the cozy warm-dark palette with soft pastels.
+- All four appear in both the theme dropdown and the settings dialog, each with
+  a color-swatch preview.
+- **Font size** setting (Small / Medium / Large / Extra Large) — the base size
+  for document text. Zoom multiplies this, so the controls compose naturally.
+- **Line spacing** setting (Compact / Normal / Relaxed) — vertical rhythm
+  between lines.
+
+### Changed — theme polish
+- **Alert callouts are now theme-aware.** GFM `> [!NOTE]` / `[!TIP]` /
+  `[!IMPORTANT]` / `[!WARNING]` / `[!CAUTION]` callouts previously used
+  hardcoded GitHub-light colors that looked wrong on Dracula, Nord, Solarized
+  Dark, and other dark themes. Each theme now defines its own alert palette via
+  CSS variables.
+- Nord's muted-text color tuned down (`#81a1c1` → `#6c7a93`) so secondary text
+  reads as muted rather than as a second accent.
+- New dark themes get per-theme shadow tuning so elevated surfaces (modals,
+  cards) read clearly.
+
 ## [0.5.0] - 2026-07-13
 
 ### Added — markdown engine overhaul

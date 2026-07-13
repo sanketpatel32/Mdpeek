@@ -898,6 +898,10 @@ mark.find-current {
 .theme-swatch[data-sw="solar-dark"]  { --sw-bg: #002b36; --sw-accent: #268bd2; }
 .theme-swatch[data-sw="dracula"]     { --sw-bg: #282a36; --sw-accent: #bd93f9; }
 .theme-swatch[data-sw="nord"]        { --sw-bg: #2e3440; --sw-accent: #88c0d0; }
+.theme-swatch[data-sw="github"]      { --sw-bg: #ffffff; --sw-accent: #0969da; }
+.theme-swatch[data-sw="github-dark"] { --sw-bg: #0d1117; --sw-accent: #2f81f7; }
+.theme-swatch[data-sw="tokyo-night"] { --sw-bg: #1a1b26; --sw-accent: #7aa2f7; }
+.theme-swatch[data-sw="catppuccin"]  { --sw-bg: #1e1e2e; --sw-accent: #89b4fa; }
 
 /* ---------- Close / modal dialog ---------- */
 .modal-overlay {

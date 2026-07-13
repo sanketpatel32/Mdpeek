@@ -45,6 +45,14 @@
   --transition: 150ms cubic-bezier(0.25, 1, 0.5, 1);
   /* Shared easing token for UI animations (tabs, buttons, sidebar). */
   --ease: cubic-bezier(0.25, 1, 0.5, 1);
+
+  /* GFM alert-callout colors (overridden per dark theme below). Light themes
+     use GitHub's palette; dark themes brighten/desaturate for readability. */
+  --alert-note: #0969da;        --alert-note-bg: rgba(9, 105, 218, 0.08);
+  --alert-tip: #1a7f37;         --alert-tip-bg: rgba(26, 127, 55, 0.08);
+  --alert-important: #8250df;   --alert-important-bg: rgba(130, 80, 223, 0.08);
+  --alert-warning: #9a6700;     --alert-warning-bg: rgba(154, 103, 0, 0.1);
+  --alert-caution: #cf222e;     --alert-caution-bg: rgba(207, 34, 46, 0.08);
 }
 
 /* Design tokens — Dark
@@ -74,6 +82,12 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+
+  --alert-note: #4493f8;        --alert-note-bg: rgba(68, 147, 248, 0.12);
+  --alert-tip: #3fb950;         --alert-tip-bg: rgba(63, 185, 80, 0.12);
+  --alert-important: #a371f7;   --alert-important-bg: rgba(163, 113, 247, 0.12);
+  --alert-warning: #d29922;     --alert-warning-bg: rgba(210, 153, 34, 0.12);
+  --alert-caution: #f85149;     --alert-caution-bg: rgba(248, 81, 73, 0.12);
 }
 
 /* ---- Solarized Light (Ethan Schoonover) ----
@@ -132,6 +146,12 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+
+  --alert-note: #268bd2;        --alert-note-bg: rgba(38, 139, 210, 0.15);
+  --alert-tip: #859900;         --alert-tip-bg: rgba(133, 153, 0, 0.15);
+  --alert-important: #6c71c4;   --alert-important-bg: rgba(108, 113, 196, 0.15);
+  --alert-warning: #b58900;     --alert-warning-bg: rgba(181, 137, 0, 0.15);
+  --alert-caution: #dc322f;     --alert-caution-bg: rgba(220, 50, 47, 0.15);
 }
 
 /* ---- Dracula ----
@@ -161,6 +181,12 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+
+  --alert-note: #8be9fd;        --alert-note-bg: rgba(139, 233, 253, 0.1);
+  --alert-tip: #50fa7b;         --alert-tip-bg: rgba(80, 250, 123, 0.1);
+  --alert-important: #ff79c6;   --alert-important-bg: rgba(255, 121, 198, 0.1);
+  --alert-warning: #f1fa8c;     --alert-warning-bg: rgba(241, 250, 140, 0.1);
+  --alert-caution: #ff5555;     --alert-caution-bg: rgba(255, 85, 85, 0.12);
 }
 
 /* ---- Nord ----
@@ -174,7 +200,7 @@
 
   --fg: #eceff4;
   --fg-secondary: #d8dee9;
-  --fg-muted: #81a1c1;
+  --fg-muted: #6c7a93;
 
   --border: #434c5e;
   --border-subtle: #3b4252;
@@ -190,6 +216,146 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+
+  --alert-note: #81a1c1;        --alert-note-bg: rgba(129, 161, 193, 0.12);
+  --alert-tip: #a3be8c;         --alert-tip-bg: rgba(163, 190, 140, 0.12);
+  --alert-important: #b48ead;   --alert-important-bg: rgba(180, 142, 173, 0.12);
+  --alert-warning: #ebcb8b;     --alert-warning-bg: rgba(235, 203, 139, 0.12);
+  --alert-caution: #bf616a;     --alert-caution-bg: rgba(191, 97, 106, 0.15);
+}
+
+/* ---- GitHub (light) ----
+   GitHub.com's actual palette: cool grey surfaces, GitHub-blue links. */
+:root[data-theme="github"] {
+  --bg: #ffffff;
+  --bg-elevated: #ffffff;
+  --surface: #f6f8fa;
+  --surface-hover: #eaeef2;
+  --surface-active: #d8dee4;
+
+  --fg: #1f2328;
+  --fg-secondary: #59636e;
+  --fg-muted: #818b98;
+
+  --border: #d0d7de;
+  --border-subtle: #d8dee4;
+
+  --accent: #0969da;
+  --accent-hover: #0860ca;
+  --accent-soft: rgba(9, 105, 218, 0.08);
+  --danger: #cf222e;
+
+  --code-bg: #f6f8fa;
+  --code-border: #d0d7de;
+
+  --shadow-sm: 0 1px 0 rgba(31, 35, 40, 0.04);
+  --shadow-md: 0 3px 6px rgba(140, 149, 159, 0.15);
+  --shadow-lg: 0 8px 24px rgba(140, 149, 159, 0.2);
+}
+
+/* ---- GitHub Dark ----
+   GitHub's dark-default palette: deep slate, bright accents. */
+:root[data-theme="github-dark"] {
+  --bg: #0d1117;
+  --bg-elevated: #161b22;
+  --surface: #161b22;
+  --surface-hover: #21262d;
+  --surface-active: #30363d;
+
+  --fg: #e6edf3;
+  --fg-secondary: #9198a1;
+  --fg-muted: #6e7681;
+
+  --border: #30363d;
+  --border-subtle: #21262d;
+
+  --accent: #2f81f7;
+  --accent-hover: #4493f8;
+  --accent-soft: rgba(47, 129, 247, 0.15);
+  --danger: #f85149;
+
+  --code-bg: #0d1117;
+  --code-border: #30363d;
+
+  --shadow-sm: 0 0 transparent;
+  --shadow-md: 0 8px 24px rgba(1, 4, 9, 0.85);
+  --shadow-lg: 0 16px 32px rgba(1, 4, 9, 0.9);
+
+  --alert-note: #4493f8;        --alert-note-bg: rgba(68, 147, 248, 0.12);
+  --alert-tip: #3fb950;         --alert-tip-bg: rgba(63, 185, 80, 0.12);
+  --alert-important: #a371f7;   --alert-important-bg: rgba(163, 113, 247, 0.12);
+  --alert-warning: #d29922;     --alert-warning-bg: rgba(210, 153, 34, 0.12);
+  --alert-caution: #f85149;     --alert-caution-bg: rgba(248, 81, 73, 0.12);
+}
+
+/* ---- Tokyo Night ----
+   Enkia's deep-blue nightscape with pastel accents. */
+:root[data-theme="tokyo-night"] {
+  --bg: #1a1b26;
+  --bg-elevated: #24283b;
+  --surface: #24283b;
+  --surface-hover: #2f334d;
+  --surface-active: #3b4261;
+
+  --fg: #c0caf5;
+  --fg-secondary: #a9b1d6;
+  --fg-muted: #565f89;
+
+  --border: #414868;
+  --border-subtle: #2f334d;
+
+  --accent: #7aa2f7;
+  --accent-hover: #89b4fa;
+  --accent-soft: rgba(122, 162, 247, 0.15);
+  --danger: #f7768e;
+
+  --code-bg: #16161e;
+  --code-border: #414868;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+
+  --alert-note: #7aa2f7;        --alert-note-bg: rgba(122, 162, 247, 0.12);
+  --alert-tip: #9ece6a;         --alert-tip-bg: rgba(158, 206, 106, 0.12);
+  --alert-important: #bb9af7;   --alert-important-bg: rgba(187, 154, 247, 0.12);
+  --alert-warning: #e0af68;     --alert-warning-bg: rgba(224, 175, 104, 0.12);
+  --alert-caution: #f7768e;     --alert-caution-bg: rgba(247, 118, 142, 0.14);
+}
+
+/* ---- Catppuccin Mocha ----
+   The cozy pastel palette: warm dark base, soft pastel accents. */
+:root[data-theme="catppuccin"] {
+  --bg: #1e1e2e;
+  --bg-elevated: #313244;
+  --surface: #313244;
+  --surface-hover: #45475a;
+  --surface-active: #585b70;
+
+  --fg: #cdd6f4;
+  --fg-secondary: #bac2de;
+  --fg-muted: #6c7086;
+
+  --border: #45475a;
+  --border-subtle: #313244;
+
+  --accent: #89b4fa;
+  --accent-hover: #b4befe;
+  --accent-soft: rgba(137, 180, 250, 0.15);
+  --danger: #f38ba8;
+
+  --code-bg: #181825;
+  --code-border: #45475a;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+
+  --alert-note: #89b4fa;        --alert-note-bg: rgba(137, 180, 250, 0.1);
+  --alert-tip: #a6e3a1;         --alert-tip-bg: rgba(166, 227, 161, 0.1);
+  --alert-important: #cba6f7;   --alert-important-bg: rgba(203, 166, 247, 0.1);
+  --alert-warning: #f9e2af;     --alert-warning-bg: rgba(249, 226, 175, 0.1);
+  --alert-caution: #f38ba8;     --alert-caution-bg: rgba(243, 139, 168, 0.12);
 }
 
 /* Smooth theme switch — scoped to UI chrome only (NOT markdown content,
