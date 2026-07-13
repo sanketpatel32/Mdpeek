@@ -822,3 +822,27 @@ main {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
 }
+.modal-btn-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #ffffff;
+}
+.modal-btn-danger:hover {
+  filter: brightness(1.08);
+}
+/* Warning icon circle for confirm dialogs */
+.modal-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+  background: rgba(255, 59, 48, 0.1);
+  color: var(--danger);
+}
+.modal-icon svg {
+  width: 20px;
+  height: 20px;
+}

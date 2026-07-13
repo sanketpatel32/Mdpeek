@@ -19,7 +19,7 @@ const ICON_MOON =
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.4.0</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.4.1</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -56,6 +56,7 @@ const el = {
   ctxMenu: document.getElementById('ctx-menu'),
   closeDialog: document.getElementById('close-dialog'),
   closeRemember: document.getElementById('close-remember'),
+  confirmDialog: document.getElementById('confirm-dialog'),
 };
 
 // ---------- helpers ----------
@@ -86,6 +87,64 @@ function toast(msg, opts = {}) {
 
 function basename(p) {
   return p ? p.split(/[\\/]/).pop() : 'Untitled';
+}
+
+// Reusable in-app confirmation dialog (replaces native confirm()). Returns a
+// Promise that resolves to the chosen button id, or null if dismissed.
+//   confirmDialog({ title, text, buttons: [{id, label, kind}] })
+// kind: 'primary' | 'danger' | 'secondary' (default)
+const WARN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+
+function confirmDialog({ title, text, buttons, icon = 'warn' }) {
+  return new Promise((resolve) => {
+    const dlg = el.confirmDialog;
+    const titleEl = dlg.querySelector('#confirm-title');
+    const textEl = dlg.querySelector('#confirm-text');
+    const iconEl = dlg.querySelector('#confirm-icon');
+    const actionsEl = dlg.querySelector('#confirm-actions');
+    titleEl.textContent = title;
+    textEl.textContent = text;
+    iconEl.innerHTML = icon === 'warn' ? WARN_ICON : '';
+    iconEl.style.display = icon ? 'flex' : 'none';
+
+    actionsEl.innerHTML = '';
+    let resolved = false;
+    const done = (val) => {
+      if (resolved) return;
+      resolved = true;
+      dlg.classList.add('hidden');
+      resolve(val);
+    };
+
+    for (const btn of buttons) {
+      const b = document.createElement('button');
+      b.className = 'modal-btn';
+      if (btn.kind === 'primary') b.classList.add('modal-btn-primary');
+      else if (btn.kind === 'danger') b.classList.add('modal-btn-danger');
+      else b.classList.add('modal-btn-secondary');
+      b.textContent = btn.label;
+      b.addEventListener('click', () => done(btn.id));
+      actionsEl.appendChild(b);
+    }
+
+    // Escape resolves to null (cancel).
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        done(null);
+      }
+    };
+    dlg.addEventListener('keydown', onKey, { once: true });
+    // Click outside the modal card cancels too.
+    dlg.addEventListener('click', (e) => {
+      if (e.target === dlg) done(null);
+    }, { once: true });
+
+    dlg.classList.remove('hidden');
+    // Focus the first button for keyboard users.
+    const firstBtn = actionsEl.querySelector('.modal-btn');
+    if (firstBtn) firstBtn.focus();
+  });
 }
 
 async function rewatch(path) {
@@ -211,8 +270,22 @@ async function closeTab(id) {
   const doc = store.docs.find((d) => d.id === id);
   if (!doc) return;
   if (doc.dirty) {
-    const choice = confirm(`"${basename(doc.path)}" has unsaved changes. Close anyway?`);
-    if (!choice) return;
+    const name = basename(doc.path);
+    const choice = await confirmDialog({
+      title: 'Unsaved changes',
+      text: `"${name}" has unsaved changes. Closing the tab will discard them.`,
+      buttons: [
+        { id: 'cancel', label: 'Cancel', kind: 'secondary' },
+        { id: 'save', label: 'Save first', kind: 'primary' },
+        { id: 'discard', label: 'Discard', kind: 'danger' },
+      ],
+    });
+    if (choice === null || choice === 'cancel') return;
+    if (choice === 'save') {
+      await saveActive();
+      // If the save was cancelled (no path chosen), abort the close.
+      if (doc.dirty) return;
+    }
   }
   // Free the editor's event listeners before dropping the doc (the <textarea>
   // is shared; without this, every closed edit-mode tab would leak a listener).
@@ -239,7 +312,15 @@ async function closeDocs(ids) {
   }).length;
   if (dirtyCount > 0) {
     const noun = dirtyCount === 1 ? 'tab has unsaved changes' : 'tabs have unsaved changes';
-    if (!confirm(`${dirtyCount} ${noun}. Close anyway?`)) return false;
+    const choice = await confirmDialog({
+      title: 'Close multiple tabs',
+      text: `${dirtyCount} ${noun}. Closing will discard them.`,
+      buttons: [
+        { id: 'cancel', label: 'Cancel', kind: 'secondary' },
+        { id: 'discard', label: `Close ${dirtyCount} ${dirtyCount === 1 ? 'tab' : 'tabs'}`, kind: 'danger' },
+      ],
+    });
+    if (choice !== 'discard') return false;
   }
   // Switch to the target tab first (if it isn't active) so rewatch at the end
   // targets the right doc; the closing loop handles activeId fallout.

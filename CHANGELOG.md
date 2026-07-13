@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-07-13
+
+### Changed
+- **Unsaved-tab warning redesigned** — replaced the OS-native `confirm()` dialog
+  with an in-app modal that matches mdpeek's aesthetic (rounded card, macOS-style
+  shadows, warning icon, danger-colored discard button).
+- Single-tab close now offers three choices: **Cancel**, **Save first**, and
+  **Discard**. "Save first" runs the save flow and only closes once saved.
+- Multi-tab close (Close others / Close to the right / Close all) shows one
+  combined dialog with the dirty-tab count.
+
 ## [0.4.0] - 2026-07-13
 
 ### Added — system tray + minimize-to-tray
