@@ -19,7 +19,7 @@ const ICON_MOON =
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.3.4</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.3.5</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -563,7 +563,8 @@ el.editor.addEventListener('input', () => {
   persistSoon();
 });
 
-// Keyboard shortcuts
+// Keyboard shortcuts — registered on the CAPTURE phase so we intercept the
+// zoom keys before WebView2 can swallow them for native browser zoom.
 window.addEventListener('keydown', (e) => {
   if (!(e.ctrlKey || e.metaKey)) return;
   const k = e.key.toLowerCase();
@@ -596,7 +597,7 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     zoomReset();
   }
-});
+}, true);
 
 // ---------- drag & drop (supports multiple files → multiple tabs) ----------
 let dragDepth = 0;

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-07-13
+
+### Fixed
+- **Zoom shortcuts (Ctrl+= / Ctrl+- / Ctrl+0) now actually fire.** The handler
+  was on the bubble phase; when the editor textarea had focus, WebView2's
+  default zoom handling could consume the keystroke before it reached our
+  window-level listener. Moved to the capture phase so we intercept the keys
+  before the webview's defaults run.
+
 ## [0.3.4] - 2026-07-13
 
 ### Fixed
