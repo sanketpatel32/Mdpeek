@@ -35,7 +35,7 @@ const DEFAULT_THEME = 'light';
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.8.1</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.8.2</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -280,7 +280,7 @@ async function renderActive() {
       doc.content = json;
       store.markDirty(doc.id);
       persistSoon();
-    }).then((ctrl) => {
+    }, document.documentElement.dataset.theme).then((ctrl) => {
       if (_lastRenderedId !== doc.id) {
         ctrl.destroy();
       } else {
@@ -544,6 +544,9 @@ function applyTheme(next) {
     .querySelector(`.theme-item[data-theme="${next}"] .theme-name`)
     ?.textContent.trim();
   el.theme.title = label ? `Theme: ${label}` : 'Theme';
+  // Propagate theme to the active Excalidraw tab (if any) so the canvas
+  // matches the app's light/dark mode.
+  if (_activeExcalidraw) _activeExcalidraw.setTheme(next);
   closeThemeMenu();
 }
 

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-07-15
+
+### Fixed — Excalidraw theme sync
+- **Excalidraw canvas now follows the app theme.** Switching to a dark theme
+  (Dracula, Nord, Tokyo Night, etc.) now switches the Excalidraw canvas to dark
+  mode too. Switching back to a light theme reverts it. Works live — no tab
+  re-open needed.
+
 ## [0.8.1] - 2026-07-14
 
 ### Fixed — Excalidraw rendering + startup stability

@@ -18,11 +18,18 @@ async function ensureCss() {
   await import('@excalidraw/excalidraw/index.css');
 }
 
+// Classify an mdpeek app theme into Excalidraw's two-theme system.
+// Excalidraw only supports 'light' | 'dark', so we map each of our 10 themes.
+const DARK_THEMES = new Set(['dark', 'solar-dark', 'dracula', 'nord', 'github-dark', 'tokyo-night', 'catppuccin']);
+function excalidrawThemeFor(appTheme) {
+  return DARK_THEMES.has(appTheme) ? 'dark' : 'light';
+}
+
 // Debounced save callback.
 let _saveTimer = null;
 const SAVE_DELAY = 1000;
 
-export async function showExcalidraw(container, initialData, onSave) {
+export async function showExcalidraw(container, initialData, onSave, initialAppTheme) {
   // Loading state + ensure the container has height while modules download.
   container.innerHTML = '<div class="pdf-loading">Loading Excalidraw…</div>';
   container.classList.add('excalidraw-host');
@@ -79,14 +86,26 @@ export async function showExcalidraw(container, initialData, onSave) {
     // Mount Excalidraw using React's imperative API (no JSX needed).
     // The container must have height — Excalidraw fills 100% of its parent.
     const root = ReactDOMClient.createRoot(container);
-    root.render(
-      React.createElement(Excalidraw, {
-        initialData: parsedData || { elements: [], appState: { viewBackgroundColor: '#ffffff' } },
-        onChange: handleChange,
-      })
-    );
+    let currentTheme = excalidrawThemeFor(initialAppTheme);
+
+    function renderExcalidraw() {
+      root.render(
+        React.createElement(Excalidraw, {
+          initialData: parsedData || { elements: [], appState: { viewBackgroundColor: '#ffffff' } },
+          onChange: handleChange,
+          theme: currentTheme,
+        })
+      );
+    }
+    renderExcalidraw();
 
     return {
+      setTheme(appTheme) {
+        const next = excalidrawThemeFor(appTheme);
+        if (next === currentTheme) return;
+        currentTheme = next;
+        renderExcalidraw();
+      },
       getSceneJSON() {
         try {
           return serializeAsJSON(latestElements, latestAppState, latestFiles || {});
