@@ -46,6 +46,7 @@ export async function showPdf(container, filePath) {
   const textCache = new Map();     // pageNum → string (for search)
   const pageSizes = new Map();     // pageNum → { width, height } (CSS px at scale 1)
   const observers = [];
+  const _cleanup = [];             // teardown fns (scroll listeners, timers, etc.)
   const strokesByPage = new Map(); // pageNum → Stroke[]
   let drawMode = false;
   let drawTool = 'pen';
@@ -93,6 +94,43 @@ export async function showPdf(container, filePath) {
     }, { rootMargin: '200px' });
     observers.push(io);
     container.querySelectorAll('.pdf-page').forEach((p) => io.observe(p));
+
+    // ---------- page-number badge ----------
+    // Shows "X / Y" at the bottom-center while scrolling, fades out when idle.
+    const badge = document.getElementById('pdf-page-badge');
+    if (badge) {
+      badge.textContent = `1 / ${pdfDoc.numPages}`;
+      badge.classList.remove('hidden', 'fading');
+    }
+    let badgeTimer = null;
+    const onScroll = () => {
+      // Find the page nearest the viewport top.
+      const containerTop = container.getBoundingClientRect().top;
+      let current = 1;
+      for (const page of container.querySelectorAll('.pdf-page')) {
+        const rect = page.getBoundingClientRect();
+        // A page is "current" when its top passes above the viewport midline.
+        if (rect.top - containerTop <= container.clientHeight / 3) {
+          current = parseInt(page.dataset.pageNum, 10);
+        } else break;
+      }
+      if (badge) {
+        badge.textContent = `${current} / ${pdfDoc.numPages}`;
+        badge.classList.remove('hidden', 'fading');
+        clearTimeout(badgeTimer);
+        badgeTimer = setTimeout(() => badge.classList.add('fading'), 1200);
+      }
+    };
+    container.addEventListener('scroll', onScroll);
+    // Clean up on destroy — store the handler so destroy() can remove it.
+    _cleanup.push(() => {
+      container.removeEventListener('scroll', onScroll);
+      clearTimeout(badgeTimer);
+      if (badge) {
+        badge.classList.add('hidden');
+        badge.classList.remove('fading');
+      }
+    });
   } catch (e) {
     container.innerHTML = `<div class="pdf-error">Could not load PDF: ${escapeHtml(String(e))}</div>`;
     console.error('PDF load failed:', e);
@@ -300,6 +338,8 @@ export async function showPdf(container, filePath) {
       activeStroke = null;
       for (const io of observers) io.disconnect();
       observers.length = 0;
+      for (const fn of _cleanup) { try { fn(); } catch {} }
+      _cleanup.length = 0;
       for (const task of renders.values()) { try { task.cancel(); } catch {} }
       renders.clear();
       for (const tl of textLayers.values()) { try { tl.cancel(); } catch {} }

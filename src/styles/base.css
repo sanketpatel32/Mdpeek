@@ -1086,6 +1086,34 @@ mark.find-current {
   border-color: var(--fg);
 }
 
+/* PDF page-number badge — shows "Page X of Y" at the bottom-center of the
+   document pane while scrolling a PDF. Fades out when idle. */
+.pdf-page-badge {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 70;
+  padding: 4px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: var(--shadow-md);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-secondary);
+  user-select: none;
+  pointer-events: none;
+  transition: opacity 300ms var(--ease);
+}
+.pdf-page-badge.hidden {
+  display: none !important;
+}
+.pdf-page-badge.fading {
+  opacity: 0;
+}
+
 /* ---------- Settings dialog ---------- */
 /* Wider variant of .modal to fit two-column setting rows comfortably. */
 .modal-wide {

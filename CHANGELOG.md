@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-07-14
+
+### Added
+- **PDF page-number badge** — a small "X / Y" pill appears at the bottom-center
+  of the document pane while scrolling a PDF, showing your current page and the
+  total. It auto-fades after 1.2s of inactivity.
+
+### Confirmed
+- The drawing/annotation toolbar button is verified PDF-only (it was already
+  hidden on non-PDF tabs; this confirms and documents the behavior).
+
 ## [0.7.1] - 2026-07-14
 
 ### Fixed — PDF marker + text selection
