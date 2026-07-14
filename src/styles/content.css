@@ -377,8 +377,10 @@
 }
 
 /* --- Text layer (transparent spans for selection + search) ---
-   Ported from pdf.js's pdf_viewer.css — only the essential rules. The spans
-   are invisible (color: transparent) but selectable. */
+   Ported from pdf.js's pdf_viewer.css — the essential rules. pdf.js's
+   TextLayer.render() positions each span via inline transforms and sets
+   --font-height + --total-scale-factor inline. Without the font-size calc
+   below, the spans are zero-sized and selection doesn't work. */
 .pdf-page .textLayer {
   color-scheme: only light;
   position: absolute;
@@ -389,6 +391,10 @@
   z-index: 2;
   transform-origin: 0 0;
   caret-color: CanvasText;
+  --min-font-size: 1;
+  --total-scale-factor: var(--scale-factor, 1);
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
 }
 .pdf-page .textLayer :is(span, br) {
   color: transparent;
@@ -400,14 +406,38 @@
   -moz-user-select: text;
   user-select: text;
 }
+/* CRITICAL: this rule sizes the spans so they're selectable. pdf.js sets
+   --font-height inline per span; without consuming it, spans collapse. */
+.pdf-page .textLayer > :not(.markedContent),
+.pdf-page .textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
 .pdf-page .textLayer .markedContent {
   display: contents;
+}
+.pdf-page .textLayer span[role="img"] {
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
 }
 .pdf-page .textLayer ::selection {
   background: rgba(0, 100, 255, 0.3);
 }
 .pdf-page .textLayer br::selection {
   background: transparent;
+}
+.pdf-page .textLayer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: 0;
+  -webkit-user-select: none;
+  user-select: none;
 }
 /* When drawing is active, disable text selection so drawing doesn't fight it. */
 .pdf-viewer.drawing-active .textLayer {

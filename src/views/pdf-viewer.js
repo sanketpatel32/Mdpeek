@@ -145,8 +145,11 @@ export async function showPdf(container, filePath) {
     const canvas = e.currentTarget;
     const p = pointerToPage(canvas, e);
     activeStroke.points.push(p);
-    // Incremental draw: just draw the last segment for speed.
-    drawIncrement(canvas, activeStroke);
+    // Full re-render of the active stroke for smoothness. Clearing + one
+    // quadratic-curved path is sub-millisecond, far smoother than incremental
+    // segment drawing (which leaves visible joints between segments).
+    const num = parseInt(canvas.parentElement.dataset.pageNum, 10);
+    renderStrokesOnCanvas(canvas, num);
   }
 
   function onPointerUp(e) {
@@ -200,55 +203,45 @@ export async function showPdf(container, filePath) {
     const ctx = canvas.getContext('2d');
     const w = canvas.width;
     const h = canvas.height;
-    ctx.save();
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
-    ctx.lineWidth = stroke.width * (window.devicePixelRatio || 1);
-    ctx.strokeStyle = stroke.color;
-    if (stroke.tool === 'highlighter') {
-      ctx.globalAlpha = 0.35;
-      ctx.globalCompositeOperation = 'multiply';
-    }
-    ctx.beginPath();
-    for (let i = 0; i < stroke.points.length; i++) {
-      const pt = stroke.points[i];
-      const x = pt.x * w;
-      const y = pt.y * h;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    // A single-point stroke (a dot) needs a short line to be visible.
-    if (stroke.points.length === 1) {
-      const pt = stroke.points[0];
-      ctx.moveTo(pt.x * w, pt.y * h);
-      ctx.lineTo(pt.x * w + 0.5, pt.y * h + 0.5);
-    }
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  // Fast incremental: draw only the last segment.
-  function drawIncrement(canvas, stroke) {
-    const ctx = canvas.getContext('2d');
-    const w = canvas.width;
-    const h = canvas.height;
     const pts = stroke.points;
-    if (pts.length < 2) return;
     ctx.save();
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     ctx.lineWidth = stroke.width * (window.devicePixelRatio || 1);
     ctx.strokeStyle = stroke.color;
     if (stroke.tool === 'highlighter') {
+      // Semi-transparent highlighter — alpha only, no multiply (multiply muddies
+      // overlaps on transparent canvas backgrounds).
       ctx.globalAlpha = 0.35;
-      ctx.globalCompositeOperation = 'multiply';
     }
-    ctx.beginPath();
-    const a = pts[pts.length - 2];
-    const b = pts[pts.length - 1];
-    ctx.moveTo(a.x * w, a.y * h);
-    ctx.lineTo(b.x * w, b.y * h);
-    ctx.stroke();
+    if (pts.length === 1) {
+      // A dot — draw a small filled circle.
+      const p = pts[0];
+      ctx.fillStyle = stroke.color;
+      ctx.beginPath();
+      ctx.arc(p.x * w, p.y * h, ctx.lineWidth / 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (pts.length === 2) {
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x * w, pts[0].y * h);
+      ctx.lineTo(pts[1].x * w, pts[1].y * h);
+      ctx.stroke();
+    } else {
+      // Smooth the stroke with quadratic curves through midpoints — eliminates
+      // the jagged corners that straight lineTo segments produce.
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x * w, pts[0].y * h);
+      for (let i = 1; i < pts.length - 1; i++) {
+        const mid = {
+          x: (pts[i].x + pts[i + 1].x) / 2 * w,
+          y: (pts[i].y + pts[i + 1].y) / 2 * h,
+        };
+        ctx.quadraticCurveTo(pts[i].x * w, pts[i].y * h, mid.x, mid.y);
+      }
+      // Final segment to the last point.
+      ctx.lineTo(pts[pts.length - 1].x * w, pts[pts.length - 1].y * h);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -355,6 +348,9 @@ async function renderPage(pdfjsLib, pdfDoc, num, wrapper, scale, renders, textLa
 
     // --- text layer (transparent, for selection + search) ---
     const textDiv = wrapper.querySelector('.textLayer');
+    // Set the scale factor so the CSS calc (font-size: --text-scale-factor *
+    // --font-height) positions spans at the right size for selection.
+    textDiv.style.setProperty('--scale-factor', String(scale));
     const textContent = await page.getTextContent();
     const textLayer = new pdfjsLib.TextLayer({
       textContentSource: textContent,

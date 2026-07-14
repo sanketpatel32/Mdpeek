@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-07-14
+
+### Fixed — PDF marker + text selection
+- **Text selection now works.** The text-layer CSS was missing the
+  `font-size: calc(var(--text-scale-factor) * var(--font-height))` rule that
+  pdf.js relies on — without it, the transparent spans were zero-sized and
+  invisible to selection. Also sets `--scale-factor` on the container so the
+  calc resolves at the right size.
+- **Drawing is smooth.** Strokes now use quadratic curve smoothing (midpoint
+  method) instead of straight line segments, eliminating the jagged corners at
+  high drawing speed. Active strokes are full-re-rendered on each pointer move
+  (sub-millisecond) for seamless curves.
+- **Highlighter looks clean.** Removed `globalCompositeOperation: multiply`
+  (which produced muddy dark overlaps on transparent canvas) — highlighter now
+  uses `globalAlpha: 0.35` only, matching how real highlighters layer.
+- Single-point strokes (dots) now render as filled circles instead of
+  invisible zero-length lines.
+
 ## [0.7.0] - 2026-07-13
 
 ### Added — PDF text selection, search, and drawing annotations
