@@ -458,3 +458,20 @@
   outline: 2px solid var(--accent, #0071e3);
 }
 
+/* Excalidraw host — fills the document pane, no markdown padding. */
+.markdown-body.excalidraw-host {
+  padding: 0;
+  margin: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.excalidraw-host > div {
+  flex: 1;
+  min-height: 0;
+}
+/* Excalidraw's own UI uses position:absolute — ensure the host is positioned. */
+.excalidraw-host {
+  position: relative;
+}
+

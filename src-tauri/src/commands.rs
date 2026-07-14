@@ -13,6 +13,7 @@ pub async fn open_file() -> Result<OpenResult, String> {
         .add_filter("Markdown", &["md", "markdown", "mdx"])
         .add_filter("Text", &["txt"])
         .add_filter("PDF", &["pdf"])
+        .add_filter("Excalidraw", &["excalidraw"])
         .add_filter("All files", &["*"])
         .pick_file()
         .await

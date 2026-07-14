@@ -17,12 +17,12 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
-// Small "MD" file-type badge for saved files; no badge for untitled tabs.
+// File-type badge for saved files; no badge for untitled tabs.
 function iconFor(doc) {
-  if (doc.path) {
-    return '<span class="tab-icon">M&#8203;D</span>';
-  }
-  return '';
+  if (!doc.path) return '';
+  if (doc.pdf) return '<span class="tab-icon">PDF</span>';
+  if (doc.excalidraw) return '<span class="tab-icon">EX</span>';
+  return '<span class="tab-icon">M&#8203;D</span>';
 }
 
 export function renderTabs(store) {

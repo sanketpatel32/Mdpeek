@@ -18,19 +18,26 @@ export function isPdfPath(path) {
   return !!path && /\.pdf$/i.test(path);
 }
 
-export function createDocument({ path = null, content = '', mode = 'view', plain } = {}) {
+// A doc is an "excalidraw" canvas when it's a .excalidraw file.
+export function isExcalidrawPath(path) {
+  return !!path && /\.excalidraw$/i.test(path);
+}
+
+export function createDocument({ path = null, content = '', mode = 'view', plain, excalidraw } = {}) {
   // `plain` override lets a fresh Untitled tab be plain text without a .txt
   // path (used by the new-tab-format preference). When omitted, plainness is
   // derived from the path as before.
   const isPlain = plain !== undefined ? plain : isPlainPath(path);
   const isPdf = isPdfPath(path);
+  const isExcalidraw = excalidraw !== undefined ? excalidraw : isExcalidrawPath(path);
   return {
     id: newId(),
     path, // string | null (null = Untitled, not yet saved)
     content: isPdf ? '' : content, // PDF bytes never ride this field
-    mode: isPlain ? 'edit' : (isPdf ? 'view' : mode), // PDFs are always view-only
+    mode: isPlain ? 'edit' : ((isPdf || isExcalidraw) ? 'view' : mode),
     plain: isPlain, // true = no markdown preview, full-width editor
     pdf: isPdf, // true = rendered via pdf.js, read-only
+    excalidraw: isExcalidraw, // true = Excalidraw canvas tab
     dirty: false,
     scrollY: 0,
     editor: null, // lazy-init in main.js when entering edit mode
@@ -136,14 +143,16 @@ export class DocumentStore {
         const path = typeof d.path === 'string' ? d.path : null;
         const plain = isPlainPath(path);
         const pdf = isPdfPath(path);
+        const excalidraw = isExcalidrawPath(path);
         return {
           id: typeof d.id === 'string' ? d.id : newId(),
           path,
           content: pdf ? '' : d.content,
-          // plain docs are always in edit mode; PDFs are always view; markdown honors the snapshot.
-          mode: plain ? 'edit' : pdf ? 'view' : d.mode === 'edit' ? 'edit' : 'view',
+          // plain docs are always in edit mode; PDFs/Excalidraw are always view; markdown honors the snapshot.
+          mode: plain ? 'edit' : ((pdf || excalidraw) ? 'view' : d.mode === 'edit' ? 'edit' : 'view'),
           plain,
           pdf,
+          excalidraw,
           dirty: false, // never restore as dirty — content was just re-read
           scrollY: Number.isFinite(d.scrollY) ? d.scrollY : 0,
           editor: null,

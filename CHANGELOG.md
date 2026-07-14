@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-14
+
+### Added — Excalidraw canvas
+- **Full Excalidraw integration** — a new tab type that gives you the complete
+  Excalidraw drawing canvas: shapes, text, arrows, freehand, images, eraser,
+  laser, pan/zoom, selection/move/resize, and built-in export (PNG/SVG via
+  Excalidraw's hamburger menu).
+- **Three ways to open:** Settings → New tab format → Excalidraw, then click `+`;
+  or drag-drop a `.excalidraw` file; or double-click a `.excalidraw` file in
+  Explorer (mdpeek registers in the "Open with" menu).
+- **Auto-save** — drawings are saved to the tab's content as JSON (debounced 1s),
+  so switching tabs and back preserves your work. Ctrl+S saves to disk as a
+  standard `.excalidraw` file, openable in any Excalidraw instance.
+- **Lazy-loaded** — React + ReactDOM + Excalidraw (~390 KB gzip combined) only
+  download when you open an Excalidraw tab. Markdown and PDF users pay zero
+  cost; startup time is unchanged.
+- Tab badges now show the file type: **MD** for markdown, **PDF** for PDFs,
+  **EX** for Excalidraw (previously all saved files showed "MD").
+
+### Weight
+- Installer: 4.48 MB → **~5.3 MB** (React + Excalidraw bundled into `dist/`,
+  fetched on demand only when an Excalidraw tab is opened).
+
 ## [0.7.2] - 2026-07-14
 
 ### Added

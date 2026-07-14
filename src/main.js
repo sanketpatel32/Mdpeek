@@ -7,10 +7,11 @@ import { relaunch } from '@tauri-apps/plugin-process';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { showDocument, buildToc } from './views/viewer.js';
 import { showPdf } from './views/pdf-viewer.js';
+import { showExcalidraw } from './views/excalidraw-viewer.js';
 import { initEditor } from './views/editor.js';
 import { initFindBar } from './views/find-bar.js';
 import { renderTabs } from './views/tabs.js';
-import { DocumentStore, isPdfPath } from './lib/documents.js';
+import { DocumentStore, isPdfPath, isExcalidrawPath } from './lib/documents.js';
 import { saveSession, loadSession } from './lib/persistence.js';
 
 // ---------- themes ----------
@@ -34,7 +35,7 @@ const DEFAULT_THEME = 'light';
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.7.2</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.8.0</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -182,6 +183,7 @@ async function rewatch(path) {
 // switch would lose typed text and the caret/scroll position.
 let _lastRenderedId = null;
 let _activePdf = null; // controller for the currently-shown PDF (for teardown)
+let _activeExcalidraw = null; // controller for the currently-shown Excalidraw tab
 
 async function renderActive() {
   // Sync the outgoing doc's editor content + caret + scroll back into its model.
@@ -211,6 +213,11 @@ async function renderActive() {
       _activePdf.destroy();
       _activePdf = null;
     }
+    // Tear down the outgoing Excalidraw tab (unmounts React).
+    if (_activeExcalidraw) {
+      _activeExcalidraw.destroy();
+      _activeExcalidraw = null;
+    }
     // Hide the draw toolbar when leaving a PDF tab.
     el.pdfDrawToolbar.classList.add('hidden');
     // Reset draw tool button states.
@@ -224,7 +231,7 @@ async function renderActive() {
   // No doc, or an empty untouched Untitled tab in VIEW mode → show the welcome
   // screen. If the user explicitly switched to edit mode, show the editor even
   // for an empty untitled tab so they can start writing.
-  const isEmpty = !doc || (doc.path === null && doc.content === '' && doc.mode === 'view' && !doc.pdf);
+  const isEmpty = !doc || (doc.path === null && doc.content === '' && doc.mode === 'view' && !doc.pdf && !doc.excalidraw);
   if (isEmpty) {
     el.editMode.classList.add('hidden');
     el.editMode.classList.remove('plain');
@@ -257,7 +264,33 @@ async function renderActive() {
     }).catch((e) => toast('Could not open PDF: ' + fmtErr(e)));
     return;
   }
-  // Non-PDF docs: ensure the draw toolbar + button are hidden.
+
+  // Excalidraw: full canvas editor, no edit toggle, no TOC.
+  if (doc.excalidraw) {
+    el.editMode.classList.add('hidden');
+    el.mode.classList.add('hidden');
+    el.draw.classList.add('hidden');
+    el.viewMode.classList.remove('hidden');
+    el.toc.innerHTML = '';
+    el.document.classList.remove('has-welcome');
+    // showExcalidraw is async and lazy-loads React + Excalidraw. The onSave
+    // callback writes the scene JSON back to doc.content (debounced) so the
+    // drawing persists across tab switches.
+    showExcalidraw(el.document, doc.content, (json) => {
+      doc.content = json;
+      store.markDirty(doc.id);
+      persistSoon();
+    }).then((ctrl) => {
+      if (_lastRenderedId !== doc.id) {
+        ctrl.destroy();
+      } else {
+        _activeExcalidraw = ctrl;
+      }
+    }).catch((e) => toast('Could not open Excalidraw: ' + fmtErr(e)));
+    return;
+  }
+
+  // Non-PDF/Excalidraw docs: ensure the draw toolbar + button are hidden.
   el.pdfDrawToolbar.classList.add('hidden');
   el.draw.classList.add('hidden');
 
@@ -318,14 +351,19 @@ async function openPath(path, content) {
   store.open({ path, content });
   // PDFs are read-only binary — no file-watcher (the text-based watcher would
   // choke on bytes, and live-reload isn't meaningful for a PDF).
-  if (!isPdfPath(path)) await rewatch(path);
+  // Excalidraw files are JSON but the canvas manages its own state — skip watcher.
+  if (!isPdfPath(path) && !isExcalidrawPath(path)) await rewatch(path);
 }
 
 function newTab() {
   const fmt = localStorage.getItem('mdpeek-new-tab-format') || 'markdown';
   const modePref = localStorage.getItem('mdpeek-new-tab-mode') || 'view';
-  const plain = fmt === 'text';
-  store.open({ path: null, content: '', plain, mode: plain ? 'edit' : modePref });
+  if (fmt === 'excalidraw') {
+    store.open({ path: null, content: '', excalidraw: true });
+  } else {
+    const plain = fmt === 'text';
+    store.open({ path: null, content: '', plain, mode: plain ? 'edit' : modePref });
+  }
 }
 
 async function closeTab(id) {
@@ -437,6 +475,11 @@ async function saveActive() {
   if (!doc) return;
   // Sync editor content back into the doc before saving.
   if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
+  // Flush the Excalidraw scene (the onChange save is debounced — force it now).
+  if (doc.excalidraw && _activeExcalidraw) {
+    const json = _activeExcalidraw.getSceneJSON();
+    if (json) doc.content = json;
+  }
   const { content } = doc;
 
   if (!doc.path) {
@@ -465,6 +508,7 @@ function toggleMode() {
   if (!doc) return;
   if (doc.plain) return; // plain-text docs have no preview to toggle to
   if (doc.pdf) return;   // PDFs are read-only — no edit mode
+  if (doc.excalidraw) return; // Excalidraw is always interactive — no edit/view toggle
   // Capture content before switching out of edit mode.
   if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
   doc.mode = doc.mode === 'view' ? 'edit' : 'view';
@@ -1126,7 +1170,7 @@ window.addEventListener('drop', async (e) => {
   const files = e.dataTransfer?.files;
   if (!files || files.length === 0) return;
   for (const file of Array.from(files)) {
-    if (!/\.(md|markdown|mdx|txt|pdf)$/i.test(file.name)) {
+    if (!/\.(md|markdown|mdx|txt|pdf|excalidraw)$/i.test(file.name)) {
       toast('Not a supported file: ' + file.name);
       continue;
     }

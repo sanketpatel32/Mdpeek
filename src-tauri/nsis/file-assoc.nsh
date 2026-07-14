@@ -11,6 +11,7 @@
 !define PROGID "mdpeek.md"
 !define PROGID_TXT "mdpeek.txt"
 !define PROGID_PDF "mdpeek.pdf"
+!define PROGID_EXC "mdpeek.excalidraw"
 
 ; Helper: register one extension in the Open With list + point at our ProgID
 !macro _MPEEK_ASSOC_EXT EXT
@@ -39,6 +40,14 @@
   WriteRegStr HKCR "${PROGID_PDF}\shell\open\command" "" '"$INSTDIR\mdpeek.exe" "%1"'
 !macroend
 
+; Helper: register .excalidraw under its own ProgID.
+!macro _MPEEK_ASSOC_EXC
+  WriteRegStr HKCR ".excalidraw\OpenWithProgIDs" "${PROGID_EXC}" ""
+  WriteRegStr HKCR "${PROGID_EXC}" "" "Excalidraw Canvas"
+  WriteRegStr HKCR "${PROGID_EXC}\DefaultIcon" "" "$INSTDIR\mdpeek.exe,0"
+  WriteRegStr HKCR "${PROGID_EXC}\shell\open\command" "" '"$INSTDIR\mdpeek.exe" "%1"'
+!macroend
+
 ; Helper: unregister one extension
 !macro _MPEEK_UNASSOC_EXT EXT
   DeleteRegValue HKCR ".${EXT}\OpenWithProgIDs" "${PROGID}"
@@ -53,6 +62,8 @@
   !insertmacro _MPEEK_ASSOC_TXT
   ; Register .pdf under its own ProgID.
   !insertmacro _MPEEK_ASSOC_PDF
+  ; Register .excalidraw under its own ProgID.
+  !insertmacro _MPEEK_ASSOC_EXC
   ; Notify Explorer that the file-association database changed so icons/menus refresh.
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'
 !macroend
@@ -63,7 +74,9 @@
   !insertmacro _MPEEK_UNASSOC_EXT "mdx"
   DeleteRegValue HKCR ".txt\OpenWithProgIDs" "${PROGID_TXT}"
   DeleteRegValue HKCR ".pdf\OpenWithProgIDs" "${PROGID_PDF}"
+  DeleteRegValue HKCR ".excalidraw\OpenWithProgIDs" "${PROGID_EXC}"
   DeleteRegKey HKCR "${PROGID}"
   DeleteRegKey HKCR "${PROGID_TXT}"
   DeleteRegKey HKCR "${PROGID_PDF}"
+  DeleteRegKey HKCR "${PROGID_EXC}"
 !macroend

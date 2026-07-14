@@ -722,8 +722,9 @@ mark.find-current {
   font-size: 8px;
   font-weight: 700;
   letter-spacing: -0.5px;
-  width: 20px;
+  min-width: 20px;
   height: 14px;
+  padding: 0 4px;
   border-radius: 3px;
   background: var(--accent-soft);
   color: var(--accent);
