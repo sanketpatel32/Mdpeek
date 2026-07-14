@@ -1,92 +1,117 @@
 // Excalidraw viewer module — mounts the full Excalidraw canvas into a container.
 //
-// Lazy-loaded: React, ReactDOM, and @excalidraw/excalidraw are dynamically
-// imported only when an Excalidraw tab is opened, so markdown/PDF users pay
-// zero bundle cost. The scene is saved as JSON to doc.content (debounced) so
-// drawings persist across tab switches within the session.
+// Lazy-loaded: React, ReactDOM, @excalidraw/excalidraw, and the CSS are all
+// dynamically imported only when an Excalidraw tab is opened. The scene is
+// saved as JSON to doc.content (debounced) so drawings persist across tab
+// switches within the session.
 //
-// Mount uses React imperatively (no JSX, no build pipeline change):
-// ReactDOM.createRoot(container).render(React.createElement(Excalidraw, props))
+// CRITICAL: Excalidraw requires:
+//   1. Its CSS (dist/prod/index.css) — without it the UI is completely broken.
+//   2. A parent container with an explicit height — Excalidraw fills its parent
+//      and collapses to 0px if the parent has no height.
 
-// Debounced save callback — set by the caller (main.js) to write the scene
-// back to doc.content + mark dirty.
+// Lazy-load the Excalidraw CSS once (cached so repeat opens don't re-fetch).
+let _cssLoaded = false;
+async function ensureCss() {
+  if (_cssLoaded) return;
+  _cssLoaded = true;
+  await import('@excalidraw/excalidraw/index.css');
+}
+
+// Debounced save callback.
 let _saveTimer = null;
 const SAVE_DELAY = 1000;
 
 export async function showExcalidraw(container, initialData, onSave) {
-  // Loading state while the heavy modules download.
+  // Loading state + ensure the container has height while modules download.
   container.innerHTML = '<div class="pdf-loading">Loading Excalidraw…</div>';
   container.classList.add('excalidraw-host');
 
-  // Lazy-load all three heavy dependencies.
-  const React = (await import('react')).default;
-  const ReactDOMClient = (await import('react-dom/client')).default;
-  const ExcalidrawMod = await import('@excalidraw/excalidraw');
-  const Excalidraw = ExcalidrawMod.Excalidraw;
-  const serializeAsJSON = ExcalidrawMod.serializeAsJSON;
+  try {
+    // Load CSS + all three heavy dependencies in parallel.
+    const [_, ReactMod, ReactDOMMod, ExcalidrawMod] = await Promise.all([
+      ensureCss(),
+      import('react'),
+      import('react-dom/client'),
+      import('@excalidraw/excalidraw'),
+    ]);
+    const React = ReactMod.default;
+    const ReactDOMClient = ReactDOMMod.default;
+    const Excalidraw = ExcalidrawMod.Excalidraw;
+    const serializeAsJSON = ExcalidrawMod.serializeAsJSON;
 
-  // Parse the initial scene (if any).
-  let parsedData = null;
-  if (initialData && typeof initialData === 'string' && initialData.trim()) {
-    try {
-      parsedData = JSON.parse(initialData);
-    } catch {
-      // Corrupt JSON — start with a blank canvas.
-    }
-  }
-
-  container.innerHTML = '';
-
-  // Track the latest scene for serialization on save.
-  let latestElements = parsedData?.elements || [];
-  let latestAppState = parsedData?.appState || {};
-  let latestFiles = parsedData?.files || {};
-
-  // The onChange handler captures scene state + triggers a debounced save.
-  const handleChange = (elements, appState, files) => {
-    latestElements = elements;
-    latestAppState = appState;
-    latestFiles = files;
-    if (onSave) {
-      clearTimeout(_saveTimer);
-      _saveTimer = setTimeout(() => {
-        try {
-          const json = serializeAsJSON(elements, appState, files || {});
-          onSave(json);
-        } catch (e) {
-          console.error('Excalidraw serialize failed:', e);
-        }
-      }, SAVE_DELAY);
-    }
-  };
-
-  // Mount Excalidraw using React's imperative API (no JSX needed).
-  const root = ReactDOMClient.createRoot(container);
-  root.render(
-    React.createElement(Excalidraw, {
-      initialData: parsedData || { elements: [], appState: { viewBackgroundColor: '#ffffff' } },
-      onChange: handleChange,
-      // Let Excalidraw handle its own UI (top toolbar, zoom, etc).
-      UIOptions: {},
-    })
-  );
-
-  return {
-    // Get the current scene as a JSON string (for Ctrl+S save to disk).
-    getSceneJSON() {
+    // Parse the initial scene (if any).
+    let parsedData = null;
+    if (initialData && typeof initialData === 'string' && initialData.trim()) {
       try {
-        return serializeAsJSON(latestElements, latestAppState, latestFiles || {});
+        parsedData = JSON.parse(initialData);
       } catch {
-        return '';
+        // Corrupt JSON — start with a blank canvas.
       }
-    },
-    destroy() {
-      clearTimeout(_saveTimer);
-      try {
-        root.unmount();
-      } catch {}
-      container.classList.remove('excalidraw-host');
-      container.innerHTML = '';
-    },
-  };
+    }
+
+    // Clear the loading indicator.
+    container.innerHTML = '';
+
+    // Track the latest scene for serialization on save.
+    let latestElements = parsedData?.elements || [];
+    let latestAppState = parsedData?.appState || {};
+    let latestFiles = parsedData?.files || {};
+
+    // The onChange handler captures scene state + triggers a debounced save.
+    const handleChange = (elements, appState, files) => {
+      latestElements = elements;
+      latestAppState = appState;
+      latestFiles = files;
+      if (onSave) {
+        clearTimeout(_saveTimer);
+        _saveTimer = setTimeout(() => {
+          try {
+            const json = serializeAsJSON(elements, appState, files || {});
+            onSave(json);
+          } catch (e) {
+            console.error('Excalidraw serialize failed:', e);
+          }
+        }, SAVE_DELAY);
+      }
+    };
+
+    // Mount Excalidraw using React's imperative API (no JSX needed).
+    // The container must have height — Excalidraw fills 100% of its parent.
+    const root = ReactDOMClient.createRoot(container);
+    root.render(
+      React.createElement(Excalidraw, {
+        initialData: parsedData || { elements: [], appState: { viewBackgroundColor: '#ffffff' } },
+        onChange: handleChange,
+      })
+    );
+
+    return {
+      getSceneJSON() {
+        try {
+          return serializeAsJSON(latestElements, latestAppState, latestFiles || {});
+        } catch {
+          return '';
+        }
+      },
+      destroy() {
+        clearTimeout(_saveTimer);
+        try {
+          root.unmount();
+        } catch {}
+        container.classList.remove('excalidraw-host');
+        container.innerHTML = '';
+      },
+    };
+  } catch (e) {
+    // If any module fails to load (offline, corrupt install, etc.), show a
+    // clear error instead of leaving the user staring at a blank "Loading…" text.
+    container.innerHTML = `<div class="pdf-error">Could not load Excalidraw: ${escapeHtml(String(e))}</div>`;
+    console.error('Excalidraw load failed:', e);
+    return { getSceneJSON: () => '', destroy: () => {} };
+  }
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }

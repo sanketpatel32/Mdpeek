@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-07-14
+
+### Fixed — Excalidraw rendering + startup stability
+- **Excalidraw now actually renders.** The `store.open()` call was silently
+  dropping the `excalidraw: true` flag, so new Excalidraw tabs were created as
+  plain empty docs (hitting the welcome screen instead of the canvas).
+- **Excalidraw CSS loaded.** The library ships its own stylesheet
+  (`dist/prod/index.css`) which was never imported — without it the UI was
+  completely unstyled. Now lazy-loaded alongside the JS modules.
+- **Container height fix.** Excalidraw fills its parent and collapses to 0px
+  without explicit height. The host container now has `height: 100%` +
+  `overflow: hidden`.
+- **Startup crash recovery.** The entire startup IIFE is now wrapped in a
+  try/catch — if anything throws (corrupt session, render error, module load
+  failure), the app falls back to the welcome screen instead of leaving the
+  user staring at a blank window ("sometimes it doesn't open").
+- **`renderActive()` errors caught.** The `store.on('change')` handler now
+  catches render errors and shows the welcome screen as a last-resort fallback,
+  preventing the app from freezing on a tab switch.
+
 ## [0.8.0] - 2026-07-14
 
 ### Added — Excalidraw canvas

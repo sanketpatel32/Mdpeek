@@ -65,7 +65,7 @@ export class DocumentStore {
     return this.docs.find((d) => d.id === this.activeId) || null;
   }
 
-  open({ path = null, content = '', plain, mode } = {}) {
+  open({ path = null, content = '', plain, mode, excalidraw } = {}) {
     // Duplicate check: files on disk (path != null) open once.
     if (path !== null) {
       const existing = this.docs.find((d) => d.path === path);
@@ -74,7 +74,7 @@ export class DocumentStore {
         return existing;
       }
     }
-    const doc = createDocument({ path, content, plain, mode });
+    const doc = createDocument({ path, content, plain, mode, excalidraw });
     this.docs.push(doc);
     this.activeId = doc.id;
     this._emit('change');

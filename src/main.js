@@ -35,7 +35,7 @@ const DEFAULT_THEME = 'light';
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.8.0</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.8.1</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -332,7 +332,14 @@ function persist() {
   saveSession(store.serialize());
 }
 store.on('change', () => {
-  renderActive();
+  renderActive().catch((e) => {
+    console.error('renderActive failed:', e);
+    // Last-resort fallback: show the welcome screen so the app doesn't freeze.
+    el.editMode.classList.add('hidden');
+    el.viewMode.classList.remove('hidden');
+    el.document.classList.add('has-welcome');
+    el.document.innerHTML = WELCOME_HTML;
+  });
   persist();
 });
 
@@ -1226,7 +1233,9 @@ const find = initFindBar({
   getMode: () => {
     const d = store.active();
     if (!d) return 'view';
-    return d.pdf ? 'pdf' : d.mode;
+    if (d.pdf) return 'pdf';
+    if (d.excalidraw) return 'excalidraw';
+    return d.mode;
   },
   getEditor: () => {
     const d = store.active();
@@ -1251,60 +1260,72 @@ applyReadingComfort();
 applyLineNumbers();
 
 (async () => {
-  // Restore session, re-reading file contents from disk in PARALLEL (was
-  // sequential — N tabs meant N round-trip waits before the UI rendered).
-  const session = loadSession();
-  if (session && Array.isArray(session.docs) && session.docs.length > 0) {
-    const candidates = session.docs.filter((s) => {
-      // Skip blank untouched Untitled tabs — restoring an empty tab would hide
-      // the welcome screen for no benefit.
-      if (s.path === null && (s.content === '' || s.content == null) && !s.dirty) {
-        return false;
-      }
-      return true;
-    });
-    // Read all on-disk files concurrently; untitled tabs pass through as-is.
-    const restored = await Promise.all(
-      candidates.map(async (s) => {
-        if (!s.path) return s; // untitled — content was persisted directly
-        // PDFs restore from path alone — no content re-read (binary file).
-        if (isPdfPath(s.path)) return { ...s, content: '' };
-        try {
-          const content = await invoke('read_file', { path: s.path });
-          return { ...s, content };
-        } catch {
-          // File missing since last session — keep last-known content so the
-          // user can save-as. Mark path so the tab still shows its name.
-          return s;
-        }
-      }),
-    );
-    if (restored.length > 0) {
-      store.restore({ docs: restored, activeId: session.activeId });
-    }
-  }
-
-  // Cold-start: did Windows pass a file path on argv?
   try {
-    const initial = await invoke('get_initial_file');
-    if (initial) {
-      await openPath(initial.path, initial.content);
-      return; // get_initial_file already added a tab
+    // Restore session, re-reading file contents from disk in PARALLEL (was
+    // sequential — N tabs meant N round-trip waits before the UI rendered).
+    const session = loadSession();
+    if (session && Array.isArray(session.docs) && session.docs.length > 0) {
+      const candidates = session.docs.filter((s) => {
+        // Skip blank untouched Untitled tabs — restoring an empty tab would hide
+        // the welcome screen for no benefit.
+        if (s.path === null && (s.content === '' || s.content == null) && !s.dirty) {
+          return false;
+        }
+        return true;
+      });
+      // Read all on-disk files concurrently; untitled tabs pass through as-is.
+      const restored = await Promise.all(
+        candidates.map(async (s) => {
+          if (!s.path) return s; // untitled — content was persisted directly
+          // PDFs restore from path alone — no content re-read (binary file).
+          if (isPdfPath(s.path)) return { ...s, content: '' };
+          try {
+            const content = await invoke('read_file', { path: s.path });
+            return { ...s, content };
+          } catch {
+            // File missing since last session — keep last-known content so the
+            // user can save-as. Mark path so the tab still shows its name.
+            return s;
+          }
+        }),
+      );
+      if (restored.length > 0) {
+        store.restore({ docs: restored, activeId: session.activeId });
+      }
     }
-  } catch {
-    /* ignore */
-  }
 
-  // If still no tabs (fresh launch, no session, no argv), show the welcome
-  // screen instead of an empty Untitled tab. The welcome hero offers Open /
-  // drag-drop / shortcuts — it's a better starting point than a blank page.
-  if (store.docs.length === 0) {
-    renderTabs(store); // empty tab strip (just the + button)
+    // Cold-start: did Windows pass a file path on argv?
+    try {
+      const initial = await invoke('get_initial_file');
+      if (initial) {
+        await openPath(initial.path, initial.content);
+        return; // get_initial_file already added a tab
+      }
+    } catch {
+      /* ignore */
+    }
+
+    // If still no tabs (fresh launch, no session, no argv), show the welcome
+    // screen instead of an empty Untitled tab. The welcome hero offers Open /
+    // drag-drop / shortcuts — it's a better starting point than a blank page.
+    if (store.docs.length === 0) {
+      renderTabs(store); // empty tab strip (just the + button)
+      el.document.classList.add('has-welcome');
+      el.document.innerHTML = WELCOME_HTML;
+    } else {
+      await renderActive();
+      if (store.active()) await rewatch(store.active().path);
+    }
+  } catch (e) {
+    // If ANYTHING in the startup flow throws (corrupt session, render error,
+    // module load failure), fall back to the welcome screen instead of leaving
+    // the user staring at a blank window ("sometimes it doesn't open").
+    console.error('Startup error — falling back to welcome screen:', e);
+    store.docs.length = 0;
+    store.activeId = null;
+    renderTabs(store);
     el.document.classList.add('has-welcome');
     el.document.innerHTML = WELCOME_HTML;
-  } else {
-    await renderActive();
-    if (store.active()) await rewatch(store.active().path);
   }
 })();
 
