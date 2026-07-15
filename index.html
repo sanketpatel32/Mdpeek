@@ -252,108 +252,121 @@
       <div class="modal modal-wide">
         <h2 id="settings-title" class="modal-title">Settings</h2>
         <div class="settings-body">
-          <div class="setting">
-            <div class="setting-text">
-              <div class="setting-label">New tab format</div>
-              <div class="setting-desc">What the + button and Ctrl+N create</div>
-            </div>
-            <div class="seg" data-setting="new-tab-format">
-              <button class="seg-btn" data-value="markdown" type="button">Markdown</button>
-              <button class="seg-btn" data-value="text" type="button">Plain Text</button>
-              <button class="seg-btn" data-value="excalidraw" type="button">Excalidraw</button>
+          <!-- General -->
+          <div class="setting-section">
+            <div class="setting-section-title">General</div>
+            <div class="setting-card">
+              <div class="setting-row">
+                <div class="setting-text">
+                  <div class="setting-label">New tab format</div>
+                  <div class="setting-desc">What the + button and Ctrl+N create</div>
+                </div>
+                <div class="seg" data-setting="new-tab-format">
+                  <button class="seg-btn" data-value="markdown" type="button">Markdown</button>
+                  <button class="seg-btn" data-value="text" type="button">Plain Text</button>
+                  <button class="seg-btn" data-value="excalidraw" type="button">Excalidraw</button>
+                </div>
+              </div>
+              <div class="setting-row">
+                <div class="setting-text">
+                  <div class="setting-label">New tab opens in</div>
+                  <div class="setting-desc">Starting mode for new markdown tabs</div>
+                </div>
+                <div class="seg" data-setting="new-tab-mode">
+                  <button class="seg-btn" data-value="view" type="button">View</button>
+                  <button class="seg-btn" data-value="edit" type="button">Edit</button>
+                </div>
+              </div>
+              <div class="setting-row">
+                <div class="setting-text">
+                  <div class="setting-label">Close button action</div>
+                  <div class="setting-desc">What the window close (✕) button does</div>
+                </div>
+                <select id="settings-close-action" class="setting-select" aria-label="Close button action">
+                  <option value="ask">Ask every time</option>
+                  <option value="tray">Minimize to tray</option>
+                  <option value="quit">Quit immediately</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          <div class="setting">
-            <div class="setting-text">
-              <div class="setting-label">New tab opens in</div>
-              <div class="setting-desc">Starting mode for new markdown tabs</div>
-            </div>
-            <div class="seg" data-setting="new-tab-mode">
-              <button class="seg-btn" data-value="view" type="button">View</button>
-              <button class="seg-btn" data-value="edit" type="button">Edit</button>
+          <!-- Appearance -->
+          <div class="setting-section">
+            <div class="setting-section-title">Appearance</div>
+            <div class="setting-card">
+              <div class="setting-row">
+                <div class="setting-text">
+                  <div class="setting-label">Theme</div>
+                  <div class="setting-desc">Color scheme for the whole app</div>
+                </div>
+                <select id="settings-theme" class="setting-select" aria-label="Theme">
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                  <option value="solar-light">Solarized Light</option>
+                  <option value="solar-dark">Solarized Dark</option>
+                  <option value="dracula">Dracula</option>
+                  <option value="nord">Nord</option>
+                  <option value="github">GitHub</option>
+                  <option value="github-dark">GitHub Dark</option>
+                  <option value="tokyo-night">Tokyo Night</option>
+                  <option value="catppuccin">Catppuccin</option>
+                </select>
+              </div>
+              <div class="setting-row">
+                <div class="setting-text">
+                  <div class="setting-label">Font size</div>
+                  <div class="setting-desc">Base size for document text (zoom multiplies this)</div>
+                </div>
+                <select id="settings-font-size" class="setting-select" aria-label="Font size">
+                  <option value="13">Small</option>
+                  <option value="15">Medium</option>
+                  <option value="17">Large</option>
+                  <option value="19">Extra Large</option>
+                </select>
+              </div>
+              <div class="setting-row">
+                <div class="setting-text">
+                  <div class="setting-label">Line spacing</div>
+                  <div class="setting-desc">Vertical rhythm between lines of text</div>
+                </div>
+                <select id="settings-line-height" class="setting-select" aria-label="Line spacing">
+                  <option value="1.5">Compact</option>
+                  <option value="1.7">Normal</option>
+                  <option value="2.0">Relaxed</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          <div class="setting">
-            <div class="setting-text">
-              <div class="setting-label">Theme</div>
-              <div class="setting-desc">Color scheme for the whole app</div>
+          <!-- Editor -->
+          <div class="setting-section">
+            <div class="setting-section-title">Editor</div>
+            <div class="setting-card">
+              <div class="setting-row">
+                <div class="setting-text">
+                  <div class="setting-label">Line numbers</div>
+                  <div class="setting-desc">Show line numbers in the editor gutter</div>
+                </div>
+                <label class="setting-toggle">
+                  <input type="checkbox" id="settings-line-numbers" />
+                  <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+                </label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-text">
+                  <div class="setting-label">Find: match case</div>
+                  <div class="setting-desc">Default for the Ctrl+F case-sensitive toggle</div>
+                </div>
+                <label class="setting-toggle">
+                  <input type="checkbox" id="settings-find-case" />
+                  <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+                </label>
+              </div>
             </div>
-            <select id="settings-theme" class="setting-select" aria-label="Theme">
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-              <option value="solar-light">Solarized Light</option>
-              <option value="solar-dark">Solarized Dark</option>
-              <option value="dracula">Dracula</option>
-              <option value="nord">Nord</option>
-              <option value="github">GitHub</option>
-              <option value="github-dark">GitHub Dark</option>
-              <option value="tokyo-night">Tokyo Night</option>
-              <option value="catppuccin">Catppuccin</option>
-            </select>
-          </div>
-
-          <div class="setting">
-            <div class="setting-text">
-              <div class="setting-label">Close button action</div>
-              <div class="setting-desc">What the window close (✕) button does</div>
-            </div>
-            <select id="settings-close-action" class="setting-select" aria-label="Close button action">
-              <option value="ask">Ask every time</option>
-              <option value="tray">Minimize to tray</option>
-              <option value="quit">Quit immediately</option>
-            </select>
-          </div>
-
-          <div class="setting">
-            <div class="setting-text">
-              <div class="setting-label">Find: match case</div>
-              <div class="setting-desc">Default for the Ctrl+F case-sensitive toggle</div>
-            </div>
-            <label class="setting-toggle">
-              <input type="checkbox" id="settings-find-case" />
-              <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
-            </label>
-          </div>
-
-          <div class="setting">
-            <div class="setting-text">
-              <div class="setting-label">Font size</div>
-              <div class="setting-desc">Base size for document text (zoom multiplies this)</div>
-            </div>
-            <select id="settings-font-size" class="setting-select" aria-label="Font size">
-              <option value="13">Small</option>
-              <option value="15">Medium</option>
-              <option value="17">Large</option>
-              <option value="19">Extra Large</option>
-            </select>
-          </div>
-
-          <div class="setting">
-            <div class="setting-text">
-              <div class="setting-label">Line spacing</div>
-              <div class="setting-desc">Vertical rhythm between lines of text</div>
-            </div>
-            <select id="settings-line-height" class="setting-select" aria-label="Line spacing">
-              <option value="1.5">Compact</option>
-              <option value="1.7">Normal</option>
-              <option value="2.0">Relaxed</option>
-            </select>
-          </div>
-
-          <div class="setting">
-            <div class="setting-text">
-              <div class="setting-label">Line numbers</div>
-              <div class="setting-desc">Show line numbers in the editor gutter</div>
-            </div>
-            <label class="setting-toggle">
-              <input type="checkbox" id="settings-line-numbers" />
-              <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
-            </label>
           </div>
         </div>
-        <div class="modal-actions">
+        <div class="modal-actions settings-footer">
           <button id="settings-reset" class="modal-btn" type="button">Reset to defaults</button>
           <button id="settings-done" class="modal-btn modal-btn-primary" type="button">Done</button>
         </div>

@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-07-15
+
+### Fixed — stability (6 HIGH + 5 MEDIUM from code audit)
+- **Confirm dialog listener leak** — `{ once: true }` listeners that never fired
+  (resolved via button click) accumulated across dialog opens. Now properly
+  removed in `done()`.
+- **Tab-switch race condition** — rapid switching while PDF/Excalidraw was loading
+  could leak controllers. Fixed with a monotonic render-generation counter;
+  stale async results are torn down.
+- **Unhandled async rejections** — `toggleMode()`, `closeTab()` (middle-click,
+  context menu), and `win-maximize` now have `.catch()` guards.
+- **File-changed data loss** — if a file changes on disk while you're mid-edit
+  with unsaved changes, the external change is no longer silently clobbering
+  your work. A toast notifies you and your edits are kept.
+- **Find-bar NaN scroll** — `line-height: normal` (non-numeric) caused
+  `scrollTop = NaN`. Added a `|| 20` fallback.
+- **Excalidraw React root orphan** — if the initial React render threw, the root
+  was orphaned. Now unmounts on failure before rethrowing.
+- **Null guards** — `icoMax`/`icoRestore` in `syncMaxIcon()` now null-checked.
+- **Shared `escapeHtml`** — consolidated 3 inline copies (pdf-viewer,
+  excalidraw-viewer, tabs) into one shared `src/lib/escape.js` that escapes
+  quotes too.
+- **Dead code removed** — unused `PALETTE` export from pdf-viewer.js.
+
+### Changed — settings UI redesign
+- **Section grouping** — settings now organized into 3 sections (General,
+  Appearance, Editor) with card-style containers and section titles, like macOS
+  System Settings.
+- **Hover rows** — individual setting rows highlight on hover within their card.
+- **Row dividers** — hairline separators between rows in a section.
+- **Sticky footer** — the Reset/Done footer has a top border separator; the
+  Reset button is de-emphasized and turns red on hover.
+- **Responsive** — on narrow windows, setting rows stack vertically (label on
+  top, control below).
+- **Toggle sizing** — toggle track normalized from 22px → 24px to match the
+  height of selects and segmented controls.
+
 ## [0.8.2] - 2026-07-15
 
 ### Fixed — Excalidraw theme sync

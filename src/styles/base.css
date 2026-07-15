@@ -1123,32 +1123,80 @@ mark.find-current {
 .settings-body {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  margin-bottom: 20px;
-  padding-right: 4px;
-  max-height: calc(100vh - 220px);
+  gap: 16px;
+  margin-bottom: 0;
+  padding-right: 2px;
+  max-height: calc(100vh - 200px);
   overflow-y: auto;
 }
-.setting {
+
+/* Section grouping — each section has a title + a card containing rows. */
+.setting-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-muted);
+  margin-bottom: 6px;
+  padding-left: 2px;
+}
+.setting-card {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.setting-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  padding: 10px 14px;
+  transition: background-color 100ms var(--ease);
+}
+.setting-row + .setting-row {
+  border-top: 1px solid var(--border-subtle);
+}
+.setting-row:hover {
+  background: var(--surface-hover);
 }
 .setting-text {
   min-width: 0;
 }
 .setting-label {
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--fg);
   line-height: 1.3;
 }
 .setting-desc {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--fg-muted);
   margin-top: 2px;
   line-height: 1.4;
+}
+/* Sticky footer with a hairline separator. */
+.settings-footer {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 16px;
+  margin-top: 16px;
+}
+#settings-reset {
+  color: var(--fg-muted);
+}
+#settings-reset:hover {
+  color: var(--danger);
+}
+/* Responsive: stack rows vertically on narrow widths. */
+@media (max-width: 520px) {
+  .setting-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .modal-wide {
+    width: calc(100vw - 32px);
+  }
 }
 
 /* Segmented control (e.g. Markdown | Plain Text). */
@@ -1220,8 +1268,8 @@ mark.find-current {
   height: 0;
 }
 .toggle-track {
-  width: 38px;
-  height: 22px;
+  width: 40px;
+  height: 24px;
   background: var(--surface-active);
   border-radius: 999px;
   position: relative;
@@ -1231,8 +1279,8 @@ mark.find-current {
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   background: #ffffff;
   border-radius: 50%;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);

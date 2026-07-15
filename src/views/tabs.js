@@ -1,20 +1,14 @@
 // Renders the tab strip into #tab-strip from a DocumentStore.
 // Returns nothing; main.js attaches click/close handlers after render.
 
+import { escapeHtml } from '../lib/escape.js';
+
 function titleFor(doc) {
   if (doc.path) {
     const parts = doc.path.split(/[\\/]/);
     return parts[parts.length - 1];
   }
   return 'Untitled';
-}
-
-function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 // File-type badge for saved files; no badge for untitled tabs.

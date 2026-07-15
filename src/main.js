@@ -35,7 +35,7 @@ const DEFAULT_THEME = 'light';
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.8.2</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.8.3</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -129,9 +129,25 @@ function confirmDialog({ title, text, buttons, icon = 'warn' }) {
 
     actionsEl.innerHTML = '';
     let resolved = false;
+
+    // Escape + click-outside listeners. Captured here so done() can remove
+    // them — without this, { once: true } listeners that never fire (because
+    // the user clicked a button instead) would accumulate across dialog opens.
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        done(null);
+      }
+    };
+    const onBackdrop = (e) => {
+      if (e.target === dlg) done(null);
+    };
+
     const done = (val) => {
       if (resolved) return;
       resolved = true;
+      dlg.removeEventListener('keydown', onKey);
+      dlg.removeEventListener('click', onBackdrop);
       dlg.classList.add('hidden');
       resolve(val);
     };
@@ -147,18 +163,8 @@ function confirmDialog({ title, text, buttons, icon = 'warn' }) {
       actionsEl.appendChild(b);
     }
 
-    // Escape resolves to null (cancel).
-    const onKey = (e) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        done(null);
-      }
-    };
-    dlg.addEventListener('keydown', onKey, { once: true });
-    // Click outside the modal card cancels too.
-    dlg.addEventListener('click', (e) => {
-      if (e.target === dlg) done(null);
-    }, { once: true });
+    dlg.addEventListener('keydown', onKey);
+    dlg.addEventListener('click', onBackdrop);
 
     dlg.classList.remove('hidden');
     // Focus the first button for keyboard users.
@@ -182,6 +188,7 @@ async function rewatch(path) {
 // The <textarea> is shared across all tabs, so without this capture a tab
 // switch would lose typed text and the caret/scroll position.
 let _lastRenderedId = null;
+let _renderGen = 0; // monotonic counter — guards async loads against stale tabs
 let _activePdf = null; // controller for the currently-shown PDF (for teardown)
 let _activeExcalidraw = null; // controller for the currently-shown Excalidraw tab
 
@@ -224,6 +231,7 @@ async function renderActive() {
     document.querySelectorAll('.pdf-tool-btn').forEach((b) => b.classList.remove('active'));
   }
   _lastRenderedId = store.activeId;
+  const gen = ++_renderGen; // capture this render's generation for async guards
 
   const doc = store.active();
   renderTabs(store);
@@ -254,8 +262,8 @@ async function renderActive() {
     // showPdf is async and lazy-loads pdf.js. Store the controller so we can
     // tear it down on tab switch.
     showPdf(el.document, doc.path).then((ctrl) => {
-      // Guard: if the user already switched away, tear down immediately.
-      if (_lastRenderedId !== doc.id) {
+      // Guard: if the user already switched away (gen mismatch), tear down.
+      if (gen !== _renderGen) {
         ctrl.destroy();
       } else {
         _activePdf = ctrl;
@@ -281,7 +289,7 @@ async function renderActive() {
       store.markDirty(doc.id);
       persistSoon();
     }, document.documentElement.dataset.theme).then((ctrl) => {
-      if (_lastRenderedId !== doc.id) {
+      if (gen !== _renderGen) {
         ctrl.destroy();
       } else {
         _activeExcalidraw = ctrl;
@@ -520,7 +528,7 @@ function toggleMode() {
   if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
   doc.mode = doc.mode === 'view' ? 'edit' : 'view';
   if (find) find.close(); // clear highlights/selection before the re-render
-  renderActive();
+  renderActive().catch((e) => console.error('toggleMode render failed:', e));
 }
 
 // ---------- theme ----------
@@ -958,7 +966,7 @@ el.tabStrip.addEventListener('click', async (e) => {
 el.tabStrip.addEventListener('mousedown', (e) => {
   if (e.button !== 1) return;
   const tab = e.target.closest('.tab');
-  if (tab) closeTab(tab.dataset.id);
+  if (tab) closeTab(tab.dataset.id).catch((e) => console.error('closeTab failed:', e));
 });
 
 // Right-click → context menu. Only when the cursor is over an actual tab
@@ -999,7 +1007,7 @@ el.ctxMenu.addEventListener('click', (e) => {
   if (!btn || btn.disabled) return;
   const { action, tabId } = btn.dataset;
   hideCtxMenu();
-  ctxAction(action, tabId);
+  ctxAction(action, tabId).catch((e) => console.error('ctxAction failed:', e));
 });
 
 // Dismiss the menu on any outside click, Escape, scroll, or tab switch.
@@ -1142,7 +1150,7 @@ document.getElementById('win-minimize').addEventListener('click', () => {
   appWindow.minimize().catch((e) => console.error('minimize failed:', e));
 });
 document.getElementById('win-maximize').addEventListener('click', async () => {
-  await appWindow.toggleMaximize();
+  try { await appWindow.toggleMaximize(); } catch (e) { console.error('toggleMaximize failed:', e); }
 });
 document.getElementById('win-close').addEventListener('click', () => {
   showCloseDialog();
@@ -1154,8 +1162,8 @@ async function syncMaxIcon() {
   } catch (e) {
     console.error('isMaximized failed:', e);
   }
-  icoMax.classList.toggle('hidden', maximized);
-  icoRestore.classList.toggle('hidden', !maximized);
+  if (icoMax) icoMax.classList.toggle('hidden', maximized);
+  if (icoRestore) icoRestore.classList.toggle('hidden', !maximized);
 }
 appWindow.onResized(syncMaxIcon).catch(() => {}); // unlisten only matters on teardown
 syncMaxIcon();
@@ -1216,6 +1224,12 @@ listen('file-changed', (event) => {
       })
       .catch((e) => toast('Reload failed: ' + fmtErr(e)));
   } else if (doc.editor) {
+    // Don't clobber unsaved edits — if the user is mid-edit, keep their work
+    // and notify them instead of silently discarding it.
+    if (doc.dirty) {
+      toast('File changed on disk — your unsaved edits were kept');
+      return;
+    }
     doc.editor.setValue(event.payload);
   }
 }).catch((e) => console.error('file-changed listener failed:', e));

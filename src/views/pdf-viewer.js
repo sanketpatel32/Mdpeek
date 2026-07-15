@@ -10,6 +10,7 @@
 // drawing toolbar need: pdfDoc, textLayers, stroke state, and mode setters.
 
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { escapeHtml } from '../lib/escape.js';
 
 // Render scale relative to the app's zoom level.
 function getScale(container) {
@@ -416,7 +417,3 @@ async function renderPage(pdfjsLib, pdfDoc, num, wrapper, scale, renders, textLa
   }
 }
 
-export { PALETTE };
-function escapeHtml(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}

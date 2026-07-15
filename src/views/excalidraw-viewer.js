@@ -6,6 +6,14 @@
 // switches within the session.
 //
 // CRITICAL: Excalidraw requires:
+//   1. Its CSS (index.css) — without it the UI is completely broken.
+//   2. A parent container with an explicit height — Excalidraw fills its parent
+//      and collapses to 0px if the parent has no height.
+
+import { escapeHtml } from '../lib/escape.js';
+// switches within the session.
+//
+// CRITICAL: Excalidraw requires:
 //   1. Its CSS (dist/prod/index.css) — without it the UI is completely broken.
 //   2. A parent container with an explicit height — Excalidraw fills its parent
 //      and collapses to 0px if the parent has no height.
@@ -85,8 +93,10 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
 
     // Mount Excalidraw using React's imperative API (no JSX needed).
     // The container must have height — Excalidraw fills 100% of its parent.
+    // If the initial render throws, we must unmount to avoid orphaning the root.
     const root = ReactDOMClient.createRoot(container);
     let currentTheme = excalidrawThemeFor(initialAppTheme);
+    let mounted = false;
 
     function renderExcalidraw() {
       root.render(
@@ -96,8 +106,15 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
           theme: currentTheme,
         })
       );
+      mounted = true;
     }
-    renderExcalidraw();
+    try {
+      renderExcalidraw();
+    } catch (renderErr) {
+      // Initial render failed — unmount to avoid a leaked root, then rethrow.
+      try { root.unmount(); } catch {}
+      throw renderErr;
+    }
 
     return {
       setTheme(appTheme) {
@@ -129,8 +146,4 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
     console.error('Excalidraw load failed:', e);
     return { getSceneJSON: () => '', destroy: () => {} };
   }
-}
-
-function escapeHtml(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }

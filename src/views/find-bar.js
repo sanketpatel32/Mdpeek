@@ -157,7 +157,7 @@ function showMatch(editor, m, text, focusEditor) {
   editor.setState({ start: m.start, end: m.end });
   // Best-effort vertical centering: line-based, ignores wrapping.
   const lineNum = text.slice(0, m.start).split('\n').length - 1;
-  const lineHeight = parseFloat(getComputedStyle(editor.textarea()).lineHeight);
+  const lineHeight = parseFloat(getComputedStyle(editor.textarea()).lineHeight) || 20;
   const ta = editor.textarea();
   ta.scrollTop = Math.max(0, lineNum * lineHeight - ta.clientHeight / 2);
 }
