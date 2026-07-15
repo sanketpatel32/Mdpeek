@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-07-15
+
+### Fixed — Excalidraw session persistence
+- **Untitled Excalidraw tabs survive a restart.** Previously the `excalidraw`
+  type flag was re-derived from the file path on restore — but untitled tabs
+  have `path: null`, so the flag was lost. The tab restored as a markdown doc
+  and displayed the raw Excalidraw JSON as text. Now `serialize()` persists the
+  `plain`, `pdf`, and `excalidraw` flags explicitly, and `restore()` prefers
+  the persisted flag over path-only derivation.
+
 ## [0.8.3] - 2026-07-15
 
 ### Fixed — stability (6 HIGH + 5 MEDIUM from code audit)

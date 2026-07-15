@@ -130,6 +130,11 @@ export class DocumentStore {
           mode: d.mode,
           dirty: d.dirty,
           scrollY: d.scrollY,
+          // Persist type flags so untitled tabs (path=null) survive a restart.
+          // For saved files, these are also re-derivable from the path.
+          plain: d.plain || false,
+          pdf: d.pdf || false,
+          excalidraw: d.excalidraw || false,
         })),
       activeId: this.activeId,
     };
@@ -141,9 +146,11 @@ export class DocumentStore {
       .filter((d) => d && typeof d.content === 'string')
       .map((d) => {
         const path = typeof d.path === 'string' ? d.path : null;
-        const plain = isPlainPath(path);
-        const pdf = isPdfPath(path);
-        const excalidraw = isExcalidrawPath(path);
+        // Prefer the persisted type flag; fall back to path-based derivation
+        // for older sessions that didn't serialize these flags.
+        const plain = d.plain !== undefined ? !!d.plain : isPlainPath(path);
+        const pdf = d.pdf !== undefined ? !!d.pdf : isPdfPath(path);
+        const excalidraw = d.excalidraw !== undefined ? !!d.excalidraw : isExcalidrawPath(path);
         return {
           id: typeof d.id === 'string' ? d.id : newId(),
           path,
