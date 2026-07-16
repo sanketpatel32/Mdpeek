@@ -9,6 +9,7 @@
   line-height: var(--content-line-height, 1.7);
   color: var(--fg);
   font-size: 15px;
+  font-family: var(--content-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", sans-serif);
 }
 /* When a document is rendered in the view pane, its top-level children fade
    + rise in subtly. Scoped to #document (view mode) only, NOT #preview, so the

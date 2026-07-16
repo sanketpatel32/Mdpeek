@@ -52,7 +52,10 @@
   </head>
   <body>
     <header class="app-header" data-tauri-drag-region>
-      <div id="tab-strip" class="tab-strip"></div>
+      <div id="tab-strip-container" class="tab-strip-container">
+        <div id="tab-strip" class="tab-strip"></div>
+        <button id="tab-new" class="tab-new" title="New tab (Ctrl+N)">+</button>
+      </div>
 
       <span class="header-spacer" data-tauri-drag-region></span>
 
@@ -334,6 +337,17 @@
                   <option value="1.5">Compact</option>
                   <option value="1.7">Normal</option>
                   <option value="2.0">Relaxed</option>
+                </select>
+              </div>
+              <div class="setting-row">
+                <div class="setting-text">
+                  <div class="setting-label">Font</div>
+                  <div class="setting-desc">Font family for document text</div>
+                </div>
+                <select id="settings-font-family" class="setting-select" aria-label="Font family">
+                  <option value="system">System Sans</option>
+                  <option value="serif">Serif</option>
+                  <option value="mono">Monospace</option>
                 </select>
               </div>
             </div>

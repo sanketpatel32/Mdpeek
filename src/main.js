@@ -35,7 +35,7 @@ const DEFAULT_THEME = 'light';
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.8.4</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.8.5</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -605,9 +605,18 @@ function applyZoom() {
 
 // Reading-comfort: line spacing via a CSS variable (no zoom interaction).
 // Called on init and when the settings select changes.
+const FONT_STACKS = {
+  system: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", sans-serif',
+  serif: 'Georgia, "Times New Roman", "Noto Serif", serif',
+  mono: '"SFMono-Regular", "Cascadia Code", Consolas, "Liberation Mono", monospace',
+};
+
 function applyReadingComfort() {
   const lh = parseFloat(localStorage.getItem('mdpeek-line-height')) || 1.7;
   document.documentElement.style.setProperty('--content-line-height', String(lh));
+  const ff = localStorage.getItem('mdpeek-font-family') || 'system';
+  const stack = FONT_STACKS[ff] || FONT_STACKS.system;
+  document.documentElement.style.setProperty('--content-font-family', stack);
   applyZoom(); // pick up a possibly-changed base font
 }
 
@@ -746,6 +755,7 @@ const SETTING_KEYS = [
   'mdpeek-base-font',
   'mdpeek-line-height',
   'mdpeek-line-numbers',
+  'mdpeek-font-family',
 ];
 
 function openSettings() {
@@ -779,6 +789,9 @@ function syncSettingsControls() {
 
   const lhSel = document.getElementById('settings-line-height');
   if (lhSel) lhSel.value = String(parseFloat(localStorage.getItem('mdpeek-line-height')) || 1.7);
+
+  const ffSel = document.getElementById('settings-font-family');
+  if (ffSel) ffSel.value = localStorage.getItem('mdpeek-font-family') || 'system';
 
   const lineNumCb = document.getElementById('settings-line-numbers');
   if (lineNumCb) lineNumCb.checked = localStorage.getItem('mdpeek-line-numbers') !== '0';
@@ -859,6 +872,12 @@ document.getElementById('settings-font-size').addEventListener('change', (e) => 
 // Line spacing — sets the CSS variable directly (no zoom interaction).
 document.getElementById('settings-line-height').addEventListener('change', (e) => {
   localStorage.setItem('mdpeek-line-height', e.target.value);
+  applyReadingComfort();
+});
+
+// Font family — sets the CSS variable for document text.
+document.getElementById('settings-font-family').addEventListener('change', (e) => {
+  localStorage.setItem('mdpeek-font-family', e.target.value);
   applyReadingComfort();
 });
 
@@ -1021,6 +1040,16 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') hideCtxMenu();
 });
 el.tabStrip.addEventListener('scroll', hideCtxMenu, { passive: true });
+
+// Translate vertical mouse-wheel into horizontal scroll on the tab strip so
+// users with a standard mouse (no trackpad) can scroll through many tabs.
+el.tabStrip.addEventListener('wheel', (e) => {
+  if (e.deltaY === 0) return;
+  const maxScroll = el.tabStrip.scrollWidth - el.tabStrip.clientWidth;
+  if (maxScroll <= 0) return;
+  e.preventDefault();
+  el.tabStrip.scrollLeft += e.deltaY;
+}, { passive: false });
 
 // Editor textarea: mark active doc dirty on input + debounced re-persist.
 el.editor.addEventListener('input', () => {

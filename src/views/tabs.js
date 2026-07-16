@@ -36,5 +36,12 @@ export function renderTabs(store) {
     })
     .join('');
 
-  strip.innerHTML = `${html}<button id="tab-new" class="tab-new" title="New tab (Ctrl+N)">+</button>`;
+  strip.innerHTML = html;
+
+  // Auto-scroll the active tab into view so switching to a tab that's scrolled
+  // out of view brings it visible.
+  const active = strip.querySelector('.tab.active');
+  if (active) {
+    active.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+  }
 }

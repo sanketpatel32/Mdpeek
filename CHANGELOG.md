@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.5] - 2026-07-16
+
+### Fixed — tab scrolling
+- **The + button no longer scrolls away.** The tab strip now has a pinned
+  container: the scrollable tab list on the left, the + button fixed on the
+  right. Scrolling through many tabs keeps + accessible at all times.
+- **Mouse-wheel scrolling.** Vertical wheel now translates to horizontal scroll
+  on the tab strip — standard mice (without trackpads) can now scroll through
+  many tabs.
+- **Active tab auto-scrolls into view.** Switching to a tab that's scrolled out
+  of view now smoothly brings it visible.
+
+### Added — font family setting
+- **Font option in Settings → Appearance.** Choose between System Sans (default),
+  Serif (Georgia), or Monospace for document text. Applied live via a CSS
+  variable; persists across sessions.
+
 ## [0.8.4] - 2026-07-15
 
 ### Fixed — Excalidraw session persistence
