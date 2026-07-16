@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.7] - 2026-07-16
+
+### Fixed
+- **The + button works again.** Moving the + button outside the scrollable tab
+  strip (in v0.8.5) broke its click handler — it was caught by the tab-strip
+  listener that no longer covered it. Now has its own dedicated listener.
+
 ## [0.8.6] - 2026-07-16
 
 ### Added — expanded font options

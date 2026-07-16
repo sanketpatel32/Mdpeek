@@ -35,7 +35,7 @@ const DEFAULT_THEME = 'light';
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.8.6</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.8.7</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -949,6 +949,11 @@ document.getElementById('pdf-tool-close').addEventListener('click', () => {
 // The toolbar gear button (btn-draw, shown only on PDF tabs) toggles the draw toolbar.
 el.draw.addEventListener('click', () => pdfToggleToolbar());
 
+// The + button now lives outside #tab-strip (in the container) so the tab-strip
+// click handler can't catch it. Wire it directly.
+const tabNewBtn = document.getElementById('tab-new');
+if (tabNewBtn) tabNewBtn.addEventListener('click', () => newTab());
+
 // Link clicks inside rendered markdown: external URLs open in the system
 // browser via the opener plugin (the default would navigate the WebView2
 // itself, leaving the app). In-document #anchor links still scroll normally.
@@ -967,16 +972,14 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// Tab strip: click to switch, click × to close, click + for new
+// Tab strip: click to switch, click × to close.
+// The + button lives outside #tab-strip now (in the container) and has its
+// own listener above — this handler only covers tab switching + close.
 el.tabStrip.addEventListener('click', async (e) => {
   const closeBtn = e.target.closest('.tab-close');
   if (closeBtn) {
     e.stopPropagation();
     await closeTab(closeBtn.dataset.id);
-    return;
-  }
-  if (e.target.id === 'tab-new') {
-    newTab();
     return;
   }
   const tab = e.target.closest('.tab');
