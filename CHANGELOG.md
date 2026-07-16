@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.6] - 2026-07-16
+
+### Added — expanded font options
+- **5 more font choices** in Settings → Appearance → Font: Inter / SF Pro,
+  Helvetica / Arial, Verdana, Times New Roman, and Cascadia Code (in addition
+  to System Sans, Serif, and Monospace). All use OS-installed font stacks —
+  zero download, zero bundle cost. Falls back gracefully if a specific font
+  isn't installed.
+
 ## [0.8.5] - 2026-07-16
 
 ### Fixed — tab scrolling

@@ -35,7 +35,7 @@ const DEFAULT_THEME = 'light';
 const WELCOME_HTML = `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.8.5</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.8.6</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -607,8 +607,13 @@ function applyZoom() {
 // Called on init and when the settings select changes.
 const FONT_STACKS = {
   system: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", sans-serif',
+  inter: '"Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif',
+  helvetica: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+  verdana: 'Verdana, Geneva, "DejaVu Sans", sans-serif',
   serif: 'Georgia, "Times New Roman", "Noto Serif", serif',
+  times: '"Times New Roman", Times, Georgia, serif',
   mono: '"SFMono-Regular", "Cascadia Code", Consolas, "Liberation Mono", monospace',
+  cascadia: '"Cascadia Code", "Cascadia Mono", "SFMono-Regular", Consolas, monospace',
 };
 
 function applyReadingComfort() {
