@@ -10,7 +10,7 @@ import { showPdf } from './views/pdf-viewer.js';
 import { showExcalidraw } from './views/excalidraw-viewer.js';
 import { initEditor } from './views/editor.js';
 import { initFindBar } from './views/find-bar.js';
-import { initCommandPalette } from './views/command-palette.js';
+import { initCommandPalette, initQuickSwitcher } from './views/command-palette.js';
 import { renderTabs } from './views/tabs.js';
 import { DocumentStore, isPdfPath, isExcalidrawPath, langFromPath } from './lib/documents.js';
 import { renderMarkdown, renderCode, prepareCodeLang } from './lib/renderer.js';
@@ -58,7 +58,7 @@ function renderWelcome() {
   return `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.11.7</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.11.8</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -67,6 +67,7 @@ function renderWelcome() {
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>E</kbd> Toggle edit</span>
       <span class="welcome-hint"><kbd>F11</kbd> Focus mode</span>
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> Command palette</span>
+      <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>P</kbd> Quick switcher</span>
     </div>
     ${recentsHtml}
   </div>
@@ -454,6 +455,7 @@ const find = initFindBar({
 const palette = initCommandPalette(() => {
   const cmds = [
     { id: 'open', label: 'Open file', hint: 'Ctrl+O', keywords: 'open file load', run: openFileDialog },
+    { id: 'quick-switch', label: 'Quick switcher (recent files)', hint: 'Ctrl+P', keywords: 'quick switch recent files open', run: () => quickSwitcher.open() },
     { id: 'new', label: 'New tab', hint: 'Ctrl+N', keywords: 'new tab untitled', run: newTab },
     { id: 'save', label: 'Save', hint: 'Ctrl+S', keywords: 'save write', run: saveActive },
     { id: 'export-html', label: 'Export to HTML', keywords: 'export html self-contained', run: exportHtml },
@@ -478,6 +480,30 @@ const palette = initCommandPalette(() => {
     return true;
   });
 });
+
+// ---------- quick switcher (Ctrl+P) ----------
+// Fuzzy-opens from the recents list. Reads recents at open-time so it always
+// reflects the latest state; selecting an item reads the file and opens it as
+// a new tab. Dead paths are caught and surfaced as a toast + removed.
+const quickSwitcher = initQuickSwitcher(
+  () => loadRecents().map((r) => ({ label: r.name, hint: shortPath(r.path), keywords: r.path, path: r.path })),
+  async (item) => {
+    try {
+      const content = await invoke('read_file', { path: item.path });
+      await openPath(item.path, content);
+    } catch (e) {
+      toast('Could not open: ' + item.name);
+      removeRecent(item.path);
+    }
+  },
+);
+
+// Compact a path for the hint column: keep the filename + parent dir only.
+function shortPath(p) {
+  const parts = p.split(/[\\/]/);
+  if (parts.length <= 2) return p;
+  return '…/' + parts.slice(-2).join('/');
+}
 
 store.on('change', () => {
   renderActive().catch((e) => {
@@ -1666,6 +1692,14 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     e.stopPropagation();
     palette.open();
+    return;
+  }
+  // Ctrl+P → quick switcher (fuzzy-open from recents). Same key as VS Code /
+  // Sublime / every browser's print dialog (we preventDefault to suppress that).
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'P' || e.key === 'p')) {
+    e.preventDefault();
+    e.stopPropagation();
+    quickSwitcher.open();
     return;
   }
   if (e.key === 'F11') {
