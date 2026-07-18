@@ -58,7 +58,7 @@ function renderWelcome() {
   return `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.11.12</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.11.13</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -84,6 +84,7 @@ const el = {
   draw: document.getElementById('btn-draw'),
   sidebar: document.getElementById('btn-sidebar'),
   export: document.getElementById('btn-export'),
+  daily: document.getElementById('btn-daily'),
   zoomIn: document.getElementById('btn-zoom-in'),
   zoomOut: document.getElementById('btn-zoom-out'),
   zoomIndicator: document.getElementById('zoom-indicator'),
@@ -459,6 +460,7 @@ const palette = initCommandPalette(() => {
     { id: 'open', label: 'Open file', hint: 'Ctrl+O', keywords: 'open file load', run: openFileDialog },
     { id: 'quick-switch', label: 'Quick switcher (recent files)', hint: 'Ctrl+P', keywords: 'quick switch recent files open', run: () => quickSwitcher.open() },
     { id: 'new', label: 'New tab', hint: 'Ctrl+N', keywords: 'new tab untitled', run: newTab },
+    { id: 'daily', label: 'Open daily note (today\'s .md)', keywords: 'daily note today date journal', run: openDailyNote },
     { id: 'save', label: 'Save', hint: 'Ctrl+S', keywords: 'save write', run: saveActive },
     { id: 'export-html', label: 'Export to HTML', keywords: 'export html self-contained', run: exportHtml },
     { id: 'copy-rich', label: 'Copy as rich text', hint: 'Ctrl+Shift+C', keywords: 'copy rich html clipboard paste formatted', run: copyAsRichText },
@@ -916,7 +918,50 @@ function toggleTypewriter() {
   toast(on ? 'Typewriter off' : 'Typewriter on');
 }
 
-// ---------- copy as rich text ----------
+// ---------- daily note ----------
+// One-click "today's note". First run asks the user to pick a notes folder
+// (persisted to mdpeek-notes-dir); subsequent runs go straight there. If
+// today's YYYY-MM-DD.md already exists, opens it; otherwise creates it with a
+// small starter template. Opened in edit mode so the user can start writing.
+async function openDailyNote() {
+  let dir = localStorage.getItem('mdpeek-notes-dir') || '';
+  if (!dir) {
+    try {
+      dir = await invoke('pick_folder');
+      localStorage.setItem('mdpeek-notes-dir', dir);
+    } catch (e) {
+      if (e !== 'cancelled') toast('Could not pick folder: ' + fmtErr(e));
+      return;
+    }
+  }
+  const today = new Date();
+  const stamp = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const sep = /[\\/]/.test(dir) && !dir.endsWith('/') && !dir.endsWith('\\') ? '\\' : '';
+  const path = `${dir}${sep}${stamp}.md`;
+  // Try to read the existing file. If it exists, open it; otherwise create.
+  try {
+    const content = await invoke('read_file', { path });
+    await openPath(path, content);
+    store.active().mode = 'edit';
+    renderActive();
+    return;
+  } catch (e) {
+    // File doesn't exist (or unreadable) → fall through to create.
+  }
+  const prettyDate = today.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const starter = `# ${stamp}\n\n*${prettyDate}*\n\n## \n\n`;
+  try {
+    await invoke('save_file', { path, content: starter });
+    await openPath(path, starter);
+    store.active().mode = 'edit';
+    renderActive();
+    toast('Daily note created');
+  } catch (e) {
+    toast('Could not create daily note: ' + fmtErr(e));
+  }
+}
+
+
 // Copies the rendered markdown to the clipboard in two formats: text/html
 // (so Word/Email/Slack paste it with formatting intact) + text/plain (the raw
 // markdown source, so plain-text editors still get something useful). The HTML
@@ -1178,6 +1223,7 @@ el.update.addEventListener('click', () => {
 el.open.addEventListener('click', openFileDialog);
 el.save.addEventListener('click', saveActive);
 if (el.export) el.export.addEventListener('click', exportHtml);
+if (el.daily) el.daily.addEventListener('click', openDailyNote);
 
 // Formatting toolbar — one delegated handler covers all .fmt-btn clicks.
 // Looks up the active doc's editor and dispatches to its format(type) method.

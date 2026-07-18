@@ -132,6 +132,7 @@ pub fn run() {
             commands::save_file_as_html,
             commands::read_file,
             commands::save_image,
+            commands::pick_folder,
             watcher::watch_path,
             get_initial_file,
             hide_to_tray,

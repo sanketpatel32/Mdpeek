@@ -105,3 +105,15 @@ pub fn save_image(dir: String, filename: String, bytes: Vec<u8>) -> Result<Strin
     // doc's own directory, so `assets/<name>` is correct and portable.
     Ok(filename)
 }
+
+/// Show a folder picker. Returns the chosen absolute path, or rejects with
+/// "cancelled" when the user dismisses the dialog. Used by the Daily Note
+/// feature to pick where dated .md files get written.
+#[tauri::command]
+pub async fn pick_folder() -> Result<String, String> {
+    let folder = rfd::AsyncFileDialog::new()
+        .pick_folder()
+        .await
+        .ok_or_else(|| "cancelled".to_string())?;
+    Ok(folder.path().display().to_string())
+}
