@@ -10,6 +10,7 @@ import { showPdf } from './views/pdf-viewer.js';
 import { showExcalidraw } from './views/excalidraw-viewer.js';
 import { initEditor } from './views/editor.js';
 import { initFindBar } from './views/find-bar.js';
+import { initCommandPalette } from './views/command-palette.js';
 import { renderTabs } from './views/tabs.js';
 import { DocumentStore, isPdfPath, isExcalidrawPath, langFromPath } from './lib/documents.js';
 import { renderMarkdown, renderCode, prepareCodeLang } from './lib/renderer.js';
@@ -57,7 +58,7 @@ function renderWelcome() {
   return `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.11.6</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.11.7</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -65,6 +66,7 @@ function renderWelcome() {
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>S</kbd> Save</span>
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>E</kbd> Toggle edit</span>
       <span class="welcome-hint"><kbd>F11</kbd> Focus mode</span>
+      <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> Command palette</span>
     </div>
     ${recentsHtml}
   </div>
@@ -444,6 +446,39 @@ const find = initFindBar({
   getPdf: () => _activePdf,
 });
 
+// ---------- command palette ----------
+// A flat list of every action the user can launch via Ctrl+Shift+P. Each
+// command lazily checks the current state (e.g. no "save" when no doc), so we
+// don't need to recompute the list on every open — getCommands() filters at
+// call time. Labels are matched fuzzily; keywords give silent ranking boosts.
+const palette = initCommandPalette(() => {
+  const cmds = [
+    { id: 'open', label: 'Open file', hint: 'Ctrl+O', keywords: 'open file load', run: openFileDialog },
+    { id: 'new', label: 'New tab', hint: 'Ctrl+N', keywords: 'new tab untitled', run: newTab },
+    { id: 'save', label: 'Save', hint: 'Ctrl+S', keywords: 'save write', run: saveActive },
+    { id: 'export-html', label: 'Export to HTML', keywords: 'export html self-contained', run: exportHtml },
+    { id: 'mode', label: 'Toggle edit / view', hint: 'Ctrl+E', keywords: 'toggle edit view mode', run: toggleMode },
+    { id: 'sidebar', label: 'Toggle sidebar (TOC)', hint: 'Ctrl+B', keywords: 'sidebar toc outline', run: toggleSidebar },
+    { id: 'find', label: 'Find', hint: 'Ctrl+F', keywords: 'find search', run: () => find.toggle() },
+    { id: 'focus', label: 'Focus mode', hint: 'F11', keywords: 'focus zen distraction', run: toggleFocus },
+    { id: 'zoom-in', label: 'Zoom in', hint: 'Ctrl+=', keywords: 'zoom in larger', run: zoomIn },
+    { id: 'zoom-out', label: 'Zoom out', hint: 'Ctrl+-', keywords: 'zoom out smaller', run: zoomOut },
+    { id: 'zoom-reset', label: 'Reset zoom', hint: 'Ctrl+0', keywords: 'zoom reset 100', run: zoomReset },
+    { id: 'theme', label: 'Cycle theme', keywords: 'theme color light dark cycle', run: cycleTheme },
+    { id: 'settings', label: 'Open settings', keywords: 'settings preferences options', run: openSettings },
+    { id: 'check-updates', label: 'Check for updates', keywords: 'update version check', run: () => checkForUpdates(false) },
+    { id: 'quit', label: 'Quit mdpeek', keywords: 'quit exit close', run: doQuitApp },
+  ];
+  // Hide actions that don't make sense in the current state. The palette
+  // doesn't need to be exhaustive — it's a power-user shortcut, not a menu.
+  const doc = store.active();
+  const hasDoc = !!doc;
+  return cmds.filter((c) => {
+    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'mode') && !hasDoc) return false;
+    return true;
+  });
+});
+
 store.on('change', () => {
   renderActive().catch((e) => {
     console.error('renderActive failed:', e);
@@ -778,6 +813,22 @@ function toggleMode() {
 // ---------- theme ----------
 function applyTheme(next) {
   if (!HLJS_FOR_THEME[next]) next = DEFAULT_THEME;
+  applyThemeImpl(next);
+}
+
+// Cycle through the available themes in declared order. Used by the command
+// palette — gives users a quick way to preview themes without opening the menu.
+function cycleTheme() {
+  const current = document.documentElement.dataset.theme || DEFAULT_THEME;
+  const order = Object.keys(HLJS_FOR_THEME);
+  const i = order.indexOf(current);
+  const next = order[(i + 1) % order.length];
+  applyThemeImpl(next);
+}
+
+// Shared implementation — applyTheme validates first, cycleTheme already
+// knows the next id is valid.
+function applyThemeImpl(next) {
   const root = document.documentElement;
   root.dataset.theme = next;
   localStorage.setItem('mdpeek-theme', next);
@@ -1608,6 +1659,15 @@ window.addEventListener('keydown', (e) => {
 // preventDefault so WebView2 doesn't also fire native fullscreen. Escape exits
 // focus mode (handled here, before any other Escape handler can grab it).
 window.addEventListener('keydown', (e) => {
+  // Ctrl+Shift+P → command palette. Capture phase so the editor's keydown
+  // handler (which intercepts Ctrl+letter combos for markdown shortcuts)
+  // can't swallow it.
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'P' || e.key === 'p')) {
+    e.preventDefault();
+    e.stopPropagation();
+    palette.open();
+    return;
+  }
   if (e.key === 'F11') {
     e.preventDefault();
     toggleFocus();
