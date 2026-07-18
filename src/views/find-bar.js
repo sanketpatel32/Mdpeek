@@ -18,6 +18,9 @@ let overlay;        // #find-overlay — the fixed wrapper
 let input;          // .find-input
 let countEl;        // .find-count
 let caseBtn;        // .find-toggle (Aa)
+let replaceRow;     // .find-replace-row (hidden until Ctrl+H or chevron)
+let replaceInput;   // .find-replace-input
+let expandBtn;      // .find-expand (chevron — toggles replace row)
 
 // Module state. Single source of truth, reset on close.
 let query = '';
@@ -25,6 +28,7 @@ let caseSensitive = false;
 let marks = [];     // [<mark>] in view mode; empty in edit mode
 let matchIdx = -1;
 let debounceTimer = null;
+let replaceExpanded = false;  // is the replace row visible?
 
 // PDF search state.
 let pdfMatches = [];     // [{ page, start, end }] — flat offsets into per-page text
@@ -54,9 +58,17 @@ function build() {
       <button class="find-next tool-btn icon-only" title="Next (Enter)" aria-label="Next match" type="button">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
+      <button class="find-expand tool-btn icon-only" title="Toggle replace (Ctrl+H)" aria-label="Toggle replace" type="button">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
       <button class="find-close tool-btn icon-only" title="Close (Esc)" aria-label="Close find bar" type="button">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
+      <div class="find-replace-row hidden">
+        <input type="text" class="find-replace-input" placeholder="Replace…" spellcheck="false" autocomplete="off" />
+        <button class="tool-btn find-replace-btn" title="Replace (Alt+Enter)" type="button">Replace</button>
+        <button class="tool-btn find-replace-all-btn" title="Replace all (Alt+A)" type="button">All</button>
+      </div>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -64,6 +76,9 @@ function build() {
   input = overlay.querySelector('.find-input');
   countEl = overlay.querySelector('.find-count');
   caseBtn = overlay.querySelector('#find-case');
+  replaceRow = overlay.querySelector('.find-replace-row');
+  replaceInput = overlay.querySelector('.find-replace-input');
+  expandBtn = overlay.querySelector('.find-expand');
 
   // Restore case preference.
   caseSensitive = localStorage.getItem(CASE_KEY) === '1';
@@ -85,7 +100,13 @@ function wireOnce() {
   });
 
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && e.altKey) {
+      e.preventDefault();
+      replaceCurrent();
+    } else if (e.altKey && (e.key === 'a' || e.key === 'A')) {
+      e.preventDefault();
+      replaceAll();
+    } else if (e.key === 'Enter') {
       e.preventDefault();
       step(!e.shiftKey); // Enter = next, Shift+Enter = prev
     } else if (e.key === 'Escape') {
@@ -107,6 +128,18 @@ function wireOnce() {
   overlay.querySelector('.find-prev').addEventListener('click', () => step(false));
   overlay.querySelector('.find-next').addEventListener('click', () => step(true));
   overlay.querySelector('.find-close').addEventListener('click', close);
+
+  expandBtn.addEventListener('click', () => setReplaceExpanded(!replaceExpanded));
+
+  // Replace input — no search side-effect; just tracks the replacement text.
+  replaceInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+    else if (e.key === 'Enter' && e.altKey) { e.preventDefault(); replaceCurrent(); }
+    else if (e.key === 'a' && e.altKey) { e.preventDefault(); replaceAll(); }
+    else if (e.key === 'Enter') { e.preventDefault(); step(true); }
+  });
+  overlay.querySelector('.find-replace-btn').addEventListener('click', replaceCurrent);
+  overlay.querySelector('.find-replace-all-btn').addEventListener('click', replaceAll);
 }
 
 // ---------- core search ----------
@@ -573,6 +606,72 @@ function toggle() {
   }
 }
 
+// ---------- replace ----------
+// Replace only makes sense in edit mode (textarea content). In view / PDF mode
+// the find bar is read-only — we expand the row so the user sees the affordance
+// but the buttons no-op gracefully.
+function setReplaceExpanded(expanded) {
+  replaceExpanded = !!expanded;
+  replaceRow.classList.toggle('hidden', !replaceExpanded);
+  expandBtn.classList.toggle('active', replaceExpanded);
+  if (replaceExpanded) requestAnimationFrame(() => replaceInput.focus());
+}
+
+// Open the find bar with the replace row expanded. Wired to Ctrl+H.
+function openReplace() {
+  if (!isOpen()) open();
+  setReplaceExpanded(true);
+}
+
+// Replace the current match and step to the next one. Selection on the textarea
+// must match a real match for this to do anything — protects against replacing
+// the user's arbitrary selection.
+function replaceCurrent() {
+  const editor = ctx.getEditor();
+  if (!editor || !query) return;
+  const mode = ctx.getMode();
+  if (mode !== 'edit') return;
+  const ta = editor.textarea();
+  const { start, end } = editor.getState();
+  const text = editor.getValue();
+  const selected = text.slice(start, end);
+  // Confirm the selection is a real match (not the user's arbitrary drag).
+  const isMatch = caseSensitive ? selected === query : selected.toLowerCase() === query.toLowerCase();
+  if (!isMatch) { step(true); return; }
+  const replacement = replaceInput.value;
+  const next = text.slice(0, start) + replacement + text.slice(end);
+  ta.value = next;
+  editor.setState({ start, end: start + replacement.length });
+  // Mark the doc dirty + re-run the search so count + highlight update.
+  ta.dispatchEvent(new Event('input', { bubbles: true }));
+  run();
+}
+
+// Replace every match in the editor. Re-runs after to refresh the count. In
+// view/PDF mode it's a no-op (no source to mutate).
+function replaceAll() {
+  const editor = ctx.getEditor();
+  if (!editor || !query) return;
+  const mode = ctx.getMode();
+  if (mode !== 'edit') return;
+  const text = editor.getValue();
+  const replacement = replaceInput.value;
+  const ms = findMatches(text, query, caseSensitive);
+  if (ms.length === 0) return;
+  // Walk matches right-to-left so earlier offsets stay valid as we splice.
+  let out = text;
+  for (let i = ms.length - 1; i >= 0; i--) {
+    const m = ms[i];
+    out = out.slice(0, m.start) + replacement + out.slice(m.end);
+  }
+  const ta = editor.textarea();
+  ta.value = out;
+  // Caret to end-of-doc is the safest default; the user can re-find from there.
+  editor.setState({ start: 0, end: 0 });
+  ta.dispatchEvent(new Event('input', { bubbles: true }));
+  run();
+}
+
 // Read the current selection to seed the query. Returns '' if nothing useful.
 function readSelectionSeed() {
   if (ctx.getMode() === 'edit') {
@@ -616,5 +715,5 @@ export function initFindBar(accessors) {
   created = true;
   ctx = { ...ctx, ...accessors };
   build();
-  return { close, toggle, refresh, setCaseSensitive, findNext: () => step(true), findPrev: () => step(false) };
+  return { close, toggle, refresh, setCaseSensitive, openReplace, findNext: () => step(true), findPrev: () => step(false) };
 }

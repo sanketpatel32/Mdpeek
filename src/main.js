@@ -58,7 +58,7 @@ function renderWelcome() {
   return `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.11.8</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.11.9</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -462,6 +462,7 @@ const palette = initCommandPalette(() => {
     { id: 'mode', label: 'Toggle edit / view', hint: 'Ctrl+E', keywords: 'toggle edit view mode', run: toggleMode },
     { id: 'sidebar', label: 'Toggle sidebar (TOC)', hint: 'Ctrl+B', keywords: 'sidebar toc outline', run: toggleSidebar },
     { id: 'find', label: 'Find', hint: 'Ctrl+F', keywords: 'find search', run: () => find.toggle() },
+    { id: 'replace', label: 'Find & Replace', hint: 'Ctrl+H', keywords: 'replace substitute find', run: () => find.openReplace() },
     { id: 'focus', label: 'Focus mode', hint: 'F11', keywords: 'focus zen distraction', run: toggleFocus },
     { id: 'zoom-in', label: 'Zoom in', hint: 'Ctrl+=', keywords: 'zoom in larger', run: zoomIn },
     { id: 'zoom-out', label: 'Zoom out', hint: 'Ctrl+-', keywords: 'zoom out smaller', run: zoomOut },
@@ -1655,6 +1656,10 @@ window.addEventListener('keydown', (e) => {
   } else if (k === 'f') {
     e.preventDefault();
     find.toggle();
+  } else if (k === 'h') {
+    // Ctrl+H = find & replace. No-op in view/PDF mode (find bar handles that).
+    e.preventDefault();
+    find.openReplace();
   } else if (k === 'g') {
     // Ctrl+G = next, Ctrl+Shift+G = prev (repeat last search even when closed).
     e.preventDefault();

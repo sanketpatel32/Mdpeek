@@ -543,6 +543,7 @@ main {
 }
 .find-bar-card {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
@@ -550,6 +551,53 @@ main {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-lg);
+}
+.find-replace-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-subtle);
+}
+.find-replace-row.hidden {
+  display: none;
+}
+.find-replace-input {
+  flex: 1 1 auto;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color 120ms var(--ease);
+}
+.find-replace-input:focus {
+  border-color: var(--accent);
+}
+.find-replace-btn,
+.find-replace-all-btn {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 120ms var(--ease);
+}
+.find-replace-btn:hover,
+.find-replace-all-btn:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.find-expand.active {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .find-toggle {
   height: 26px;
