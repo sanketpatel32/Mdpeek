@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DocumentStore, createDocument, isPlainPath } from '../src/lib/documents.js';
+import { DocumentStore, createDocument, isPlainPath, isCodePath, langFromPath } from '../src/lib/documents.js';
 
 describe('createDocument', () => {
   it('creates a doc with defaults', () => {
@@ -44,6 +44,74 @@ describe('isPlainPath', () => {
     expect(isPlainPath('/a.md')).toBe(false);
     expect(isPlainPath(null)).toBe(false);
     expect(isPlainPath('')).toBe(false);
+  });
+});
+
+describe('isCodePath', () => {
+  it('true for common code/config extensions', () => {
+    expect(isCodePath('/app.js')).toBe(true);
+    expect(isCodePath('C:\\proj\\main.py')).toBe(true);
+    expect(isCodePath('config.json')).toBe(true);
+    expect(isCodePath('style.css')).toBe(true);
+    expect(isCodePath('data.yml')).toBe(true);
+    expect(isCodePath('build.log')).toBe(true);
+    expect(isCodePath('rows.csv')).toBe(true);
+    expect(isCodePath('.env')).toBe(true);
+    expect(isCodePath('Dockerfile')).toBe(true);
+    expect(isCodePath('Makefile')).toBe(true);
+  });
+  it('false for markdown/plain/pdf/excalidraw (those have their own paths)', () => {
+    expect(isCodePath('/a.md')).toBe(false);
+    expect(isCodePath('/a.markdown')).toBe(false);
+    expect(isCodePath('/a.txt')).toBe(false);
+    expect(isCodePath('/a.pdf')).toBe(false);
+    expect(isCodePath('/a.excalidraw')).toBe(false);
+  });
+  it('false for null/empty', () => {
+    expect(isCodePath(null)).toBe(false);
+    expect(isCodePath('')).toBe(false);
+  });
+});
+
+describe('langFromPath', () => {
+  it('maps extensions to hljs language ids', () => {
+    expect(langFromPath('/app.js')).toBe('javascript');
+    expect(langFromPath('main.py')).toBe('python');
+    expect(langFromPath('component.tsx')).toBe('typescript');
+    expect(langFromPath('config.yml')).toBe('yaml');
+    expect(langFromPath('run.sh')).toBe('bash');
+    expect(langFromPath('App.cs')).toBe('csharp');
+    expect(langFromPath('lib.rs')).toBe('rust');
+  });
+  it('maps special basenames (Dockerfile, Makefile)', () => {
+    expect(langFromPath('Dockerfile')).toBe('dockerfile');
+    expect(langFromPath('Makefile')).toBe('makefile');
+  });
+  it('returns the raw extension for unknown langs (hljs may still know it)', () => {
+    expect(langFromPath('weird.zig')).toBe('zig');
+  });
+  it('returns null for no extension', () => {
+    expect(langFromPath(null)).toBe(null);
+    expect(langFromPath('README')).toBe(null);
+  });
+});
+
+describe('createDocument (code flag)', () => {
+  it('marks .js files as code and forces view mode', () => {
+    const d = createDocument({ path: '/app.js', content: 'console.log(1)' });
+    expect(d.code).toBe(true);
+    expect(d.mode).toBe('view');
+    expect(d.plain).toBe(false);
+    expect(d.pdf).toBe(false);
+  });
+  it('does not mark .md files as code', () => {
+    const d = createDocument({ path: '/readme.md', content: '# hi' });
+    expect(d.code).toBe(false);
+  });
+  it('explicit code override works for untitled tabs', () => {
+    const d = createDocument({ path: null, content: 'x = 1', code: true });
+    expect(d.code).toBe(true);
+    expect(d.mode).toBe('view');
   });
 });
 

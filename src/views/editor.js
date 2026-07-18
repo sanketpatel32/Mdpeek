@@ -122,10 +122,6 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     }
   }
 
-  // ----- find bar -----
-  // Find is now owned by the global find module (src/views/find-bar.js).
-  // The textarea exposes textarea() + focus() so it can drive selection.
-
   // ----- wiring -----
   function on(type, target, fn) {
     target.addEventListener(type, fn);

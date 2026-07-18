@@ -45,7 +45,6 @@ export async function showPdf(container, filePath) {
   const renders = new Map();       // pageNum → RenderTask
   const textLayers = new Map();    // pageNum → TextLayer
   const textCache = new Map();     // pageNum → string (for search)
-  const pageSizes = new Map();     // pageNum → { width, height } (CSS px at scale 1)
   const observers = [];
   const _cleanup = [];             // teardown fns (scroll listeners, timers, etc.)
   const strokesByPage = new Map(); // pageNum → Stroke[]
@@ -53,7 +52,10 @@ export async function showPdf(container, filePath) {
   let drawTool = 'pen';
   let drawColor = PALETTE[0];
 
-  const scale = getScale(container);
+  // Mutable scale — re-read from the container's font-size (set by applyZoom)
+  // whenever the app's zoom level changes. Kept as a `let` (not const) so
+  // rerenderAll() can update it and force every page to re-render.
+  let scale = getScale(container);
 
   try {
     const pdfjsLib = await loadPdfjs();
@@ -89,7 +91,7 @@ export async function showPdf(container, filePath) {
         if (entry.isIntersecting) {
           const wrapper = entry.target;
           const num = parseInt(wrapper.dataset.pageNum, 10);
-          renderPage(pdfjsLib, pdfDoc, num, wrapper, scale, renders, textLayers, textCache, pageSizes);
+          renderPage(pdfjsLib, pdfDoc, num, wrapper, scale, renders, textLayers, textCache);
         }
       });
     }, { rootMargin: '200px' });
@@ -303,37 +305,46 @@ export async function showPdf(container, filePath) {
     }
   }
 
-  // Re-render strokes for all visible pages (called after zoom).
-  function rerenderAllStrokes() {
-    container.querySelectorAll('.pdf-page').forEach((wrapper) => {
+  // Full re-render of every page at the new scale (called after a zoom change).
+  // Cancels in-flight renders, tears down old text layers, then re-renders each
+  // page's canvas + text layer + draw canvas from scratch.
+  async function rerenderAll() {
+    if (!pdfDoc) return;
+    // Re-read the scale from the container's current font-size (set by applyZoom).
+    scale = getScale(container);
+    // Cancel any in-flight page renders.
+    for (const task of renders.values()) { try { task.cancel(); } catch {} }
+    renders.clear();
+    // Tear down existing text layers so the new ones don't double up.
+    for (const tl of textLayers.values()) { try { tl.cancel(); } catch {} }
+    textLayers.clear();
+    // Clear text-layer DOM so pdf.js can rebuild it cleanly.
+    container.querySelectorAll('.textLayer').forEach((tl) => (tl.innerHTML = ''));
+    // Re-render every page at the new scale. Sequential to avoid hammering the
+    // pdf.js worker with all pages at once; the IntersectionObserver is for the
+    // initial lazy load only.
+    const pdfjsLib = await loadPdfjs();
+    if (destroyed) return;
+    for (const wrapper of container.querySelectorAll('.pdf-page')) {
+      if (destroyed) return;
       const num = parseInt(wrapper.dataset.pageNum, 10);
-      const drawCanvas = wrapper.querySelector('.pdf-draw');
-      if (drawCanvas) {
-        // Resize the draw canvas to match the page render canvas.
-        const renderCanvas = wrapper.querySelector('canvas:not(.pdf-draw)');
-        if (renderCanvas) {
-          drawCanvas.width = renderCanvas.width;
-          drawCanvas.height = renderCanvas.height;
-          drawCanvas.style.width = renderCanvas.style.width;
-          drawCanvas.style.height = renderCanvas.style.height;
-        }
-        renderStrokesOnCanvas(drawCanvas, num);
-      }
-    });
+      // eslint-disable-next-line no-await-in-loop
+      await renderPage(pdfjsLib, pdfDoc, num, wrapper, scale, renders, textLayers, textCache);
+      // Re-apply draw mode pointer-events to the fresh canvases.
+      applyDrawMode();
+    }
   }
 
   return {
     pdfDoc,
     textLayers,
     textCache,
-    pageSizes,
     container,
     setDrawMode(on) { drawMode = !!on; applyDrawMode(); },
     setTool(t) { drawTool = t; },
     setColor(c) { drawColor = c; },
     clearAll,
-    rerenderAllStrokes,
-    isDrawing() { return drawMode; },
+    rerenderAll,
     destroy() {
       destroyed = true;
       activeStroke = null;
@@ -354,7 +365,7 @@ export async function showPdf(container, filePath) {
 }
 
 // Render one page: canvas pixels + text layer + size the draw canvas.
-async function renderPage(pdfjsLib, pdfDoc, num, wrapper, scale, renders, textLayers, textCache, pageSizes) {
+async function renderPage(pdfjsLib, pdfDoc, num, wrapper, scale, renders, textLayers, textCache) {
   if (renders.has(num)) return;
   try {
     const page = await pdfDoc.getPage(num);
@@ -407,7 +418,6 @@ async function renderPage(pdfjsLib, pdfDoc, num, wrapper, scale, renders, textLa
       .map((it) => it.str)
       .join('');
     textCache.set(num, flat);
-    pageSizes.set(num, { width: viewport.width / scale, height: viewport.height / scale });
   } catch (e) {
     if (!String(e).includes('Rendering cancelled')) {
       console.error(`Page ${num} render failed:`, e);

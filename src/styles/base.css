@@ -87,21 +87,12 @@ body {
   filter: brightness(0.92);
 }
 
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.brand-logo {
-  width: 26px;
-  height: 26px;
-  border-radius: var(--radius-sm);
-}
-.brand-name {
-  font-weight: 600;
-  font-size: 15px;
-  letter-spacing: -0.01em;
-  color: var(--fg);
+/* Focus / zen mode — hide the header + sidebar for distraction-free reading.
+   body is display:flex column + main is flex:1, so hiding the header (which is
+   flex:0 0 52px) makes the document fill the full height automatically. */
+body.focus-mode .app-header,
+body.focus-mode #toc {
+  display: none;
 }
 
 /* ---------- Toolbar ---------- */
@@ -117,6 +108,26 @@ body {
   gap: 2px;
   padding: 2px;
   border-radius: var(--radius);
+}
+/* Zoom widget — the − / % / + cluster reads as one cohesive unit with a subtle
+   inset surface, like the zoom control in modern editors (Figma, VS Code). */
+.tool-group.zoom-widget {
+  background: var(--surface);
+  gap: 0;
+}
+.tool-group.zoom-widget .tool-btn.icon-only {
+  width: 28px;
+  height: 28px;
+  border-radius: calc(var(--radius) - 2px);
+}
+.tool-group.zoom-widget .tool-btn.icon-only svg {
+  width: 15px;
+  height: 15px;
+}
+.tool-group.zoom-widget .zoom-indicator {
+  min-width: 34px;
+  height: 28px;
+  border-radius: calc(var(--radius) - 2px);
 }
 
 .tool-btn {
@@ -160,6 +171,35 @@ body {
 }
 .tool-btn svg {
   flex: 0 0 auto;
+}
+
+/* Zoom percentage badge — sits between the zoom-out / zoom-in buttons.
+   Dimmed at 100% (default), brightens once the user zooms in or out.
+   Click resets to 100% (same as Ctrl+0). */
+.zoom-indicator {
+  flex: 0 0 auto;
+  min-width: 38px;
+  height: 24px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  user-select: none;
+  transition: background 120ms ease, color 120ms ease;
+}
+.zoom-indicator:hover {
+  background: var(--surface-hover, rgba(0, 0, 0, 0.05));
+  color: var(--fg);
+}
+.zoom-indicator.active {
+  color: var(--accent);
+  font-weight: 600;
 }
 
 /* Version / update status button — shows current version with a status dot. */
@@ -208,18 +248,11 @@ body {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.5; transform: scale(0.8); }
 }
-.tool-label {
-  line-height: 1;
-}
-
 .tool-separator {
   width: 1px;
   height: 20px;
   background: var(--border);
   margin: 0 4px;
-}
-.tool-spacer {
-  width: 12px;
 }
 
 /* ---------- Main layout ---------- */
@@ -309,6 +342,26 @@ main {
 }
 .edit-mode.plain .editor-pane > .pane-header {
   display: none;
+}
+/* Status bar at the bottom of the editor pane: word count, chars, read time. */
+.editor-status {
+  flex: 0 0 26px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  font-size: 11.5px;
+  color: var(--fg-muted);
+  border-top: 1px solid var(--border-subtle);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  background: var(--bg-elevated);
+}
+.editor-status.hidden {
+  display: none;
+}
+.editor-status .status-sep {
+  opacity: 0.5;
 }
 .pane-header {
   flex: 0 0 32px;
@@ -643,6 +696,69 @@ mark.find-current {
   gap: 6px;
   font-size: 13px;
   color: var(--fg-muted);
+}
+
+/* Recent-files list on the welcome screen. */
+.recent-files {
+  margin-top: 36px;
+  width: 100%;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.recent-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-muted);
+  margin-bottom: 6px;
+  padding-left: 2px;
+}
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms var(--ease);
+}
+.recent-item:hover {
+  background: var(--surface-hover);
+}
+.recent-icon {
+  flex-shrink: 0;
+  color: var(--fg-muted);
+}
+.recent-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.recent-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recent-path {
+  font-size: 11.5px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
 }
 
 .mermaid-error {
@@ -1127,30 +1243,65 @@ mark.find-current {
 }
 
 /* ---------- Settings dialog ---------- */
-/* Wider variant of .modal to fit two-column setting rows comfortably. */
+/* Wider variant of .modal to fit the sidebar + content two-pane layout. */
 .modal-wide {
-  width: 480px;
+  width: 640px;
+  max-width: calc(100vw - 48px);
 }
-.settings-body {
+
+/* Two-pane shell: category sidebar on the left, content on the right. */
+.settings-shell {
+  display: grid;
+  grid-template-columns: 168px 1fr;
+  gap: 0;
+  margin: 4px -4px 0;
+}
+
+/* Sidebar — vertical list of category buttons, like macOS System Settings. */
+.settings-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  margin-bottom: 0;
-  padding-right: 2px;
-  max-height: calc(100vh - 200px);
+  gap: 2px;
+  padding: 4px 6px;
+}
+.settings-cat {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius);
+  color: var(--fg-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms var(--ease), color 120ms var(--ease);
+}
+.settings-cat:hover {
+  background: var(--surface-hover);
+  color: var(--fg);
+}
+.settings-cat.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.settings-cat svg {
+  flex-shrink: 0;
+}
+
+/* Content pane — holds one panel per category; only the active shows. */
+.settings-content {
+  padding: 4px 4px 4px 14px;
+  border-left: 1px solid var(--border-subtle);
+  max-height: calc(100vh - 240px);
   overflow-y: auto;
 }
 
-/* Section grouping — each section has a title + a card containing rows. */
-.setting-section-title {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--fg-muted);
-  margin-bottom: 6px;
-  padding-left: 2px;
-}
 .setting-card {
   background: var(--surface);
   border: 1px solid var(--border-subtle);
@@ -1162,7 +1313,7 @@ mark.find-current {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 10px 14px;
+  padding: 11px 14px;
   transition: background-color 100ms var(--ease);
 }
 .setting-row + .setting-row {
@@ -1198,15 +1349,37 @@ mark.find-current {
 #settings-reset:hover {
   color: var(--danger);
 }
-/* Responsive: stack rows vertically on narrow widths. */
-@media (max-width: 520px) {
+/* Responsive: collapse the sidebar into a horizontal pill row on narrow widths. */
+@media (max-width: 600px) {
+  .modal-wide {
+    width: calc(100vw - 32px);
+  }
+  .settings-shell {
+    grid-template-columns: 1fr;
+  }
+  .settings-sidebar {
+    flex-direction: row;
+    padding: 0 0 8px;
+  }
+  .settings-cat {
+    flex: 1;
+    justify-content: center;
+    height: 32px;
+    gap: 6px;
+  }
+  .settings-cat span {
+    font-size: 12px;
+  }
+  .settings-content {
+    border-left: none;
+    border-top: 1px solid var(--border-subtle);
+    padding-left: 4px;
+    padding-top: 10px;
+  }
   .setting-row {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
-  }
-  .modal-wide {
-    width: calc(100vw - 32px);
   }
 }
 
@@ -1263,6 +1436,83 @@ mark.find-current {
 }
 .setting-select:focus {
   border-color: var(--accent);
+}
+
+/* Help / Shortcuts panel — reference card styling. */
+.help-section {
+  margin-bottom: 18px;
+}
+.help-section:last-child {
+  margin-bottom: 0;
+}
+.help-heading {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 8px;
+  padding-left: 2px;
+}
+.help-sub {
+  font-weight: 400;
+  color: var(--fg-muted);
+  font-size: 11px;
+}
+.shortcut-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.shortcut-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+.shortcut-table tr:last-child td {
+  border-bottom: none;
+}
+.shortcut-table td:first-child {
+  white-space: nowrap;
+  width: 40%;
+  color: var(--fg);
+}
+.shortcut-table td:last-child {
+  color: var(--fg-secondary);
+}
+.shortcut-table kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  color: var(--fg);
+  margin-right: 2px;
+}
+.shortcut-table code {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  background: var(--code-bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.help-tips {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  color: var(--fg-secondary);
+  line-height: 1.7;
+}
+.help-tips li {
+  margin: 3px 0;
+}
+.help-tips code {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  background: var(--code-bg);
+  padding: 1px 5px;
+  border-radius: 4px;
 }
 
 /* Toggle switch (iOS/macOS style) for the find-case setting. */

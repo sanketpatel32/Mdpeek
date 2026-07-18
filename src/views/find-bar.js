@@ -29,7 +29,6 @@ let debounceTimer = null;
 // PDF search state.
 let pdfMatches = [];     // [{ page, start, end }] — flat offsets into per-page text
 let pdfHighlights = [];  // [<div>] overlay elements
-let pdfSearching = false;
 
 // Accessors handed in by main.js — let us ask for the live mode/editor/doc
 // without holding direct references (those change on every tab switch).
@@ -617,5 +616,5 @@ export function initFindBar(accessors) {
   created = true;
   ctx = { ...ctx, ...accessors };
   build();
-  return { open, close, toggle, isOpen, refresh, setCaseSensitive, findNext: () => step(true), findPrev: () => step(false) };
+  return { close, toggle, refresh, setCaseSensitive, findNext: () => step(true), findPrev: () => step(false) };
 }

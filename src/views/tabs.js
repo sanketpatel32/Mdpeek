@@ -16,6 +16,7 @@ function iconFor(doc) {
   if (!doc.path) return '';
   if (doc.pdf) return '<span class="tab-icon">PDF</span>';
   if (doc.excalidraw) return '<span class="tab-icon">EX</span>';
+  if (doc.code) return '<span class="tab-icon">{}</span>';
   return '<span class="tab-icon">M&#8203;D</span>';
 }
 

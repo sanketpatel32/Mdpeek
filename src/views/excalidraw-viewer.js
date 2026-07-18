@@ -11,12 +11,6 @@
 //      and collapses to 0px if the parent has no height.
 
 import { escapeHtml } from '../lib/escape.js';
-// switches within the session.
-//
-// CRITICAL: Excalidraw requires:
-//   1. Its CSS (dist/prod/index.css) — without it the UI is completely broken.
-//   2. A parent container with an explicit height — Excalidraw fills its parent
-//      and collapses to 0px if the parent has no height.
 
 // Lazy-load the Excalidraw CSS once (cached so repeat opens don't re-fetch).
 let _cssLoaded = false;
@@ -33,8 +27,7 @@ function excalidrawThemeFor(appTheme) {
   return DARK_THEMES.has(appTheme) ? 'dark' : 'light';
 }
 
-// Debounced save callback.
-let _saveTimer = null;
+// Debounce delay for save-on-change.
 const SAVE_DELAY = 1000;
 
 export async function showExcalidraw(container, initialData, onSave, initialAppTheme) {
@@ -72,6 +65,9 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
     let latestElements = parsedData?.elements || [];
     let latestAppState = parsedData?.appState || {};
     let latestFiles = parsedData?.files || {};
+    // Instance-scoped debounce timer (was module-level — shared across
+    // instances, which let one tab's destroy() clear another's pending save).
+    let saveTimer = null;
 
     // The onChange handler captures scene state + triggers a debounced save.
     const handleChange = (elements, appState, files) => {
@@ -79,8 +75,8 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
       latestAppState = appState;
       latestFiles = files;
       if (onSave) {
-        clearTimeout(_saveTimer);
-        _saveTimer = setTimeout(() => {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
           try {
             const json = serializeAsJSON(elements, appState, files || {});
             onSave(json);
@@ -131,7 +127,7 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
         }
       },
       destroy() {
-        clearTimeout(_saveTimer);
+        clearTimeout(saveTimer);
         try {
           root.unmount();
         } catch {}

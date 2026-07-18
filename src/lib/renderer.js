@@ -9,6 +9,10 @@ import hljs from 'highlight.js/lib/common';
 import markedKatex from 'marked-katex-extension';
 import markedFootnote from 'marked-footnote';
 
+// Local escapeHtml — escapes only & < > (NOT quotes). Deliberately different
+// from the shared src/lib/escape.js (which also escapes " '): renderer output
+// is always passed through DOMPurify, which handles attribute escaping. Using
+// the quote-escaping variant here would double-escape inside code blocks.
 function escapeHtml(s) {
   return s
     .replace(/&/g, '&amp;')
@@ -217,6 +221,40 @@ export function renderMarkdown(md) {
   const html = DOMPurify.sanitize(raw);
   cacheSet(input, html);
   return html;
+}
+
+// Highlight a whole text/code document with highlight.js. Used by the code-file
+// viewer (non-markdown source files opened in mdpeek). Returns sanitized HTML
+// wrapped in a <pre><code> pair, styled by the existing hljs theme stylesheets.
+//
+// `lang` is the hljs language id from langFromPath() (e.g. 'javascript'). If
+// the language isn't loaded yet (an EXTRA_LANGS entry), this renders plaintext
+// immediately and triggers async registration — the caller re-renders after
+// registration completes (see prepareCodeLang()).
+export function renderCode(text, lang) {
+  const input = text ?? '';
+  const language = lang && hljs.getLanguage(lang) ? lang : null;
+  let highlighted;
+  try {
+    highlighted = language
+      ? hljs.highlight(input, { language }).value
+      : escapeHtml(input);
+  } catch {
+    highlighted = escapeHtml(input);
+  }
+  // DOMPurify the highlighted HTML — hljs output is generally safe but this
+  // keeps the same guarantee as the markdown path. Wrap so the viewer CSS can
+  // target .code-viewer specifically.
+  ensurePurifyHook();
+  const raw = `<pre class="code-viewer"><code class="hljs language-${language || 'plaintext'}">${highlighted}</code></pre>`;
+  return DOMPurify.sanitize(raw);
+}
+
+// Ensure a code language is registered before rendering. Returns true if the
+// language is ready now, false if it's being loaded asynchronously (caller
+// should re-render after a tick). Mirrors the markdown path's ensureLang().
+export async function prepareCodeLang(lang) {
+  return ensureLang(lang);
 }
 
 // Enhance rendered DOM: copy buttons on code blocks + mermaid diagrams.

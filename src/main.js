@@ -11,8 +11,10 @@ import { showExcalidraw } from './views/excalidraw-viewer.js';
 import { initEditor } from './views/editor.js';
 import { initFindBar } from './views/find-bar.js';
 import { renderTabs } from './views/tabs.js';
-import { DocumentStore, isPdfPath, isExcalidrawPath } from './lib/documents.js';
-import { saveSession, loadSession } from './lib/persistence.js';
+import { DocumentStore, isPdfPath, isExcalidrawPath, langFromPath } from './lib/documents.js';
+import { renderMarkdown, renderCode, prepareCodeLang } from './lib/renderer.js';
+import { saveSession, loadSession, loadRecents, addRecent, removeRecent } from './lib/persistence.js';
+import { escapeHtml } from './lib/escape.js';
 
 // ---------- themes ----------
 // Curated set: each entry maps the app theme id to its highlight.js theme id.
@@ -32,19 +34,42 @@ const HLJS_FOR_THEME = {
 };
 const DEFAULT_THEME = 'light';
 
-const WELCOME_HTML = `
+// Welcome screen markup — built dynamically so the recent-files list can be
+// injected. Called from every place that shows the welcome screen.
+function renderWelcome() {
+  const recents = loadRecents();
+  const recentsHtml = recents.length === 0 ? '' : `
+    <section class="recent-files" aria-label="Recent files">
+      <div class="recent-title">Recent</div>
+      ${recents.map((r) => {
+        // Shrink the middle of long paths so the filename stays visible.
+        const path = r.path || '';
+        const showPath = path.length > 64 ? path.slice(0, 28) + '…' + path.slice(-32) : path;
+        return `<button class="recent-item" data-path="${escapeHtml(r.path)}" type="button" title="${escapeHtml(path)}">
+          <svg class="recent-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span class="recent-text">
+            <span class="recent-name">${escapeHtml(r.name)}</span>
+            <span class="recent-path">${escapeHtml(showPath)}</span>
+          </span>
+        </button>`;
+      }).join('')}
+    </section>`;
+  return `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.8.7</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.11.1</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>N</kbd> New tab</span>
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>S</kbd> Save</span>
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>E</kbd> Toggle edit</span>
+      <span class="welcome-hint"><kbd>F11</kbd> Focus mode</span>
     </div>
+    ${recentsHtml}
   </div>
 `;
+}
 
 // Single source of truth: the list of open Documents + active-tab pointer.
 const store = new DocumentStore();
@@ -55,8 +80,10 @@ const el = {
   mode: document.getElementById('btn-mode'),
   draw: document.getElementById('btn-draw'),
   sidebar: document.getElementById('btn-sidebar'),
+  export: document.getElementById('btn-export'),
   zoomIn: document.getElementById('btn-zoom-in'),
   zoomOut: document.getElementById('btn-zoom-out'),
+  zoomIndicator: document.getElementById('zoom-indicator'),
   theme: document.getElementById('btn-theme'),
   themeMenu: document.getElementById('theme-menu'),
   settings: document.getElementById('btn-settings'),
@@ -69,6 +96,7 @@ const el = {
   toc: document.getElementById('toc'),
   editor: document.getElementById('editor'),
   gutter: document.getElementById('gutter'),
+  editorStatus: document.getElementById('editor-status'),
   preview: document.getElementById('preview'),
   toast: document.getElementById('toast'),
   dropzone: document.getElementById('dropzone'),
@@ -239,15 +267,17 @@ async function renderActive() {
   // No doc, or an empty untouched Untitled tab in VIEW mode → show the welcome
   // screen. If the user explicitly switched to edit mode, show the editor even
   // for an empty untitled tab so they can start writing.
-  const isEmpty = !doc || (doc.path === null && doc.content === '' && doc.mode === 'view' && !doc.pdf && !doc.excalidraw);
+  const isEmpty = !doc || (doc.path === null && doc.content === '' && doc.mode === 'view' && !doc.pdf && !doc.excalidraw && !doc.code);
   if (isEmpty) {
     el.editMode.classList.add('hidden');
     el.editMode.classList.remove('plain');
     el.mode.classList.remove('hidden');
+    el.export.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = ''; // clear stale TOC from the previous document
-    el.document.classList.add('has-welcome');
-    el.document.innerHTML = WELCOME_HTML;
+    el.document.classList.remove('code-viewer');
+    el.document.classList.add('has-welcome', 'markdown-body');
+    el.document.innerHTML = renderWelcome();
     return;
   }
 
@@ -256,9 +286,10 @@ async function renderActive() {
     el.editMode.classList.add('hidden');
     el.mode.classList.add('hidden');
     el.draw.classList.remove('hidden');
+    el.export.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome');
+    el.document.classList.remove('has-welcome', 'code-viewer', 'markdown-body');
     // showPdf is async and lazy-loads pdf.js. Store the controller so we can
     // tear it down on tab switch.
     showPdf(el.document, doc.path).then((ctrl) => {
@@ -278,9 +309,10 @@ async function renderActive() {
     el.editMode.classList.add('hidden');
     el.mode.classList.add('hidden');
     el.draw.classList.add('hidden');
+    el.export.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome');
+    el.document.classList.remove('has-welcome', 'code-viewer', 'markdown-body');
     // showExcalidraw is async and lazy-loads React + Excalidraw. The onSave
     // callback writes the scene JSON back to doc.content (debounced) so the
     // drawing persists across tab switches.
@@ -298,9 +330,46 @@ async function renderActive() {
     return;
   }
 
-  // Non-PDF/Excalidraw docs: ensure the draw toolbar + button are hidden.
+  // Code file (non-markdown source): read-only syntax-highlighted view, no
+  // edit toggle, no TOC. Uses a dedicated .code-viewer class so it gets
+  // monospace styling without inheriting the markdown prose CSS.
+  if (doc.code) {
+    el.editMode.classList.add('hidden');
+    el.editMode.classList.remove('plain');
+    el.mode.classList.add('hidden');
+    el.draw.classList.add('hidden');
+    el.export.classList.add('hidden');
+    el.pdfDrawToolbar.classList.add('hidden');
+    el.viewMode.classList.remove('hidden');
+    el.toc.innerHTML = '';
+    el.document.classList.remove('has-welcome', 'markdown-body');
+    el.document.classList.add('code-viewer');
+    const lang = langFromPath(doc.path);
+    // Render now (synchronous — covers the common ~36 languages). If the lang
+    // is an extra that needs dynamic import, re-render once it's registered.
+    el.document.innerHTML = renderCode(doc.content, lang);
+    if (lang) {
+      prepareCodeLang(lang).then((ready) => {
+        // Re-render once the extra language registers. No scroll restore here:
+        // the sync render above already set it, and the re-render swaps
+        // identical content at the same height so the browser keeps scroll.
+        if (ready && gen === _renderGen && store.active()?.id === doc.id) {
+          el.document.innerHTML = renderCode(doc.content, lang);
+        }
+      }).catch(() => {});
+    }
+    if (doc.scrollY) el.document.scrollTop = doc.scrollY;
+    return;
+  }
+
+  // Non-PDF/Excalidraw/code docs: ensure the draw toolbar + button are hidden,
+  // and restore the markdown-body class (removed by the code-viewer branch).
   el.pdfDrawToolbar.classList.add('hidden');
   el.draw.classList.add('hidden');
+  // Export to HTML only makes sense for real markdown docs (not plain text).
+  el.export.classList.toggle('hidden', !!doc.plain);
+  el.document.classList.remove('code-viewer');
+  el.document.classList.add('markdown-body');
 
   el.mode.title = doc.mode === 'edit'
     ? 'Editing. Click to view (Ctrl+E)'
@@ -324,11 +393,17 @@ async function renderActive() {
     doc.editor.setValue(doc.content);
     // Restore the caret + scroll captured when we last switched away.
     if (doc.editorState) doc.editor.setState(doc.editorState);
+    el.editorStatus.classList.remove('hidden');
+    updateEditorStatus();
   } else {
     el.editMode.classList.add('hidden');
+    el.editorStatus.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.document.classList.remove('has-welcome');
     await showDocument(el.document, doc.content);
+    // Guard: if the user switched tabs during the (slow) mermaid render, bail
+    // so we don't write TOC/scroll into the now-active doc.
+    if (gen !== _renderGen) return;
     buildToc(el.document);
     // Restore the document scroll captured when we last switched away.
     if (doc.scrollY) el.document.scrollTop = doc.scrollY;
@@ -339,6 +414,29 @@ async function renderActive() {
 function persist() {
   saveSession(store.serialize());
 }
+
+// Global find bar — single instance, idempotent. Accessors read live state so
+// the find module never holds stale references across tab/mode switches.
+// Initialized BEFORE store.on('change') so renderActive() (which references
+// `find`) can never hit a temporal-dead-zone ReferenceError if a 'change'
+// event fires during startup.
+const find = initFindBar({
+  getMode: () => {
+    const d = store.active();
+    if (!d) return 'view';
+    if (d.pdf) return 'pdf';
+    if (d.excalidraw) return 'excalidraw';
+    if (d.code) return 'view'; // code docs render read-only highlighted HTML (same find path as view mode)
+    return d.mode;
+  },
+  getEditor: () => {
+    const d = store.active();
+    return d && d.editor ? d.editor : null;
+  },
+  getDocument: () => el.document,
+  getPdf: () => _activePdf,
+});
+
 store.on('change', () => {
   renderActive().catch((e) => {
     console.error('renderActive failed:', e);
@@ -346,7 +444,7 @@ store.on('change', () => {
     el.editMode.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.document.classList.add('has-welcome');
-    el.document.innerHTML = WELCOME_HTML;
+    el.document.innerHTML = renderWelcome();
   });
   persist();
 });
@@ -364,6 +462,8 @@ function persistSoon() {
 // ---------- open / new / close ----------
 async function openPath(path, content) {
   store.open({ path, content });
+  // Record in the recents list (welcome screen) — only real files, not untitled.
+  if (path) addRecent(path);
   // PDFs are read-only binary — no file-watcher (the text-based watcher would
   // choke on bytes, and live-reload isn't meaningful for a PDF).
   // Excalidraw files are JSON but the canvas manages its own state — skip watcher.
@@ -371,10 +471,14 @@ async function openPath(path, content) {
 }
 
 function newTab() {
-  const fmt = localStorage.getItem('mdpeek-new-tab-format') || 'markdown';
+  // 'home' (default) opens a welcome-screen tab; an empty untitled view-mode
+  // doc naturally renders the welcome screen via renderActive's isEmpty check.
+  const fmt = localStorage.getItem('mdpeek-new-tab-format') || 'home';
   const modePref = localStorage.getItem('mdpeek-new-tab-mode') || 'view';
   if (fmt === 'excalidraw') {
     store.open({ path: null, content: '', excalidraw: true });
+  } else if (fmt === 'home') {
+    store.open({ path: null, content: '', mode: 'view' });
   } else {
     const plain = fmt === 'text';
     store.open({ path: null, content: '', plain, mode: plain ? 'edit' : modePref });
@@ -517,13 +621,94 @@ async function saveActive() {
   }
 }
 
-// ---------- mode toggle ----------
+// ---------- export to self-contained HTML ----------
+// Curated prose styles inlined into every export so the file renders correctly
+// offline (no CDN, no external CSS). Covers the markdown-body typography that
+// matters for sharing — headings, code, lists, tables, blockquotes, links.
+const EXPORT_CSS = `
+body { margin: 0; padding: 40px 48px 96px; background: var(--bg); color: var(--fg);
+  font-family: var(--content-font-family); font-size: var(--content-font-size, 16px);
+  line-height: var(--content-line-height); -webkit-font-smoothing: antialiased; }
+h1,h2,h3,h4,h5,h6 { line-height: 1.25; margin: 1.8em 0 0.6em; font-weight: 600; }
+h1 { font-size: 2em; padding-bottom: 0.3em; border-bottom: 1px solid var(--border-subtle); }
+h2 { font-size: 1.5em; padding-bottom: 0.3em; border-bottom: 1px solid var(--border-subtle); }
+h3 { font-size: 1.25em; } h4 { font-size: 1em; }
+p { margin: 0 0 1em; }
+a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+ul,ol { margin: 0 0 1em; padding-left: 1.6em; } li { margin: 0.25em 0; }
+blockquote { margin: 0 0 1em; padding: 0.6em 1.1em; color: var(--fg-secondary);
+  border-left: 3px solid var(--border); background: var(--surface); border-radius: 0 6px 6px 0; }
+code { font-family: "Cascadia Code","SFMono-Regular",Consolas,monospace; font-size: 0.88em;
+  background: var(--code-bg); padding: 0.15em 0.4em; border-radius: 4px; }
+pre { margin: 0 0 1em; padding: 14px 16px; background: var(--code-bg); border-radius: 8px;
+  overflow-x: auto; } pre code { background: none; padding: 0; font-size: 13px; }
+hr { border: none; border-top: 1px solid var(--border-subtle); margin: 2em 0; }
+table { border-collapse: collapse; margin: 0 0 1em; } th,td { border: 1px solid var(--border);
+  padding: 6px 13px; } th { background: var(--surface); font-weight: 600; }
+img { max-width: 100%; }
+`;
+
+// Read the active theme's CSS variables from the live DOM so the export matches
+// what the user sees. Falls back to light-theme defaults if reads fail.
+function exportThemeVars() {
+  const root = getComputedStyle(document.documentElement);
+  const vars = ['--bg', '--fg', '--fg-secondary', '--fg-muted', '--surface', '--border',
+    '--border-subtle', '--accent', '--code-bg', '--content-font-family', '--content-line-height'];
+  const decls = vars.map((v) => {
+    const val = root.getPropertyValue(v).trim();
+    return val ? `${v}: ${val};` : '';
+  }).filter(Boolean).join(' ');
+  return `:root { ${decls} --content-font-size: 16px; }`;
+}
+
+// Fetch the active hljs theme's CSS text from its <link> href. Returns '' if
+// offline or the fetch fails (code stays readable, just uncolored).
+async function exportHljsCss() {
+  try {
+    const theme = document.documentElement.dataset.theme;
+    const id = HLJS_FOR_THEME[theme] || 'hljs-light';
+    const link = document.getElementById(id);
+    if (!link || !link.href) return '';
+    const res = await fetch(link.href);
+    if (!res.ok) return '';
+    return await res.text();
+  } catch {
+    return ''; // offline / CORS — export still works, just without code colors
+  }
+}
+
+async function exportHtml() {
+  const doc = store.active();
+  if (!doc || doc.pdf || doc.excalidraw || doc.code) {
+    toast('Export to HTML is for Markdown documents');
+    return;
+  }
+  // Sync editor content before exporting so unsaved edits are included.
+  if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
+  const bodyHtml = renderMarkdown(doc.content);
+  const title = doc.path ? basename(doc.path).replace(/\.(md|markdown|mdx)$/i, '') : 'Untitled';
+  const css = `/* mdpeek export */ ${exportThemeVars()} ${EXPORT_CSS} ${await exportHljsCss()}`;
+  const full =
+    `<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8">\n` +
+    `<meta name="viewport" content="width=device-width, initial-scale=1">\n` +
+    `<title>${escapeHtml(title)}</title>\n<style>\n${css}\n</style>\n</head>\n<body>\n` +
+    `${bodyHtml}\n</body>\n</html>`;
+  try {
+    await invoke('save_file_as_html', { content: full });
+    toast('Exported to HTML');
+  } catch (e) {
+    if (e !== 'cancelled') toast('Export failed: ' + fmtErr(e));
+  }
+}
+
+
 function toggleMode() {
   const doc = store.active();
   if (!doc) return;
   if (doc.plain) return; // plain-text docs have no preview to toggle to
   if (doc.pdf) return;   // PDFs are read-only — no edit mode
   if (doc.excalidraw) return; // Excalidraw is always interactive — no edit/view toggle
+  if (doc.code) return;  // code files are read-only highlighted views
   // Capture content before switching out of edit mode.
   if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
   doc.mode = doc.mode === 'view' ? 'edit' : 'view';
@@ -573,11 +758,60 @@ function toggleThemeMenu() {
   else closeThemeMenu();
 }
 
+// ---------- focus / zen mode (hide header + sidebar for distraction-free reading) ----------
+function toggleFocus() {
+  const on = document.body.classList.toggle('focus-mode');
+  localStorage.setItem('mdpeek-focus', on ? '1' : '0');
+}
+
 // ---------- sidebar (TOC) toggle ----------
 function toggleSidebar() {
   const collapsed = el.toc.classList.toggle('collapsed');
   el.sidebar.classList.toggle('active', !collapsed);
   localStorage.setItem('mdpeek-sidebar', collapsed ? 'hidden' : 'visible');
+}
+
+// ---------- word count + reading time (editor status bar) ----------
+// Strips markdown syntax then counts words. CJK ideographs count as one word
+// each (the standard for mixed CJK/Latin text); Latin words split on
+// whitespace. Reading time assumes 200 wpm.
+function wordCount(text) {
+  const t = (text || '')
+    .replace(/```[\s\S]*?```/g, ' ')   // fenced code blocks
+    .replace(/`[^`]*`/g, ' ')           // inline code
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ') // images
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // links → keep label text
+    .replace(/^#{1,6}\s+/gm, ' ')       // headings
+    .replace(/^\s*[-*+]\s+/gm, ' ')     // list markers
+    .replace(/^\s*\d+\.\s+/gm, ' ')     // numbered lists
+    .replace(/[*_~]+/g, ' ')            // emphasis / strikethrough
+    .replace(/<[^>]+>/g, ' ');          // raw HTML tags
+  // Latin words = runs of word characters (incl. accented + apostrophes).
+  const latin = (t.match(/[\p{L}\p{N}]+(?:['-][\p{L}\p{N}]+)*/gu) || []).length;
+  // CJK = each ideograph counts as a word (Hiragana/Katakana/Han/Hangul).
+  const cjk = (t.match(/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]/g) || []).length;
+  const words = latin + cjk;
+  const chars = (text || '').replace(/\s/g, '').length;
+  const readMins = words > 0 ? Math.max(1, Math.round(words / 200)) : 0;
+  return { words, chars, readMins };
+}
+
+function fmtNum(n) {
+  return n.toLocaleString();
+}
+
+function updateEditorStatus() {
+  if (!el.editorStatus || el.editorStatus.classList.contains('hidden')) return;
+  const doc = store.active();
+  const text = doc && doc.editor ? doc.editor.getValue() : el.editor.value;
+  const { words, chars, readMins } = wordCount(text);
+  el.editorStatus.innerHTML =
+    `<span>${fmtNum(words)} words</span>` +
+    `<span class="status-sep" aria-hidden="true">·</span>` +
+    `<span>${fmtNum(chars)} chars</span>` +
+    (readMins > 0
+      ? `<span class="status-sep" aria-hidden="true">·</span><span>~${readMins} min read</span>`
+      : '');
 }
 
 // ---------- zoom (scales document + preview font-size) ----------
@@ -595,12 +829,26 @@ function applyZoom() {
   const px = (baseFontPx() * zoomLevel).toFixed(1) + 'px';
   el.document.style.fontSize = px;
   el.preview.style.fontSize = px;
+  // The editor textarea zooms too, so edit mode tracks the same scale as view.
+  if (el.editor) el.editor.style.fontSize = px;
   localStorage.setItem('mdpeek-zoom', String(zoomLevel));
-  // If a PDF is active, its pages + annotation strokes need re-rendering at
-  // the new scale. Defer a tick so the font-size change settles first.
+  updateZoomIndicator();
+  // If a PDF is active, its pages + text layers + strokes must all re-render
+  // at the new scale. Defer a tick so the font-size change settles first.
   if (_activePdf) {
-    setTimeout(() => _activePdf.rerenderAllStrokes(), 50);
+    setTimeout(() => { _activePdf.rerenderAll().catch(() => {}); }, 50);
   }
+}
+
+// Live zoom badge in the toolbar — shows the current percentage so the user
+// gets immediate feedback that zoom changed. Clicking it resets to 100%.
+function updateZoomIndicator() {
+  if (!el.zoomIndicator) return;
+  const pct = Math.round(zoomLevel * 100);
+  el.zoomIndicator.textContent = `${pct}%`;
+  // Dim the indicator at the default zoom so it reads as "no change"; brighten
+  // when the user has zoomed in or out.
+  el.zoomIndicator.classList.toggle('active', Math.abs(zoomLevel - 1) > 0.001);
 }
 
 // Reading-comfort: line spacing via a CSS variable (no zoom interaction).
@@ -722,10 +970,13 @@ el.update.addEventListener('click', () => {
 // ---------- events ----------
 el.open.addEventListener('click', openFileDialog);
 el.save.addEventListener('click', saveActive);
+if (el.export) el.export.addEventListener('click', exportHtml);
 el.mode.addEventListener('click', toggleMode);
 el.sidebar.addEventListener('click', toggleSidebar);
 el.zoomIn.addEventListener('click', zoomIn);
 el.zoomOut.addEventListener('click', zoomOut);
+// Clicking the % badge resets to 100% (same as Ctrl+0).
+if (el.zoomIndicator) el.zoomIndicator.addEventListener('click', zoomReset);
 // ---------- theme dropdown wiring ----------
 el.theme.addEventListener('click', (e) => {
   e.stopPropagation();
@@ -766,6 +1017,10 @@ const SETTING_KEYS = [
 function openSettings() {
   syncSettingsControls();
   el.settingsDialog.classList.remove('hidden');
+  // Always open on the General category for predictability (in case the user
+  // switched to another category last time and the .active state persisted).
+  const firstCat = el.settingsDialog.querySelector('.settings-cat[data-cat="general"]');
+  if (firstCat && !firstCat.classList.contains('active')) firstCat.click();
 }
 function closeSettings() {
   el.settingsDialog.classList.add('hidden');
@@ -775,8 +1030,8 @@ function closeSettings() {
 // controls (active states, selected options, checkbox). Called on open and
 // after Reset.
 function syncSettingsControls() {
-  const fmt = localStorage.getItem('mdpeek-new-tab-format') || 'markdown';
-  setSegActive('new-tab-format', fmt);
+  const fmtSel = document.getElementById('settings-new-tab-format');
+  if (fmtSel) fmtSel.value = localStorage.getItem('mdpeek-new-tab-format') || 'home';
   const modePref = localStorage.getItem('mdpeek-new-tab-mode') || 'view';
   setSegActive('new-tab-mode', modePref);
 
@@ -834,20 +1089,37 @@ el.settingsDialog.addEventListener('keydown', (e) => {
   }
 });
 
-// Segmented controls (new-tab-format, new-tab-mode).
+// Category sidebar — clicking a category shows only its panel.
+const settingsSidebar = el.settingsDialog.querySelector('.settings-sidebar');
+if (settingsSidebar) settingsSidebar.addEventListener('click', (e) => {
+  const cat = e.target.closest('.settings-cat');
+  if (!cat) return;
+  const name = cat.dataset.cat;
+  settingsSidebar.querySelectorAll('.settings-cat').forEach((b) => {
+    b.classList.toggle('active', b === cat);
+  });
+  el.settingsDialog.querySelectorAll('.settings-panel').forEach((p) => {
+    p.classList.toggle('hidden', p.dataset.cat !== name);
+  });
+});
+
+// Segmented control (new-tab-mode). (new-tab-format is now a <select>.)
 el.settingsDialog.querySelectorAll('.seg').forEach((seg) => {
   seg.addEventListener('click', (e) => {
     const btn = e.target.closest('.seg-btn');
     if (!btn) return;
     const setting = seg.dataset.setting;
     const value = btn.dataset.value;
-    if (setting === 'new-tab-format') {
-      localStorage.setItem('mdpeek-new-tab-format', value);
-    } else if (setting === 'new-tab-mode') {
+    if (setting === 'new-tab-mode') {
       localStorage.setItem('mdpeek-new-tab-mode', value);
     }
     setSegActive(setting, value);
   });
+});
+
+// New-tab-format select (Home / Markdown / Plain Text / Excalidraw).
+document.getElementById('settings-new-tab-format').addEventListener('change', (e) => {
+  localStorage.setItem('mdpeek-new-tab-format', e.target.value);
 });
 
 // Theme select — reuses the live applyTheme().
@@ -972,21 +1244,44 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// Recent-file clicks on the welcome screen — delegated so it works regardless
+// of when the welcome HTML is (re)rendered. Reads the file from disk and opens
+// it; if the file is gone (deleted/moved), removes it from recents + toasts.
+document.addEventListener('click', async (e) => {
+  const item = e.target.closest('.recent-item');
+  if (!item) return;
+  const path = item.dataset.path;
+  if (!path) return;
+  try {
+    // PDFs return empty content (the viewer loads via asset protocol); others
+    // get their text re-read fresh from disk.
+    const content = await invoke('read_file', { path });
+    await openPath(path, content);
+  } catch (err) {
+    removeRecent(path);
+    toast('File not found: ' + basename(path));
+  }
+});
+
 // Tab strip: click to switch, click × to close.
 // The + button lives outside #tab-strip now (in the container) and has its
 // own listener above — this handler only covers tab switching + close.
 el.tabStrip.addEventListener('click', async (e) => {
-  const closeBtn = e.target.closest('.tab-close');
-  if (closeBtn) {
-    e.stopPropagation();
-    await closeTab(closeBtn.dataset.id);
-    return;
-  }
-  const tab = e.target.closest('.tab');
-  if (tab) {
-    store.switch(tab.dataset.id);
-    const doc = store.active();
-    if (doc) await rewatch(doc.path);
+  try {
+    const closeBtn = e.target.closest('.tab-close');
+    if (closeBtn) {
+      e.stopPropagation();
+      await closeTab(closeBtn.dataset.id);
+      return;
+    }
+    const tab = e.target.closest('.tab');
+    if (tab) {
+      store.switch(tab.dataset.id);
+      const doc = store.active();
+      if (doc) await rewatch(doc.path);
+    }
+  } catch (err) {
+    console.error('tab click failed:', err);
   }
 });
 // Middle-click closes a tab
@@ -1064,6 +1359,7 @@ el.editor.addEventListener('input', () => {
   const doc = store.active();
   if (doc) store.markDirty(doc.id);
   persistSoon();
+  updateEditorStatus();
 });
 
 // Keyboard shortcuts — registered on the CAPTURE phase so we intercept the
@@ -1118,6 +1414,32 @@ window.addEventListener('keydown', (e) => {
   if (e.shiftKey) find.findPrev();
   else find.findNext();
 }, true);
+
+// F11 = toggle focus/zen mode (hides header + sidebar). Capture phase +
+// preventDefault so WebView2 doesn't also fire native fullscreen. Escape exits
+// focus mode (handled here, before any other Escape handler can grab it).
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'F11') {
+    e.preventDefault();
+    toggleFocus();
+    return;
+  }
+  if (e.key === 'Escape' && document.body.classList.contains('focus-mode')) {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleFocus();
+  }
+}, true);
+
+// Ctrl+scroll = zoom in/out. Intercept on the capture phase (before the page
+// scrolls) and only when Ctrl is held, so plain scrolling still works. This
+// matches the browser convention users expect.
+window.addEventListener('wheel', (e) => {
+  if (!(e.ctrlKey || e.metaKey)) return;
+  e.preventDefault();
+  if (e.deltaY < 0) zoomIn();
+  else if (e.deltaY > 0) zoomOut();
+}, { passive: false, capture: true });
 
 // ---------- Close → minimize to tray, or quit? ----------
 // The Rust side intercepts the OS close and emits 'close-requested' instead.
@@ -1225,19 +1547,29 @@ window.addEventListener('drop', async (e) => {
   const files = e.dataTransfer?.files;
   if (!files || files.length === 0) return;
   for (const file of Array.from(files)) {
-    if (!/\.(md|markdown|mdx|txt|pdf|excalidraw)$/i.test(file.name)) {
-      toast('Not a supported file: ' + file.name);
-      continue;
+    try {
+      // Accept any text/code/markdown file; reject only known binary types.
+      // PDFs + Excalidraw (.excalidraw is JSON but handled by its own viewer)
+      // are special-cased below. Anything else binary gets a toast.
+      const isBinary = /\.(png|jpe?g|gif|webp|ico|bmp|tiff?|avif|heic|mp[34]|webm|mov|avi|m4[av]|ogg|wav|flac|zip|7z|rar|tar|gz|bz2|xz|exe|msi|dll|so|dylib|o|obj|a|lib|class|jar|war|pyc|wasm|ttf|otf|woff2?|eot|cab|iso|vhd|vhdx)$/i.test(file.name);
+      if (isBinary && !isPdfPath(file.name)) {
+        toast('Not a text file: ' + file.name);
+        continue;
+      }
+      // PDFs are binary — don't read as text. The PDF viewer loads them via the
+      // asset protocol using the file path (Tauri exposes it on desktop).
+      if (isPdfPath(file.name)) {
+        await openPath(file.path || file.name, '');
+        continue;
+      }
+      const text = await file.text();
+      // Tauri exposes the absolute path on the dropped File on desktop.
+      await openPath(file.path || file.name, text);
+    } catch (err) {
+      // One bad file shouldn't block the rest of a multi-file drop.
+      toast('Could not open: ' + file.name);
+      console.error('drop open failed:', err);
     }
-    // PDFs are binary — don't read as text. The PDF viewer loads them via the
-    // asset protocol using the file path (Tauri exposes it on desktop).
-    if (isPdfPath(file.name)) {
-      await openPath(file.path || file.name, '');
-      continue;
-    }
-    const text = await file.text();
-    // Tauri exposes the absolute path on the dropped File on desktop.
-    await openPath(file.path || file.name, text);
   }
 });
 
@@ -1250,10 +1582,23 @@ listen('file-changed', (event) => {
   // PDFs are binary + read-only — the text watcher isn't used for them
   // (openPath skips rewatch), but guard anyway in case an event leaks through.
   if (doc.pdf) return;
+  // Code files are read-only highlighted views — re-render on disk change so
+  // the user sees the latest version (e.g. a build log or regenerated config).
+  if (doc.code) {
+    doc.content = event.payload;
+    if (store.active()?.id === doc.id) {
+      el.document.innerHTML = renderCode(event.payload, langFromPath(doc.path));
+    }
+    return;
+  }
   doc.content = event.payload;
   if (doc.mode === 'view') {
+    const id = doc.id;
     showDocument(el.document, event.payload)
       .then(() => {
+        // Bail if the user switched tabs during the (slow) mermaid render —
+        // don't write TOC/find state into a now-different active doc.
+        if (store.active()?.id !== id) return;
         buildToc(el.document);
         // The re-render wiped any <mark> highlights; re-apply if the find bar
         // is open so the user doesn't see their search disappear.
@@ -1281,28 +1626,15 @@ listen('open-file', (event) => {
 const savedTheme = localStorage.getItem('mdpeek-theme');
 applyTheme(savedTheme && HLJS_FOR_THEME[savedTheme] ? savedTheme : DEFAULT_THEME);
 
-// Global find bar — single instance, idempotent. Accessors read live state so
-// the find module never holds stale references across tab/mode switches.
-const find = initFindBar({
-  getMode: () => {
-    const d = store.active();
-    if (!d) return 'view';
-    if (d.pdf) return 'pdf';
-    if (d.excalidraw) return 'excalidraw';
-    return d.mode;
-  },
-  getEditor: () => {
-    const d = store.active();
-    return d && d.editor ? d.editor : null;
-  },
-  getDocument: () => el.document,
-  getPdf: () => _activePdf,
-});
-
 // Restore sidebar state (default visible).
 if (localStorage.getItem('mdpeek-sidebar') === 'hidden') {
   el.toc.classList.add('collapsed');
   el.sidebar.classList.remove('active');
+}
+
+// Restore focus mode (header + sidebar hidden). Off by default.
+if (localStorage.getItem('mdpeek-focus') === '1') {
+  document.body.classList.add('focus-mode');
 }
 
 // Restore zoom level + reading-comfort prefs (font size, line spacing).
@@ -1365,7 +1697,7 @@ applyLineNumbers();
     if (store.docs.length === 0) {
       renderTabs(store); // empty tab strip (just the + button)
       el.document.classList.add('has-welcome');
-      el.document.innerHTML = WELCOME_HTML;
+      el.document.innerHTML = renderWelcome();
     } else {
       await renderActive();
       if (store.active()) await rewatch(store.active().path);
@@ -1379,7 +1711,7 @@ applyLineNumbers();
     store.activeId = null;
     renderTabs(store);
     el.document.classList.add('has-welcome');
-    el.document.innerHTML = WELCOME_HTML;
+    el.document.innerHTML = renderWelcome();
   }
 })();
 

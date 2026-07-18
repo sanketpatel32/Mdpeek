@@ -477,3 +477,36 @@
   height: 100%;
 }
 
+/* ----------------------------- code viewer ------------------------------- */
+/* Non-markdown source files render as a read-only syntax-highlighted <pre>.
+   Always monospace (regardless of the document font pref — code wants mono),
+   with horizontal scroll for long lines and a readable measure on wide screens. */
+.code-viewer {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 28px 32px 96px;
+  background: var(--bg);
+  color: var(--fg);
+  overflow: auto;
+}
+.code-viewer > pre {
+  margin: 0 auto;
+  max-width: 1100px;
+  padding: 0;
+  background: transparent;
+  font-family: "Cascadia Code", "Cascadia Mono", "SFMono-Regular", Consolas,
+    "Liberation Mono", Menlo, monospace;
+  font-size: 13.5px;
+  line-height: 1.65;
+  white-space: pre;
+  overflow-x: auto;
+  tab-size: 4;
+  -moz-tab-size: 4;
+}
+.code-viewer > pre > code {
+  background: none;
+  padding: 0;
+  display: block;
+}
+
