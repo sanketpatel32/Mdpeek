@@ -57,7 +57,7 @@ function renderWelcome() {
   return `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.11.3</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.11.4</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -97,6 +97,7 @@ const el = {
   editor: document.getElementById('editor'),
   gutter: document.getElementById('gutter'),
   editorStatus: document.getElementById('editor-status'),
+  readingProgress: document.getElementById('reading-progress'),
   preview: document.getElementById('preview'),
   toast: document.getElementById('toast'),
   dropzone: document.getElementById('dropzone'),
@@ -278,6 +279,7 @@ async function renderActive() {
     el.document.classList.remove('code-viewer');
     el.document.classList.add('has-welcome', 'markdown-body');
     el.document.innerHTML = renderWelcome();
+    setReadingProgressVisible(false);
     return;
   }
 
@@ -290,6 +292,7 @@ async function renderActive() {
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
     el.document.classList.remove('has-welcome', 'code-viewer', 'markdown-body');
+    setReadingProgressVisible(false);
     // showPdf is async and lazy-loads pdf.js. Store the controller so we can
     // tear it down on tab switch.
     showPdf(el.document, doc.path).then((ctrl) => {
@@ -313,6 +316,7 @@ async function renderActive() {
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
     el.document.classList.remove('has-welcome', 'code-viewer', 'markdown-body');
+    setReadingProgressVisible(false);
     // showExcalidraw is async and lazy-loads React + Excalidraw. The onSave
     // callback writes the scene JSON back to doc.content (debounced) so the
     // drawing persists across tab switches.
@@ -344,6 +348,7 @@ async function renderActive() {
     el.toc.innerHTML = '';
     el.document.classList.remove('has-welcome', 'markdown-body');
     el.document.classList.add('code-viewer');
+    setReadingProgressVisible(false);
     const lang = langFromPath(doc.path);
     // Render now (synchronous — covers the common ~36 languages). If the lang
     // is an extra that needs dynamic import, re-render once it's registered.
@@ -395,6 +400,7 @@ async function renderActive() {
     if (doc.editorState) doc.editor.setState(doc.editorState);
     el.editorStatus.classList.remove('hidden');
     updateEditorStatus();
+    setReadingProgressVisible(false);
   } else {
     el.editMode.classList.add('hidden');
     el.editorStatus.classList.add('hidden');
@@ -407,6 +413,7 @@ async function renderActive() {
     buildToc(el.document);
     // Restore the document scroll captured when we last switched away.
     if (doc.scrollY) el.document.scrollTop = doc.scrollY;
+    setReadingProgressVisible(true);
   }
 }
 
@@ -815,6 +822,23 @@ function updateEditorStatus() {
       ? `<span class="status-sep" aria-hidden="true">·</span><span>~${readMins} min read</span>`
       : '') +
     `<span class="save-status" data-state="${savedState}" style="margin-left:auto">${savedLabel}</span>`;
+}
+
+// ---------- reading progress bar ----------
+// Reflects how far the user has scrolled through the active document. Lives at
+// the top of the view area. Only shown for markdown docs in view mode — hidden
+// for welcome, PDF, Excalidraw, code, and edit mode (the editor has its own
+// scroll context).
+function updateReadingProgress() {
+  if (!el.readingProgress) return;
+  const maxScroll = el.document.scrollHeight - el.document.clientHeight;
+  const pct = maxScroll > 0 ? (el.document.scrollTop / maxScroll) * 100 : 0;
+  el.readingProgress.firstElementChild.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+}
+function setReadingProgressVisible(visible) {
+  if (!el.readingProgress) return;
+  el.readingProgress.classList.toggle('active', visible);
+  if (visible) updateReadingProgress();
 }
 
 // ---------- zoom (scales document + preview font-size) ----------
@@ -1366,6 +1390,17 @@ el.tabStrip.addEventListener('wheel', (e) => {
   e.preventDefault();
   el.tabStrip.scrollLeft += e.deltaY;
 }, { passive: false });
+
+// Document scroll: update the reading-progress bar. rAF-throttled so the
+// listener stays cheap on long docs.
+let _progressRaf = 0;
+el.document.addEventListener('scroll', () => {
+  if (_progressRaf) return;
+  _progressRaf = requestAnimationFrame(() => {
+    _progressRaf = 0;
+    updateReadingProgress();
+  });
+}, { passive: true });
 
 // Editor textarea: mark active doc dirty on input + debounced re-persist.
 el.editor.addEventListener('input', () => {

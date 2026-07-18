@@ -265,6 +265,7 @@ main {
 /* ---------- View mode ---------- */
 .view-mode {
   width: 100%;
+  position: relative;
 }
 .toc {
   width: 240px;

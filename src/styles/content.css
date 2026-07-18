@@ -27,6 +27,31 @@
     transform: translateY(0);
   }
 }
+
+/* Reading progress bar — a 2px accent-colored bar pinned across the top of
+   the view area, above the TOC and document. Width is set via JS from the
+   document's scroll fraction. Sits outside #document so it survives every
+   innerHTML replacement. */
+.reading-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 10;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+.reading-progress.active {
+  opacity: 1;
+}
+.reading-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  transition: width 60ms linear;
+}
 @media (max-width: 900px) {
   .markdown-body {
     padding-left: 24px;
