@@ -58,7 +58,7 @@ function renderWelcome() {
   return `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.11.11</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.11.12</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -461,6 +461,7 @@ const palette = initCommandPalette(() => {
     { id: 'new', label: 'New tab', hint: 'Ctrl+N', keywords: 'new tab untitled', run: newTab },
     { id: 'save', label: 'Save', hint: 'Ctrl+S', keywords: 'save write', run: saveActive },
     { id: 'export-html', label: 'Export to HTML', keywords: 'export html self-contained', run: exportHtml },
+    { id: 'copy-rich', label: 'Copy as rich text', hint: 'Ctrl+Shift+C', keywords: 'copy rich html clipboard paste formatted', run: copyAsRichText },
     { id: 'mode', label: 'Toggle edit / view', hint: 'Ctrl+E', keywords: 'toggle edit view mode', run: toggleMode },
     { id: 'sidebar', label: 'Toggle sidebar (TOC)', hint: 'Ctrl+B', keywords: 'sidebar toc outline', run: toggleSidebar },
     { id: 'find', label: 'Find', hint: 'Ctrl+F', keywords: 'find search', run: () => find.toggle() },
@@ -913,6 +914,41 @@ function toggleTypewriter() {
   const doc = store.active();
   if (doc && doc.editor) doc.editor.setTypewriter(!on);
   toast(on ? 'Typewriter off' : 'Typewriter on');
+}
+
+// ---------- copy as rich text ----------
+// Copies the rendered markdown to the clipboard in two formats: text/html
+// (so Word/Email/Slack paste it with formatting intact) + text/plain (the raw
+// markdown source, so plain-text editors still get something useful). The HTML
+// payload is wrapped in a styled container so paste targets render headings,
+// lists, and code blocks properly.
+async function copyAsRichText() {
+  const doc = store.active();
+  if (!doc || doc.plain) {
+    toast('Nothing to copy');
+    return;
+  }
+  // Edit mode: sync unsaved changes from the editor into doc.content first.
+  if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
+  const html = renderMarkdown(doc.content);
+  const plain = doc.content;
+  const styled = `<div class="markdown-body" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 15px; line-height: 1.6;">${html}</div>`;
+  try {
+    const item = new ClipboardItem({
+      'text/html': new Blob([styled], { type: 'text/html' }),
+      'text/plain': new Blob([plain], { type: 'text/plain' }),
+    });
+    await navigator.clipboard.write([item]);
+    toast('Copied as rich text');
+  } catch (e) {
+    // Insecure context or unsupported ClipboardItem — fall back to plain text.
+    try {
+      await navigator.clipboard.writeText(plain);
+      toast('Copied as markdown');
+    } catch {
+      toast('Copy failed');
+    }
+  }
 }
 
 // ---------- sidebar (TOC) toggle ----------
@@ -1728,6 +1764,13 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     e.stopPropagation();
     toggleTypewriter();
+    return;
+  }
+  // Ctrl+Shift+C → copy as rich text (formatted HTML + plain markdown).
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'C' || e.key === 'c')) {
+    e.preventDefault();
+    e.stopPropagation();
+    copyAsRichText();
     return;
   }
   if (e.key === 'F11') {
