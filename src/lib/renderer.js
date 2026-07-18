@@ -264,6 +264,7 @@ export async function prepareCodeLang(lang) {
 export async function enhanceDom(container, { mermaid: renderMermaid = true } = {}) {
   if (typeof window === 'undefined') return;
   enhanceCodeBlocks(container);
+  enhanceAnchors(container);
   // Kick off dynamic language registration for any fenced langs we don't yet
   // have. Non-blocking — this render stays as-is; the next render picks them up.
   registerVisibleLanguages(container);
@@ -336,6 +337,56 @@ function flashCopied(btn) {
     btn.classList.remove('copied');
     delete btn.dataset.copied;
   }, COPY_FLASH_MS);
+}
+
+// Heading anchor links — appends a `#` glyph link to each h1-h6 that already
+// has a slug id (assigned during markdown rendering). Hovering the heading
+// reveals the link; clicking copies the `#slug` fragment to the clipboard so
+// it can be shared as a deep link. One delegated listener per container.
+const ANCHOR_HASH_SVG =
+  '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9.5a3 3 0 0 0 4.24 0l2.12-2.12a3 3 0 0 0-4.24-4.24L8.06 4.18"/><path d="M9 6.5a3 3 0 0 0-4.24 0L2.64 8.62a3 3 0 0 0 4.24 4.24l1.06-1.06"/></svg>';
+function enhanceAnchors(container) {
+  if (typeof window === 'undefined') return;
+  const headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6');
+  headings.forEach((h) => {
+    if (!h.id || h.querySelector('.anchor-link')) return;
+    const a = document.createElement('a');
+    a.className = 'anchor-link';
+    a.href = `#${h.id}`;
+    a.setAttribute('aria-label', 'Copy link to this heading');
+    a.title = 'Copy link';
+    a.innerHTML = ANCHOR_HASH_SVG;
+    h.append(a);
+  });
+
+  if (!container.__anchorHandler) {
+    const handler = async (e) => {
+      const a = e.target.closest('.anchor-link');
+      if (!a || !container.contains(a)) return;
+      e.preventDefault();
+      const hash = a.getAttribute('href') || '';
+      try {
+        await navigator.clipboard.writeText(hash);
+        flashAnchor(a);
+      } catch {
+        // Insecure context — silently fall back to the default navigation.
+      }
+    };
+    container.addEventListener('click', handler);
+    container.__anchorHandler = handler;
+  }
+}
+
+// Flash the anchor link green briefly so the user sees the copy registered.
+const ANCHOR_FLASH_MS = 1200;
+function flashAnchor(a) {
+  if (a.dataset.copied === '1') return;
+  a.dataset.copied = '1';
+  a.classList.add('copied');
+  setTimeout(() => {
+    a.classList.remove('copied');
+    delete a.dataset.copied;
+  }, ANCHOR_FLASH_MS);
 }
 
 // Monotonic counter for mermaid render IDs — Math.random() can collide across

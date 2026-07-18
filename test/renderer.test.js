@@ -228,3 +228,57 @@ describe('enhanceDom — copy buttons', () => {
     expect(writeText).toHaveBeenCalledWith('const x = 1;');
   });
 });
+
+describe('enhanceDom — heading anchors', () => {
+  it('appends an anchor link to each heading with an id', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML =
+      '<h2 id="section-one">Section One</h2>' +
+      '<h3 id="sub">Sub</h3>';
+    await enhanceDom(div);
+    const links = div.querySelectorAll('.anchor-link');
+    expect(links).toHaveLength(2);
+    expect(links[0].getAttribute('href')).toBe('#section-one');
+    expect(links[1].getAttribute('href')).toBe('#sub');
+    expect(links[0].getAttribute('aria-label')).toBe('Copy link to this heading');
+  });
+
+  it('skips headings without an id', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = '<h2>No id here</h2>';
+    await enhanceDom(div);
+    expect(div.querySelectorAll('.anchor-link')).toHaveLength(0);
+  });
+
+  it('is idempotent — enhancing twice adds no duplicate anchors', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = '<h2 id="once">Once</h2>';
+    await enhanceDom(div);
+    await enhanceDom(div);
+    expect(div.querySelectorAll('.anchor-link')).toHaveLength(1);
+  });
+
+  it('copies the #slug fragment on click and prevents default navigation', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const div = document.createElement('div');
+    document.body.innerHTML = '';
+    document.body.append(div);
+    div.innerHTML = '<h2 id="deep-link">Deep Link</h2>';
+    await enhanceDom(div);
+
+    const a = div.querySelector('.anchor-link');
+    const ev = new MouseEvent('click', { bubbles: true, cancelable: true });
+    a.dispatchEvent(ev);
+
+    expect(writeText).toHaveBeenCalledWith('#deep-link');
+    expect(ev.defaultPrevented).toBe(true);
+  });
+});
