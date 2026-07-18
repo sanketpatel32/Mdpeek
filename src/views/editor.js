@@ -20,6 +20,7 @@ import {
 export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 }) {
   let timer = null;
   const listeners = []; // [target, type, fn] — cleaned up in destroy()
+  let typewriter = false; // when true, the active line stays vertically centered
 
   // ----- live preview (debounced) -----
   // Skip mermaid rendering here: it's expensive (layout engine) and the
@@ -42,6 +43,7 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     textarea.setSelectionRange(result.start, result.end);
     schedule();
     syncGutter();
+    centerActiveLine();
     return true;
   }
 
@@ -58,6 +60,22 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
   }
   function onScroll() {
     if (gutter) gutter.scrollTop = textarea.scrollTop;
+  }
+  // Typewriter mode: vertically center the line containing the caret. Called
+  // after every input/selection change while the mode is on. Reads the
+  // textarea's lineHeight (cached) and the caret offset to compute the line.
+  let cachedLineHeight = 0;
+  function centerActiveLine() {
+    if (!typewriter) return;
+    const ta = textarea;
+    const { selectionStart } = ta;
+    const lineNum = ta.value.slice(0, selectionStart).split('\n').length - 1;
+    if (!cachedLineHeight) {
+      cachedLineHeight = parseFloat(getComputedStyle(ta).lineHeight) || 22;
+    }
+    const target = lineNum * cachedLineHeight - ta.clientHeight / 2 + cachedLineHeight / 2;
+    ta.scrollTop = Math.max(0, target);
+    if (gutter) gutter.scrollTop = ta.scrollTop;
   }
 
   // ----- keydown: Tab, Enter, auto-pair, wrap shortcuts, find -----
@@ -132,8 +150,12 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
   on('input', textarea, () => {
     schedule();
     syncGutter();
+    centerActiveLine();
   });
   on('keydown', textarea, onKeyDown);
+  // Re-center on caret moves that don't fire input (arrow keys, clicks).
+  on('keyup', textarea, centerActiveLine);
+  on('click', textarea, centerActiveLine);
   on('scroll', textarea, onScroll);
 
   refresh();
@@ -147,6 +169,12 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     },
     getValue() {
       return textarea.value;
+    },
+    // Toggle typewriter mode (vertical centering of the active line).
+    setTypewriter(on) {
+      typewriter = !!on;
+      cachedLineHeight = 0; // recompute in case font size changed since init
+      if (typewriter) centerActiveLine();
     },
     // Insert `text` at the caret, replacing any selection, and place the caret
     // after the inserted text. Used for image drops/pastes that emit markdown.

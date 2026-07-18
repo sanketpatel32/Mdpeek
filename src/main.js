@@ -58,7 +58,7 @@ function renderWelcome() {
   return `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.11.10</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.11.11</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -401,6 +401,8 @@ async function renderActive() {
     doc.editor.setValue(doc.content);
     // Restore the caret + scroll captured when we last switched away.
     if (doc.editorState) doc.editor.setState(doc.editorState);
+    // Re-apply typewriter mode to the freshly-bound editor.
+    doc.editor.setTypewriter(localStorage.getItem('mdpeek-typewriter') === '1');
     el.editorStatus.classList.remove('hidden');
     updateEditorStatus();
     setReadingProgressVisible(false);
@@ -464,6 +466,7 @@ const palette = initCommandPalette(() => {
     { id: 'find', label: 'Find', hint: 'Ctrl+F', keywords: 'find search', run: () => find.toggle() },
     { id: 'replace', label: 'Find & Replace', hint: 'Ctrl+H', keywords: 'replace substitute find', run: () => find.openReplace() },
     { id: 'focus', label: 'Focus mode', hint: 'F11', keywords: 'focus zen distraction', run: toggleFocus },
+    { id: 'typewriter', label: 'Toggle typewriter mode', keywords: 'typewriter center line writing', run: toggleTypewriter },
     { id: 'zoom-in', label: 'Zoom in', hint: 'Ctrl+=', keywords: 'zoom in larger', run: zoomIn },
     { id: 'zoom-out', label: 'Zoom out', hint: 'Ctrl+-', keywords: 'zoom out smaller', run: zoomOut },
     { id: 'zoom-reset', label: 'Reset zoom', hint: 'Ctrl+0', keywords: 'zoom reset 100', run: zoomReset },
@@ -899,6 +902,17 @@ function toggleThemeMenu() {
 function toggleFocus() {
   const on = document.body.classList.toggle('focus-mode');
   localStorage.setItem('mdpeek-focus', on ? '1' : '0');
+}
+
+// ---------- typewriter mode ----------
+// Vertically centers the line containing the caret while editing. Persists
+// across tabs + restarts. No-op outside edit mode (the active editor is null).
+function toggleTypewriter() {
+  const on = localStorage.getItem('mdpeek-typewriter') === '1';
+  localStorage.setItem('mdpeek-typewriter', on ? '0' : '1');
+  const doc = store.active();
+  if (doc && doc.editor) doc.editor.setTypewriter(!on);
+  toast(on ? 'Typewriter off' : 'Typewriter on');
 }
 
 // ---------- sidebar (TOC) toggle ----------
@@ -1705,6 +1719,15 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     e.stopPropagation();
     quickSwitcher.open();
+    return;
+  }
+  // Ctrl+Shift+T → toggle typewriter mode (capture phase so the editor's
+  // keydown doesn't swallow it). Note: this overrides the browser's "reopen
+  // closed tab" shortcut, which doesn't apply inside the app anyway.
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'T' || e.key === 't')) {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleTypewriter();
     return;
   }
   if (e.key === 'F11') {
