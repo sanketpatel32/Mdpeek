@@ -391,6 +391,57 @@ main {
   background: var(--surface);
   border-bottom: 1px solid var(--border-subtle);
 }
+.pane-header.edit-toolbar {
+  gap: 12px;
+}
+.pane-label {
+  flex: 0 0 auto;
+}
+.fmt-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1 1 auto;
+}
+/* Hide the markdown formatting toolbar in plain-text mode (no markdown). */
+.edit-mode.plain .fmt-tools {
+  display: none;
+}
+.fmt-btn {
+  height: 22px;
+  min-width: 24px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.fmt-btn:hover {
+  background: var(--bg);
+  color: var(--fg);
+  border-color: var(--border);
+}
+.fmt-btn:active {
+  transform: translateY(1px);
+}
+.fmt-btn code,
+.fmt-btn strong,
+.fmt-btn em {
+  font-family: inherit;
+  font-size: inherit;
+  font-style: inherit;
+  font-weight: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+}
 
 /* ---------- Find bar (global, floating) ----------
    One element appended to <body>, toggled via .hidden. Lives above content,

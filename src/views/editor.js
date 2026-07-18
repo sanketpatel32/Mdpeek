@@ -4,6 +4,7 @@ import {
   handleShiftTab,
   handleEnter,
   wrapSelection,
+  toggleLinePrefix,
   autoPair,
   handleBackspace,
   lineCount,
@@ -179,6 +180,34 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
       textarea.focus();
       textarea.setSelectionRange(state.start || 0, state.end || 0);
       textarea.scrollTop = state.scrollTop || 0;
+    },
+    // Apply a markdown formatting action from the toolbar. Supports wrap-based
+    // (bold/italic/code/link) and line-prefix (headings/lists/quote) styles,
+    // plus a fenced code-block insert. Each is a toggle when applicable.
+    format(type) {
+      const s = textarea.selectionStart;
+      const en = textarea.selectionEnd;
+      switch (type) {
+        case 'bold': return applyResult(wrapSelection(textarea.value, s, en, '**'));
+        case 'italic': return applyResult(wrapSelection(textarea.value, s, en, '*'));
+        case 'code': return applyResult(wrapSelection(textarea.value, s, en, '`'));
+        case 'link': {
+          const sel = textarea.value.slice(s, en);
+          const url = sel.startsWith('http') ? sel : 'https://';
+          const text = sel || 'link text';
+          return applyResult({ text: textarea.value.slice(0, s) + `[${text}](${url})` + textarea.value.slice(en), start: s + text.length + 3, end: s + text.length + 3 + url.length });
+        }
+        case 'h1': return applyResult(toggleLinePrefix(textarea.value, s, en, '# '));
+        case 'h2': return applyResult(toggleLinePrefix(textarea.value, s, en, '## '));
+        case 'ul': return applyResult(toggleLinePrefix(textarea.value, s, en, '- '));
+        case 'ol': return applyResult(toggleLinePrefix(textarea.value, s, en, '1. '));
+        case 'quote': return applyResult(toggleLinePrefix(textarea.value, s, en, '> '));
+        case 'fence': {
+          const insert = '\n```\n\n```\n';
+          return applyResult({ text: textarea.value.slice(0, s) + insert + textarea.value.slice(en), start: s + 5, end: s + 5 });
+        }
+        default: return false;
+      }
     },
     destroy() {
       clearTimeout(timer);

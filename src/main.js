@@ -57,7 +57,7 @@ function renderWelcome() {
   return `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.11.5</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.11.6</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -1050,6 +1050,16 @@ el.update.addEventListener('click', () => {
 el.open.addEventListener('click', openFileDialog);
 el.save.addEventListener('click', saveActive);
 if (el.export) el.export.addEventListener('click', exportHtml);
+
+// Formatting toolbar — one delegated handler covers all .fmt-btn clicks.
+// Looks up the active doc's editor and dispatches to its format(type) method.
+document.querySelector('.fmt-tools')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.fmt-btn');
+  if (!btn) return;
+  const doc = store.active();
+  if (!doc || !doc.editor || doc.plain) return;
+  doc.editor.format(btn.dataset.fmt);
+});
 el.mode.addEventListener('click', toggleMode);
 el.sidebar.addEventListener('click', toggleSidebar);
 el.zoomIn.addEventListener('click', zoomIn);

@@ -183,7 +183,21 @@
 
     <main id="edit-mode" class="edit-mode hidden">
       <div class="editor-pane">
-        <div class="pane-header">Source</div>
+        <div class="pane-header edit-toolbar">
+          <span class="pane-label">Source</span>
+          <div class="fmt-tools" role="toolbar" aria-label="Formatting">
+            <button class="fmt-btn" data-fmt="h1" type="button" title="Heading 1" aria-label="Heading 1"><strong>H1</strong></button>
+            <button class="fmt-btn" data-fmt="h2" type="button" title="Heading 2" aria-label="Heading 2"><strong>H2</strong></button>
+            <button class="fmt-btn" data-fmt="bold" type="button" title="Bold (Ctrl+B)" aria-label="Bold"><strong>B</strong></button>
+            <button class="fmt-btn" data-fmt="italic" type="button" title="Italic (Ctrl+I)" aria-label="Italic"><em>I</em></button>
+            <button class="fmt-btn" data-fmt="code" type="button" title="Inline code (Ctrl+`)" aria-label="Inline code"><code>&lt;/&gt;</code></button>
+            <button class="fmt-btn" data-fmt="link" type="button" title="Link" aria-label="Link">🔗</button>
+            <button class="fmt-btn" data-fmt="ul" type="button" title="Bulleted list" aria-label="Bulleted list">•</button>
+            <button class="fmt-btn" data-fmt="ol" type="button" title="Numbered list" aria-label="Numbered list">1.</button>
+            <button class="fmt-btn" data-fmt="quote" type="button" title="Quote" aria-label="Quote">❝</button>
+            <button class="fmt-btn" data-fmt="fence" type="button" title="Code block" aria-label="Code block">{ }</button>
+          </div>
+        </div>
         <div class="editor-wrap">
           <div id="gutter" class="gutter" aria-hidden="true"></div>
           <textarea id="editor" class="editor" spellcheck="false" placeholder="Type markdown here..."></textarea>

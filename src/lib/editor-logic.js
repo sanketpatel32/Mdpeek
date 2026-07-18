@@ -132,6 +132,27 @@ export function wrapSelection(text, start, end, before, after = before) {
   return { text: out, start: start + before.length, end: start + before.length };
 }
 
+// Toggle a line prefix (e.g. '# ', '- ', '> ', '1. ') on every line touched by
+// the selection. If all touched lines already start with `prefix`, removes it;
+// otherwise adds it. Caret/selection shifts to follow the first line's delta.
+// Used by the formatting toolbar for headings, lists, and blockquotes.
+export function toggleLinePrefix(text, start, end, prefix) {
+  const [lineStart] = lineRange(text, Math.min(start, end));
+  const block = text.slice(lineStart, Math.max(start, end));
+  const lines = block.split('\n');
+  const allHave = lines.every((l) => l.startsWith(prefix));
+  const replaced = lines.map((l) => (allHave ? l.slice(prefix.length) : prefix + l)).join('\n');
+  const out = text.slice(0, lineStart) + replaced + text.slice(Math.max(start, end));
+  const delta = allHave ? -prefix.length : prefix.length; // first-line change
+  // Multi-line: extra delta accumulates per extra line.
+  const extra = lines.length > 1 ? (lines.length - 1) * delta : 0;
+  return {
+    text: out,
+    start: Math.max(lineStart, Math.min(start, start + delta)),
+    end: Math.max(start, end) + delta + extra,
+  };
+}
+
 // ----------------------------- auto-pair ------------------------------------
 
 const PAIRS = { '(': ')', '[': ']', '{': '}' };

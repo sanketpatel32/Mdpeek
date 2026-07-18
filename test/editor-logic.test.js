@@ -4,6 +4,7 @@ import {
   handleShiftTab,
   handleEnter,
   wrapSelection,
+  toggleLinePrefix,
   autoPair,
   handleBackspace,
   findMatches,
@@ -257,5 +258,33 @@ describe('lineCount', () => {
 
   it('counts trailing newline as a new line', () => {
     expect(lineCount('a\n')).toBe(2);
+  });
+});
+
+describe('toggleLinePrefix', () => {
+  it('adds the prefix to a single line', () => {
+    const r = toggleLinePrefix('hello', 0, 5, '# ');
+    expect(r.text).toBe('# hello');
+  });
+
+  it('adds the prefix to every touched line in a multi-line selection', () => {
+    const r = toggleLinePrefix('a\nb\nc', 0, 5, '- ');
+    expect(r.text).toBe('- a\n- b\n- c');
+  });
+
+  it('removes the prefix when every line already has it (toggle off)', () => {
+    const r = toggleLinePrefix('# hello', 0, 7, '# ');
+    expect(r.text).toBe('hello');
+  });
+
+  it('adds the prefix to lines that lack it even if some already have it', () => {
+    const r = toggleLinePrefix('- a\nb', 0, 5, '- ');
+    expect(r.text).toBe('- - a\n- b');
+  });
+
+  it('only touches lines touched by the selection, not the whole doc', () => {
+    // selection only on line 2 (positions 2..3)
+    const r = toggleLinePrefix('a\nb\nc', 2, 3, '# ');
+    expect(r.text).toBe('a\n# b\nc');
   });
 });
