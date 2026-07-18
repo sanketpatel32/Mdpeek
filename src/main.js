@@ -58,7 +58,7 @@ function renderWelcome() {
   return `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.11.9</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.11.10</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -1816,6 +1816,55 @@ appWindow.onResized(syncMaxIcon).catch(() => {}); // unlisten only matters on te
 syncMaxIcon();
 
 // ---------- drag & drop (supports multiple files → multiple tabs) ----------
+// On desktop (Tauri), file drops come through the native `tauri://drag-drop`
+// event — not HTML5 `drop`. Tauri 2's default config intercepts OS drops at
+// the window layer, so `window.addEventListener('drop', ...)` never fires with
+// real file paths. Listening to the Tauri events gives us absolute paths
+// directly (no fragile `file.path` extension on the File object).
+//
+// The HTML5 handlers below are kept as a fallback for any environment where
+// native events aren't wired (e.g. running the web build in a browser).
+
+// Per-file open shared by both drop paths. Takes an absolute path + the file's
+// basename; reads the file via invoke('read_file') so text/code/PDF/Excalidraw
+// are all routed through the same openPath logic the Open dialog uses.
+const DROP_BINARY_RE = /\.(png|jpe?g|gif|webp|ico|bmp|tiff?|avif|heic|mp[34]|webm|mov|avi|m4[av]|ogg|wav|flac|zip|7z|rar|tar|gz|bz2|xz|exe|msi|dll|so|dylib|o|obj|a|lib|class|jar|war|pyc|wasm|ttf|otf|woff2?|eot|cab|iso|vhd|vhdx)$/i;
+async function openDroppedPath(path) {
+  const name = path.split(/[\\/]/).pop() || path;
+  try {
+    if (DROP_BINARY_RE.test(name) && !isPdfPath(name)) {
+      toast('Not a text file: ' + name);
+      return;
+    }
+    // PDFs are binary — pass empty content; the PDF viewer loads via asset
+    // protocol using the path. Everything else is read as text.
+    const content = isPdfPath(name) ? '' : await invoke('read_file', { path });
+    await openPath(path, content);
+  } catch (err) {
+    toast('Could not open: ' + name);
+    console.error('drop open failed:', err);
+  }
+}
+
+// Primary path: Tauri native drag-drop events. Payloads carry absolute paths.
+listen('tauri://drag-enter', () => {
+  el.dropzone.classList.remove('hidden');
+}).catch((e) => console.error('drag-enter listener failed:', e));
+listen('tauri://drag-leave', () => {
+  el.dropzone.classList.add('hidden');
+}).catch((e) => console.error('drag-leave listener failed:', e));
+listen('tauri://drag-drop', async (event) => {
+  el.dropzone.classList.add('hidden');
+  const paths = event?.payload?.paths;
+  if (!Array.isArray(paths) || paths.length === 0) return;
+  for (const p of paths) {
+    await openDroppedPath(p);
+  }
+}).catch((e) => console.error('drag-drop listener failed:', e));
+
+// Fallback path: HTML5 drag/drop. Only fires if Tauri's native handler isn't
+// intercepting (e.g. web build). Uses file.text() + file.name — path is best
+// effort since the browser doesn't expose absolute paths.
 let dragDepth = 0;
 window.addEventListener('dragenter', (e) => {
   if (e.dataTransfer?.types?.includes('Files')) {
@@ -1829,32 +1878,25 @@ window.addEventListener('dragleave', () => {
   if (dragDepth === 0) el.dropzone.classList.add('hidden');
 });
 window.addEventListener('drop', async (e) => {
+  // If Tauri's native handler already ran, dataTransfer.files is empty — bail.
+  const files = e.dataTransfer?.files;
+  if (!files || files.length === 0) return;
   e.preventDefault();
   dragDepth = 0;
   el.dropzone.classList.add('hidden');
-  const files = e.dataTransfer?.files;
-  if (!files || files.length === 0) return;
   for (const file of Array.from(files)) {
     try {
-      // Accept any text/code/markdown file; reject only known binary types.
-      // PDFs + Excalidraw (.excalidraw is JSON but handled by its own viewer)
-      // are special-cased below. Anything else binary gets a toast.
-      const isBinary = /\.(png|jpe?g|gif|webp|ico|bmp|tiff?|avif|heic|mp[34]|webm|mov|avi|m4[av]|ogg|wav|flac|zip|7z|rar|tar|gz|bz2|xz|exe|msi|dll|so|dylib|o|obj|a|lib|class|jar|war|pyc|wasm|ttf|otf|woff2?|eot|cab|iso|vhd|vhdx)$/i.test(file.name);
-      if (isBinary && !isPdfPath(file.name)) {
+      if (DROP_BINARY_RE.test(file.name) && !isPdfPath(file.name)) {
         toast('Not a text file: ' + file.name);
         continue;
       }
-      // PDFs are binary — don't read as text. The PDF viewer loads them via the
-      // asset protocol using the file path (Tauri exposes it on desktop).
       if (isPdfPath(file.name)) {
         await openPath(file.path || file.name, '');
         continue;
       }
       const text = await file.text();
-      // Tauri exposes the absolute path on the dropped File on desktop.
       await openPath(file.path || file.name, text);
     } catch (err) {
-      // One bad file shouldn't block the rest of a multi-file drop.
       toast('Could not open: ' + file.name);
       console.error('drop open failed:', err);
     }
