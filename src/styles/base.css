@@ -363,6 +363,20 @@ main {
 .editor-status .status-sep {
   opacity: 0.5;
 }
+.editor-status .save-status {
+  margin-left: auto;
+  color: var(--fg-muted);
+  opacity: 0.8;
+  transition: color 0.15s ease;
+}
+.editor-status .save-status[data-state="saving"] {
+  color: var(--accent);
+  opacity: 1;
+}
+.editor-status .save-status[data-state="error"] {
+  color: #d04a4a;
+  opacity: 1;
+}
 .pane-header {
   flex: 0 0 32px;
   display: flex;

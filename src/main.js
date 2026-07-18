@@ -57,7 +57,7 @@ function renderWelcome() {
   return `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.11.1</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.11.2</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -805,13 +805,16 @@ function updateEditorStatus() {
   const doc = store.active();
   const text = doc && doc.editor ? doc.editor.getValue() : el.editor.value;
   const { words, chars, readMins } = wordCount(text);
+  const savedState = doc && doc.dirty ? 'dirty' : 'saved';
+  const savedLabel = doc && doc.dirty ? '· edited' : '· saved';
   el.editorStatus.innerHTML =
     `<span>${fmtNum(words)} words</span>` +
     `<span class="status-sep" aria-hidden="true">·</span>` +
     `<span>${fmtNum(chars)} chars</span>` +
     (readMins > 0
       ? `<span class="status-sep" aria-hidden="true">·</span><span>~${readMins} min read</span>`
-      : '');
+      : '') +
+    `<span class="save-status" data-state="${savedState}" style="margin-left:auto">${savedLabel}</span>`;
 }
 
 // ---------- zoom (scales document + preview font-size) ----------
@@ -1012,6 +1015,7 @@ const SETTING_KEYS = [
   'mdpeek-line-height',
   'mdpeek-line-numbers',
   'mdpeek-font-family',
+  'mdpeek-autosave',
 ];
 
 function openSettings() {
@@ -1055,6 +1059,9 @@ function syncSettingsControls() {
 
   const lineNumCb = document.getElementById('settings-line-numbers');
   if (lineNumCb) lineNumCb.checked = localStorage.getItem('mdpeek-line-numbers') !== '0';
+
+  const autosaveCb = document.getElementById('settings-autosave');
+  if (autosaveCb) autosaveCb.checked = localStorage.getItem('mdpeek-autosave') !== '0';
 }
 
 function setSegActive(setting, value) {
@@ -1162,6 +1169,12 @@ document.getElementById('settings-font-family').addEventListener('change', (e) =
 document.getElementById('settings-line-numbers').addEventListener('change', (e) => {
   localStorage.setItem('mdpeek-line-numbers', e.target.checked ? '1' : '0');
   applyLineNumbers();
+});
+
+// Auto-save — toggle the debounced save-on-idle behavior.
+document.getElementById('settings-autosave').addEventListener('change', (e) => {
+  localStorage.setItem('mdpeek-autosave', e.target.checked ? '1' : '0');
+  if (!e.target.checked) clearTimeout(_autoSaveTimer);
 });
 
 // ---------- PDF drawing toolbar ----------
@@ -1360,7 +1373,51 @@ el.editor.addEventListener('input', () => {
   if (doc) store.markDirty(doc.id);
   persistSoon();
   updateEditorStatus();
+  scheduleAutoSave();
 });
+
+// ---------- auto-save ----------
+// Quietly writes the active doc to disk ~1s after typing stops, but only for
+// docs that already have a path (untitled tabs would otherwise pop the
+// save-as dialog mid-typing). The status bar shows a subtle "saving…" tick
+// so the user can see work is being persisted without toast spam.
+let _autoSaveTimer = null;
+const AUTO_SAVE_DELAY = 1000;
+function autoSaveEnabled() {
+  return localStorage.getItem('mdpeek-autosave') !== '0';
+}
+function scheduleAutoSave() {
+  if (!autoSaveEnabled()) return;
+  clearTimeout(_autoSaveTimer);
+  setSaveStatus('dirty');
+  _autoSaveTimer = setTimeout(autoSaveActive, AUTO_SAVE_DELAY);
+}
+async function autoSaveActive() {
+  const doc = store.active();
+  if (!doc || !doc.path || !doc.dirty) return;
+  setSaveStatus('saving');
+  try {
+    if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
+    await invoke('save_file', { path: doc.path, content: doc.content });
+    store.clearDirty(doc.id);
+    setSaveStatus('saved');
+  } catch (e) {
+    setSaveStatus('error');
+  }
+}
+function setSaveStatus(state) {
+  if (!el.editorStatus || el.editorStatus.classList.contains('hidden')) return;
+  const tag = el.editorStatus.querySelector('.save-status');
+  if (!tag) return;
+  const map = {
+    dirty: '· edited',
+    saving: '· saving…',
+    saved: '· saved',
+    error: '· save failed',
+  };
+  tag.textContent = map[state] || '';
+  tag.dataset.state = state;
+}
 
 // Keyboard shortcuts — registered on the CAPTURE phase so we intercept the
 // zoom keys before WebView2 can swallow them for native browser zoom.
