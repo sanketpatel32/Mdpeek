@@ -147,6 +147,20 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     getValue() {
       return textarea.value;
     },
+    // Insert `text` at the caret, replacing any selection, and place the caret
+    // after the inserted text. Used for image drops/pastes that emit markdown.
+    insertAtCursor(text) {
+      const s = textarea.selectionStart;
+      const en = textarea.selectionEnd;
+      const before = textarea.value.slice(0, s);
+      const after = textarea.value.slice(en);
+      textarea.value = before + text + after;
+      const caret = s + text.length;
+      textarea.setSelectionRange(caret, caret);
+      textarea.focus();
+      schedule();
+      syncGutter();
+    },
     refresh,
     // Expose the raw textarea so the global find module can read lineHeight,
     // scrollTop, etc. without duplicating state.

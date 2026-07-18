@@ -57,7 +57,7 @@ function renderWelcome() {
   return `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.11.4</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.11.5</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -628,7 +628,59 @@ async function saveActive() {
   }
 }
 
-// ---------- export to self-contained HTML ----------
+// ---------- image paste / drop into the editor ----------
+// When an image is pasted or dropped onto the textarea while editing a
+// markdown doc, save the bytes to an `assets/` folder beside the doc and
+// insert `![](assets/<hash>.<ext>)` at the caret. For untitled docs (no path),
+// fall back to a base64 data URL so the image still embeds inline.
+async function insertImageFromBlob(blob) {
+  const doc = store.active();
+  if (!doc || !doc.editor) return false;
+  const ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace('svg+xml', 'svg');
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  const hash = await sha256Hex(buf).catch(() => Math.random().toString(36).slice(2));
+  const short = String(hash).slice(0, 10);
+  const filename = `img-${short}.${ext}`;
+  let md;
+  if (doc.path) {
+    const dir = doc.path.replace(/[\\/][^\\/]+$/, '');
+    try {
+      const saved = await invoke('save_image', { dir, filename, bytes: Array.from(buf) });
+      md = `![](${saved})`;
+    } catch (e) {
+      toast('Could not save image: ' + fmtErr(e));
+      return false;
+    }
+  } else {
+    // No path yet — embed as a data URL so the image is at least visible.
+    // The user can save-as later; the bytes are already in the document.
+    const b64 = bytesToBase64(buf);
+    md = `![](data:${blob.type};base64,${b64})`;
+  }
+  doc.editor.insertAtCursor(md);
+  store.markDirty(doc.id);
+  persistSoon();
+  scheduleAutoSave();
+  return true;
+}
+
+// Minimal SHA-256 → hex (async, Web Crypto). Used for stable image filenames
+// so dropping the same image twice doesn't create duplicate files.
+async function sha256Hex(buf) {
+  const digest = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+// Base64 encode a Uint8Array — used for the data-URL fallback on untitled docs.
+function bytesToBase64(bytes) {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
+
 // Curated prose styles inlined into every export so the file renders correctly
 // offline (no CDN, no external CSS). Covers the markdown-body typography that
 // matters for sharing — headings, code, lists, tables, blockquotes, links.
@@ -1410,6 +1462,41 @@ el.editor.addEventListener('input', () => {
   updateEditorStatus();
   scheduleAutoSave();
 });
+
+// Image paste into the editor. If the clipboard has an image (screenshot,
+// copied picture), intercept it and insert as markdown instead of doing
+// nothing. Only fires in edit mode (the textarea is hidden otherwise).
+el.editor.addEventListener('paste', (e) => {
+  const doc = store.active();
+  if (!doc || doc.mode !== 'edit' || doc.plain) return;
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      const blob = item.getAsFile();
+      if (blob) {
+        e.preventDefault();
+        insertImageFromBlob(blob);
+        return;
+      }
+    }
+  }
+});
+
+// Image drop onto the editor textarea. The window-level drop handler in
+// main.js only handles text/code/pdf files; this catches images specifically
+// when the user is editing a markdown doc.
+el.editor.addEventListener('drop', (e) => {
+  const doc = store.active();
+  if (!doc || doc.mode !== 'edit' || doc.plain) return;
+  const files = e.dataTransfer?.files;
+  if (!files || files.length === 0) return;
+  const img = Array.from(files).find((f) => f.type.startsWith('image/'));
+  if (!img) return;
+  e.preventDefault();
+  e.stopPropagation();
+  insertImageFromBlob(img);
+}, false);
 
 // ---------- auto-save ----------
 // Quietly writes the active doc to disk ~1s after typing stops, but only for

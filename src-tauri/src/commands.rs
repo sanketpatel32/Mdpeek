@@ -88,3 +88,20 @@ pub fn read_file(path: String) -> Result<String, String> {
     }
     fs::read_to_string(&path).map_err(|e| e.to_string())
 }
+
+/// Write pasted/dropped image bytes to disk. The frontend passes a target
+/// directory (the markdown file's `assets/` folder) and a filename; this
+/// creates the directory if needed, writes the bytes, and returns the relative
+/// path that should be inserted into the markdown (e.g. `assets/foo-abc.png`).
+#[tauri::command]
+pub fn save_image(dir: String, filename: String, bytes: Vec<u8>) -> Result<String, String> {
+    let dir_path = std::path::Path::new(&dir);
+    if !dir_path.exists() {
+        fs::create_dir_all(dir_path).map_err(|e| e.to_string())?;
+    }
+    let full = dir_path.join(&filename);
+    fs::write(&full, &bytes).map_err(|e| e.to_string())?;
+    // Return the filename only — the markdown image path is relative to the
+    // doc's own directory, so `assets/<name>` is correct and portable.
+    Ok(filename)
+}
