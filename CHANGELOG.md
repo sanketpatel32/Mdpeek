@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-07-19
+
+### Added
+- **Frosted ambient home screen design:** Redesigned the welcome page to use modern radial-gradient ambient glow backdrops.
+- **Fixed home screen layout alignment:** Fixed the layout vertical centering/height issue by adding flex column constraints and 100% height configuration to the `.markdown-body.has-welcome` layout parent.
+
+## [0.15.9] - 2026-07-19
+
+### Fixed
+- **Optimized editor preview rendering:** Prevented Markdown preview parsing and DOM rendering tasks from running in the background when the preview pane is hidden (e.g., when editing `.txt` files or code files). Checking visibility via `offsetParent` bypasses unnecessary CPU overhead on every keystroke.
+
 ## [0.15.8] - 2026-07-19
 
 ### Added

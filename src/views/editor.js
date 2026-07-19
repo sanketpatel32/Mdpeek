@@ -27,6 +27,7 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
   // edit-mode preview re-renders on every keystroke. Diagrams render fully
   // when the doc is viewed in view mode.
   async function refresh() {
+    if (preview.offsetParent === null) return;
     preview.innerHTML = renderMarkdown(textarea.value);
     // Skip mermaid (expensive, re-renders on every keystroke) and folding
     // (the live preview is too transient for clickable triangles to be useful).

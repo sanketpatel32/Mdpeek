@@ -984,6 +984,8 @@ mark.find-current {
   text-align: center;
   color: var(--fg-secondary);
   overflow: auto;
+  background: radial-gradient(circle at 10% 10%, var(--accent-soft) 0%, transparent 45%),
+              radial-gradient(circle at 90% 90%, var(--surface-active) 0%, transparent 45%);
 }
 .welcome-card {
   display: flex;
