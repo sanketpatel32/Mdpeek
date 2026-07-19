@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.4] - 2026-07-19
+
+### Fixed
+- **File Explorer availability in Edit Mode:** Restructured the HTML workspace layout so that the File Explorer sidebar is a sibling to both View and Edit modes inside a common `.workspace-container`. This keeps the file tree sidebar fully accessible and interactive in both View and Edit modes.
+- **Focus mode outline hiding:** Updated focus (zen) mode to also hide the file explorer sidebar when activated.
+
 ## [0.15.3] - 2026-07-19
 
 ### Added

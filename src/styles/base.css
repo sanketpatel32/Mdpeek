@@ -91,7 +91,8 @@ body {
    body is display:flex column + main is flex:1, so hiding the header (which is
    flex:0 0 52px) makes the document fill the full height automatically. */
 body.focus-mode .app-header,
-body.focus-mode #toc {
+body.focus-mode #toc,
+body.focus-mode #file-tree {
   display: none;
 }
 
@@ -259,6 +260,17 @@ body.focus-mode #toc {
   height: 20px;
   background: var(--border);
   margin: 0 4px;
+}
+
+/* ---------- Workspace container ---------- */
+.workspace-container {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+  height: 100%;
 }
 
 /* ---------- Main layout ---------- */
