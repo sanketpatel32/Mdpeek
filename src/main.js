@@ -18,7 +18,7 @@ import { renderMarkdown, renderCode, prepareCodeLang } from './lib/renderer.js';
 import { saveSession, loadSession, loadRecents, addRecent, removeRecent, saveRecents } from './lib/persistence.js';
 import { NavHistory } from './lib/nav-history.js';
 import { escapeHtml } from './lib/escape.js';
-import { fileTypeFromPath, getFileIconHtml, relativeTime } from './lib/file-type.js';
+import { getIconForPath, relativeTime } from './lib/file-type.js';
 
 // ---------- themes ----------
 // Curated set: each entry maps the app theme id to its highlight.js theme id.
@@ -57,9 +57,9 @@ function renderWelcome() {
         // Shrink the middle of long paths so the filename stays visible.
         const path = r.path || '';
         const showPath = path.length > 48 ? path.slice(0, 20) + '…' + path.slice(-24) : path;
-        // Per-file-type glyph so recents match tab icons (md/pdf/img/code/ex/txt).
-        const iconCls = fileTypeFromPath(path);
-        const iconHtml = getFileIconHtml(iconCls, 'recent-icon');
+        // Per-file-type glyph so recents match tab icons (md/pdf/img/ex/txt)
+        // plus colored letter badges for code languages (JS/PY/RS/GO/...).
+        const iconHtml = getIconForPath(path, 'recent-icon');
         const when = relativeTime(r.openedAt);
         return `<button class="recent-item" data-path="${escapeHtml(r.path)}" type="button" title="${escapeHtml(path)}">
           ${iconHtml}
@@ -77,7 +77,7 @@ function renderWelcome() {
       <div class="welcome-main">
         <div class="welcome-brand">
           <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.16.7</span></h1>
+          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.16.8</span></h1>
           <p class="welcome-tagline">A lightweight Markdown viewer.</p>
         </div>
 

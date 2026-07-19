@@ -8,6 +8,7 @@
 // the user clicks a file row.
 
 import { invoke } from '@tauri-apps/api/core';
+import { getIconForPath } from '../lib/file-type.js';
 
 let _root = null;          // absolute path of the open folder, or null
 let _container = null;     // the DOM element we render into
@@ -98,44 +99,11 @@ function rowFor(entry, depth) {
 function dirIcon() {
   return '<svg class="tree-icon dir" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
 }
-function getFileIconHtml(cls, extraClass = '') {
-  const extra = extraClass ? ` ${extraClass}` : '';
-  if (cls === 'md') {
-    return `<svg class="file-icon md${extra}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 11v4M8 11l2 2 2-2M12 11v4"/></svg>`;
-  }
-  if (cls === 'pdf') {
-    return `<svg class="file-icon pdf${extra}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 11v4M9 11h2.5a1.5 1.5 0 0 0 0-3H9"/></svg>`;
-  }
-  if (cls === 'img') {
-    return `<svg class="file-icon img${extra}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
-  }
-  if (cls === 'code') {
-    return `<svg class="file-icon code${extra}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`;
-  }
-  if (cls === 'ex') {
-    return `<svg class="file-icon ex${extra}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="10" height="10" rx="1"/><circle cx="15" cy="15" r="5"/><path d="M13 8h5v5"/></svg>`;
-  }
-  if (cls === 'txt') {
-    return `<svg class="file-icon txt${extra}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="15" x2="14" y2="15"/></svg>`;
-  }
-  // Default fallback icon
-  return `<svg class="file-icon${extra}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
-}
 
+// Files get the unified icon: SVG glyph for special types, colored letter
+// badge for code languages, generic file otherwise.
 function fileIcon(name) {
-  // Color the icon by file type so the tree is scannable at a glance.
-  const ext = (name.split('.').pop() || '').toLowerCase();
-  const cls = fileTypeClass(ext);
-  return getFileIconHtml(cls, 'tree-icon file');
-}
-function fileTypeClass(ext) {
-  if (['md', 'markdown', 'mdx'].includes(ext)) return 'md';
-  if (['txt', 'log'].includes(ext)) return 'txt';
-  if (['pdf'].includes(ext)) return 'pdf';
-  if (['excalidraw'].includes(ext)) return 'ex';
-  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico'].includes(ext)) return 'img';
-  if (['js', 'ts', 'json', 'html', 'css', 'py', 'go', 'rs', 'java', 'cpp', 'c', 'sh', 'bash', 'zsh', 'yaml', 'yml', 'toml'].includes(ext)) return 'code';
-  return '';
+  return getIconForPath(name, 'tree-icon file');
 }
 
 // ---------- interactions ----------

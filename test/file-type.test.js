@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { fileTypeClass, fileTypeFromPath, getFileIconHtml, relativeTime } from '../src/lib/file-type.js';
+import {
+  fileTypeClass,
+  fileTypeFromPath,
+  getFileIconHtml,
+  getCodeBadge,
+  getCodeBadgeForPath,
+  getCodeBadgeHtml,
+  getIconForPath,
+  relativeTime,
+} from '../src/lib/file-type.js';
 
 describe('fileTypeClass', () => {
   it('maps markdown extensions to md', () => {
@@ -87,6 +96,110 @@ describe('getFileIconHtml', () => {
     expect(unknown).toContain('<svg');
     expect(unknown).not.toContain('md');
     expect(unknown).not.toContain('pdf');
+  });
+});
+
+describe('getCodeBadge', () => {
+  it('returns a badge spec for known code extensions', () => {
+    expect(getCodeBadge('js')).toEqual({ label: 'JS', color: '#f7df1e' });
+    expect(getCodeBadge('py')).toEqual({ label: 'PY', color: '#3776ab' });
+    expect(getCodeBadge('rs')).toEqual({ label: 'RS', color: '#dea584' });
+    expect(getCodeBadge('go')).toEqual({ label: 'GO', color: '#00add8' });
+  });
+
+  it('is case-insensitive', () => {
+    expect(getCodeBadge('JS').label).toBe('JS');
+    expect(getCodeBadge('Py').label).toBe('PY');
+  });
+
+  it('returns null for unknown / non-code extensions', () => {
+    expect(getCodeBadge('md')).toBeNull();
+    expect(getCodeBadge('pdf')).toBeNull();
+    expect(getCodeBadge('xyz')).toBeNull();
+    expect(getCodeBadge('')).toBeNull();
+    expect(getCodeBadge(null)).toBeNull();
+  });
+});
+
+describe('getCodeBadgeForPath', () => {
+  it('extracts the extension and returns the badge', () => {
+    expect(getCodeBadgeForPath('/home/me/app/main.py').label).toBe('PY');
+    expect(getCodeBadgeForPath('C:\\dev\\src\\index.ts').label).toBe('TS');
+  });
+
+  it('special-cases well-known extension-less filenames', () => {
+    expect(getCodeBadgeForPath('Dockerfile').label).toBe('🐳');
+    expect(getCodeBadgeForPath('/srv/app/Dockerfile').label).toBe('🐳');
+    expect(getCodeBadgeForPath('Makefile').label).toBe('MK');
+    expect(getCodeBadgeForPath('Gemfile').label).toBe('GEM');
+    expect(getCodeBadgeForPath('CMakeLists.txt').label).toBe('CMK');
+  });
+
+  it('returns null for non-code paths', () => {
+    expect(getCodeBadgeForPath('readme.md')).toBeNull();
+    expect(getCodeBadgeForPath('photo.png')).toBeNull();
+    expect(getCodeBadgeForPath('README')).toBeNull();
+  });
+});
+
+describe('getCodeBadgeHtml', () => {
+  it('emits a span with the badge color as a CSS var', () => {
+    const html = getCodeBadgeHtml({ label: 'JS', color: '#f7df1e' });
+    expect(html).toContain('class="code-badge"');
+    expect(html).toContain('--badge-color: #f7df1e');
+    expect(html).toContain('>JS<');
+  });
+
+  it('appends an extra class when provided', () => {
+    const html = getCodeBadgeHtml({ label: 'PY', color: '#3776ab' }, 'tab-icon');
+    expect(html).toContain('tab-icon');
+  });
+
+  it('returns empty string for a null spec', () => {
+    expect(getCodeBadgeHtml(null)).toBe('');
+    expect(getCodeBadgeHtml(undefined)).toBe('');
+  });
+});
+
+describe('getIconForPath', () => {
+  it('renders an SVG glyph for special types (md)', () => {
+    const html = getIconForPath('notes.md', 'tab-icon');
+    expect(html).toContain('<svg');
+    expect(html).toContain('file-icon md');
+    expect(html).toContain('tab-icon');
+  });
+
+  it('renders a colored badge for code files (js, py, rs)', () => {
+    const js = getIconForPath('app.js');
+    expect(js).toContain('code-badge');
+    expect(js).toContain('>JS<');
+    expect(js).toContain('#f7df1e');
+
+    const py = getIconForPath('script.py');
+    expect(py).toContain('>PY<');
+
+    const rs = getIconForPath('src/main.rs');
+    expect(rs).toContain('>RS<');
+  });
+
+  it('renders a Dockerfile badge for the bare filename', () => {
+    const html = getIconForPath('Dockerfile');
+    expect(html).toContain('code-badge');
+    expect(html).toContain('🐳');
+  });
+
+  it('falls back to the generic file glyph for unknown extensions', () => {
+    const html = getIconForPath('weird.xyz');
+    expect(html).toContain('<svg');
+    expect(html).toContain('file-icon');
+    // Should not carry any type class.
+    expect(html).not.toContain('md');
+    expect(html).not.toContain('code-badge');
+  });
+
+  it('falls back to the generic glyph for empty paths', () => {
+    const html = getIconForPath('');
+    expect(html).toContain('<svg');
   });
 });
 

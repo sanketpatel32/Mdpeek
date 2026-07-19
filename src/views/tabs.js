@@ -2,7 +2,7 @@
 // Returns nothing; main.js attaches click/close handlers after render.
 
 import { escapeHtml } from '../lib/escape.js';
-import { fileTypeClass, getFileIconHtml } from '../lib/file-type.js';
+import { getIconForPath } from '../lib/file-type.js';
 
 function titleFor(doc) {
   if (doc.path) {
@@ -13,13 +13,11 @@ function titleFor(doc) {
 }
 
 // File-type badge for saved files; no badge for untitled tabs.
-// Icon SVGs + extension tables live in src/lib/file-type.js so the welcome
-// screen's recents list can share the exact same glyphs.
+// getIconForPath picks the right glyph (SVG for special types, colored
+// letter badge for code languages, generic file otherwise).
 function iconFor(doc) {
   if (!doc.path) return '';
-  const ext = (doc.path.split('.').pop() || '').toLowerCase();
-  const cls = fileTypeClass(ext);
-  return getFileIconHtml(cls, 'tab-icon');
+  return getIconForPath(doc.path, 'tab-icon');
 }
 
 export function renderTabs(store) {
