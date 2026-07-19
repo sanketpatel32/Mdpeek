@@ -11,6 +11,7 @@ import { showExcalidraw } from './views/excalidraw-viewer.js';
 import { initEditor } from './views/editor.js';
 import { initFindBar } from './views/find-bar.js';
 import { initCommandPalette, initQuickSwitcher } from './views/command-palette.js';
+import { initFileTree, setTreeRoot, setActivePath, refreshTree } from './views/file-tree.js';
 import { renderTabs } from './views/tabs.js';
 import { DocumentStore, isPdfPath, isExcalidrawPath, langFromPath } from './lib/documents.js';
 import { renderMarkdown, renderCode, prepareCodeLang } from './lib/renderer.js';
@@ -59,7 +60,7 @@ function renderWelcome() {
   <div class="welcome">
     <div class="welcome-card">
       <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.11.15</span></h1>
+      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.12.0</span></h1>
       <p class="welcome-tagline">A lightweight Markdown viewer. Open a file or start something new.</p>
 
       <div class="welcome-actions">
@@ -116,6 +117,10 @@ const el = {
   sidebar: document.getElementById('btn-sidebar'),
   export: document.getElementById('btn-export'),
   daily: document.getElementById('btn-daily'),
+  explorer: document.getElementById('btn-explorer'),
+  fileTree: document.getElementById('file-tree'),
+  fileTreeBody: document.getElementById('file-tree-body'),
+  fileTreeClose: document.getElementById('file-tree-close'),
   zoomIn: document.getElementById('btn-zoom-in'),
   zoomOut: document.getElementById('btn-zoom-out'),
   zoomIndicator: document.getElementById('zoom-indicator'),
@@ -489,6 +494,7 @@ const find = initFindBar({
 const palette = initCommandPalette(() => {
   const cmds = [
     { id: 'open', label: 'Open file', hint: 'Ctrl+O', keywords: 'open file load', run: openFileDialog },
+    { id: 'open-folder', label: 'Open folder in explorer', hint: 'Ctrl+Shift+E', keywords: 'open folder explorer tree workspace project', run: openFolderForExplorer },
     { id: 'quick-switch', label: 'Quick switcher (recent files)', hint: 'Ctrl+P', keywords: 'quick switch recent files open', run: () => quickSwitcher.open() },
     { id: 'new', label: 'New tab', hint: 'Ctrl+N', keywords: 'new tab untitled', run: newTab },
     { id: 'daily', label: 'Open daily note (today\'s .md)', keywords: 'daily note today date journal', run: openDailyNote },
@@ -570,6 +576,8 @@ async function openPath(path, content) {
   store.open({ path, content });
   // Record in the recents list (welcome screen) — only real files, not untitled.
   if (path) addRecent(path);
+  // Highlight the open file in the explorer sidebar (if visible + in tree).
+  if (path) setActivePath(path);
   // PDFs are read-only binary — no file-watcher (the text-based watcher would
   // choke on bytes, and live-reload isn't meaningful for a PDF).
   // Excalidraw files are JSON but the canvas manages its own state — skip watcher.
@@ -1039,6 +1047,49 @@ function toggleSidebar() {
   localStorage.setItem('mdpeek-sidebar', collapsed ? 'hidden' : 'visible');
 }
 
+// ---------- file explorer (left sidebar) ----------
+// Browse a chosen folder as a tree; click a file to open it. Persists the
+// chosen root + visibility so reopening the app restores the workspace.
+initFileTree(el.fileTreeBody, async (path) => {
+  try {
+    const content = await invoke('read_file', { path });
+    await openPath(path, content);
+  } catch (e) {
+    toast('Could not open: ' + basename(path));
+  }
+});
+
+async function openFolderForExplorer() {
+  try {
+    const dir = await invoke('pick_folder');
+    localStorage.setItem('mdpeek-explorer-root', dir);
+    setTreeRoot(dir);
+    if (el.fileTree.classList.contains('hidden')) toggleExplorer();
+    toast('Folder opened: ' + basename(dir));
+  } catch (e) {
+    if (e !== 'cancelled') toast('Could not open folder: ' + fmtErr(e));
+  }
+}
+
+function toggleExplorer() {
+  const isHidden = el.fileTree.classList.contains('hidden');
+  if (isHidden) {
+    // First-time open with no root → prompt for a folder.
+    const root = localStorage.getItem('mdpeek-explorer-root');
+    if (!root) {
+      openFolderForExplorer();
+      return;
+    }
+    setTreeRoot(root);
+  }
+  el.fileTree.classList.toggle('hidden');
+  const nowVisible = !el.fileTree.classList.contains('hidden');
+  el.explorer.classList.toggle('active', nowVisible);
+  localStorage.setItem('mdpeek-explorer-visible', nowVisible ? '1' : '0');
+  // Refresh on every show — files may have changed since the last view.
+  if (nowVisible) refreshTree();
+}
+
 // ---------- word count + reading time (editor status bar) ----------
 // Strips markdown syntax then counts words. CJK ideographs count as one word
 // each (the standard for mixed CJK/Latin text); Latin words split on
@@ -1272,6 +1323,8 @@ document.querySelector('.fmt-tools')?.addEventListener('click', (e) => {
 });
 el.mode.addEventListener('click', toggleMode);
 el.sidebar.addEventListener('click', toggleSidebar);
+el.explorer.addEventListener('click', toggleExplorer);
+el.fileTreeClose.addEventListener('click', toggleExplorer);
 el.zoomIn.addEventListener('click', zoomIn);
 el.zoomOut.addEventListener('click', zoomOut);
 // Clicking the % badge resets to 100% (same as Ctrl+0).
@@ -1874,6 +1927,13 @@ window.addEventListener('keydown', (e) => {
     copyAsRichText();
     return;
   }
+  // Ctrl+Shift+E → toggle the file explorer sidebar.
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'E' || e.key === 'e')) {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleExplorer();
+    return;
+  }
   if (e.key === 'F11') {
     e.preventDefault();
     toggleFocus();
@@ -2132,6 +2192,14 @@ if (localStorage.getItem('mdpeek-sidebar') === 'hidden') {
 // Restore focus mode (header + sidebar hidden). Off by default.
 if (localStorage.getItem('mdpeek-focus') === '1') {
   document.body.classList.add('focus-mode');
+}
+
+// Restore the file explorer (left sidebar). Visible by default if the user
+// last left it open AND a root folder was picked.
+if (localStorage.getItem('mdpeek-explorer-visible') === '1' && localStorage.getItem('mdpeek-explorer-root')) {
+  el.fileTree.classList.remove('hidden');
+  el.explorer.classList.add('active');
+  setTreeRoot(localStorage.getItem('mdpeek-explorer-root'));
 }
 
 // Restore zoom level + reading-comfort prefs (font size, line spacing).

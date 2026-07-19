@@ -133,6 +133,7 @@ pub fn run() {
             commands::read_file,
             commands::save_image,
             commands::pick_folder,
+            commands::list_dir,
             watcher::watch_path,
             get_initial_file,
             hide_to_tray,

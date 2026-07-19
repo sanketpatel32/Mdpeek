@@ -117,3 +117,47 @@ pub async fn pick_folder() -> Result<String, String> {
         .ok_or_else(|| "cancelled".to_string())?;
     Ok(folder.path().display().to_string())
 }
+
+/// One entry inside a listed directory — used by the file-tree sidebar.
+#[derive(Serialize)]
+pub struct DirEntry {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+}
+
+/// List the immediate children of `path`. Directories come first, then files,
+/// both alphabetical (case-insensitive). Hidden entries (dot-prefixed on Unix,
+/// or with the Windows hidden attribute) and a curated set of noisy folders
+/// (node_modules, .git, target, dist, build) are filtered out — the tree is
+/// meant for browsing notes/docs, not a full file manager.
+#[tauri::command]
+pub fn list_dir(path: String) -> Result<Vec<DirEntry>, String> {
+    let mut dirs: Vec<DirEntry> = Vec::new();
+    let mut files: Vec<DirEntry> = Vec::new();
+    let entries = fs::read_dir(&path).map_err(|e| e.to_string())?;
+    for entry in entries.flatten() {
+        let file_name = entry.file_name();
+        let name = file_name.to_string_lossy().to_string();
+        // Skip dotfiles (covers .git, .DS_Store, .vscode, etc.).
+        if name.starts_with('.') {
+            continue;
+        }
+        // Skip noisy build/dep folders that are never useful in a notes tree.
+        const SKIP_DIRS: &[&str] = &["node_modules", "target", "dist", "build", "__pycache__"];
+        let meta = entry.metadata().map_err(|e| e.to_string())?;
+        if meta.is_dir() {
+            if SKIP_DIRS.contains(&name.as_str()) {
+                continue;
+            }
+            dirs.push(DirEntry { name, path: entry.path().display().to_string(), is_dir: true });
+        } else {
+            files.push(DirEntry { name, path: entry.path().display().to_string(), is_dir: false });
+        }
+    }
+    let by_name = |a: &DirEntry, b: &DirEntry| a.name.to_lowercase().cmp(&b.name.to_lowercase());
+    dirs.sort_by(by_name);
+    files.sort_by(by_name);
+    dirs.append(&mut files);
+    Ok(dirs)
+}

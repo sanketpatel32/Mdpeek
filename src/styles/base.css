@@ -267,6 +267,129 @@ main {
   width: 100%;
   position: relative;
 }
+/* ---------- File explorer (left sidebar) ----------
+   Mirrors the TOC's visual language but on the left edge. Slightly wider so
+   file names don't truncate as aggressively. */
+.file-tree {
+  width: 260px;
+  min-width: 260px;
+  flex: 0 0 260px;
+  flex-direction: column;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--surface);
+  display: flex;
+  overflow: hidden;
+}
+.file-tree.hidden {
+  display: none;
+}
+.file-tree-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.file-tree-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-muted);
+}
+.file-tree-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background-color 120ms var(--ease), color 120ms var(--ease);
+}
+.file-tree-close:hover {
+  background: var(--surface-hover);
+  color: var(--fg);
+}
+.file-tree-body {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 6px 0 16px;
+  font-size: 12.5px;
+  user-select: none;
+}
+.tree-empty {
+  padding: 16px 14px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.tree-root-label {
+  padding: 4px 14px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  cursor: pointer;
+  color: var(--fg-secondary);
+  white-space: nowrap;
+  transition: background-color 80ms var(--ease), color 80ms var(--ease);
+}
+.tree-row:hover {
+  background: var(--surface-hover);
+  color: var(--fg);
+}
+.tree-row.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.tree-row.is-dir {
+  font-weight: 500;
+  color: var(--fg);
+}
+.tree-chevron {
+  flex-shrink: 0;
+  color: var(--fg-muted);
+  transition: transform 140ms var(--ease);
+}
+.tree-chevron.open {
+  transform: rotate(-90deg);
+}
+.tree-chevron-spacer {
+  display: inline-block;
+  width: 10px;
+  flex-shrink: 0;
+}
+.tree-icon {
+  flex-shrink: 0;
+  color: var(--fg-muted);
+}
+.tree-icon.md { color: var(--accent); }
+.tree-icon.pdf { color: #d04a4a; }
+.tree-icon.img { color: #2da44e; }
+.tree-icon.code { color: #6f42c1; }
+.tree-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tree-loading {
+  padding: 4px 14px;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
 .toc {
   width: 240px;
   min-width: 240px;
