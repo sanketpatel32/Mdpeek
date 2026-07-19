@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DocumentStore, createDocument, isPlainPath, isCodePath, langFromPath } from '../src/lib/documents.js';
+import { DocumentStore, createDocument, isPlainPath, isCodePath, isImagePath, langFromPath } from '../src/lib/documents.js';
 
 describe('createDocument', () => {
   it('creates a doc with defaults', () => {
@@ -44,6 +44,42 @@ describe('isPlainPath', () => {
     expect(isPlainPath('/a.md')).toBe(false);
     expect(isPlainPath(null)).toBe(false);
     expect(isPlainPath('')).toBe(false);
+  });
+});
+
+describe('isImagePath', () => {
+  it('true for common image extensions', () => {
+    expect(isImagePath('/photo.png')).toBe(true);
+    expect(isImagePath('/photo.jpg')).toBe(true);
+    expect(isImagePath('/photo.JPEG')).toBe(true); // case-insensitive
+    expect(isImagePath('C:\\pics\\cat.gif')).toBe(true);
+    expect(isImagePath('logo.svg')).toBe(true);
+    expect(isImagePath('a.webp')).toBe(true);
+    expect(isImagePath('a.bmp')).toBe(true);
+    expect(isImagePath('a.ico')).toBe(true);
+    expect(isImagePath('a.avif')).toBe(true);
+  });
+  it('false for non-image paths', () => {
+    expect(isImagePath('/readme.md')).toBe(false);
+    expect(isImagePath('/script.js')).toBe(false);
+    expect(isImagePath('/doc.pdf')).toBe(false);
+    expect(isImagePath(null)).toBe(false);
+    expect(isImagePath('')).toBe(false);
+  });
+});
+
+describe('createDocument — image flag', () => {
+  it('marks png as image, read-only view mode, empty content', () => {
+    const d = createDocument({ path: '/pic.png' });
+    expect(d.image).toBe(true);
+    expect(d.pdf).toBe(false);
+    expect(d.code).toBe(false);
+    expect(d.mode).toBe('view');
+    expect(d.content).toBe('');
+  });
+  it('does not classify a .png as code', () => {
+    const d = createDocument({ path: '/pic.png' });
+    expect(d.code).toBe(false);
   });
 });
 

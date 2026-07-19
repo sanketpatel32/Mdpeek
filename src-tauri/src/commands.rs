@@ -20,6 +20,7 @@ pub async fn open_file() -> Result<OpenResult, String> {
             "graphql", "proto", "lua", "r", "dart", "csv", "tsv", "diff", "patch",
         ])
         .add_filter("PDF", &["pdf"])
+        .add_filter("Images", &["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif"])
         .add_filter("Excalidraw", &["excalidraw"])
         .add_filter("All files", &["*"])
         .pick_file()
@@ -28,9 +29,14 @@ pub async fn open_file() -> Result<OpenResult, String> {
 
     let path = file.path().to_path_buf();
     let path_str = path.display().to_string();
-    // PDFs are binary — return empty content; the frontend loads them via the
-    // asset protocol instead of through `content`.
-    let content = if path_str.to_lowercase().ends_with(".pdf") {
+    // PDFs and images are binary — return empty content; the frontend loads
+    // them via the asset protocol instead of through `content`.
+    let lower = path_str.to_lowercase();
+    let is_binary = lower.ends_with(".pdf")
+        || lower.ends_with(".png") || lower.ends_with(".jpg") || lower.ends_with(".jpeg")
+        || lower.ends_with(".gif") || lower.ends_with(".webp") || lower.ends_with(".svg")
+        || lower.ends_with(".bmp") || lower.ends_with(".ico") || lower.ends_with(".avif");
+    let content = if is_binary {
         String::new()
     } else {
         fs::read_to_string(&path).map_err(|e| e.to_string())?
@@ -81,9 +87,13 @@ pub async fn save_file_as_html(content: String) -> Result<String, String> {
 
 #[tauri::command]
 pub fn read_file(path: String) -> Result<String, String> {
-    // PDFs are binary — return empty; the frontend never calls this for PDFs
-    // (session restore skips the re-read for PDF paths), but guard anyway.
-    if path.to_lowercase().ends_with(".pdf") {
+    // PDFs and images are binary — return empty; the frontend never calls
+    // this for them (session restore skips the re-read), but guard anyway.
+    const BINARY_EXTS: &[&str] = &[
+        ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico", ".avif",
+    ];
+    let lower = path.to_lowercase();
+    if BINARY_EXTS.iter().any(|ext| lower.ends_with(ext)) {
         return Ok(String::new());
     }
     fs::read_to_string(&path).map_err(|e| e.to_string())

@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -13,7 +13,7 @@ import { initFindBar } from './views/find-bar.js';
 import { initCommandPalette, initQuickSwitcher } from './views/command-palette.js';
 import { initFileTree, setTreeRoot, setActivePath, refreshTree } from './views/file-tree.js';
 import { renderTabs } from './views/tabs.js';
-import { DocumentStore, isPdfPath, isExcalidrawPath, langFromPath } from './lib/documents.js';
+import { DocumentStore, isPdfPath, isImagePath, isExcalidrawPath, langFromPath } from './lib/documents.js';
 import { renderMarkdown, renderCode, prepareCodeLang } from './lib/renderer.js';
 import { saveSession, loadSession, loadRecents, addRecent, removeRecent } from './lib/persistence.js';
 import { NavHistory } from './lib/nav-history.js';
@@ -61,7 +61,7 @@ function renderWelcome() {
   <div class="welcome">
     <div class="welcome-card">
       <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.15.0</span></h1>
+      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.15.1</span></h1>
       <p class="welcome-tagline">A lightweight Markdown viewer. Open a file or start something new.</p>
 
       <div class="welcome-actions">
@@ -322,7 +322,7 @@ async function renderActive() {
     el.export.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = ''; // clear stale TOC from the previous document
-    el.document.classList.remove('code-viewer');
+    el.document.classList.remove('code-viewer', 'image-viewer');
     el.document.classList.add('has-welcome', 'markdown-body');
     el.document.innerHTML = renderWelcome();
     setReadingProgressVisible(false);
@@ -337,7 +337,7 @@ async function renderActive() {
     el.export.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'code-viewer', 'markdown-body');
+    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'markdown-body');
     setReadingProgressVisible(false);
     // showPdf is async and lazy-loads pdf.js. Store the controller so we can
     // tear it down on tab switch.
@@ -353,6 +353,36 @@ async function renderActive() {
     return;
   }
 
+  // Image: read-only viewer. Loaded via the asset protocol (same as PDFs).
+  // Centered on a neutral backdrop so transparent PNGs read clearly; click to
+  // toggle actual-size vs. fit-to-window.
+  if (doc.image) {
+    el.editMode.classList.add('hidden');
+    el.mode.classList.add('hidden');
+    el.draw.classList.add('hidden');
+    el.export.classList.add('hidden');
+    el.viewMode.classList.remove('hidden');
+    el.toc.innerHTML = '';
+    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'markdown-body');
+    el.document.classList.add('image-viewer');
+    setReadingProgressVisible(false);
+    const src = convertFileSrc(doc.path);
+    const name = basename(doc.path);
+    el.document.innerHTML =
+      `<div class="image-viewer-wrap" data-state="fit">
+         <img class="image-viewer-img" src="${escapeHtml(src)}" alt="${escapeHtml(name)}" draggable="false" />
+         <div class="image-viewer-meta">${escapeHtml(name)}</div>
+       </div>`;
+    // Click toggles between fit-to-window and actual-size (1:1).
+    const wrap = el.document.querySelector('.image-viewer-wrap');
+    wrap.addEventListener('click', () => {
+      const isFit = wrap.dataset.state === 'fit';
+      wrap.dataset.state = isFit ? 'actual' : 'fit';
+    });
+    if (doc.scrollY) el.document.scrollTop = doc.scrollY;
+    return;
+  }
+
   // Excalidraw: full canvas editor, no edit toggle, no TOC.
   if (doc.excalidraw) {
     el.editMode.classList.add('hidden');
@@ -361,7 +391,7 @@ async function renderActive() {
     el.export.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'code-viewer', 'markdown-body');
+    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'markdown-body');
     setReadingProgressVisible(false);
     // showExcalidraw is async and lazy-loads React + Excalidraw. The onSave
     // callback writes the scene JSON back to doc.content (debounced) so the
@@ -419,7 +449,7 @@ async function renderActive() {
   el.draw.classList.add('hidden');
   // Export to HTML only makes sense for real markdown docs (not plain text).
   el.export.classList.toggle('hidden', !!doc.plain);
-  el.document.classList.remove('code-viewer');
+  el.document.classList.remove('code-viewer', 'image-viewer');
   el.document.classList.add('markdown-body');
 
   el.mode.title = doc.mode === 'edit'
@@ -2173,17 +2203,19 @@ syncMaxIcon();
 // Per-file open shared by both drop paths. Takes an absolute path + the file's
 // basename; reads the file via invoke('read_file') so text/code/PDF/Excalidraw
 // are all routed through the same openPath logic the Open dialog uses.
-const DROP_BINARY_RE = /\.(png|jpe?g|gif|webp|ico|bmp|tiff?|avif|heic|mp[34]|webm|mov|avi|m4[av]|ogg|wav|flac|zip|7z|rar|tar|gz|bz2|xz|exe|msi|dll|so|dylib|o|obj|a|lib|class|jar|war|pyc|wasm|ttf|otf|woff2?|eot|cab|iso|vhd|vhdx)$/i;
+const DROP_BINARY_RE = /\.(mp[34]|webm|mov|avi|m4[av]|ogg|wav|flac|zip|7z|rar|tar|gz|bz2|xz|exe|msi|dll|so|dylib|o|obj|a|lib|class|jar|war|pyc|wasm|ttf|otf|woff2?|eot|cab|iso|vhd|vhdx)$/i;
 async function openDroppedPath(path) {
   const name = path.split(/[\\/]/).pop() || path;
   try {
-    if (DROP_BINARY_RE.test(name) && !isPdfPath(name)) {
-      toast('Not a text file: ' + name);
+    // Images + PDFs are binary but natively supported — skip the binary
+    // rejection and load with empty content (the viewers use the asset
+    // protocol to read bytes directly).
+    const isSupportedBinary = isPdfPath(name) || isImagePath(name);
+    if (DROP_BINARY_RE.test(name) && !isSupportedBinary) {
+      toast('Not a supported file: ' + name);
       return;
     }
-    // PDFs are binary — pass empty content; the PDF viewer loads via asset
-    // protocol using the path. Everything else is read as text.
-    const content = isPdfPath(name) ? '' : await invoke('read_file', { path });
+    const content = isSupportedBinary ? '' : await invoke('read_file', { path });
     await openPath(path, content);
   } catch (err) {
     toast('Could not open: ' + name);
@@ -2231,11 +2263,12 @@ window.addEventListener('drop', async (e) => {
   el.dropzone.classList.add('hidden');
   for (const file of Array.from(files)) {
     try {
-      if (DROP_BINARY_RE.test(file.name) && !isPdfPath(file.name)) {
-        toast('Not a text file: ' + file.name);
+      const isSupportedBinary = isPdfPath(file.name) || isImagePath(file.name);
+      if (DROP_BINARY_RE.test(file.name) && !isSupportedBinary) {
+        toast('Not a supported file: ' + file.name);
         continue;
       }
-      if (isPdfPath(file.name)) {
+      if (isSupportedBinary) {
         await openPath(file.path || file.name, '');
         continue;
       }
@@ -2346,8 +2379,8 @@ applyLineNumbers();
       const restored = await Promise.all(
         candidates.map(async (s) => {
           if (!s.path) return s; // untitled — content was persisted directly
-          // PDFs restore from path alone — no content re-read (binary file).
-          if (isPdfPath(s.path)) return { ...s, content: '' };
+          // PDFs and images restore from path alone — no content re-read (binary).
+          if (isPdfPath(s.path) || isImagePath(s.path)) return { ...s, content: '' };
           try {
             const content = await invoke('read_file', { path: s.path });
             return { ...s, content };

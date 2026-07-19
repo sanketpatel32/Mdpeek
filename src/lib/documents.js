@@ -23,6 +23,13 @@ export function isExcalidrawPath(path) {
   return !!path && /\.excalidraw$/i.test(path);
 }
 
+// A doc is an "image" when it's a raster/vector we can render via <img>:
+// png, jpg/jpeg, gif, webp, svg, bmp, ico, avif. Loaded read-only via the
+// asset protocol (same path PDFs use).
+export function isImagePath(path) {
+  return !!path && /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i.test(path);
+}
+
 // A doc is a "code" file when its extension is a known text/code/config type
 // that isn't already handled (markdown / plain text / PDF / Excalidraw). Code
 // docs render read-only with highlight.js syntax coloring. The list is broad
@@ -92,15 +99,17 @@ export function createDocument({ path = null, content = '', mode = 'view', plain
   // derived from the path as before.
   const isPlain = plain !== undefined ? plain : isPlainPath(path);
   const isPdf = isPdfPath(path);
+  const isImage = isImagePath(path);
   const isExcalidraw = excalidraw !== undefined ? excalidraw : isExcalidrawPath(path);
-  const isCode = code !== undefined ? code : (!isPlain && !isPdf && !isExcalidraw && isCodePath(path));
+  const isCode = code !== undefined ? code : (!isPlain && !isPdf && !isImage && !isExcalidraw && isCodePath(path));
   return {
     id: newId(),
     path, // string | null (null = Untitled, not yet saved)
-    content: isPdf ? '' : content, // PDF bytes never ride this field
-    mode: isPlain ? 'edit' : ((isPdf || isExcalidraw || isCode) ? 'view' : mode),
+    content: (isPdf || isImage) ? '' : content, // PDF + image bytes never ride this field
+    mode: isPlain ? 'edit' : ((isPdf || isImage || isExcalidraw || isCode) ? 'view' : mode),
     plain: isPlain, // true = no markdown preview, full-width editor
     pdf: isPdf, // true = rendered via pdf.js, read-only
+    image: isImage, // true = rendered via <img>, read-only
     excalidraw: isExcalidraw, // true = Excalidraw canvas tab
     code: isCode, // true = rendered read-only with syntax highlighting
     dirty: false,
@@ -199,6 +208,7 @@ export class DocumentStore {
           // For saved files, these are also re-derivable from the path.
           plain: d.plain || false,
           pdf: d.pdf || false,
+          image: d.image || false,
           excalidraw: d.excalidraw || false,
           code: d.code || false,
         })),
@@ -216,16 +226,18 @@ export class DocumentStore {
         // for older sessions that didn't serialize these flags.
         const plain = d.plain !== undefined ? !!d.plain : isPlainPath(path);
         const pdf = d.pdf !== undefined ? !!d.pdf : isPdfPath(path);
+        const image = d.image !== undefined ? !!d.image : isImagePath(path);
         const excalidraw = d.excalidraw !== undefined ? !!d.excalidraw : isExcalidrawPath(path);
-        const code = d.code !== undefined ? !!d.code : (!plain && !pdf && !excalidraw && isCodePath(path));
+        const code = d.code !== undefined ? !!d.code : (!plain && !pdf && !image && !excalidraw && isCodePath(path));
         return {
           id: typeof d.id === 'string' ? d.id : newId(),
           path,
-          content: pdf ? '' : d.content,
-          // plain docs are always in edit mode; PDFs/Excalidraw/code are always view; markdown honors the snapshot.
-          mode: plain ? 'edit' : ((pdf || excalidraw || code) ? 'view' : d.mode === 'edit' ? 'edit' : 'view'),
+          content: (pdf || image) ? '' : d.content,
+          // plain docs are always in edit mode; PDFs/images/Excalidraw/code are always view; markdown honors the snapshot.
+          mode: plain ? 'edit' : ((pdf || image || excalidraw || code) ? 'view' : d.mode === 'edit' ? 'edit' : 'view'),
           plain,
           pdf,
+          image,
           excalidraw,
           code,
           dirty: false, // never restore as dirty — content was just re-read
