@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.5] - 2026-07-19
+
+### Fixed
+- **Root-cause fix for welcome screen height:** Properly established the full flex-chain from `body → .workspace-container → main#view-mode → article#document`. Changed `.view-mode` to `display: flex; flex-direction: row` (so TOC and document sit side-by-side) and gave `#document (.markdown-body)` `flex: 1; overflow-y: auto` so it claims all remaining space and scrolls independently. The `has-welcome` article now expands to fill the entire viewport height through native flexbox, without needing `height: 100%` hacks.
+
 ## [0.16.4] - 2026-07-19
 
 ### Fixed
