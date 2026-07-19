@@ -28,7 +28,9 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
   // when the doc is viewed in view mode.
   async function refresh() {
     preview.innerHTML = renderMarkdown(textarea.value);
-    await enhanceDom(preview, { mermaid: false });
+    // Skip mermaid (expensive, re-renders on every keystroke) and folding
+    // (the live preview is too transient for clickable triangles to be useful).
+    await enhanceDom(preview, { mermaid: false, folding: false });
   }
   function schedule() {
     clearTimeout(timer);

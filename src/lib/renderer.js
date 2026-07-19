@@ -305,10 +305,14 @@ export async function prepareCodeLang(lang) {
 // Options:
 //   { mermaid: false } — skip mermaid rendering (expensive; used for the
 //   edit-mode live preview where diagrams would re-layout on every keystroke).
-export async function enhanceDom(container, { mermaid: renderMermaid = true } = {}) {
+export async function enhanceDom(container, {
+  mermaid: renderMermaid = true,
+  folding: renderFolding = true,
+} = {}) {
   if (typeof window === 'undefined') return;
   enhanceCodeBlocks(container);
   enhanceAnchors(container);
+  if (renderFolding) enhanceFolding(container);
   // Kick off dynamic language registration for any fenced langs we don't yet
   // have. Non-blocking — this render stays as-is; the next render picks them up.
   registerVisibleLanguages(container);
@@ -431,6 +435,78 @@ function flashAnchor(a) {
     a.classList.remove('copied');
     delete a.dataset.copied;
   }, ANCHOR_FLASH_MS);
+}
+
+// --------------------------- outline folding -------------------------------
+// Prepends a clickable ▶ triangle to each heading that has following content
+// at a deeper level. Clicking toggles a `collapsed` class on the heading and
+// hides every following sibling until a heading of equal-or-lower level.
+// H1 headings are not foldable (top-level — collapsing the whole doc isn't
+// useful). Persistence is left to the caller via the .folded-headings map on
+// the container; collapsed state is restored on re-render by checking the
+// map. One delegated listener per container.
+const FOLD_TRIANGLE_SVG =
+  '<svg class="fold-triangle" viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 4 10 8 6 12"/></svg>';
+
+function headingLevel(h) {
+  return parseInt(h.tagName.slice(1), 10);
+}
+
+// Returns every following sibling of `heading` until (and excluding) the next
+// heading at level <= the heading's level. Used both to figure out if folding
+// is applicable and to know what to hide on collapse.
+function sectionSiblings(heading) {
+  const level = headingLevel(heading);
+  const out = [];
+  let cur = heading.nextElementSibling;
+  while (cur) {
+    if (/^H[1-6]$/.test(cur.tagName) && headingLevel(cur) <= level) break;
+    out.push(cur);
+    cur = cur.nextElementSibling;
+  }
+  return out;
+}
+
+function enhanceFolding(container) {
+  if (typeof window === 'undefined') return;
+  const headings = container.querySelectorAll('h2, h3, h4, h5, h6');
+  headings.forEach((h) => {
+    // Skip if already enhanced, or if the heading has no foldable content.
+    if (h.querySelector('.fold-toggle')) return;
+    const section = sectionSiblings(h);
+    if (section.length === 0) return; // nothing to fold
+    const btn = document.createElement('button');
+    btn.className = 'fold-toggle';
+    btn.type = 'button';
+    btn.setAttribute('aria-label', 'Fold section');
+    btn.title = 'Click to fold/unfold';
+    btn.innerHTML = FOLD_TRIANGLE_SVG;
+    h.prepend(btn);
+    // Restore collapsed state from the per-container cache (if any).
+    const cache = container.__foldedHeadings;
+    if (cache && cache.has(h.id)) {
+      h.classList.add('collapsed');
+      section.forEach((el) => el.classList.add('folded-away'));
+    }
+  });
+
+  if (!container.__foldHandler) {
+    const handler = (e) => {
+      const btn = e.target.closest('.fold-toggle');
+      if (!btn || !container.contains(btn)) return;
+      const heading = btn.parentElement;
+      e.preventDefault();
+      const collapsed = heading.classList.toggle('collapsed');
+      const section = sectionSiblings(heading);
+      section.forEach((el) => el.classList.toggle('folded-away', collapsed));
+      // Track in the per-container cache so re-renders preserve the state.
+      if (!container.__foldedHeadings) container.__foldedHeadings = new Set();
+      if (collapsed) container.__foldedHeadings.add(heading.id);
+      else container.__foldedHeadings.delete(heading.id);
+    };
+    container.addEventListener('click', handler);
+    container.__foldHandler = handler;
+  }
 }
 
 // Monotonic counter for mermaid render IDs — Math.random() can collide across

@@ -322,3 +322,69 @@ describe('enhanceDom — heading anchors', () => {
     expect(ev.defaultPrevented).toBe(true);
   });
 });
+
+describe('enhanceDom — outline folding', () => {
+  it('adds a fold-toggle button to each heading that has following content', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = '<h2 id="a">Section A</h2><p>body</p><h2 id="b">Section B</h2><p>more</p>';
+    await enhanceDom(div);
+    const toggles = div.querySelectorAll('.fold-toggle');
+    expect(toggles.length).toBe(2);
+  });
+
+  it('does not add a toggle when a heading has no following content', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = '<h2 id="lonely">Lonely</h2>';
+    await enhanceDom(div);
+    expect(div.querySelectorAll('.fold-toggle').length).toBe(0);
+  });
+
+  it('stops folding at the next heading of equal-or-higher level', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML =
+      '<h2 id="parent">Parent</h2>' +
+      '<p>parent body</p>' +
+      '<h3 id="child">Child</h3>' +
+      '<p>child body</p>' +
+      '<h2 id="sibling">Sibling</h2>' +
+      '<p>sibling body</p>';
+    await enhanceDom(div);
+    // Click the parent's toggle → its collapse should hide everything until
+    // the next h2 (sibling): parent body, child h3, child body. The sibling
+    // h2 and its body stay visible.
+    const parentBtn = div.querySelector('#parent .fold-toggle');
+    parentBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(div.querySelector('#parent').classList.contains('collapsed')).toBe(true);
+    expect(div.querySelector('#sibling').classList.contains('folded-away')).toBe(false);
+    // The next <p> after sibling is the sibling's body — should be visible.
+    const allP = div.querySelectorAll('p');
+    const siblingBody = allP[allP.length - 1];
+    expect(siblingBody.classList.contains('folded-away')).toBe(false);
+    // The child section IS part of the parent's section and should be folded.
+    expect(div.querySelector('#child').classList.contains('folded-away')).toBe(true);
+  });
+
+  it('toggles back to expanded on a second click', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = '<h2 id="a">A</h2><p>body</p>';
+    await enhanceDom(div);
+    const btn = div.querySelector('#a .fold-toggle');
+    btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(div.querySelector('#a').classList.contains('collapsed')).toBe(true);
+    btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(div.querySelector('#a').classList.contains('collapsed')).toBe(false);
+    expect(div.querySelectorAll('p.folded-away').length).toBe(0);
+  });
+
+  it('respects the folding: false option (used by the editor preview)', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = '<h2 id="a">A</h2><p>body</p>';
+    await enhanceDom(div, { folding: false });
+    expect(div.querySelectorAll('.fold-toggle').length).toBe(0);
+  });
+});

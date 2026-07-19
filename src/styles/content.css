@@ -248,6 +248,44 @@
   opacity: 1;
   color: #2da44e;
 }
+
+/* Outline folding — a ▶ triangle prepended to every heading (h2-h6) that has
+   following content. Clicking toggles .collapsed on the heading + hides the
+   section's siblings via .folded-away. Triangle rotates 90deg when expanded. */
+.markdown-body .fold-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  vertical-align: middle;
+  transition: transform 140ms var(--ease, ease), color 120ms ease;
+  transform: rotate(90deg); /* expanded by default */
+}
+.markdown-body .fold-toggle .fold-triangle {
+  width: 10px;
+  height: 10px;
+}
+.markdown-body .fold-toggle:hover {
+  color: var(--accent);
+}
+/* Collapsed state — triangle points right. */
+.markdown-body h2.collapsed .fold-toggle,
+.markdown-body h3.collapsed .fold-toggle,
+.markdown-body h4.collapsed .fold-toggle,
+.markdown-body h5.collapsed .fold-toggle,
+.markdown-body h6.collapsed .fold-toggle {
+  transform: rotate(0deg);
+}
+.markdown-body .folded-away {
+  display: none !important;
+}
 .markdown-body code {
   font-family: "SFMono-Regular", "Cascadia Code", Consolas, "Liberation Mono",
     monospace;
