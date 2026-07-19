@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.3] - 2026-07-19
+
+### Added
+- **Active outline section highlighting:** The Table of Contents sidebar now dynamically highlights the section header corresponding to the content currently scrolled into view.
+- **Active tab accent line:** Active tabs now have a subtle accent bottom border indicating the selected document clearly.
+- **Floating rounded scrollbars:** Scrollbar thumbs now use transparent borders and `background-clip: padding-box` to float beautifully without contrasting borders on sidebar and document views.
+- **Welcome screen visual polish:** Welcome cards now utilize elevated backgrounds with a softer shadow, and primary/secondary buttons have premium hover shadow and translateY lift animations.
+- **Active command palette line:** Active items in the command palette / quick switcher now have a distinct left border accent.
+
+## [0.15.2] - 2026-07-19
+
+### Added
+- **Code line numbers:** Added a line-number gutter to the code viewer.
+- **Clearer daily notes path configuration:** Added an explanatory dialog before the folder picker and displayed the path with a 'Choose...' button in settings.
+- **Settings resize fix:** Fixed settings layout container height to prevent dialog resizing.
+
 ## [0.8.7] - 2026-07-16
 
 ### Fixed

@@ -61,7 +61,7 @@ function renderWelcome() {
   <div class="welcome">
     <div class="welcome-card">
       <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.15.2</span></h1>
+      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.15.3</span></h1>
       <p class="welcome-tagline">A lightweight Markdown viewer. Open a file or start something new.</p>
 
       <div class="welcome-actions">
@@ -489,6 +489,7 @@ async function renderActive() {
     // so we don't write TOC/scroll into the now-active doc.
     if (gen !== _renderGen) return;
     buildToc(el.document);
+    updateActiveTocLink();
     // Restore the document scroll captured when we last switched away.
     if (doc.scrollY) el.document.scrollTop = doc.scrollY;
     setReadingProgressVisible(true);
@@ -1154,6 +1155,9 @@ function toggleSidebar() {
   const collapsed = el.toc.classList.toggle('collapsed');
   el.sidebar.classList.toggle('active', !collapsed);
   localStorage.setItem('mdpeek-sidebar', collapsed ? 'hidden' : 'visible');
+  if (!collapsed) {
+    updateActiveTocLink();
+  }
 }
 
 // ---------- file explorer (left sidebar) ----------
@@ -1256,10 +1260,46 @@ function updateReadingProgress() {
   const pct = maxScroll > 0 ? (el.document.scrollTop / maxScroll) * 100 : 0;
   el.readingProgress.firstElementChild.style.width = `${Math.min(100, Math.max(0, pct))}%`;
 }
+function updateActiveTocLink() {
+  if (!el.toc || el.toc.classList.contains('collapsed')) return;
+  const headings = el.document.querySelectorAll('h1, h2, h3');
+  if (headings.length === 0) return;
+
+  const docRect = el.document.getBoundingClientRect();
+  let activeHeading = null;
+
+  for (const h of headings) {
+    const rect = h.getBoundingClientRect();
+    const top = rect.top - docRect.top;
+    if (top <= 100) {
+      activeHeading = h;
+    } else {
+      break;
+    }
+  }
+
+  if (!activeHeading && headings.length > 0) {
+    activeHeading = headings[0];
+  }
+
+  const links = el.toc.querySelectorAll('a');
+  links.forEach((a) => a.classList.remove('active'));
+
+  if (activeHeading && activeHeading.id) {
+    const activeLink = el.toc.querySelector(`a[href="#${activeHeading.id}"]`);
+    if (activeLink) {
+      activeLink.classList.add('active');
+      activeLink.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }
+}
 function setReadingProgressVisible(visible) {
   if (!el.readingProgress) return;
   el.readingProgress.classList.toggle('active', visible);
-  if (visible) updateReadingProgress();
+  if (visible) {
+    updateReadingProgress();
+    updateActiveTocLink();
+  }
 }
 
 // ---------- zoom (scales document + preview font-size) ----------
@@ -1911,6 +1951,7 @@ el.document.addEventListener('scroll', () => {
   _progressRaf = requestAnimationFrame(() => {
     _progressRaf = 0;
     updateReadingProgress();
+    updateActiveTocLink();
   });
 }, { passive: true });
 
@@ -2347,6 +2388,7 @@ listen('file-changed', (event) => {
         // don't write TOC/find state into a now-different active doc.
         if (store.active()?.id !== id) return;
         buildToc(el.document);
+        updateActiveTocLink();
         // The re-render wiped any <mark> highlights; re-apply if the find bar
         // is open so the user doesn't see their search disappear.
         if (find) find.refresh();

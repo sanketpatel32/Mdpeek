@@ -431,10 +431,20 @@ main {
   color: var(--fg-secondary);
   text-decoration: none;
   line-height: 1.4;
+  border-left: 2px solid transparent;
+  transition: background-color 150ms var(--ease), color 150ms var(--ease), border-color 150ms var(--ease);
 }
 .toc li a:hover {
   background: var(--surface-hover);
   color: var(--fg);
+}
+.toc li a.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 500;
+  border-left-color: var(--accent);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 .toc-h2 {
   padding-left: 14px;
@@ -618,10 +628,13 @@ main {
   cursor: pointer;
   color: var(--fg);
   font-size: 13.5px;
+  border-left: 3px solid transparent;
+  transition: background-color 120ms var(--ease), color 120ms var(--ease), border-color 120ms var(--ease);
 }
 .palette-item.active {
   background: var(--accent-soft);
   color: var(--fg);
+  border-left-color: var(--accent);
 }
 .palette-item mark {
   background: transparent;
@@ -927,7 +940,8 @@ mark.find-current {
 *::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 5px;
-  border: 2px solid var(--bg);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 *::-webkit-scrollbar-thumb:hover {
   background: var(--fg-muted);
@@ -955,7 +969,7 @@ mark.find-current {
   width: 100%;
   max-width: 540px;
   padding: 40px 36px 32px;
-  background: var(--surface);
+  background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
@@ -1027,7 +1041,8 @@ mark.find-current {
 .welcome-action:hover {
   background: var(--surface-hover);
   border-color: var(--border);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
 }
 .welcome-action:active {
   transform: translateY(0);
@@ -1036,10 +1051,12 @@ mark.find-current {
   background: var(--accent);
   border-color: var(--accent);
   color: #ffffff;
+  box-shadow: 0 4px 12px var(--accent-soft);
 }
 .welcome-action.primary:hover {
   background: var(--accent);
   filter: brightness(1.08);
+  box-shadow: 0 6px 16px var(--accent-soft);
 }
 .welcome-action svg {
   flex-shrink: 0;
@@ -1249,6 +1266,17 @@ mark.find-current {
   border-color: var(--border-subtle);
   font-weight: 500;
   box-shadow: var(--shadow-sm);
+  position: relative;
+}
+.tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 12px;
+  right: 12px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 99px;
 }
 .tab.active:hover {
   transform: none;
