@@ -61,7 +61,7 @@ function renderWelcome() {
   <div class="welcome">
     <div class="welcome-card">
       <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.16.0</span></h1>
+      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.16.2</span></h1>
       <p class="welcome-tagline">A lightweight Markdown viewer. Open a file or start something new.</p>
 
       <div class="welcome-actions">
@@ -311,6 +311,7 @@ async function renderActive() {
 
   const doc = store.active();
   renderTabs(store);
+  syncSidebarVisibility();
 
   // No doc, or an empty untouched Untitled tab in VIEW mode → show the welcome
   // screen. If the user explicitly switched to edit mode, show the editor even
@@ -1157,8 +1158,27 @@ function updateNavButtons() {
   });
 }
 
-// ---------- sidebar (TOC) toggle ----------
+// ---------- sidebar (TOC) toggle & visibility ----------
+function syncSidebarVisibility() {
+  const doc = store.active();
+  const hasToc = doc && !doc.pdf && !doc.excalidraw && !doc.code && !doc.plain && doc.mode === 'view';
+  
+  if (!hasToc) {
+    el.toc.classList.add('collapsed');
+    el.sidebar.classList.add('hidden');
+  } else {
+    el.sidebar.classList.remove('hidden');
+    const pref = localStorage.getItem('mdpeek-sidebar') !== 'hidden';
+    el.toc.classList.toggle('collapsed', !pref);
+    el.sidebar.classList.toggle('active', pref);
+  }
+}
+
 function toggleSidebar() {
+  const doc = store.active();
+  const hasToc = doc && !doc.pdf && !doc.excalidraw && !doc.code && !doc.plain && doc.mode === 'view';
+  if (!hasToc) return;
+
   const collapsed = el.toc.classList.toggle('collapsed');
   el.sidebar.classList.toggle('active', !collapsed);
   localStorage.setItem('mdpeek-sidebar', collapsed ? 'hidden' : 'visible');
@@ -1584,6 +1604,21 @@ function syncSettingsControls() {
     notesPath.textContent = dir || 'Not set';
     notesPath.classList.toggle('unset', !dir);
   }
+
+  // Windows Explorer context menu setting check (hide on non-Windows)
+  const isWindows = navigator.userAgent.includes('Windows') || navigator.platform.indexOf('Win') > -1;
+  const ctxRow = document.getElementById('setting-row-context-menu');
+  if (ctxRow) {
+    if (!isWindows) {
+      ctxRow.classList.add('hidden');
+    } else {
+      ctxRow.classList.remove('hidden');
+      invoke('is_context_menu_registered').then((registered) => {
+        const ctxCb = document.getElementById('settings-context-menu');
+        if (ctxCb) ctxCb.checked = registered;
+      }).catch((e) => console.error(e));
+    }
+  }
 }
 
 function setSegActive(setting, value) {
@@ -1703,6 +1738,27 @@ document.getElementById('settings-autosave').addEventListener('change', (e) => {
   localStorage.setItem('mdpeek-autosave', e.target.checked ? '1' : '0');
   if (!e.target.checked) clearTimeout(_autoSaveTimer);
 });
+
+// Explorer context menu — toggle Windows right-click options dynamically.
+const ctxMenuEl = document.getElementById('settings-context-menu');
+if (ctxMenuEl) {
+  ctxMenuEl.addEventListener('change', async (e) => {
+    const checked = e.target.checked;
+    try {
+      if (checked) {
+        await invoke('register_context_menu');
+        toast('Registered in Explorer context menu');
+      } else {
+        await invoke('unregister_context_menu');
+        toast('Removed from Explorer context menu');
+      }
+    } catch (err) {
+      toast('Context menu operation failed: ' + fmtErr(err));
+      // Revert checkbox state
+      e.target.checked = !checked;
+    }
+  });
+}
 
 // ---------- PDF drawing toolbar ----------
 // The toolbar floats over the document when a PDF tab is active. Tools toggle

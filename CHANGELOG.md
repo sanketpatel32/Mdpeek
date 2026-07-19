@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.2] - 2026-07-19
+
+### Fixed
+- **Fixed file type icons collapsing:** Added explicit CSS dimensions (`width`/`height` and `min-width`/`min-height`) to the `.file-icon` class in `base.css` to prevent browser flex layout engines from collapsing SVGs in tabs and directory tree views to 0px.
+- **Fixed Welcome Screen off-center layout:** Gated the Table of Contents (`#toc`) sidebar visibility in `renderActive()` to collapse the sidebar when showing non-markdown documents (PDF, Excalidraw, Code files) and the Welcome Screen. This ensures that the Welcome card centers vertically and horizontally in the window without shifting.
+
+## [0.16.1] - 2026-07-19
+
+### Added
+- **Explorer context menu settings toggle:** Added a toggle switch in the General Settings panel to register/unregister the "Open with mdpeek" context menu options in Windows Explorer (writing to current user registry HKCU, avoiding admin UAC requests).
+
 ## [0.16.0] - 2026-07-19
 
 ### Added

@@ -171,3 +171,104 @@ pub fn list_dir(path: String) -> Result<Vec<DirEntry>, String> {
     dirs.append(&mut files);
     Ok(dirs)
 }
+
+#[tauri::command]
+pub fn register_context_menu() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let exe_path = std::env::current_exe()
+            .map_err(|e| format!("Failed to get executable path: {}", e))?;
+        let exe_str = exe_path.to_string_lossy().into_owned();
+
+        // 1. File association (*\shell\mdpeek)
+        let file_key = r"HKCU\Software\Classes\*\shell\mdpeek";
+        let file_cmd_key = r"HKCU\Software\Classes\*\shell\mdpeek\command";
+        
+        run_reg_add(file_key, "", "Open with mdpeek")?;
+        run_reg_add(file_key, "Icon", &exe_str)?;
+        run_reg_add(file_cmd_key, "", &format!("\"{}\" \"%1\"", exe_str))?;
+
+        // 2. Directory association (Directory\shell\mdpeek)
+        let dir_key = r"HKCU\Software\Classes\Directory\shell\mdpeek";
+        let dir_cmd_key = r"HKCU\Software\Classes\Directory\shell\mdpeek\command";
+        
+        run_reg_add(dir_key, "", "Open folder in mdpeek")?;
+        run_reg_add(dir_key, "Icon", &exe_str)?;
+        run_reg_add(dir_cmd_key, "", &format!("\"{}\" \"%1\"", exe_str))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn unregister_context_menu() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let file_key = r"HKCU\Software\Classes\*\shell\mdpeek";
+        let dir_key = r"HKCU\Software\Classes\Directory\shell\mdpeek";
+        
+        run_reg_delete(file_key)?;
+        run_reg_delete(dir_key)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn is_context_menu_registered() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        let output = std::process::Command::new("reg")
+            .args(&["query", r"HKCU\Software\Classes\*\shell\mdpeek"])
+            .output();
+        
+        match output {
+            Ok(out) => out.status.success(),
+            Err(_) => false,
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        false
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn run_reg_add(key: &str, value_name: &str, value_data: &str) -> Result<(), String> {
+    let mut args = vec!["add", key];
+    if !value_name.is_empty() {
+        args.push("/v");
+        args.push(value_name);
+    } else {
+        args.push("/ve");
+    }
+    args.push("/d");
+    args.push(value_data);
+    args.push("/f");
+
+    let output = std::process::Command::new("reg")
+        .args(&args)
+        .output()
+        .map_err(|e| format!("Failed to run reg: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("reg add failed: {}", stderr));
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn run_reg_delete(key: &str) -> Result<(), String> {
+    let output = std::process::Command::new("reg")
+        .args(&["delete", key, "/f"])
+        .output()
+        .map_err(|e| format!("Failed to run reg: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // If key doesn't exist, it's fine, don't return error
+        if !stderr.contains("The system was unable to find the specified registry key or value") {
+            return Err(format!("reg delete failed: {}", stderr));
+        }
+    }
+    Ok(())
+}
