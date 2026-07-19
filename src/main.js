@@ -61,7 +61,7 @@ function renderWelcome() {
   <div class="welcome">
     <div class="welcome-card">
       <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.16.3</span></h1>
+      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.16.4</span></h1>
       <p class="welcome-tagline">A lightweight Markdown viewer. Open a file or start something new.</p>
 
       <div class="welcome-actions">
@@ -2576,9 +2576,7 @@ applyLineNumbers();
     // screen instead of an empty Untitled tab. The welcome hero offers Open /
     // drag-drop / shortcuts — it's a better starting point than a blank page.
     if (store.docs.length === 0) {
-      renderTabs(store); // empty tab strip (just the + button)
-      el.document.classList.add('has-welcome');
-      el.document.innerHTML = renderWelcome();
+      await renderActive();
     } else {
       await renderActive();
       if (store.active()) await rewatch(store.active().path);
@@ -2590,9 +2588,7 @@ applyLineNumbers();
     console.error('Startup error — falling back to welcome screen:', e);
     store.docs.length = 0;
     store.activeId = null;
-    renderTabs(store);
-    el.document.classList.add('has-welcome');
-    el.document.innerHTML = renderWelcome();
+    await renderActive();
   }
 })();
 

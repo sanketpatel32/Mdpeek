@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.4] - 2026-07-19
+
+### Fixed
+- **Fixed startup welcome screen rendering:** Unified the welcome page startup path by routing empty launch states and error fallbacks through `renderActive()`. This ensures that class assignments, styling bounds, and Table of Contents (TOC) sidebar auto-collapsing are fully loaded and applied at initial startup, preventing sidebar shift on cold start.
+- **Glassmorphism Welcome Card & Centering Scroll:** Added frosted-glass backdrop blurring (`backdrop-filter`) to the welcome card overlay. Changed alignment to `margin: auto` to prevent vertical overflow cutoff bugs on smaller screens, ensuring it scrolls gracefully without clipping.
+
 ## [0.16.3] - 2026-07-19
 
 ### Added
