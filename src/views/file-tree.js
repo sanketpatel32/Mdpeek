@@ -102,7 +102,7 @@ function fileIcon(name) {
   // Color the icon by file type so the tree is scannable at a glance.
   const ext = (name.split('.').pop() || '').toLowerCase();
   const cls = fileTypeClass(ext);
-  return `<svg class="tree-icon file ${cls}" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+  return `<svg class="tree-icon file-icon file ${cls}" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
 }
 function fileTypeClass(ext) {
   if (['md', 'markdown', 'mdx'].includes(ext)) return 'md';
@@ -110,7 +110,7 @@ function fileTypeClass(ext) {
   if (['pdf'].includes(ext)) return 'pdf';
   if (['excalidraw'].includes(ext)) return 'ex';
   if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico'].includes(ext)) return 'img';
-  if (['js', 'ts', 'json', 'html', 'css', 'py', 'go', 'rs', 'java', 'cpp', 'c'].includes(ext)) return 'code';
+  if (['js', 'ts', 'json', 'html', 'css', 'py', 'go', 'rs', 'java', 'cpp', 'c', 'sh', 'bash', 'zsh', 'yaml', 'yml', 'toml'].includes(ext)) return 'code';
   return '';
 }
 

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.8] - 2026-07-19
+
+### Added
+- **Unified File Icons:** Replaced text badges in tabs with modern, lightweight SVG document icons that match the file explorer sidebar.
+- **Harmonious File Type Color Palette:** Extended CSS file-icon color mappings to tabs and directory explorer for markdown (violet), pdf (red), image (green), code (purple), excalidraw (orange), and plain text (warm sand), creating a cohesive and scannable visual language.
+
 ## [0.15.7] - 2026-07-19
 
 ### Added

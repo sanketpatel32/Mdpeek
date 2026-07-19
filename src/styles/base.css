@@ -399,10 +399,17 @@ main {
   flex-shrink: 0;
   color: var(--fg-muted);
 }
-.tree-icon.md { color: var(--accent); }
-.tree-icon.pdf { color: #d04a4a; }
-.tree-icon.img { color: #2da44e; }
-.tree-icon.code { color: #6f42c1; }
+/* Unified File Icons styling */
+.file-icon {
+  flex-shrink: 0;
+  color: var(--fg-muted);
+}
+.file-icon.md { color: var(--accent); }
+.file-icon.pdf { color: #d04a4a; }
+.file-icon.img { color: #2da44e; }
+.file-icon.code { color: #6f42c1; }
+.file-icon.ex { color: #e07a5f; }
+.file-icon.txt { color: #f4a261; }
 .tree-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1307,19 +1314,7 @@ mark.find-current {
   max-width: 130px;
 }
 .tab-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-  min-width: 20px;
-  height: 14px;
-  padding: 0 4px;
-  border-radius: 3px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  flex-shrink: 0;
+  margin-right: 6px;
 }
 .tab-dot {
   color: var(--accent);
