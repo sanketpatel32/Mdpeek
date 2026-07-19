@@ -805,101 +805,198 @@ mark.find-current {
 }
 
 /* ---------- Welcome / empty state ---------- */
+/* ---------- Welcome / home screen ----------
+   Centered card on a soft surface — feels like an app launcher rather than a
+   blank page. Quick-action buttons are the primary CTA; shortcuts are a
+   secondary reference; recent files close the loop for returning users. */
 .welcome {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 100%;
-  padding: 40px;
+  padding: 40px 24px;
   text-align: center;
   color: var(--fg-secondary);
+  overflow: auto;
 }
-.welcome > * {
+.welcome-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 540px;
+  padding: 40px 36px 32px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   animation: welcome-fade-up 500ms cubic-bezier(0.25, 1, 0.5, 1) both;
 }
 .welcome-logo {
-  width: 84px;
-  height: 84px;
-  border-radius: 20px;
-  margin-bottom: 24px;
-  box-shadow: var(--shadow-lg);
-  animation-delay: 0ms;
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  margin-bottom: 18px;
+  box-shadow: var(--shadow-md);
 }
-.welcome h1 {
-  font-size: 26px;
+.welcome-title {
+  font-size: 24px;
   font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--fg);
-  margin: 0 0 8px;
-  animation-delay: 80ms;
+  margin: 0 0 6px;
 }
-.welcome p {
-  animation-delay: 160ms;
-}
-.welcome-hints {
-  animation-delay: 240ms;
+.welcome-tagline {
+  font-size: 13.5px;
+  margin: 0 0 24px;
+  max-width: 360px;
+  line-height: 1.55;
+  color: var(--fg-muted);
 }
 @keyframes welcome-fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .version-badge {
   display: inline-block;
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 10.5px;
+  font-weight: 600;
   color: var(--accent);
   background: var(--accent-soft);
   padding: 2px 8px;
   border-radius: 999px;
   vertical-align: middle;
-  margin-left: 4px;
+  margin-left: 6px;
+  letter-spacing: 0.02em;
 }
-.welcome p {
-  font-size: 14px;
-  margin: 0 0 24px;
-  max-width: 380px;
-  line-height: 1.6;
-}
-.welcome kbd {
-  display: inline-block;
-  padding: 2px 7px;
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-bottom-width: 2px;
-  border-radius: var(--radius-sm);
-  color: var(--fg);
-}
-.welcome-hints {
+
+/* Primary action buttons — Open is filled, others are outlined. */
+.welcome-actions {
   display: flex;
-  gap: 16px;
+  gap: 8px;
+  margin-bottom: 20px;
   flex-wrap: wrap;
   justify-content: center;
+  width: 100%;
 }
-.welcome-hint {
+.welcome-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 120ms var(--ease), border-color 120ms var(--ease),
+    transform 120ms var(--ease);
+}
+.welcome-action:hover {
+  background: var(--surface-hover);
+  border-color: var(--border);
+  transform: translateY(-1px);
+}
+.welcome-action:active {
+  transform: translateY(0);
+}
+.welcome-action.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+.welcome-action.primary:hover {
+  background: var(--accent);
+  filter: brightness(1.08);
+}
+.welcome-action svg {
+  flex-shrink: 0;
+}
+.welcome-action kbd {
+  margin-left: 4px;
+  padding: 1px 6px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10.5px;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: var(--radius-sm);
+  color: inherit;
+  opacity: 0.75;
+}
+.welcome-action.primary kbd {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Divider between actions and shortcuts. */
+.welcome-divider {
+  width: 100%;
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 4px 0 18px;
+}
+
+/* Shortcut reference — three-column grid, grouped by category. */
+.welcome-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  width: 100%;
+  margin-bottom: 4px;
+}
+.shortcut-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.shortcut-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-muted);
+  margin-bottom: 2px;
+}
+.shortcut-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
-  color: var(--fg-muted);
+  font-size: 11.5px;
+  color: var(--fg-secondary);
+}
+.welcome kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10.5px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-bottom-width: 1.5px;
+  border-radius: var(--radius-sm);
+  color: var(--fg);
 }
 
 /* Recent-files list on the welcome screen. */
 .recent-files {
-  margin-top: 36px;
+  margin-top: 22px;
   width: 100%;
   max-width: 460px;
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+/* On narrow windows, stack the shortcut columns vertically. */
+@media (max-width: 540px) {
+  .welcome-shortcuts {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .welcome-card {
+    padding: 28px 20px 24px;
+  }
 }
 .recent-title {
   font-size: 11px;

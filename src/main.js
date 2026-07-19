@@ -57,19 +57,50 @@ function renderWelcome() {
     </section>`;
   return `
   <div class="welcome">
-    <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.11.14</span></h1>
-    <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
-    <div class="welcome-hints">
-      <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
-      <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>N</kbd> New tab</span>
-      <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>S</kbd> Save</span>
-      <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>E</kbd> Toggle edit</span>
-      <span class="welcome-hint"><kbd>F11</kbd> Focus mode</span>
-      <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> Command palette</span>
-      <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>P</kbd> Quick switcher</span>
+    <div class="welcome-card">
+      <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
+      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.11.15</span></h1>
+      <p class="welcome-tagline">A lightweight Markdown viewer. Open a file or start something new.</p>
+
+      <div class="welcome-actions">
+        <button class="welcome-action primary" data-action="open" type="button">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span>Open file</span>
+          <kbd>Ctrl+O</kbd>
+        </button>
+        <button class="welcome-action" data-action="new" type="button">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+          <span>New note</span>
+          <kbd>Ctrl+N</kbd>
+        </button>
+        <button class="welcome-action" data-action="daily" type="button">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span>Today's note</span>
+        </button>
+      </div>
+
+      <div class="welcome-divider" role="separator"></div>
+
+      <div class="welcome-shortcuts" aria-label="Keyboard shortcuts">
+        <div class="shortcut-group">
+          <span class="shortcut-label">View</span>
+          <span class="shortcut-row"><kbd>Ctrl+E</kbd> edit / view</span>
+          <span class="shortcut-row"><kbd>F11</kbd> focus mode</span>
+        </div>
+        <div class="shortcut-group">
+          <span class="shortcut-label">Search</span>
+          <span class="shortcut-row"><kbd>Ctrl+P</kbd> quick switcher</span>
+          <span class="shortcut-row"><kbd>Ctrl+Shift+P</kbd> command palette</span>
+        </div>
+        <div class="shortcut-group">
+          <span class="shortcut-label">Write</span>
+          <span class="shortcut-row"><kbd>Ctrl+S</kbd> save</span>
+          <span class="shortcut-row"><kbd>Ctrl+Shift+T</kbd> typewriter</span>
+        </div>
+      </div>
+
+      ${recentsHtml}
     </div>
-    ${recentsHtml}
   </div>
 `;
 }
@@ -586,9 +617,13 @@ async function closeTab(id) {
   if (doc.editor) doc.editor.destroy();
   if (_lastRenderedId === id) _lastRenderedId = null;
   store.close(id);
-  // Always keep at least one tab open.
+  // Closing the last tab opens a fresh home-screen tab so the window never
+  // ends up empty. newTab() emits 'change' which re-runs renderActive; the
+  // explicit fallback render covers any edge case where the emit didn't reach
+  // the listener (e.g. a stale _lastRenderedId short-circuit).
   if (store.docs.length === 0) {
     newTab();
+    if (!store.active()) renderActive();
   } else if (store.active()) {
     await rewatch(store.active().path);
   }
@@ -627,6 +662,7 @@ async function closeDocs(ids) {
   }
   if (store.docs.length === 0) {
     newTab();
+    if (!store.active()) renderActive();
   } else if (store.active()) {
     await rewatch(store.active().path);
   }
@@ -1515,6 +1551,17 @@ document.addEventListener('click', (e) => {
     e.preventDefault();
     openUrl(href).catch((err) => toast('Could not open link: ' + fmtErr(err)));
   }
+});
+
+// Welcome-screen action buttons (Open / New / Daily) — delegated so they work
+// regardless of when the welcome HTML is (re)rendered.
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.welcome-action');
+  if (!btn) return;
+  const action = btn.dataset.action;
+  if (action === 'open') openFileDialog();
+  else if (action === 'new') newTab();
+  else if (action === 'daily') openDailyNote();
 });
 
 // Recent-file clicks on the welcome screen — delegated so it works regardless
