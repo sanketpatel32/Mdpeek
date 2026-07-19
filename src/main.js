@@ -15,9 +15,10 @@ import { initFileTree, setTreeRoot, setActivePath, refreshTree } from './views/f
 import { renderTabs } from './views/tabs.js';
 import { DocumentStore, isPdfPath, isImagePath, isExcalidrawPath, langFromPath } from './lib/documents.js';
 import { renderMarkdown, renderCode, prepareCodeLang } from './lib/renderer.js';
-import { saveSession, loadSession, loadRecents, addRecent, removeRecent } from './lib/persistence.js';
+import { saveSession, loadSession, loadRecents, addRecent, removeRecent, saveRecents } from './lib/persistence.js';
 import { NavHistory } from './lib/nav-history.js';
 import { escapeHtml } from './lib/escape.js';
+import { fileTypeFromPath, getFileIconHtml, relativeTime } from './lib/file-type.js';
 
 // ---------- themes ----------
 // Curated set: each entry maps the app theme id to its highlight.js theme id.
@@ -43,17 +44,25 @@ function renderWelcome() {
   const recents = loadRecents();
   const recentsHtml = recents.length === 0 ? '' : `
     <section class="recent-files" aria-label="Recent files">
-      <div class="recent-title">Recent</div>
+      <div class="recent-header">
+        <span class="recent-title">Recent</span>
+        <button class="recent-clear" data-action="clear-recents" type="button" title="Clear recent list">Clear</button>
+      </div>
       ${recents.map((r) => {
         // Shrink the middle of long paths so the filename stays visible.
         const path = r.path || '';
         const showPath = path.length > 64 ? path.slice(0, 28) + '…' + path.slice(-32) : path;
+        // Per-file-type glyph so recents match tab icons (md/pdf/img/code/ex/txt).
+        const iconCls = fileTypeFromPath(path);
+        const iconHtml = getFileIconHtml(iconCls, 'recent-icon');
+        const when = relativeTime(r.openedAt);
         return `<button class="recent-item" data-path="${escapeHtml(r.path)}" type="button" title="${escapeHtml(path)}">
-          <svg class="recent-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          ${iconHtml}
           <span class="recent-text">
             <span class="recent-name">${escapeHtml(r.name)}</span>
             <span class="recent-path">${escapeHtml(showPath)}</span>
           </span>
+          ${when ? `<span class="recent-when">${escapeHtml(when)}</span>` : ''}
         </button>`;
       }).join('')}
     </section>`;
@@ -61,7 +70,7 @@ function renderWelcome() {
   <div class="welcome">
     <div class="welcome-card">
       <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.16.5</span></h1>
+      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.16.6</span></h1>
       <p class="welcome-tagline">A lightweight Markdown viewer. Open a file or start something new.</p>
 
       <div class="welcome-actions">
@@ -102,6 +111,11 @@ function renderWelcome() {
       </div>
 
       ${recentsHtml}
+
+      <div class="welcome-drop-hint" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span>Drop a file anywhere to open it</span>
+      </div>
     </div>
   </div>
 `;
@@ -1891,15 +1905,21 @@ async function openInternalLink(href) {
   }
 }
 
-// Welcome-screen action buttons (Open / New / Daily) — delegated so they work
-// regardless of when the welcome HTML is (re)rendered.
+// Welcome-screen action buttons (Open / New / Daily / Clear recents) —
+// delegated so they work regardless of when the welcome HTML is (re)rendered.
 document.addEventListener('click', async (e) => {
-  const btn = e.target.closest('.welcome-action');
+  const btn = e.target.closest('.welcome-action, .recent-clear');
   if (!btn) return;
   const action = btn.dataset.action;
   if (action === 'open') openFileDialog();
   else if (action === 'new') newTab();
   else if (action === 'daily') openDailyNote();
+  else if (action === 'clear-recents') {
+    saveRecents([]);
+    // Re-render the welcome screen if it's currently visible.
+    const welcomeEl = el.document.querySelector('.welcome');
+    if (welcomeEl) el.document.innerHTML = renderWelcome();
+  }
 });
 
 // Recent-file clicks on the welcome screen — delegated so it works regardless
@@ -1918,6 +1938,16 @@ document.addEventListener('click', async (e) => {
   } catch (err) {
     removeRecent(path);
     toast('File not found: ' + basename(path));
+  }
+});
+
+// Refresh the welcome screen when the window regains focus, so relative
+// timestamps on the recents list ("5m ago") stay accurate without the user
+// having to switch away and back. Cheap no-op when the welcome screen isn't
+// currently shown.
+window.addEventListener('focus', () => {
+  if (el.document.querySelector('.welcome')) {
+    el.document.innerHTML = renderWelcome();
   }
 });
 

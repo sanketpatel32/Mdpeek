@@ -1185,14 +1185,34 @@ mark.find-current {
     padding: 28px 20px 24px;
   }
 }
+.recent-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  padding: 0 2px;
+}
 .recent-title {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--fg-muted);
-  margin-bottom: 6px;
-  padding-left: 2px;
+}
+.recent-clear {
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 10.5px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  transition: color 120ms var(--ease), background-color 120ms var(--ease);
+}
+.recent-clear:hover {
+  color: var(--danger);
+  background: var(--surface-hover);
 }
 .recent-item {
   display: flex;
@@ -1214,6 +1234,11 @@ mark.find-current {
 }
 .recent-icon {
   flex-shrink: 0;
+  /* .file-icon sets 14px; bump recents up slightly for the roomier list. */
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
   color: var(--fg-muted);
 }
 .recent-text {
@@ -1237,6 +1262,33 @@ mark.find-current {
   overflow: hidden;
   text-overflow: ellipsis;
   margin-top: 1px;
+}
+.recent-when {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+  padding-left: 8px;
+  white-space: nowrap;
+}
+
+/* Subtle drag-and-drop affordance at the bottom of the welcome card. */
+.welcome-drop-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 18px;
+  padding: 7px 12px;
+  font-size: 11px;
+  color: var(--fg-muted);
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  opacity: 0.85;
+}
+.welcome-drop-hint svg {
+  flex-shrink: 0;
+  opacity: 0.7;
 }
 
 .mermaid-error {
