@@ -134,6 +134,46 @@ describe('renderMarkdown — link hardening', () => {
   });
 });
 
+describe('renderMarkdown — wiki-links', () => {
+  it('converts [[Target]] into a markdown link to Target.md', () => {
+    const html = renderMarkdown('See [[README]].');
+    expect(html).toMatch(/<a[^>]*href="README\.md"/);
+    expect(html).toContain('>README</a>');
+  });
+
+  it('supports [[Target|Display]] with custom display text', () => {
+    const html = renderMarkdown('[[notes/jan|January note]]');
+    expect(html).toMatch(/href="notes\/jan\.md"/);
+    expect(html).toContain('>January note</a>');
+  });
+
+  it('preserves the original extension when one is given', () => {
+    const html = renderMarkdown('[[doc.pdf]]');
+    expect(html).toMatch(/href="doc\.pdf"/);
+  });
+
+  it('does not transform [[ ]] inside fenced code blocks', () => {
+    const html = renderMarkdown('```\n[[not a link]]\n```');
+    expect(html).not.toMatch(/href="not a link\.md"/);
+  });
+
+  it('does not transform [[ ]] inside inline code', () => {
+    const html = renderMarkdown('Use `[[array]]` syntax.');
+    expect(html).not.toMatch(/href="array\.md"/);
+  });
+
+  it('returns input unchanged when no [[ appears', () => {
+    const html = renderMarkdown('plain text with [a normal] link');
+    expect(html).toContain('plain text');
+    expect(html).not.toMatch(/href="[^"]*\.md"/);
+  });
+
+  it('URL-encodes paths containing spaces', () => {
+    const html = renderMarkdown('[[my notes]]');
+    expect(html).toMatch(/href="my%20notes\.md"/);
+  });
+});
+
 describe('renderMarkdown — render cache', () => {
   it('returns identical output for the same input (cached)', () => {
     const a = renderMarkdown('## Same\n\ntext');

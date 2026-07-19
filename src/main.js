@@ -60,7 +60,7 @@ function renderWelcome() {
   <div class="welcome">
     <div class="welcome-card">
       <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.12.0</span></h1>
+      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.13.0</span></h1>
       <p class="welcome-tagline">A lightweight Markdown viewer. Open a file or start something new.</p>
 
       <div class="welcome-actions">
@@ -1591,6 +1591,9 @@ if (tabNewBtn) tabNewBtn.addEventListener('click', () => newTab());
 // Link clicks inside rendered markdown: external URLs open in the system
 // browser via the opener plugin (the default would navigate the WebView2
 // itself, leaving the app). In-document #anchor links still scroll normally.
+// Internal markdown links (relative .md paths or wiki-links) open as new tabs
+// — resolved relative to the active doc's folder. Ctrl+click forces external
+// handling for any link.
 // Delegated on document so it covers both #document (view mode) and #preview
 // (edit mode) without a per-render listener.
 document.addEventListener('click', (e) => {
@@ -1603,8 +1606,56 @@ document.addEventListener('click', (e) => {
   if (/^(https?:|mailto:|tel:|sms:)/i.test(href)) {
     e.preventDefault();
     openUrl(href).catch((err) => toast('Could not open link: ' + fmtErr(err)));
+    return;
+  }
+  // Ctrl+click on any link forces external handling (open in browser).
+  if (e.ctrlKey || e.metaKey) {
+    if (/^(https?:|mailto:|tel:|sms:|file:)/i.test(href)) {
+      e.preventDefault();
+      openUrl(href).catch((err) => toast('Could not open link: ' + fmtErr(err)));
+    }
+    return;
+  }
+  // Internal link: resolve relative to the active doc's folder, then open.
+  // Strip angle-bracket wrapping that markdown uses for paths with spaces.
+  const cleanHref = href.replace(/^<(.+)>$/, '$1');
+  if (isInternalDocLink(cleanHref)) {
+    e.preventDefault();
+    openInternalLink(cleanHref);
   }
 });
+
+// A link is "internal" if it isn't an external scheme and ends with a known
+// document extension (or has no extension at all, which we treat as a note).
+function isInternalDocLink(href) {
+  if (!href) return false;
+  if (/^(https?:|mailto:|tel:|sms:|file:|data:|javascript:)/i.test(href)) return false;
+  return /\.(md|markdown|mdx|txt|pdf|excalidraw)$/i.test(href) || !href.includes('.');
+}
+
+// Resolve `href` relative to the active doc's folder and open it as a tab.
+// Strips leading `./` and decodes URL-escaped chars (marked encodes spaces
+// to %20). Falls back to the wiki-link's filename in the docs folder if the
+// active doc has no path yet (untitled tab).
+async function openInternalLink(href) {
+  const doc = store.active();
+  const baseDir = doc && doc.path ? doc.path.replace(/[\\/][^\\/]+$/, '') : null;
+  // Decode %20 etc., strip leading ./, normalise separators for Windows.
+  let normalized;
+  try {
+    normalized = decodeURIComponent(href.replace(/^\.\//, ''));
+  } catch {
+    normalized = href.replace(/^\.\//, '');
+  }
+  normalized = normalized.replace(/\//g, '\\');
+  const fullPath = baseDir ? `${baseDir}\\${normalized}` : normalized;
+  try {
+    const content = await invoke('read_file', { path: fullPath });
+    await openPath(fullPath, content);
+  } catch (err) {
+    toast('Linked file not found: ' + href);
+  }
+}
 
 // Welcome-screen action buttons (Open / New / Daily) — delegated so they work
 // regardless of when the welcome HTML is (re)rendered.

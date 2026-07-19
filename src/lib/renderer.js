@@ -20,6 +20,45 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;');
 }
 
+// ----------------------------- wiki-links ---------------------------------
+// Convert Obsidian-style [[Target]] and [[Target|Display]] into standard
+// markdown links before marked sees them. Target gets a .md extension if it
+// has none. Skips fenced code blocks (``` ... ```) and inline code (`...`)
+// so code containing [[ stays literal.
+//
+// Examples:
+//   [[README]]              → [README](README.md)
+//   [[notes/jan|January]]   → [January](notes/jan.md)
+//   [[2026-07-19]]          → [2026-07-19](2026-07-19.md)
+function preprocessWikiLinks(md) {
+  if (!md || !md.includes('[[')) return md;
+  // Split out fenced blocks so we don't touch their contents.
+  const fenceRe = /```[\s\S]*?```|`[^`\n]*`/g;
+  const out = [];
+  let last = 0;
+  let m;
+  // Walk the string, transforming wiki-links only in the non-code spans.
+  while ((m = fenceRe.exec(md)) !== null) {
+    out.push(transformWikiLinks(md.slice(last, m.index)));
+    out.push(m[0]); // preserve code verbatim
+    last = m.index + m[0].length;
+  }
+  out.push(transformWikiLinks(md.slice(last)));
+  return out.join('');
+}
+function transformWikiLinks(s) {
+  // [[target]] or [[target|display]]. Target may contain slashes for paths.
+  return s.replace(/\[\[([^[\]]+?)\]\]/g, (whole, body) => {
+    const [rawTarget, ...rest] = body.split('|');
+    const target = rawTarget.trim();
+    if (!target) return whole;
+    const display = (rest.length ? rest.join('|') : target).trim();
+    const href = /\.(md|markdown|mdx|txt|pdf)$/i.test(target) ? target : `${target}.md`;
+    // Angle-bracket wrap so paths with spaces don't break the markdown link.
+    return `[${display}](${href.includes(' ') ? `<${href}>` : href})`;
+  });
+}
+
 // ----------------------------- heading IDs --------------------------------
 // GitHub-compatible slug: lowercase, spaces→hyphens, strip everything that
 // isn't alphanumeric or hyphen. Empty result → null (caller falls back).
@@ -217,7 +256,12 @@ export function renderMarkdown(md) {
 
   // Reset slug dedupe so each render is self-contained.
   _slugCounts = new Map();
-  const raw = marked.parse(input, { async: false });
+  // Preprocess Obsidian-style wiki-links: [[Target]] → [Target](Target.md)
+  // and [[Target|Display]] → [Display](Target.md). Done before marked so the
+  // result is a standard markdown link rendered like any other. Code blocks
+  // and inline code are skipped to avoid mangling code that contains [[ ]].
+  const processed = preprocessWikiLinks(input);
+  const raw = marked.parse(processed, { async: false });
   const html = DOMPurify.sanitize(raw);
   cacheSet(input, html);
   return html;

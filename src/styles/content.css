@@ -108,6 +108,24 @@
 .markdown-body a:hover {
   text-decoration: underline;
 }
+/* Internal document links (relative .md paths, wiki-links) get a dashed
+   underline so users know they open inside the app, not in a browser. */
+.markdown-body a[href$=".md"],
+.markdown-body a[href$=".markdown"],
+.markdown-body a[href$=".mdx"],
+.markdown-body a[href$=".txt"] {
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  text-decoration-color: var(--border);
+  text-underline-offset: 2px;
+}
+.markdown-body a[href$=".md"]:hover,
+.markdown-body a[href$=".markdown"]:hover,
+.markdown-body a[href$=".mdx"]:hover,
+.markdown-body a[href$=".txt"]:hover {
+  text-decoration-style: solid;
+  text-decoration-color: var(--accent);
+}
 .markdown-body strong {
   font-weight: 600;
 }
