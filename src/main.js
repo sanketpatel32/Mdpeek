@@ -61,7 +61,7 @@ function renderWelcome() {
   <div class="welcome">
     <div class="welcome-card">
       <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.15.5</span></h1>
+      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.15.6</span></h1>
       <p class="welcome-tagline">A lightweight Markdown viewer. Open a file or start something new.</p>
 
       <div class="welcome-actions">
@@ -2423,6 +2423,10 @@ listen('open-file', (event) => {
     openPath(path, content).catch((e) => toast('Open failed: ' + fmtErr(e)));
   }
 }).catch((e) => console.error('open-file listener failed:', e));
+
+window.addEventListener('hljs-language-registered', () => {
+  renderActive().catch(() => {});
+});
 
 // ---------- init ----------
 const savedTheme = localStorage.getItem('mdpeek-theme');

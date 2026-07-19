@@ -202,12 +202,12 @@ export async function showPdf(container, filePath) {
     activeStroke = null;
   }
 
-  // Erase: remove any stroke whose bbox contains the point.
+  // Erase: remove any stroke that is clicked.
   function eraseStroke(num, p) {
     const strokes = strokesByPage.get(num) || [];
     const before = strokes.length;
     for (let i = strokes.length - 1; i >= 0; i--) {
-      if (pointInStrokeBbox(p, strokes[i])) {
+      if (pointInStroke(p, strokes[i])) {
         strokes.splice(i, 1);
         break; // one stroke per eraser tap
       }
@@ -217,6 +217,19 @@ export async function showPdf(container, filePath) {
       const canvas = wrapper?.querySelector('.pdf-draw');
       if (canvas) renderStrokesOnCanvas(canvas, num);
     }
+  }
+
+  function pointInStroke(p, stroke) {
+    if (!pointInStrokeBbox(p, stroke)) return false;
+
+    const threshold = stroke.tool === 'highlighter' ? 0.025 : 0.015;
+    for (const pt of stroke.points) {
+      const dx = p.x - pt.x;
+      const dy = p.y - pt.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < threshold) return true;
+    }
+    return false;
   }
 
   function pointInStrokeBbox(p, stroke) {
@@ -248,7 +261,7 @@ export async function showPdf(container, filePath) {
     ctx.save();
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    ctx.lineWidth = stroke.width * (window.devicePixelRatio || 1);
+    ctx.lineWidth = stroke.width * (window.devicePixelRatio || 1) * (scale / 1.5);
     ctx.strokeStyle = stroke.color;
     if (stroke.tool === 'highlighter') {
       // Semi-transparent highlighter — alpha only, no multiply (multiply muddies

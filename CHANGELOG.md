@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.6] - 2026-07-19
+
+### Fixed
+- **Lazy syntax highlighting update:** Dispatched a custom `hljs-language-registered` event when extra languages are dynamically loaded, prompting the active document to immediately re-render with syntax highlighting without requiring a tab switch or edit event.
+- **PDF annotation zoom scaling:** Scaled drawing strokes (pen, highlighter) in the PDF viewer canvas by the current zoom level (`scale / 1.5`), maintaining stroke weight proportion relative to PDF content.
+- **Accurate PDF drawing eraser:** Improved the eraser hit logic in `pdf-viewer.js` to perform a precise distance check to the stroke's coordinates, preventing accidental deletion of large/diagonal lines from hits in their bounding box empty space.
+
 ## [0.15.5] - 2026-07-19
 
 ### Added

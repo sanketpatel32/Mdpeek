@@ -109,6 +109,9 @@ async function ensureLang(lang) {
     const mod = await import(/* @vite-ignore */ `highlight.js/lib/languages/${name}.js`);
     hljs.registerLanguage(name, mod.default);
     _registered.add(name);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('hljs-language-registered', { detail: { lang: name } }));
+    }
     return true;
   } catch {
     return false; // import failed (offline / typo) — fall back to plaintext
