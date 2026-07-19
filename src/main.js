@@ -8,13 +8,15 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { showDocument, buildToc } from './views/viewer.js';
 import { showPdf } from './views/pdf-viewer.js';
 import { showExcalidraw } from './views/excalidraw-viewer.js';
+import { showImage } from './views/image-viewer.js';
 import { initEditor } from './views/editor.js';
 import { initFindBar } from './views/find-bar.js';
 import { initCommandPalette, initQuickSwitcher } from './views/command-palette.js';
 import { initFileTree, setTreeRoot, setActivePath, refreshTree } from './views/file-tree.js';
+import { initCsvViewer } from './views/csv-viewer.js';
 import { renderTabs } from './views/tabs.js';
 import { DocumentStore, isPdfPath, isImagePath, isExcalidrawPath, langFromPath } from './lib/documents.js';
-import { renderMarkdown, renderCode, prepareCodeLang } from './lib/renderer.js';
+import { renderMarkdown, renderCode, renderCsv, parseCsv, prepareCodeLang } from './lib/renderer.js';
 import { saveSession, loadSession, loadRecents, addRecent, removeRecent, saveRecents } from './lib/persistence.js';
 import { NavHistory } from './lib/nav-history.js';
 import { escapeHtml } from './lib/escape.js';
@@ -77,7 +79,7 @@ function renderWelcome() {
       <div class="welcome-main">
         <div class="welcome-brand">
           <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.16.9</span></h1>
+          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.17.0</span></h1>
           <p class="welcome-tagline">A lightweight Markdown viewer.</p>
         </div>
 
@@ -132,6 +134,7 @@ const el = {
   draw: document.getElementById('btn-draw'),
   sidebar: document.getElementById('btn-sidebar'),
   export: document.getElementById('btn-export'),
+  exportPdf: document.getElementById('btn-export-pdf'),
   daily: document.getElementById('btn-daily'),
   explorer: document.getElementById('btn-explorer'),
   fileTree: document.getElementById('file-tree'),
@@ -277,6 +280,8 @@ let _lastRenderedId = null;
 let _renderGen = 0; // monotonic counter — guards async loads against stale tabs
 let _activePdf = null; // controller for the currently-shown PDF (for teardown)
 let _activeExcalidraw = null; // controller for the currently-shown Excalidraw tab
+let _activeImage = null; // controller for the currently-shown annotated image
+let _activeCsv = null; // controller for the currently-shown CSV/TSV table
 
 async function renderActive() {
   // Sync the outgoing doc's editor content + caret + scroll back into its model.
@@ -311,6 +316,16 @@ async function renderActive() {
       _activeExcalidraw.destroy();
       _activeExcalidraw = null;
     }
+    // Tear down the outgoing CSV viewer (removes its event listeners).
+    if (_activeCsv) {
+      _activeCsv.destroy();
+      _activeCsv = null;
+    }
+    // Tear down the outgoing image viewer (detaches pointer handlers + observer).
+    if (_activeImage) {
+      _activeImage.destroy();
+      _activeImage = null;
+    }
     // Hide the draw toolbar when leaving a PDF tab.
     el.pdfDrawToolbar.classList.add('hidden');
     // Reset draw tool button states.
@@ -326,12 +341,13 @@ async function renderActive() {
   // No doc, or an empty untouched Untitled tab in VIEW mode → show the welcome
   // screen. If the user explicitly switched to edit mode, show the editor even
   // for an empty untitled tab so they can start writing.
-  const isEmpty = !doc || (doc.path === null && doc.content === '' && doc.mode === 'view' && !doc.pdf && !doc.excalidraw && !doc.code);
+  const isEmpty = !doc || (doc.path === null && doc.content === '' && doc.mode === 'view' && !doc.pdf && !doc.excalidraw && !doc.code && !doc.csv);
   if (isEmpty) {
     el.editMode.classList.add('hidden');
     el.editMode.classList.remove('plain');
     el.mode.classList.remove('hidden');
     el.export.classList.add('hidden');
+    if (el.exportPdf) el.exportPdf.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = ''; // clear stale TOC from the previous document
     el.document.classList.remove('code-viewer', 'image-viewer');
@@ -347,6 +363,7 @@ async function renderActive() {
     el.mode.classList.add('hidden');
     el.draw.classList.remove('hidden');
     el.export.classList.add('hidden');
+    if (el.exportPdf) el.exportPdf.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
     el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'markdown-body');
@@ -371,26 +388,17 @@ async function renderActive() {
   if (doc.image) {
     el.editMode.classList.add('hidden');
     el.mode.classList.add('hidden');
-    el.draw.classList.add('hidden');
+    el.draw.classList.remove('hidden'); // images can be annotated (since v0.17.0)
+    el.draw.setAttribute('title', 'Annotate image');
+    el.draw.setAttribute('aria-label', 'Annotate image');
     el.export.classList.add('hidden');
+    if (el.exportPdf) el.exportPdf.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
     el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'markdown-body');
     el.document.classList.add('image-viewer');
     setReadingProgressVisible(false);
-    const src = convertFileSrc(doc.path);
-    const name = basename(doc.path);
-    el.document.innerHTML =
-      `<div class="image-viewer-wrap" data-state="fit">
-         <img class="image-viewer-img" src="${escapeHtml(src)}" alt="${escapeHtml(name)}" draggable="false" />
-         <div class="image-viewer-meta">${escapeHtml(name)}</div>
-       </div>`;
-    // Click toggles between fit-to-window and actual-size (1:1).
-    const wrap = el.document.querySelector('.image-viewer-wrap');
-    wrap.addEventListener('click', () => {
-      const isFit = wrap.dataset.state === 'fit';
-      wrap.dataset.state = isFit ? 'actual' : 'fit';
-    });
+    _activeImage = showImage(el.document, doc.path);
     if (doc.scrollY) el.document.scrollTop = doc.scrollY;
     return;
   }
@@ -401,6 +409,7 @@ async function renderActive() {
     el.mode.classList.add('hidden');
     el.draw.classList.add('hidden');
     el.export.classList.add('hidden');
+    if (el.exportPdf) el.exportPdf.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
     el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'markdown-body');
@@ -422,6 +431,28 @@ async function renderActive() {
     return;
   }
 
+  // CSV/TSV file: read-only sortable, filterable table view. No edit toggle,
+  // no TOC. Uses a dedicated .csv-viewer class so it gets its own styling.
+  if (doc.csv) {
+    el.editMode.classList.add('hidden');
+    el.mode.classList.add('hidden');
+    el.draw.classList.add('hidden');
+    el.export.classList.add('hidden');
+    if (el.exportPdf) el.exportPdf.classList.add('hidden');
+    el.pdfDrawToolbar.classList.add('hidden');
+    el.viewMode.classList.remove('hidden');
+    el.toc.innerHTML = '';
+    el.document.classList.remove('has-welcome', 'markdown-body', 'image-viewer', 'code-viewer');
+    el.document.classList.add('csv-viewer');
+    setReadingProgressVisible(false);
+    const tsv = /\.tsv$/i.test(doc.path || '');
+    el.document.innerHTML = renderCsv(doc.content, { tsv });
+    const parsedRows = parseCsv(doc.content, tsv);
+    _activeCsv = initCsvViewer(el.document, parsedRows);
+    if (doc.scrollY) el.document.scrollTop = doc.scrollY;
+    return;
+  }
+
   // Code file (non-markdown source): read-only syntax-highlighted view, no
   // edit toggle, no TOC. Uses a dedicated .code-viewer class so it gets
   // monospace styling without inheriting the markdown prose CSS.
@@ -436,6 +467,7 @@ async function renderActive() {
       el.mode.classList.remove('hidden');
       el.draw.classList.add('hidden');
       el.export.classList.add('hidden');
+    if (el.exportPdf) el.exportPdf.classList.add('hidden');
       el.pdfDrawToolbar.classList.add('hidden');
       el.viewMode.classList.remove('hidden');
       el.toc.innerHTML = '';
@@ -467,6 +499,7 @@ async function renderActive() {
   el.draw.classList.add('hidden');
   // Export to HTML only makes sense for real markdown docs (not plain text).
   el.export.classList.toggle('hidden', !!doc.plain);
+  if (el.exportPdf) el.exportPdf.classList.toggle('hidden', !!doc.plain);
   el.document.classList.remove('code-viewer', 'image-viewer');
   el.document.classList.add('markdown-body');
 
@@ -557,6 +590,7 @@ const palette = initCommandPalette(() => {
     { id: 'daily', label: 'Open daily note (today\'s .md)', keywords: 'daily note today date journal', run: openDailyNote },
     { id: 'save', label: 'Save', hint: 'Ctrl+S', keywords: 'save write', run: saveActive },
     { id: 'export-html', label: 'Export to HTML', keywords: 'export html self-contained', run: exportHtml },
+    { id: 'export-pdf', label: 'Export to PDF', keywords: 'export pdf print document', run: exportPdf },
     { id: 'copy-rich', label: 'Copy as rich text', hint: 'Ctrl+Shift+C', keywords: 'copy rich html clipboard paste formatted', run: copyAsRichText },
     { id: 'mode', label: 'Toggle edit / view', hint: 'Ctrl+E', keywords: 'toggle edit view mode', run: toggleMode },
     { id: 'sidebar', label: 'Toggle sidebar (TOC)', hint: 'Ctrl+B', keywords: 'sidebar toc outline', run: toggleSidebar },
@@ -577,7 +611,7 @@ const palette = initCommandPalette(() => {
   const doc = store.active();
   const hasDoc = !!doc;
   return cmds.filter((c) => {
-    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'mode') && !hasDoc) return false;
+    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-pdf' || c.id === 'mode') && !hasDoc) return false;
     return true;
   });
 });
@@ -925,7 +959,7 @@ async function exportHljsCss() {
 
 async function exportHtml() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.code) {
+  if (!doc || doc.pdf || doc.excalidraw || doc.code || doc.csv) {
     toast('Export to HTML is for Markdown documents');
     return;
   }
@@ -947,6 +981,51 @@ async function exportHtml() {
   }
 }
 
+// Export the active markdown document to PDF via the OS print dialog. The
+// print stylesheet (in content.css, @media print) hides all app chrome so
+// only the rendered markdown prints. The user picks "Save as PDF" (or any
+// printer) in the native dialog. Re-uses the live renderer so Mermaid
+// diagrams, KaTeX math, code highlighting, and footnotes all print exactly
+// as seen on screen.
+async function exportPdf() {
+  const doc = store.active();
+  if (!doc || doc.pdf || doc.excalidraw || doc.code || doc.image || doc.csv) {
+    toast('Export to PDF is for Markdown documents');
+    return;
+  }
+  // Sync any unsaved editor content into the model.
+  if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
+  // Switch to view mode so the rendered markdown is on screen, and remember
+  // the prior mode so we can restore it after the dialog closes.
+  const priorMode = doc.mode;
+  if (priorMode === 'edit') {
+    doc.mode = 'view';
+    if (find) find.close();
+    await renderActive();
+  }
+  // Re-render into the live DOM so any deferred enhancements (Mermaid,
+  // dynamic hljs languages) are fully painted before window.print() captures.
+  try {
+    await showDocument(el.document, doc.content);
+  } catch (e) {
+    console.error('exportPdf render failed:', e);
+  }
+  // Signal print-only styles (the @media print block keys off <body.printing>).
+  document.body.classList.add('printing');
+  const cleanup = () => {
+    document.body.classList.remove('printing');
+    window.removeEventListener('afterprint', cleanup);
+    // Restore the user's prior edit mode once the dialog is dismissed.
+    if (priorMode === 'edit') {
+      doc.mode = 'edit';
+      renderActive().catch((e) => console.error('exportPdf restore failed:', e));
+    }
+  };
+  window.addEventListener('afterprint', cleanup);
+  // Defer to the next frame so the printing class + render settle before the
+  // dialog snapshots the page.
+  requestAnimationFrame(() => window.print());
+}
 
 function toggleMode() {
   const doc = store.active();
@@ -955,6 +1034,7 @@ function toggleMode() {
   if (doc.pdf) return;   // PDFs are read-only — no edit mode
   if (doc.image) return; // Images are read-only — no edit mode
   if (doc.excalidraw) return; // Excalidraw is always interactive — no edit/view toggle
+  if (doc.csv) return;        // CSVs are read-only table views — no edit mode
   // Capture content before switching out of edit mode.
   if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
   doc.mode = doc.mode === 'view' ? 'edit' : 'view';
@@ -1171,7 +1251,7 @@ function updateNavButtons() {
 // ---------- sidebar (TOC) toggle & visibility ----------
 function syncSidebarVisibility() {
   const doc = store.active();
-  const hasToc = doc && !doc.pdf && !doc.excalidraw && !doc.code && !doc.plain && doc.mode === 'view';
+  const hasToc = doc && !doc.pdf && !doc.excalidraw && !doc.code && !doc.csv && !doc.plain && doc.mode === 'view';
   
   if (!hasToc) {
     el.toc.classList.add('collapsed');
@@ -1186,7 +1266,7 @@ function syncSidebarVisibility() {
 
 function toggleSidebar() {
   const doc = store.active();
-  const hasToc = doc && !doc.pdf && !doc.excalidraw && !doc.code && !doc.plain && doc.mode === 'view';
+  const hasToc = doc && !doc.pdf && !doc.excalidraw && !doc.code && !doc.csv && !doc.plain && doc.mode === 'view';
   if (!hasToc) return;
 
   const collapsed = el.toc.classList.toggle('collapsed');
@@ -1501,6 +1581,7 @@ el.update.addEventListener('click', () => {
 el.open.addEventListener('click', openFileDialog);
 el.save.addEventListener('click', saveActive);
 if (el.export) el.export.addEventListener('click', exportHtml);
+if (el.exportPdf) el.exportPdf.addEventListener('click', exportPdf);
 if (el.daily) el.daily.addEventListener('click', openDailyNote);
 
 // Formatting toolbar — one delegated handler covers all .fmt-btn clicks.
@@ -1777,13 +1858,14 @@ let _pdfDrawTool = 'pen';   // current tool selection (persists across open/clos
 let _pdfDrawColor = '#1d1d1f';
 
 function pdfToggleToolbar() {
-  // Show/hide the toolbar — only meaningful when a PDF is active.
+  // Show/hide the toolbar — meaningful when a PDF or image is active.
   const doc = store.active();
-  if (doc && doc.pdf) {
+  if (doc && (doc.pdf || doc.image)) {
     el.pdfDrawToolbar.classList.toggle('hidden');
-    // Exiting: turn off draw mode on the controller.
-    if (el.pdfDrawToolbar.classList.contains('hidden') && _activePdf) {
-      _activePdf.setDrawMode(false);
+    // Exiting: turn off draw mode on whichever controller is active.
+    if (el.pdfDrawToolbar.classList.contains('hidden')) {
+      const target = _activePdf || _activeImage;
+      target?.setDrawMode(false);
     }
   }
 }
@@ -1794,10 +1876,11 @@ function pdfSelectTool(tool) {
   document.getElementById('pdf-tool-pen').classList.toggle('active', tool === 'pen');
   document.getElementById('pdf-tool-highlighter').classList.toggle('active', tool === 'highlighter');
   document.getElementById('pdf-tool-eraser').classList.toggle('active', tool === 'eraser');
-  if (_activePdf) {
-    _activePdf.setTool(tool);
+  const target = _activePdf || _activeImage;
+  if (target) {
+    target.setTool(tool);
     // Entering a tool activates draw mode (unless it's already active).
-    _activePdf.setDrawMode(true);
+    target.setDrawMode(true);
   }
 }
 
@@ -1806,7 +1889,8 @@ function pdfSelectColor(color) {
   document.querySelectorAll('.pdf-color-swatch').forEach((s) => {
     s.classList.toggle('active', s.dataset.color === color);
   });
-  if (_activePdf) _activePdf.setColor(color);
+  const target = _activePdf || _activeImage;
+  if (target) target.setColor(color);
 }
 
 document.getElementById('pdf-tool-pen').addEventListener('click', () => pdfSelectTool('pen'));
@@ -1816,13 +1900,28 @@ document.querySelectorAll('.pdf-color-swatch').forEach((s) => {
   s.addEventListener('click', () => pdfSelectColor(s.dataset.color));
 });
 document.getElementById('pdf-tool-clear').addEventListener('click', () => {
-  if (_activePdf) _activePdf.clearAll();
+  const target = _activePdf || _activeImage;
+  if (target) target.clearAll();
 });
 document.getElementById('pdf-tool-close').addEventListener('click', () => {
   el.pdfDrawToolbar.classList.add('hidden');
   document.querySelectorAll('.pdf-tool-btn').forEach((b) => b.classList.remove('active'));
-  if (_activePdf) _activePdf.setDrawMode(false);
+  const target = _activePdf || _activeImage;
+  target?.setDrawMode(false);
 });
+// Save button: writes the annotated image to disk (only meaningful for images).
+const annotSaveBtn = document.getElementById('pdf-tool-save');
+if (annotSaveBtn) {
+  annotSaveBtn.addEventListener('click', async () => {
+    if (!_activeImage) return;
+    try {
+      const path = await _activeImage.saveAnnotations();
+      if (path) toast('Saved: ' + basename(path));
+    } catch (e) {
+      if (e !== 'cancelled') toast('Save failed: ' + fmtErr(e));
+    }
+  });
+}
 
 // The toolbar gear button (btn-draw, shown only on PDF tabs) toggles the draw toolbar.
 el.draw.addEventListener('click', () => pdfToggleToolbar());
@@ -2470,6 +2569,17 @@ listen('file-changed', (event) => {
     doc.content = event.payload;
     if (store.active()?.id === doc.id) {
       el.document.innerHTML = renderCode(event.payload, langFromPath(doc.path));
+    }
+    return;
+  }
+  // CSV/TSV files: re-render the table and re-init the viewer on disk change.
+  if (doc.csv) {
+    doc.content = event.payload;
+    if (store.active()?.id === doc.id) {
+      if (_activeCsv) { _activeCsv.destroy(); _activeCsv = null; }
+      const tsv = /\.tsv$/i.test(doc.path || '');
+      el.document.innerHTML = renderCsv(event.payload, { tsv });
+      _activeCsv = initCsvViewer(el.document, parseCsv(event.payload, tsv));
     }
     return;
   }

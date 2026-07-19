@@ -116,6 +116,24 @@ pub fn save_image(dir: String, filename: String, bytes: Vec<u8>) -> Result<Strin
     Ok(filename)
 }
 
+/// Save an annotated image (the original image with strokes composited on
+/// top, produced by the frontend via canvas.toBlob). Pops a save dialog
+/// filtered to .png, writes the bytes, and returns the absolute saved path.
+/// Rejects with "cancelled" if the user dismisses the dialog.
+#[tauri::command]
+pub async fn save_annotated_image(bytes: Vec<u8>, suggested_name: String) -> Result<String, String> {
+    let file = rfd::AsyncFileDialog::new()
+        .add_filter("PNG image", &["png"])
+        .set_file_name(&suggested_name)
+        .save_file()
+        .await
+        .ok_or_else(|| "cancelled".to_string())?;
+    let path = file.path().to_path_buf();
+    let path_str = path.display().to_string();
+    fs::write(&path, &bytes).map_err(|e| e.to_string())?;
+    Ok(path_str)
+}
+
 /// Show a folder picker. Returns the chosen absolute path, or rejects with
 /// "cancelled" when the user dismisses the dialog. Used by the Daily Note
 /// feature to pick where dated .md files get written.

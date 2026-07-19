@@ -422,6 +422,7 @@ main {
 .file-icon.code { color: #6f42c1; }
 .file-icon.ex { color: #e07a5f; }
 .file-icon.txt { color: #f4a261; }
+.file-icon.csv { color: #16a34a; }
 
 /* Material-design language icons (.js, .py, .rs, .go, ...).
    Real SVGs from material-extensions/vscode-material-icon-theme, bundled

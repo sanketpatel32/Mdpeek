@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DocumentStore, createDocument, isPlainPath, isCodePath, isImagePath, langFromPath } from '../src/lib/documents.js';
+import { DocumentStore, createDocument, isPlainPath, isCodePath, isImagePath, isCsvPath, langFromPath } from '../src/lib/documents.js';
 
 describe('createDocument', () => {
   it('creates a doc with defaults', () => {
@@ -83,6 +83,42 @@ describe('createDocument — image flag', () => {
   });
 });
 
+describe('isCsvPath', () => {
+  it('true for .csv and .tsv (case-insensitive)', () => {
+    expect(isCsvPath('/data.csv')).toBe(true);
+    expect(isCsvPath('/data.tsv')).toBe(true);
+    expect(isCsvPath('/data.CSV')).toBe(true);
+    expect(isCsvPath('C:\\Users\\me\\sheet.tsv')).toBe(true);
+  });
+  it('false for non-csv paths', () => {
+    expect(isCsvPath('/readme.md')).toBe(false);
+    expect(isCsvPath('/app.js')).toBe(false);
+    expect(isCsvPath('/pic.png')).toBe(false);
+    expect(isCsvPath(null)).toBe(false);
+    expect(isCsvPath('')).toBe(false);
+  });
+});
+
+describe('createDocument — csv flag', () => {
+  it('marks .csv as csv, read-only view mode, keeps content', () => {
+    const d = createDocument({ path: '/data.csv', content: 'a,b\n1,2' });
+    expect(d.csv).toBe(true);
+    expect(d.code).toBe(false);
+    expect(d.mode).toBe('view');
+    expect(d.content).toBe('a,b\n1,2');
+  });
+  it('marks .tsv as csv too', () => {
+    const d = createDocument({ path: '/sheet.tsv' });
+    expect(d.csv).toBe(true);
+  });
+  it('does not classify a .csv as code or image', () => {
+    const d = createDocument({ path: '/data.csv' });
+    expect(d.code).toBe(false);
+    expect(d.image).toBe(false);
+    expect(d.plain).toBe(false);
+  });
+});
+
 describe('isCodePath', () => {
   it('true for common code/config extensions', () => {
     expect(isCodePath('/app.js')).toBe(true);
@@ -91,7 +127,9 @@ describe('isCodePath', () => {
     expect(isCodePath('style.css')).toBe(true);
     expect(isCodePath('data.yml')).toBe(true);
     expect(isCodePath('build.log')).toBe(true);
-    expect(isCodePath('rows.csv')).toBe(true);
+    // .csv/.tsv are now their own type (isCsvPath), not code.
+    expect(isCodePath('rows.csv')).toBe(false);
+    expect(isCodePath('sheet.tsv')).toBe(false);
     expect(isCodePath('.env')).toBe(true);
     expect(isCodePath('Dockerfile')).toBe(true);
     expect(isCodePath('Makefile')).toBe(true);

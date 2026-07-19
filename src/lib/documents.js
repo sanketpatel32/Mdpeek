@@ -30,13 +30,20 @@ export function isImagePath(path) {
   return !!path && /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i.test(path);
 }
 
+// A doc is "csv" when it's a .csv or .tsv — rendered as a sortable, filterable
+// table by renderCsv(). Treated as a distinct type (not code) so it doesn't
+// fall into the highlight.js path.
+export function isCsvPath(path) {
+  return !!path && /\.(csv|tsv)$/i.test(path);
+}
+
 // A doc is a "code" file when its extension is a known text/code/config type
-// that isn't already handled (markdown / plain text / PDF / Excalidraw). Code
-// docs render read-only with highlight.js syntax coloring. The list is broad
-// but explicit — better than "anything not on the other lists," which would
-// catch unknown binary extensions.
+// that isn't already handled (markdown / plain text / PDF / Excalidraw / CSV).
+// Code docs render read-only with highlight.js syntax coloring. The list is
+// broad but explicit — better than "anything not on the other lists," which
+// would catch unknown binary extensions.
 const CODE_EXT_RE =
-  /\.(js|mjs|cjs|ts|tsx|jsx|json|json5|jsonc|css|scss|sass|less|styl|html|htm|xml|svg|vue|svelte|yml|yaml|toml|ini|cfg|conf|properties|env|sh|bash|zsh|fish|py|pyw|rb|go|rs|java|c|h|cpp|cc|hpp|cs|php|swift|kt|kts|scala|sql|graphql|gql|proto|dockerfile|makefile|mk|gitignore|gitattributes|gitconfig|editorconfig|bat|cmd|ps1|psm1|lua|r|dart|clj|cljs|edn|ex|exs|erl|hs|lhs|ml|mli|fs|fsx|nim|v|zig|d|gradle|log|csv|tsv|diff|patch|nix|tf|hcl)$/i;
+  /\.(js|mjs|cjs|ts|tsx|jsx|json|json5|jsonc|css|scss|sass|less|styl|html|htm|xml|svg|vue|svelte|yml|yaml|toml|ini|cfg|conf|properties|env|sh|bash|zsh|fish|py|pyw|rb|go|rs|java|c|h|cpp|cc|hpp|cs|php|swift|kt|kts|scala|sql|graphql|gql|proto|dockerfile|makefile|mk|gitignore|gitattributes|gitconfig|editorconfig|bat|cmd|ps1|psm1|lua|r|dart|clj|cljs|edn|ex|exs|erl|hs|lhs|ml|mli|fs|fsx|nim|v|zig|d|gradle|log|diff|patch|nix|tf|hcl)$/i;
 // Extensions with no dot (basename-only match): Dockerfile, Makefile, etc.
 const CODE_NAME_RE = /^(\.?(dockerfile|makefile|cmakelists|gemfile|rakefile|brewfile|procfile|justfile))$/i;
 export function isCodePath(path) {
@@ -93,7 +100,7 @@ export function langFromPath(path) {
   return LANG_BY_EXT[ext] || ext;
 }
 
-export function createDocument({ path = null, content = '', mode = 'view', plain, excalidraw, code } = {}) {
+export function createDocument({ path = null, content = '', mode = 'view', plain, excalidraw, code, csv } = {}) {
   // `plain` override lets a fresh Untitled tab be plain text without a .txt
   // path (used by the new-tab-format preference). When omitted, plainness is
   // derived from the path as before.
@@ -101,17 +108,19 @@ export function createDocument({ path = null, content = '', mode = 'view', plain
   const isPdf = isPdfPath(path);
   const isImage = isImagePath(path);
   const isExcalidraw = excalidraw !== undefined ? excalidraw : isExcalidrawPath(path);
-  const isCode = code !== undefined ? code : (!isPlain && !isPdf && !isImage && !isExcalidraw && isCodePath(path));
+  const isCsv = csv !== undefined ? csv : (!isPlain && !isPdf && !isImage && !isExcalidraw && isCsvPath(path));
+  const isCode = code !== undefined ? code : (!isPlain && !isPdf && !isImage && !isExcalidraw && !isCsv && isCodePath(path));
   return {
     id: newId(),
     path, // string | null (null = Untitled, not yet saved)
     content: (isPdf || isImage) ? '' : content, // PDF + image bytes never ride this field
-    mode: isPlain ? 'edit' : ((isPdf || isImage || isExcalidraw || isCode) ? 'view' : mode),
+    mode: isPlain ? 'edit' : ((isPdf || isImage || isExcalidraw || isCode || isCsv) ? 'view' : mode),
     plain: isPlain, // true = no markdown preview, full-width editor
     pdf: isPdf, // true = rendered via pdf.js, read-only
     image: isImage, // true = rendered via <img>, read-only
     excalidraw: isExcalidraw, // true = Excalidraw canvas tab
     code: isCode, // true = rendered read-only with syntax highlighting
+    csv: isCsv, // true = rendered as a sortable/filterable table
     dirty: false,
     scrollY: 0,
     editor: null, // lazy-init in main.js when entering edit mode
@@ -139,7 +148,7 @@ export class DocumentStore {
     return this.docs.find((d) => d.id === this.activeId) || null;
   }
 
-  open({ path = null, content = '', plain, mode, excalidraw, code } = {}) {
+  open({ path = null, content = '', plain, mode, excalidraw, code, csv } = {}) {
     // Duplicate check: files on disk (path != null) open once.
     if (path !== null) {
       const existing = this.docs.find((d) => d.path === path);
@@ -148,7 +157,7 @@ export class DocumentStore {
         return existing;
       }
     }
-    const doc = createDocument({ path, content, plain, mode, excalidraw, code });
+    const doc = createDocument({ path, content, plain, mode, excalidraw, code, csv });
     this.docs.push(doc);
     this.activeId = doc.id;
     this._emit('change');
@@ -211,6 +220,7 @@ export class DocumentStore {
           image: d.image || false,
           excalidraw: d.excalidraw || false,
           code: d.code || false,
+          csv: d.csv || false,
         })),
       activeId: this.activeId,
     };
@@ -228,18 +238,20 @@ export class DocumentStore {
         const pdf = d.pdf !== undefined ? !!d.pdf : isPdfPath(path);
         const image = d.image !== undefined ? !!d.image : isImagePath(path);
         const excalidraw = d.excalidraw !== undefined ? !!d.excalidraw : isExcalidrawPath(path);
-        const code = d.code !== undefined ? !!d.code : (!plain && !pdf && !image && !excalidraw && isCodePath(path));
+        const csv = d.csv !== undefined ? !!d.csv : (!plain && !pdf && !image && !excalidraw && isCsvPath(path));
+        const code = d.code !== undefined ? !!d.code : (!plain && !pdf && !image && !excalidraw && !csv && isCodePath(path));
         return {
           id: typeof d.id === 'string' ? d.id : newId(),
           path,
           content: (pdf || image) ? '' : d.content,
-          // plain docs are always in edit mode; PDFs/images/Excalidraw/code are always view; markdown honors the snapshot.
-          mode: plain ? 'edit' : ((pdf || image || excalidraw || code) ? 'view' : d.mode === 'edit' ? 'edit' : 'view'),
+          // plain docs are always in edit mode; PDFs/images/Excalidraw/code/csv are always view; markdown honors the snapshot.
+          mode: plain ? 'edit' : ((pdf || image || excalidraw || code || csv) ? 'view' : d.mode === 'edit' ? 'edit' : 'view'),
           plain,
           pdf,
           image,
           excalidraw,
           code,
+          csv,
           dirty: false, // never restore as dirty — content was just re-read
           scrollY: Number.isFinite(d.scrollY) ? d.scrollY : 0,
           editor: null,

@@ -304,6 +304,115 @@ export function renderCode(text, lang) {
   return DOMPurify.sanitize(raw);
 }
 
+// Parse CSV/TSV text into a 2D array of strings. Pure RFC-4180-ish state
+// machine: respects double-quoted fields, embedded delimiters/newlines inside
+// quotes, and `""` as an escaped quote. Exported for unit testing.
+//
+//   parseCsv('a,b\nc,d')              → [['a','b'],['c','d']]
+//   parseCsv('"a,b",c')               → [['a,b','c']]
+//   parseCsv('he said ""hi""', true)  → [['he said "hi"']]   (tsv→tab)
+export function parseCsv(text, tsv = false) {
+  const src = text ?? '';
+  if (src === '') return [];
+  const delim = tsv ? '\t' : ',';
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (src[i + 1] === '"') { field += '"'; i++; }
+        else { inQuotes = false; }
+      } else {
+        field += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === delim) {
+        row.push(field); field = '';
+      } else if (ch === '\n') {
+        row.push(field); rows.push(row); row = []; field = '';
+      } else if (ch === '\r') {
+        // Swallow — handled by the following \n (or end of string).
+      } else {
+        field += ch;
+      }
+    }
+  }
+  // Flush the last field/row. A trailing newline already pushed the final
+  // row; only push here if there's pending content. Also keep a single
+  // empty line at EOF as an empty row only when it's not the only content.
+  if (field !== '' || row.length > 0 || rows.length === 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows;
+}
+
+// Decide whether a column should sort numerically. Heuristic: at least 80% of
+// its non-empty values parse as finite numbers.
+function isNumericColumn(rows, colIdx) {
+  let total = 0;
+  let numeric = 0;
+  for (const row of rows) {
+    const v = row[colIdx];
+    if (v == null || v === '') continue;
+    total++;
+    if (Number.isFinite(Number(v))) numeric++;
+  }
+  return total > 0 && numeric / total >= 0.8;
+}
+
+// Render a parsed 2D array as an HTML table string. The first row is treated
+// as a header (every CSV/TSV opened in mdpeek has one — and the rare header-
+// less file still renders sensibly with column letters as headers).
+function renderCsvTable(rows) {
+  if (rows.length === 0) {
+    return `<div class="csv-empty">No rows</div>`;
+  }
+  const header = rows[0];
+  const body = rows.slice(1);
+  const ths = header.map((label, i) => {
+    const numeric = body.length > 0 && isNumericColumn(body, i);
+    return `<th data-col="${i}" data-sort-type="${numeric ? 'number' : 'string'}" data-state="none" tabindex="0" role="button" aria-label="Sort by ${escapeHtml(label)}"><span class="th-label">${escapeHtml(label)}</span><span class="sort-ind" aria-hidden="true"></span></th>`;
+  }).join('');
+  const trs = body.map((row) => {
+    const tds = header.map((_, i) => {
+      const v = row[i] ?? '';
+      const numeric = Number.isFinite(Number(v)) && v !== '';
+      return `<td${numeric ? ' data-numeric="1"' : ''}>${escapeHtml(v)}</td>`;
+    }).join('');
+    return `<tr>${tds}</tr>`;
+  }).join('');
+  return (
+    `<div class="csv-scroll">` +
+    `<table class="csv-table">` +
+    `<thead><tr>${ths}</tr></thead>` +
+    `<tbody>${trs}</tbody>` +
+    `</table>` +
+    `</div>`
+  );
+}
+
+// Render CSV/TSV text as a sortable, filterable HTML table view. Pure function
+// (no DOM); main.js wires up interactivity via initCsvViewer() after injecting.
+export function renderCsv(text, opts = {}) {
+  const input = text ?? '';
+  const rows = parseCsv(input, !!opts.tsv);
+  const total = rows.length > 0 ? rows.length - 1 : 0; // minus header
+  ensurePurifyHook();
+  const toolbar =
+    `<div class="csv-toolbar">` +
+    `<input class="csv-filter" type="search" placeholder="Filter rows…" aria-label="Filter rows" spellcheck="false" />` +
+    `<span class="csv-count" data-total="${total}">${total} rows</span>` +
+    `</div>`;
+  const raw = `<div class="csv-viewer-inner">${toolbar}${renderCsvTable(rows)}</div>`;
+  return DOMPurify.sanitize(raw);
+}
+
 // Ensure a code language is registered before rendering. Returns true if the
 // language is ready now, false if it's being loaded asynchronously (caller
 // should re-render after a tick). Mirrors the markdown path's ensureLang().
