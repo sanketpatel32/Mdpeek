@@ -162,8 +162,12 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
   syncGutter();
 
   return {
+    // Set the textarea's value. Only writes when the value actually differs —
+    // re-entry into renderActive (e.g. markDirty emitting 'change' on the
+    // first keystroke) would otherwise clobber the textarea mid-composition
+    // and swallow the user's first character.
     setValue(text) {
-      textarea.value = text;
+      if (textarea.value !== text) textarea.value = text;
       refresh();
       syncGutter();
     },

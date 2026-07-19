@@ -58,7 +58,7 @@ function renderWelcome() {
   return `
   <div class="welcome">
     <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-    <h1>Welcome to mdpeek <span class="version-badge">v0.11.13</span></h1>
+    <h1>Welcome to mdpeek <span class="version-badge">v0.11.14</span></h1>
     <p>A lightweight Markdown viewer. Open a file to get started, or drop one onto this window.</p>
     <div class="welcome-hints">
       <span class="welcome-hint"><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
@@ -1641,7 +1641,15 @@ el.document.addEventListener('scroll', () => {
 // Editor textarea: mark active doc dirty on input + debounced re-persist.
 el.editor.addEventListener('input', () => {
   const doc = store.active();
-  if (doc) store.markDirty(doc.id);
+  if (doc) {
+    // CRITICAL: sync the textarea's value into doc.content BEFORE markDirty.
+    // markDirty emits 'change' on the clean→dirty transition, which re-runs
+    // renderActive(); without this sync, renderActive's setValue(doc.content)
+    // would overwrite the textarea with stale pre-keystroke content and
+    // swallow the user's first character.
+    if (doc.editor) doc.content = doc.editor.getValue();
+    store.markDirty(doc.id);
+  }
   persistSoon();
   updateEditorStatus();
   scheduleAutoSave();
