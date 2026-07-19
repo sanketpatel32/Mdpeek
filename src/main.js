@@ -42,16 +42,21 @@ const DEFAULT_THEME = 'light';
 // injected. Called from every place that shows the welcome screen.
 function renderWelcome() {
   const recents = loadRecents();
-  const recentsHtml = recents.length === 0 ? '' : `
+  const recentsHtml = `
     <section class="recent-files" aria-label="Recent files">
       <div class="recent-header">
         <span class="recent-title">Recent</span>
-        <button class="recent-clear" data-action="clear-recents" type="button" title="Clear recent list">Clear</button>
+        ${recents.length > 0 ? '<button class="recent-clear" data-action="clear-recents" type="button" title="Clear recent list">Clear</button>' : ''}
       </div>
-      ${recents.map((r) => {
+      ${recents.length === 0 ? `
+        <div class="recent-empty">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>No recent files yet</span>
+        </div>
+      ` : `<div class="recent-list">${recents.map((r) => {
         // Shrink the middle of long paths so the filename stays visible.
         const path = r.path || '';
-        const showPath = path.length > 64 ? path.slice(0, 28) + '…' + path.slice(-32) : path;
+        const showPath = path.length > 48 ? path.slice(0, 20) + '…' + path.slice(-24) : path;
         // Per-file-type glyph so recents match tab icons (md/pdf/img/code/ex/txt).
         const iconCls = fileTypeFromPath(path);
         const iconHtml = getFileIconHtml(iconCls, 'recent-icon');
@@ -64,57 +69,48 @@ function renderWelcome() {
           </span>
           ${when ? `<span class="recent-when">${escapeHtml(when)}</span>` : ''}
         </button>`;
-      }).join('')}
+      }).join('')}</div>`}
     </section>`;
   return `
   <div class="welcome">
     <div class="welcome-card">
-      <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.16.6</span></h1>
-      <p class="welcome-tagline">A lightweight Markdown viewer. Open a file or start something new.</p>
-
-      <div class="welcome-actions">
-        <button class="welcome-action primary" data-action="open" type="button">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-          <span>Open file</span>
-          <kbd>Ctrl+O</kbd>
-        </button>
-        <button class="welcome-action" data-action="new" type="button">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-          <span>New note</span>
-          <kbd>Ctrl+N</kbd>
-        </button>
-        <button class="welcome-action" data-action="daily" type="button">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          <span>Today's note</span>
-        </button>
-      </div>
-
-      <div class="welcome-divider" role="separator"></div>
-
-      <div class="welcome-shortcuts" aria-label="Keyboard shortcuts">
-        <div class="shortcut-group">
-          <span class="shortcut-label">View</span>
-          <span class="shortcut-row"><kbd>Ctrl+E</kbd> edit / view</span>
-          <span class="shortcut-row"><kbd>F11</kbd> focus mode</span>
+      <div class="welcome-main">
+        <div class="welcome-brand">
+          <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
+          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.16.7</span></h1>
+          <p class="welcome-tagline">A lightweight Markdown viewer.</p>
         </div>
-        <div class="shortcut-group">
-          <span class="shortcut-label">Search</span>
-          <span class="shortcut-row"><kbd>Ctrl+P</kbd> quick switcher</span>
-          <span class="shortcut-row"><kbd>Ctrl+Shift+P</kbd> command palette</span>
+
+        <div class="welcome-actions">
+          <button class="welcome-action primary" data-action="open" type="button">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span>Open file</span>
+            <kbd>Ctrl+O</kbd>
+          </button>
+          <button class="welcome-action" data-action="new" type="button">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+            <span>New note</span>
+            <kbd>Ctrl+N</kbd>
+          </button>
+          <button class="welcome-action" data-action="daily" type="button">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span>Today's note</span>
+          </button>
         </div>
-        <div class="shortcut-group">
-          <span class="shortcut-label">Write</span>
-          <span class="shortcut-row"><kbd>Ctrl+S</kbd> save</span>
-          <span class="shortcut-row"><kbd>Ctrl+Shift+T</kbd> typewriter</span>
+
+        <div class="welcome-footer" aria-hidden="true">
+          <kbd>Ctrl+E</kbd> edit/view
+          <span class="dot">·</span>
+          <kbd>Ctrl+P</kbd> switch
+          <span class="dot">·</span>
+          <kbd>F11</kbd> focus
+          <span class="dot">·</span>
+          <span class="welcome-drop">drop a file to open</span>
         </div>
       </div>
 
-      ${recentsHtml}
-
-      <div class="welcome-drop-hint" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        <span>Drop a file anywhere to open it</span>
+      <div class="welcome-aside">
+        ${recentsHtml}
       </div>
     </div>
   </div>
