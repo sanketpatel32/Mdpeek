@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.3] - 2026-07-19
+
+### Added
+- **Material-style custom file glyphs:** Replaced generic file outline icons with distinct, lightweight SVG shapes for each file category: Markdown (M-symbol document), PDF (P-symbol document), Code (brackets `<>`), Image (mountains/sun outline), Vector Drawing (square/circle geometry), and Text (document lines).
+- **Absolute Welcome Screen Centering:** Removed static height declarations and replaced them with robust, flexbox-native viewport adjustments to prevent vertical offset overflows.
+
 ## [0.16.2] - 2026-07-19
 
 ### Fixed
