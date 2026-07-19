@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.5] - 2026-07-19
+
+### Added
+- **Top-level Windows Explorer Context Menu integration:** Added top-level context menu options "Open with mdpeek" for all files and "Open folder in mdpeek" for directories via Windows Registry.
+- **Explorer another folder picker:** Added an icon button in the File Explorer sidebar header to open another folder, and an "Open folder..." button in the empty file tree state.
+- **Improved editor font family support:** Linked the editor's textarea font directly to the user-selected reading comfort font setting (supports Cascadia Code, Monospace, Serif, Helvetica, Inter, etc. with `!important` guards to secure overrides).
+- **Settings page UI visual redesign:** Enhanced settings card layouts with elevated surfaces (`var(--bg-elevated)`), rounded card edges (`var(--radius-lg)`), soft shadows, and added click-scale active animations on sidebar categories and segmented button controls.
+
 ## [0.15.4] - 2026-07-19
 
 ### Fixed

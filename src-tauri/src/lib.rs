@@ -16,20 +16,38 @@ use watcher::WatcherState;
 #[derive(Default)]
 struct PendingFile(pub Mutex<Option<String>>);
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct FilePayload {
     path: String,
     content: String,
+    is_dir: bool,
 }
 
 /// Read a file for the frontend. PDFs are binary and can't be decoded as UTF-8,
 /// so we return empty content for them — the JS side detects PDFs by path and
 /// loads them via the asset protocol instead of through `content`.
-fn read_file_for_frontend(path: &str) -> Result<String, String> {
-    if path.to_lowercase().ends_with(".pdf") {
-        return Ok(String::new());
+fn read_file_for_frontend(path: &str) -> Result<FilePayload, String> {
+    let is_dir = std::path::Path::new(path).is_dir();
+    if is_dir {
+        return Ok(FilePayload {
+            path: path.to_string(),
+            content: String::new(),
+            is_dir: true,
+        });
     }
-    std::fs::read_to_string(path).map_err(|e| e.to_string())
+    if path.to_lowercase().ends_with(".pdf") {
+        return Ok(FilePayload {
+            path: path.to_string(),
+            content: String::new(),
+            is_dir: false,
+        });
+    }
+    let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    Ok(FilePayload {
+        path: path.to_string(),
+        content,
+        is_dir: false,
+    })
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -49,8 +67,7 @@ pub fn run() {
                     // argv[0] is the exe; argv[1] (if present) is the file path.
                     if argv.len() > 1 {
                         let path = argv[1].clone();
-                        if let Ok(content) = read_file_for_frontend(&path) {
-                            let payload = serde_json::json!({ "path": path, "content": content });
+                        if let Ok(payload) = read_file_for_frontend(&path) {
                             let _ = window.emit("open-file", payload);
                         }
                     }
@@ -168,7 +185,7 @@ fn get_initial_file(state: tauri::State<PendingFile>) -> Result<Option<FilePaylo
     let mut guard = state.0.lock().map_err(|e| e.to_string())?;
     if let Some(path) = guard.take() {
         match read_file_for_frontend(&path) {
-            Ok(content) => Ok(Some(FilePayload { path, content })),
+            Ok(payload) => Ok(Some(payload)),
             Err(e) => Err(format!("Could not read {}: {}", path, e)),
         }
     } else {

@@ -64,6 +64,17 @@
   !insertmacro _MPEEK_ASSOC_PDF
   ; Register .excalidraw under its own ProgID.
   !insertmacro _MPEEK_ASSOC_EXC
+
+  ; Register top-level context menu for all files: "Open with mdpeek"
+  WriteRegStr HKCR "*\shell\mdpeek" "" "Open with mdpeek"
+  WriteRegStr HKCR "*\shell\mdpeek" "Icon" "$INSTDIR\mdpeek.exe"
+  WriteRegStr HKCR "*\shell\mdpeek\command" "" '"$INSTDIR\mdpeek.exe" "%1"'
+
+  ; Register top-level context menu for folders: "Open folder in mdpeek"
+  WriteRegStr HKCR "Directory\shell\mdpeek" "" "Open folder in mdpeek"
+  WriteRegStr HKCR "Directory\shell\mdpeek" "Icon" "$INSTDIR\mdpeek.exe"
+  WriteRegStr HKCR "Directory\shell\mdpeek\command" "" '"$INSTDIR\mdpeek.exe" "%1"'
+
   ; Notify Explorer that the file-association database changed so icons/menus refresh.
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'
 !macroend
@@ -79,4 +90,7 @@
   DeleteRegKey HKCR "${PROGID_TXT}"
   DeleteRegKey HKCR "${PROGID_PDF}"
   DeleteRegKey HKCR "${PROGID_EXC}"
+
+  DeleteRegKey HKCR "*\shell\mdpeek"
+  DeleteRegKey HKCR "Directory\shell\mdpeek"
 !macroend

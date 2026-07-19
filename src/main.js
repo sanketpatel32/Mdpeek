@@ -61,7 +61,7 @@ function renderWelcome() {
   <div class="welcome">
     <div class="welcome-card">
       <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.15.4</span></h1>
+      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.15.5</span></h1>
       <p class="welcome-tagline">A lightweight Markdown viewer. Open a file or start something new.</p>
 
       <div class="welcome-actions">
@@ -127,6 +127,7 @@ const el = {
   fileTree: document.getElementById('file-tree'),
   fileTreeBody: document.getElementById('file-tree-body'),
   fileTreeClose: document.getElementById('file-tree-close'),
+  fileTreeOpen: document.getElementById('file-tree-open'),
   zoomIn: document.getElementById('btn-zoom-in'),
   zoomOut: document.getElementById('btn-zoom-out'),
   zoomIndicator: document.getElementById('zoom-indicator'),
@@ -1171,6 +1172,11 @@ initFileTree(el.fileTreeBody, async (path) => {
     toast('Could not open: ' + basename(path));
   }
 });
+el.fileTreeBody.addEventListener('click', (e) => {
+  if (e.target.closest('#tree-open-btn')) {
+    openFolderForExplorer();
+  }
+});
 
 async function openFolderForExplorer() {
   try {
@@ -1476,6 +1482,7 @@ document.getElementById('btn-back').addEventListener('click', goBack);
 document.getElementById('btn-forward').addEventListener('click', goForward);
 el.explorer.addEventListener('click', toggleExplorer);
 el.fileTreeClose.addEventListener('click', toggleExplorer);
+el.fileTreeOpen.addEventListener('click', openFolderForExplorer);
 el.zoomIn.addEventListener('click', zoomIn);
 el.zoomOut.addEventListener('click', zoomOut);
 // Clicking the % badge resets to 100% (same as Ctrl+0).
@@ -2407,8 +2414,14 @@ listen('file-changed', (event) => {
 
 // Opened via external double-click (cold start: get_initial_file; hot: open-file event)
 listen('open-file', (event) => {
-  const { path, content } = event.payload;
-  openPath(path, content).catch((e) => toast('Open failed: ' + fmtErr(e)));
+  const { path, content, is_dir } = event.payload;
+  if (is_dir) {
+    localStorage.setItem('mdpeek-explorer-root', path);
+    setTreeRoot(path);
+    if (el.fileTree.classList.contains('hidden')) toggleExplorer();
+  } else {
+    openPath(path, content).catch((e) => toast('Open failed: ' + fmtErr(e)));
+  }
 }).catch((e) => console.error('open-file listener failed:', e));
 
 // ---------- init ----------
@@ -2481,8 +2494,14 @@ applyLineNumbers();
     try {
       const initial = await invoke('get_initial_file');
       if (initial) {
-        await openPath(initial.path, initial.content);
-        return; // get_initial_file already added a tab
+        if (initial.is_dir) {
+          localStorage.setItem('mdpeek-explorer-root', initial.path);
+          setTreeRoot(initial.path);
+          if (el.fileTree.classList.contains('hidden')) toggleExplorer();
+        } else {
+          await openPath(initial.path, initial.content);
+        }
+        return; // get_initial_file already added a tab or opened folder
       }
     } catch {
       /* ignore */

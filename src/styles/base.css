@@ -315,7 +315,12 @@ main {
   letter-spacing: 0.06em;
   color: var(--fg-muted);
 }
-.file-tree-close {
+.file-tree-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.file-tree-action-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -329,7 +334,7 @@ main {
   cursor: pointer;
   transition: background-color 120ms var(--ease), color 120ms var(--ease);
 }
-.file-tree-close:hover {
+.file-tree-action-btn:hover {
   background: var(--surface-hover);
   color: var(--fg);
 }
@@ -856,8 +861,7 @@ mark.find-current {
   border: none;
   background: var(--bg);
   color: var(--fg);
-  font-family: "SFMono-Regular", "Cascadia Code", Consolas, "Liberation Mono",
-    monospace;
+  font-family: var(--content-font-family, "SFMono-Regular", "Cascadia Code", Consolas, monospace) !important;
   font-size: 13.5px;
   line-height: 1.6;
   padding: 16px 20px;
@@ -1733,8 +1737,8 @@ mark.find-current {
   align-items: center;
   gap: 9px;
   width: 100%;
-  height: 34px;
-  padding: 0 10px;
+  height: 36px;
+  padding: 0 12px;
   background: transparent;
   border: none;
   border-radius: var(--radius);
@@ -1744,15 +1748,19 @@ mark.find-current {
   font-weight: 500;
   text-align: left;
   cursor: pointer;
-  transition: background-color 120ms var(--ease), color 120ms var(--ease);
+  transition: background-color 150ms var(--ease), color 150ms var(--ease), transform 100ms var(--ease);
 }
 .settings-cat:hover {
   background: var(--surface-hover);
   color: var(--fg);
 }
+.settings-cat:active {
+  transform: scale(0.97);
+}
 .settings-cat.active {
   background: var(--accent-soft);
   color: var(--accent);
+  font-weight: 600;
 }
 .settings-cat svg {
   flex-shrink: 0;
@@ -1771,9 +1779,10 @@ mark.find-current {
 }
 
 .setting-card {
-  background: var(--surface);
+  background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
 .setting-row {
@@ -1868,13 +1877,17 @@ mark.find-current {
   font-size: 12.5px;
   font-weight: 500;
   padding: 5px 14px;
-  border-radius: calc(var(--radius) - 3px);
+  border-radius: calc(var(--radius) - 2px);
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color 120ms var(--ease), color 120ms var(--ease);
+  transition: background-color 150ms var(--ease), color 150ms var(--ease), transform 100ms var(--ease);
 }
 .seg-btn:hover {
+  background-color: var(--surface-hover);
   color: var(--fg);
+}
+.seg-btn:active {
+  transform: scale(0.95);
 }
 .seg-btn.active {
   background: var(--bg-elevated);

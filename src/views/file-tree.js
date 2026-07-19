@@ -50,7 +50,14 @@ export function refreshTree() {
 
 // ---------- rendering ----------
 function renderEmpty() {
-  _container.innerHTML = '<div class="tree-empty">Open a folder to browse its files</div>';
+  _container.innerHTML = `
+    <div class="tree-empty">
+      <p style="margin: 0 0 10px 0;">No folder opened</p>
+      <button class="welcome-action primary" id="tree-open-btn" style="margin: 0; width: 100%; padding: 6px 12px; font-size: 12px; justify-content: center;" type="button">
+        Open folder...
+      </button>
+    </div>
+  `;
 }
 
 async function render() {
