@@ -423,59 +423,30 @@ main {
 .file-icon.ex { color: #e07a5f; }
 .file-icon.txt { color: #f4a261; }
 
-/* Colored letter badge for code files (.js, .py, .rs, .go, ...).
-   A small rounded square showing the language's initials in its brand color.
-   Lightweight: one element + one CSS var per instance, no SVG per language.
-   Default size matches .file-icon (14px square). Callers can override
-   width/height/font-size via scoped rules below. */
-.code-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
+/* Material-design language icons (.js, .py, .rs, .go, ...).
+   Real SVGs from material-extensions/vscode-material-icon-theme, bundled
+   inline so there's no per-icon HTTP fetch. Default footprint matches
+   .file-icon (14px); scoped rules below bump the size for recents. */
+.lang-icon {
+  width: 14px;
   height: 14px;
-  min-width: 16px;
+  min-width: 14px;
   min-height: 14px;
-  padding: 0 2px;
-  border-radius: 3px;
-  background: var(--badge-color, var(--fg-muted));
-  color: #ffffff;
-  font-family: "SFMono-Regular", Consolas, "Segoe UI Mono", monospace;
-  font-size: 8px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.02em;
   flex-shrink: 0;
-  user-select: none;
-  /* Slightly muted in idle contexts; callers can boost opacity on hover/active */
-  opacity: 0.92;
+  /* The SVGs ship with baked-in brand fills, so we don't tint via currentColor. */
 }
-/* Light-on-dark badge colors need a dark text override for legibility.
-   Yellow (JS), olive (JSON), green (Shell/SQL), tan (RS) etc. */
-.code-badge[style*="#f7df1e"],
-.code-badge[style*="#cbcb41"],
-.code-badge[style*="#89e051"],
-.code-badge[style*="#e38c00"],
-.code-badge[style*="#dea584"],
-.code-badge[style*="#f37726"] {
-  color: #1f2328;
-}
-/* Tab-context sizing — same 14px footprint as the SVG glyphs. */
-.tab-icon.code-badge {
+.tab-icon.lang-icon {
   margin-right: 6px;
 }
-/* File-tree context — 14px, slightly tighter spacing. */
-.tree-icon.file.code-badge {
+.tree-icon.file.lang-icon {
   margin-right: 6px;
 }
-/* Recents — bumped up to 18px so they read better in the roomier list. */
-.recent-icon.code-badge {
-  width: 20px;
+/* Recents list — slightly larger so the icons read clearly. */
+.recent-icon.lang-icon {
+  width: 18px;
   height: 18px;
-  min-width: 20px;
+  min-width: 18px;
   min-height: 18px;
-  font-size: 9.5px;
-  border-radius: 4px;
 }
 .tree-name {
   overflow: hidden;
