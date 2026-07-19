@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { renderMarkdown } from '../src/lib/renderer.js';
+import { renderMarkdown, renderCode } from '../src/lib/renderer.js';
 
 // Mock the heavy mermaid module so enhanceDom tests are fast and deterministic
 // (don't depend on the real 400KB library loading under load).
@@ -386,5 +386,36 @@ describe('enhanceDom — outline folding', () => {
     div.innerHTML = '<h2 id="a">A</h2><p>body</p>';
     await enhanceDom(div, { folding: false });
     expect(div.querySelectorAll('.fold-toggle').length).toBe(0);
+  });
+});
+
+describe('renderCode — line numbers', () => {
+  it('produces a gutter with one div per source line', () => {
+    const html = renderCode('a\nb\nc', 'plaintext');
+    // Three lines of source → three numbers in the gutter. The gutter block
+    // is followed by <pre, so anchor the extraction there.
+    const gutterBlock = html.split('<pre class="code-pre"')[0];
+    const nums = gutterBlock.match(/<div>\d+<\/div>/g);
+    expect(nums.length).toBe(3);
+    expect(nums[0]).toBe('<div>1</div>');
+    expect(nums[2]).toBe('<div>3</div>');
+  });
+
+  it('handles single-line files (gutter has exactly one number)', () => {
+    const html = renderCode('only line', 'plaintext');
+    const gutterBlock = html.split('<pre class="code-pre"')[0];
+    expect(gutterBlock.match(/<div>\d+<\/div>/g).length).toBe(1);
+  });
+
+  it('wraps the highlighted code in a <pre class="code-pre">', () => {
+    const html = renderCode('const x = 1;', 'javascript');
+    expect(html).toContain('class="code-pre"');
+    expect(html).toContain('language-javascript');
+  });
+
+  it('gutter count matches newline count + 1 (trailing line counts)', () => {
+    const html = renderCode('a\nb\n', 'plaintext');
+    const gutterBlock = html.split('<pre class="code-pre"')[0];
+    expect(gutterBlock.match(/<div>\d+<\/div>/g).length).toBe(3);
   });
 });

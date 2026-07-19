@@ -286,11 +286,18 @@ export function renderCode(text, lang) {
   } catch {
     highlighted = escapeHtml(input);
   }
-  // DOMPurify the highlighted HTML — hljs output is generally safe but this
-  // keeps the same guarantee as the markdown path. Wrap so the viewer CSS can
-  // target .code-viewer specifically.
+  // Build a line-number gutter matching the source's line count. The gutter
+  // and <pre> share line-height so they stay aligned row-for-row; both live
+  // inside a flex wrapper that the outer .code-viewer (set on el.document by
+  // main.js) scrolls.
+  const lineCount = input.split('\n').length;
+  const gutter = Array.from({ length: lineCount }, (_, i) => `<div>${i + 1}</div>`).join('');
   ensurePurifyHook();
-  const raw = `<pre class="code-viewer"><code class="hljs language-${language || 'plaintext'}">${highlighted}</code></pre>`;
+  const raw =
+    `<div class="code-viewer-inner">` +
+    `<div class="code-gutter" aria-hidden="true">${gutter}</div>` +
+    `<pre class="code-pre"><code class="hljs language-${language || 'plaintext'}">${highlighted}</code></pre>` +
+    `</div>`;
   return DOMPurify.sanitize(raw);
 }
 

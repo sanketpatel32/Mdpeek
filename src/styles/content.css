@@ -593,32 +593,58 @@
 /* Non-markdown source files render as a read-only syntax-highlighted <pre>.
    Always monospace (regardless of the document font pref — code wants mono),
    with horizontal scroll for long lines and a readable measure on wide screens. */
+/* ---------- Code viewer (read-only source files) ----------
+   The outer .code-viewer (set on el.document) is the scroll container. Inside
+   it, .code-viewer-inner is a flex row: a line-number gutter on the left
+   (sticky so it stays visible during horizontal scroll) and the highlighted
+   <pre> on the right. Both share line-height so rows stay aligned. */
 .code-viewer {
   width: 100%;
   height: 100%;
   margin: 0;
-  padding: 28px 32px 96px;
+  padding: 0;
   background: var(--bg);
   color: var(--fg);
   overflow: auto;
 }
-.code-viewer > pre {
+.code-viewer-inner {
+  display: flex;
+  min-width: 100%;
+  padding: 28px 0 96px;
+}
+.code-gutter {
+  flex: 0 0 auto;
+  padding: 0 12px 0 24px;
+  text-align: right;
+  font-family: "Cascadia Code", "Cascadia Mono", "SFMono-Regular", Consolas,
+    "Liberation Mono", Menlo, monospace;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--fg-muted);
+  user-select: none;
+  white-space: nowrap;
+  position: sticky;
+  left: 0;
+  background: var(--bg);
+  z-index: 1;
+}
+.code-gutter > div {
+  height: 1.65em;
+}
+.code-pre {
+  flex: 1 1 auto;
   margin: 0;
-  /* No max-width / no auto margins — code hugs the left edge like every
-     other IDE. Centering short code files looked wrong; users expect code
-     aligned with the document padding. */
-  padding: 0;
+  padding: 0 32px 0 12px;
   background: transparent;
   font-family: "Cascadia Code", "Cascadia Mono", "SFMono-Regular", Consolas,
     "Liberation Mono", Menlo, monospace;
   font-size: 13.5px;
   line-height: 1.65;
   white-space: pre;
-  overflow-x: auto;
   tab-size: 4;
   -moz-tab-size: 4;
 }
-.code-viewer > pre > code {
+.code-pre > code {
   background: none;
   padding: 0;
   display: block;

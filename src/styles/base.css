@@ -1683,6 +1683,10 @@ mark.find-current {
   flex-direction: column;
   gap: 2px;
   padding: 4px 6px;
+  /* Match .settings-content height so the border-left on content stretches
+     the full panel and the sidebar doesn't collapse shorter than content. */
+  height: 420px;
+  max-height: calc(100vh - 240px);
 }
 .settings-cat {
   display: flex;
@@ -1714,10 +1718,14 @@ mark.find-current {
   flex-shrink: 0;
 }
 
-/* Content pane — holds one panel per category; only the active shows. */
+/* Content pane — holds one panel per category; only the active shows.
+   FIXED height so the modal doesn't resize when switching categories
+   (different panels have different content lengths; without a fixed height
+   the dialog jumps around on each click). */
 .settings-content {
   padding: 4px 4px 4px 14px;
   border-left: 1px solid var(--border-subtle);
+  height: 420px;
   max-height: calc(100vh - 240px);
   overflow-y: auto;
 }
@@ -1856,6 +1864,36 @@ mark.find-current {
 }
 .setting-select:focus {
   border-color: var(--accent);
+}
+
+/* Folder-picker row (used by the notes-folder setting). */
+.setting-folder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 280px;
+}
+.setting-folder-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl; /* ellipsis trims the START so the filename stays visible */
+  text-align: left;
+}
+.setting-folder-path.unset {
+  color: var(--fg-muted);
+  font-style: italic;
+  font-family: inherit;
+  direction: ltr;
 }
 
 /* Help / Shortcuts panel — reference card styling. */

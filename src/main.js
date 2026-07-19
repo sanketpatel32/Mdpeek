@@ -61,7 +61,7 @@ function renderWelcome() {
   <div class="welcome">
     <div class="welcome-card">
       <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.15.1</span></h1>
+      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.15.2</span></h1>
       <p class="welcome-tagline">A lightweight Markdown viewer. Open a file or start something new.</p>
 
       <div class="welcome-actions">
@@ -1026,9 +1026,22 @@ function toggleTypewriter() {
 async function openDailyNote() {
   let dir = localStorage.getItem('mdpeek-notes-dir') || '';
   if (!dir) {
+    // First run: explain what's happening before popping the OS folder
+    // picker. Without context, "pick a folder" reads as a confusing non-
+    // sequitur and users cancel without knowing why they were asked.
+    const choice = await confirmDialog({
+      title: 'Pick a notes folder',
+      text: 'Daily notes are saved as YYYY-MM-DD.md inside a folder you choose. Pick where mdpeek should keep them — you can change this later in Settings.',
+      buttons: [
+        { id: 'cancel', label: 'Cancel', kind: 'secondary' },
+        { id: 'pick', label: 'Choose folder', kind: 'primary' },
+      ],
+    });
+    if (choice !== 'pick') return;
     try {
       dir = await invoke('pick_folder');
       localStorage.setItem('mdpeek-notes-dir', dir);
+      toast('Notes folder set: ' + basename(dir));
     } catch (e) {
       if (e !== 'cancelled') toast('Could not pick folder: ' + fmtErr(e));
       return;
@@ -1055,9 +1068,21 @@ async function openDailyNote() {
     await openPath(path, starter);
     store.active().mode = 'edit';
     renderActive();
-    toast('Daily note created');
+    toast(`Created ${stamp}.md`);
   } catch (e) {
     toast('Could not create daily note: ' + fmtErr(e));
+  }
+}
+
+// Re-pick the notes folder (used by the Settings panel).
+async function changeNotesFolder() {
+  try {
+    const dir = await invoke('pick_folder');
+    localStorage.setItem('mdpeek-notes-dir', dir);
+    toast('Notes folder set: ' + basename(dir));
+    syncSettingsControls();
+  } catch (e) {
+    if (e !== 'cancelled') toast('Could not pick folder: ' + fmtErr(e));
   }
 }
 
@@ -1497,6 +1522,15 @@ function syncSettingsControls() {
 
   const autosaveCb = document.getElementById('settings-autosave');
   if (autosaveCb) autosaveCb.checked = localStorage.getItem('mdpeek-autosave') !== '0';
+
+  // Notes folder display — show the configured path (or "Not set") so users
+  // can see where daily notes will land without opening a dialog.
+  const notesPath = document.getElementById('settings-notes-path');
+  if (notesPath) {
+    const dir = localStorage.getItem('mdpeek-notes-dir');
+    notesPath.textContent = dir || 'Not set';
+    notesPath.classList.toggle('unset', !dir);
+  }
 }
 
 function setSegActive(setting, value) {
@@ -1604,6 +1638,11 @@ document.getElementById('settings-font-family').addEventListener('change', (e) =
 document.getElementById('settings-line-numbers').addEventListener('change', (e) => {
   localStorage.setItem('mdpeek-line-numbers', e.target.checked ? '1' : '0');
   applyLineNumbers();
+});
+
+// Notes folder — re-pick where daily notes are saved.
+document.getElementById('settings-notes-pick').addEventListener('click', () => {
+  changeNotesFolder();
 });
 
 // Auto-save — toggle the debounced save-on-idle behavior.
