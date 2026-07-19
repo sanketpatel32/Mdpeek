@@ -160,6 +160,12 @@ body.focus-mode #toc {
   background: var(--accent-soft);
   color: var(--accent);
 }
+.tool-btn:disabled,
+.tool-btn[disabled] {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
 .tool-btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;

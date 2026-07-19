@@ -1,11 +1,11 @@
 {
-  "version": "0.13.0",
-  "notes": "mdpeek v0.13.0. See CHANGELOG.md for details.",
-  "pub_date": "2026-07-19T04:11:52.969Z",
+  "version": "0.14.0",
+  "notes": "mdpeek v0.14.0. See CHANGELOG.md for details.",
+  "pub_date": "2026-07-19T04:21:48.282Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUkh0Q2M0VnRXVFlwc1ZGeVEwakhWaVBURFBXZGFnVzkzamdZek9VN0RnMDRPQkJkNEZFZk1tczZwSkFZYUpOZHZZb0FnYUl4N3gvOFBwSGpCU2ZVcENQWjc0QzRhWWdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NDM0MzEyCWZpbGU6bWRwZWVrLTAuMTMuMC1zZXR1cC5leGUKWTd1bUF1c3UvSVVoQVpieTFRS2tMb0N2K1hhcXJlVGRsMW5jTHdZTTFqK2xsNDJmL3VSd08vakpnMWZEQVllaGhKYkczQWR6Y2dkYU5HaG1sbjBtQ0E9PQo=",
-      "url": "https://github.com/sanketpatel32/Mdpeek/releases/download/v0.13.0/mdpeek-0.13.0-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUkh0Q2M0VnRXVGRjWjVhSDlldWxOcmdmQjFNbGtXRzNhMnFUU01Mczdsems3WHlCS0twZGJZMFM1ZktZa29iRnMwZWd0WmtLd0dFUS9TRjkzaUQ0b0ExdUxlYk01R1FRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NDM0OTA4CWZpbGU6bWRwZWVrLTAuMTQuMC1zZXR1cC5leGUKTGJyY00xblRTTzNmd2dtZitpM29BamU2emo4dUlIamJRTzgyaUtxK1ZNLzlnb1N3NzE0Q3owRGQ4cnFBbXh4RnFlUXhKWGZDYWdzVWNzSlBXVUZTQnc9PQo=",
+      "url": "https://github.com/sanketpatel32/Mdpeek/releases/download/v0.14.0/mdpeek-0.14.0-setup.exe"
     }
   }
 }

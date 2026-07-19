@@ -16,6 +16,7 @@ import { renderTabs } from './views/tabs.js';
 import { DocumentStore, isPdfPath, isExcalidrawPath, langFromPath } from './lib/documents.js';
 import { renderMarkdown, renderCode, prepareCodeLang } from './lib/renderer.js';
 import { saveSession, loadSession, loadRecents, addRecent, removeRecent } from './lib/persistence.js';
+import { NavHistory } from './lib/nav-history.js';
 import { escapeHtml } from './lib/escape.js';
 
 // ---------- themes ----------
@@ -60,7 +61,7 @@ function renderWelcome() {
   <div class="welcome">
     <div class="welcome-card">
       <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.13.0</span></h1>
+      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.14.0</span></h1>
       <p class="welcome-tagline">A lightweight Markdown viewer. Open a file or start something new.</p>
 
       <div class="welcome-actions">
@@ -108,6 +109,11 @@ function renderWelcome() {
 
 // Single source of truth: the list of open Documents + active-tab pointer.
 const store = new DocumentStore();
+// Browser-style back/forward history of the active doc. Wired into store
+// 'change' events; cleared on session reset.
+const navHistory = new NavHistory();
+let _lastActiveId = null; // tracks the previously-seen activeId to detect switches
+let _navWalking = false;  // true while we're driving back/forward (suppresses re-push)
 
 const el = {
   open: document.getElementById('btn-open'),
@@ -495,6 +501,8 @@ const palette = initCommandPalette(() => {
   const cmds = [
     { id: 'open', label: 'Open file', hint: 'Ctrl+O', keywords: 'open file load', run: openFileDialog },
     { id: 'open-folder', label: 'Open folder in explorer', hint: 'Ctrl+Shift+E', keywords: 'open folder explorer tree workspace project', run: openFolderForExplorer },
+    { id: 'back', label: 'Back', hint: 'Alt+Left', keywords: 'back previous history navigate', run: goBack },
+    { id: 'forward', label: 'Forward', hint: 'Alt+Right', keywords: 'forward next history navigate', run: goForward },
     { id: 'quick-switch', label: 'Quick switcher (recent files)', hint: 'Ctrl+P', keywords: 'quick switch recent files open', run: () => quickSwitcher.open() },
     { id: 'new', label: 'New tab', hint: 'Ctrl+N', keywords: 'new tab untitled', run: newTab },
     { id: 'daily', label: 'Open daily note (today\'s .md)', keywords: 'daily note today date journal', run: openDailyNote },
@@ -550,6 +558,24 @@ function shortPath(p) {
 }
 
 store.on('change', () => {
+  // Track active-doc changes for back/forward navigation. We compare against
+  // _lastActiveId so we only push when the active doc actually changed (the
+  // 'change' event fires for many reasons — markDirty, content edits, etc.).
+  const activeId = store.activeId;
+  if (activeId !== _lastActiveId) {
+    if (!_navWalking) navHistory.navigate(activeId);
+    _lastActiveId = activeId;
+    updateNavButtons();
+  } else if (activeId === null) {
+    // Last tab closed; reset last-seen so the next open() pushes correctly.
+    _lastActiveId = null;
+  }
+  // Remove closed docs from history so we never try to switch back to them.
+  for (const id of navHistory.entries) {
+    if (id !== null && !store.docs.find((d) => d.id === id)) {
+      navHistory.remove(id);
+    }
+  }
   renderActive().catch((e) => {
     console.error('renderActive failed:', e);
     // Last-resort fallback: show the welcome screen so the app doesn't freeze.
@@ -1040,6 +1066,34 @@ async function copyAsRichText() {
   }
 }
 
+// ---------- back / forward navigation ----------
+// Walk the doc history (browser-style). Suppression during the walk prevents
+// the 'change' event from re-pushing the destination onto the stack.
+function goBack() {
+  const id = navHistory.back();
+  if (!id) return;
+  _navWalking = true;
+  store.switch(id);
+  _navWalking = false;
+}
+function goForward() {
+  const id = navHistory.forward();
+  if (!id) return;
+  _navWalking = true;
+  store.switch(id);
+  _navWalking = false;
+}
+// Update the disabled state of back/forward buttons. Called from the change
+// handler. No-op if the buttons aren't in the DOM (defensive).
+function updateNavButtons() {
+  document.querySelectorAll('[data-nav="back"]').forEach((b) => {
+    b.disabled = !navHistory.canBack;
+  });
+  document.querySelectorAll('[data-nav="forward"]').forEach((b) => {
+    b.disabled = !navHistory.canForward;
+  });
+}
+
 // ---------- sidebar (TOC) toggle ----------
 function toggleSidebar() {
   const collapsed = el.toc.classList.toggle('collapsed');
@@ -1323,6 +1377,8 @@ document.querySelector('.fmt-tools')?.addEventListener('click', (e) => {
 });
 el.mode.addEventListener('click', toggleMode);
 el.sidebar.addEventListener('click', toggleSidebar);
+document.getElementById('btn-back').addEventListener('click', goBack);
+document.getElementById('btn-forward').addEventListener('click', goForward);
 el.explorer.addEventListener('click', toggleExplorer);
 el.fileTreeClose.addEventListener('click', toggleExplorer);
 el.zoomIn.addEventListener('click', zoomIn);
@@ -1988,6 +2044,17 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'F11') {
     e.preventDefault();
     toggleFocus();
+    return;
+  }
+  // Alt+Left / Alt+Right → back / forward doc navigation. Same as a browser.
+  if (e.altKey && e.key === 'ArrowLeft') {
+    e.preventDefault();
+    goBack();
+    return;
+  }
+  if (e.altKey && e.key === 'ArrowRight') {
+    e.preventDefault();
+    goForward();
     return;
   }
   if (e.key === 'Escape' && document.body.classList.contains('focus-mode')) {
