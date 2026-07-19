@@ -61,7 +61,7 @@ function renderWelcome() {
   <div class="welcome">
     <div class="welcome-card">
       <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.15.6</span></h1>
+      <h1 class="welcome-title">Welcome to mdpeek <span class="version-badge">v0.15.7</span></h1>
       <p class="welcome-tagline">A lightweight Markdown viewer. Open a file or start something new.</p>
 
       <div class="welcome-actions">
@@ -414,34 +414,40 @@ async function renderActive() {
   // Code file (non-markdown source): read-only syntax-highlighted view, no
   // edit toggle, no TOC. Uses a dedicated .code-viewer class so it gets
   // monospace styling without inheriting the markdown prose CSS.
+  // Code file (non-markdown source): syntax-highlighted view when in view mode.
+  // When in edit mode, it falls through to the text editor.
   if (doc.code) {
-    el.editMode.classList.add('hidden');
-    el.editMode.classList.remove('plain');
-    el.mode.classList.add('hidden');
-    el.draw.classList.add('hidden');
-    el.export.classList.add('hidden');
-    el.pdfDrawToolbar.classList.add('hidden');
-    el.viewMode.classList.remove('hidden');
-    el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'markdown-body');
-    el.document.classList.add('code-viewer');
-    setReadingProgressVisible(false);
-    const lang = langFromPath(doc.path);
-    // Render now (synchronous — covers the common ~36 languages). If the lang
-    // is an extra that needs dynamic import, re-render once it's registered.
-    el.document.innerHTML = renderCode(doc.content, lang);
-    if (lang) {
-      prepareCodeLang(lang).then((ready) => {
-        // Re-render once the extra language registers. No scroll restore here:
-        // the sync render above already set it, and the re-render swaps
-        // identical content at the same height so the browser keeps scroll.
-        if (ready && gen === _renderGen && store.active()?.id === doc.id) {
-          el.document.innerHTML = renderCode(doc.content, lang);
-        }
-      }).catch(() => {});
+    if (doc.mode === 'edit') {
+      // Fall through to the text editor below
+    } else {
+      el.editMode.classList.add('hidden');
+      el.editMode.classList.remove('plain');
+      el.mode.classList.remove('hidden');
+      el.draw.classList.add('hidden');
+      el.export.classList.add('hidden');
+      el.pdfDrawToolbar.classList.add('hidden');
+      el.viewMode.classList.remove('hidden');
+      el.toc.innerHTML = '';
+      el.document.classList.remove('has-welcome', 'markdown-body');
+      el.document.classList.add('code-viewer');
+      setReadingProgressVisible(false);
+      const lang = langFromPath(doc.path);
+      // Render now (synchronous — covers the common ~36 languages). If the lang
+      // is an extra that needs dynamic import, re-render once it's registered.
+      el.document.innerHTML = renderCode(doc.content, lang);
+      if (lang) {
+        prepareCodeLang(lang).then((ready) => {
+          // Re-render once the extra language registers.
+          if (ready && gen === _renderGen && store.active()?.id === doc.id) {
+            el.document.innerHTML = renderCode(doc.content, lang);
+          }
+        }).catch(() => {});
+      }
+      if (doc.scrollY) el.document.scrollTop = doc.scrollY;
+      el.mode.title = 'Viewing. Click to edit (Ctrl+E)';
+      el.mode.classList.remove('active');
+      return;
     }
-    if (doc.scrollY) el.document.scrollTop = doc.scrollY;
-    return;
   }
 
   // Non-PDF/Excalidraw/code docs: ensure the draw toolbar + button are hidden,
@@ -513,7 +519,7 @@ const find = initFindBar({
     if (!d) return 'view';
     if (d.pdf) return 'pdf';
     if (d.excalidraw) return 'excalidraw';
-    if (d.code) return 'view'; // code docs render read-only highlighted HTML (same find path as view mode)
+    if (d.code) return d.mode;
     return d.mode;
   },
   getEditor: () => {
@@ -936,8 +942,8 @@ function toggleMode() {
   if (!doc) return;
   if (doc.plain) return; // plain-text docs have no preview to toggle to
   if (doc.pdf) return;   // PDFs are read-only — no edit mode
+  if (doc.image) return; // Images are read-only — no edit mode
   if (doc.excalidraw) return; // Excalidraw is always interactive — no edit/view toggle
-  if (doc.code) return;  // code files are read-only highlighted views
   // Capture content before switching out of edit mode.
   if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
   doc.mode = doc.mode === 'view' ? 'edit' : 'view';
@@ -2377,9 +2383,8 @@ listen('file-changed', (event) => {
   // PDFs are binary + read-only — the text watcher isn't used for them
   // (openPath skips rewatch), but guard anyway in case an event leaks through.
   if (doc.pdf) return;
-  // Code files are read-only highlighted views — re-render on disk change so
-  // the user sees the latest version (e.g. a build log or regenerated config).
-  if (doc.code) {
+  // Code files in view mode: re-render the syntax highlighted view on disk change.
+  if (doc.code && doc.mode === 'view') {
     doc.content = event.payload;
     if (store.active()?.id === doc.id) {
       el.document.innerHTML = renderCode(event.payload, langFromPath(doc.path));

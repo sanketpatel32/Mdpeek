@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.7] - 2026-07-19
+
+### Added
+- **Editable code documents:** Enabled editing support for all code and configuration files (JavaScript, Python, JSON, CSS, TOML, YAML, etc.). Code files can now be toggled between a read-only syntax-highlighted preview and a full-width code editor (`Ctrl+E` or edit toggle).
+- **Disk changes sync for editing code files:** Extended the file watcher disk reload functionality to hot-reload code files when edited externally, safely matching the unsaved edits preservation behavior used for Markdown files.
+- **Images read-only restriction enforcement:** Enforced read-only safety for image documents in the mode toggle system.
+
 ## [0.15.6] - 2026-07-19
 
 ### Fixed
