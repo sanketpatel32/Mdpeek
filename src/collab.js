@@ -162,23 +162,32 @@ function buildTrysteroProvider() {
   // Trystero's torrent strategy uses public BitTorrent trackers as a
   // rendezvous. No servers we own, no API keys. Once peers find each other
   // via the tracker, all traffic is direct WebRTC.
+  //
+  // NOTE: @trystero-p2p/torrent v0.25+ returns action objects, NOT [send, on]
+  // tuples. Each makeAction() returns { send, onMessage, onReceiveProgress }.
+  // Destructuring it as a tuple throws "object is not iterable".
   room = joinRoom({ appId: 'mdpeek-collab-v1', password: roomId }, roomId);
 
-  const [sendSync, onSync] = room.makeAction('sync');
-  const [sendMeta, onMeta] = room.makeAction('meta');
-  const [sendAware, onAware] = room.makeAction('aware');
+  const syncAction = room.makeAction('sync');
+  const metaAction = room.makeAction('meta');
+  const awareAction = room.makeAction('aware');
+  const { send: sendSync } = syncAction;
+  const { send: sendMeta } = metaAction;
+  const { send: sendAware } = awareAction;
 
   // On new peer: send them our current doc state + (if host) doc metadata.
-  room.onPeerJoin((peerId) => {
-    sendSync(Y.encodeStateAsUpdate(ydoc), peerId);
-    if (role === 'host') {
-      sendMeta(hostMeta, peerId);
+  // onPeerJoin/onPeerLeave are settable properties (not callback registrars).
+  room.onPeerJoin = (peerId) => {
+    sendSync(Y.encodeStateAsUpdate(ydoc), { target: peerId }).catch(() => {});
+    if (role === 'host' && hostMeta) {
+      sendMeta(hostMeta, { target: peerId }).catch(() => {});
     }
     // Announce our awareness so the newcomer sees our cursor immediately.
-    sendAware(awareness.getLocalState() || {}, peerId);
-  });
+    const local = awareness && awareness.getLocalState();
+    if (local) sendAware(local, { target: peerId }).catch(() => {});
+  };
 
-  room.onPeerLeave((peerId) => {
+  room.onPeerLeave = (peerId) => {
     peerMeta.delete(peerId);
     emit();
     // If the host dropped and we're a receiver, surface it so the UI can
@@ -186,24 +195,29 @@ function buildTrysteroProvider() {
     if (role === 'receiver' && peerMeta.size === 0) {
       for (const cb of listeners) cb({ ...getStatus(), hostLeft: true });
     }
-  });
+  };
 
-  onSync((update, peerId) => {
-    Y.applyUpdate(ydoc, new Uint8Array(update), 'remote');
+  syncAction.onMessage = (update, context) => {
+    try {
+      Y.applyUpdate(ydoc, new Uint8Array(update), 'remote');
+    } catch { /* malformed update — ignore */ }
     // Track the peer as "known" even before they send awareness.
-    if (!peerMeta.has(peerId)) {
+    const peerId = context?.peerId;
+    if (peerId && !peerMeta.has(peerId)) {
       peerMeta.set(peerId, { id: peerId, name: 'Peer', color: colorForPeer(peerId) });
       emit();
     }
-  });
+  };
 
-  onMeta((meta) => {
+  metaAction.onMessage = (meta, context) => {
     if (role === 'receiver' && meta) hostMeta = { ...meta };
     for (const cb of listeners) cb({ ...getStatus(), meta });
-  });
+  };
 
-  onAware((state, peerId) => {
+  awareAction.onMessage = (state, context) => {
     if (!state || typeof state !== 'object') return;
+    const peerId = context?.peerId;
+    if (!peerId) return;
     const user = state.user || {};
     const caret = typeof state.caret === 'number' ? state.caret : null;
     const existing = peerMeta.get(peerId) || {
@@ -219,19 +233,19 @@ function buildTrysteroProvider() {
       selectionEnd: typeof state.selectionEnd === 'number' ? state.selectionEnd : caret,
     });
     emit();
-  });
+  };
 
   // Broadcast local Yjs updates to all peers. Skip ones we just applied from
   // the network (origin === 'remote') so we don't echo them back.
   ydoc.on('update', (update, origin) => {
     if (origin === 'remote') return;
-    sendSync(update);
+    sendSync(update).catch(() => {});
   });
 
   // Awareness changes (cursor moves, name edits) get pushed out.
   awareness.on('update', () => {
     const local = awareness.getLocalState();
-    if (local) sendAware(local);
+    if (local) sendAware(local).catch(() => {});
   });
 }
 
@@ -243,7 +257,15 @@ export function startSession(initialText, { title, language } = {}) {
   roomId = generateRoomId();
   hostMeta = { title: title || 'Shared note', language: language || 'markdown' };
   initYdoc(initialText || '');
-  buildTrysteroProvider();
+  try {
+    buildTrysteroProvider();
+  } catch (err) {
+    // Trystero failed (e.g. WebRTC unavailable). Tear down the half-initialized
+    // Yjs state so a retry starts clean — otherwise getStatus().active stays
+    // true and the UI thinks a session is running.
+    endSession();
+    throw err;
+  }
   emit();
   return { roomId, inviteUrl: buildInviteUrl(roomId), title: hostMeta.title, language: hostMeta.language };
 }
@@ -257,7 +279,13 @@ export function joinSession(id, { name } = {}) {
     roomId = parsed.roomId;
     hostMeta = null;
     initYdoc('');
-    buildTrysteroProvider();
+    try {
+      buildTrysteroProvider();
+    } catch (err) {
+      endSession();
+      reject(err);
+      return;
+    }
 
     // The host's initial state + meta arrive via the 'sync' + 'meta' actions.
     // Resolve the first time we get a meta payload (which carries title +
@@ -335,22 +363,30 @@ export function bindEditor(editor) {
   let lastCaret = ta.selectionStart;
 
   // Local edit → push the minimal diff into Yjs + announce our caret.
+  // We wrap our own edits in a transaction tagged 'self' so the resulting
+  // 'update' event can be ignored by our own onRemote handler (otherwise
+  // every keystroke would echo back through setValue() and clobber the caret).
   function onInput() {
     if (suppress) return;
     const newValue = ta.value;
     const caret = ta.selectionStart;
     const { start, removedLen, inserted } = diffAtCaret(lastValue, newValue, caret);
-    if (removedLen > 0) ytext.delete(start, removedLen);
-    if (inserted) ytext.insert(start, inserted);
+    if (removedLen === 0 && !inserted) return;
+    ydoc.transact(() => {
+      if (removedLen > 0) ytext.delete(start, removedLen);
+      if (inserted) ytext.insert(start, inserted);
+    }, 'self');
     lastValue = newValue;
     lastCaret = caret;
     broadcastCaret(caret, ta.selectionEnd);
   }
 
   // Remote edit → write through the editor API (re-highlights overlay, syncs
-  // gutter) and preserve the caret as best we can.
-  function onRemote() {
+  // gutter) and preserve the caret as best we can. Skip updates we ourselves
+  // just emitted (origin === 'self') to avoid the echo loop.
+  function onRemote(event) {
     if (suppress) return;
+    if (event?.transaction?.origin === 'self') return;
     suppress = true;
     const newText = ytext.toString();
     const caret = preserveCaret(lastValue, newText, lastCaret);

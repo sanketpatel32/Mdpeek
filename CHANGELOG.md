@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.1] - 2026-07-20
+
+### Fixed
+- **"Could not start session: object is not iterable" when clicking Share:** the Trystero v0.25 API returns action objects (`{ send, onMessage, onReceiveProgress }`), not `[send, onMessage]` tuples. Updated the provider to use the object form. Also corrected `onPeerJoin`/`onPeerLeave` (now settable properties, not callback registrars) and the per-peer targeting option (`target`, not `to`).
+- **Editing markdown felt broken after attempting to share:** local edits were echoing back through `setValue()` because the Yjs update from our own keystroke triggered our own remote-update handler, clobbering the caret on every key. Now tag our own edits with `transaction.origin = 'self'` and skip them in the remote handler.
+- **Failed `startSession` left the Yjs doc + state half-initialized,** so subsequent Share attempts wrongly thought a session was already running. Now both `startSession` and `joinSession` tear down cleanly on failure.
+
 ## [0.21.0] - 2026-07-20
 
 ### Added
