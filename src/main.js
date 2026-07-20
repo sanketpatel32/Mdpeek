@@ -80,7 +80,7 @@ function renderWelcome() {
       <div class="welcome-main">
         <div class="welcome-brand">
           <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.18.0</span></h1>
+          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.18.1</span></h1>
           <p class="welcome-tagline">A lightweight Markdown viewer.</p>
         </div>
 
@@ -511,7 +511,12 @@ async function renderActive() {
   // Plain-text docs have no markdown preview — hide the toggle and expand the
   // editor to full width.
   el.mode.classList.toggle('hidden', !!doc.plain);
-  el.editMode.classList.toggle('plain', !!doc.plain);
+  // The `plain` class hides the preview pane and makes the editor full-width.
+  // Apply it not just for .txt files (doc.plain) but for ANY non-markdown
+  // doc that ends up in edit mode (e.g. code files like .js/.py/.rs). The
+  // preview pane only renders markdown, so showing it for code is misleading.
+  const isMarkdown = !doc.plain && !doc.code && !doc.csv && !doc.pdf && !doc.image && !doc.excalidraw;
+  el.editMode.classList.toggle('plain', !isMarkdown);
 
   if (doc.mode === 'edit') {
     el.viewMode.classList.add('hidden');
@@ -524,6 +529,22 @@ async function renderActive() {
       });
     }
     doc.editor.setValue(doc.content);
+    // Update the placeholder to match the doc type — code files shouldn't
+    // say "Type markdown here...". The textarea's placeholder attribute is
+    // what shows when the buffer is empty.
+    const ta = doc.editor.textarea();
+    if (ta) {
+      if (doc.code) {
+        const lang = langFromPath(doc.path);
+        ta.placeholder = lang
+          ? `Type ${lang} here...`
+          : 'Type code here...';
+      } else if (doc.plain) {
+        ta.placeholder = 'Type plain text here...';
+      } else {
+        ta.placeholder = 'Type markdown here...';
+      }
+    }
     // Restore the caret + scroll captured when we last switched away.
     if (doc.editorState) doc.editor.setState(doc.editorState);
     // Re-apply typewriter mode to the freshly-bound editor.
