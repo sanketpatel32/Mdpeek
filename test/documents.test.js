@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DocumentStore, createDocument, isPlainPath, isCodePath, isImagePath, isCsvPath, langFromPath } from '../src/lib/documents.js';
+import { DocumentStore, createDocument, isPlainPath, isCodePath, isImagePath, isCsvPath, langFromPath, langForEdit } from '../src/lib/documents.js';
 
 describe('createDocument', () => {
   it('creates a doc with defaults', () => {
@@ -167,6 +167,38 @@ describe('langFromPath', () => {
   it('returns null for no extension', () => {
     expect(langFromPath(null)).toBe(null);
     expect(langFromPath('README')).toBe(null);
+  });
+});
+
+describe('langForEdit', () => {
+  // langForEdit picks the highlight.js id used for the editor overlay.
+  // Mirrors the doc-type branches in renderActive's edit-mode path.
+  it('returns "markdown" for markdown files and the default untitled case', () => {
+    const md = createDocument({ path: '/notes.md', content: '# hi' });
+    expect(langForEdit(md)).toBe('markdown');
+    const untitled = createDocument({ content: '' });
+    expect(langForEdit(untitled)).toBe('markdown');
+  });
+  it('returns null for plain-text docs (no highlight)', () => {
+    const txt = createDocument({ path: '/todo.txt', content: 'buy milk' });
+    expect(txt.plain).toBe(true);
+    expect(langForEdit(txt)).toBe(null);
+  });
+  it('returns the hljs id for code files', () => {
+    expect(langForEdit(createDocument({ path: '/app.js', code: true }))).toBe('javascript');
+    expect(langForEdit(createDocument({ path: '/main.py', code: true }))).toBe('python');
+    expect(langForEdit(createDocument({ path: '/lib.rs', code: true }))).toBe('rust');
+  });
+  it('passes through unknown extensions (hljs.getLanguage will reject later)', () => {
+    // langFromPath returns the raw extension for unknown langs; langForEdit
+    // forwards it. The editor overlay's doHighlight() falls back to plain
+    // text when hljs.getLanguage() returns undefined for these.
+    const doc = createDocument({ path: '/weird.zzz', code: true });
+    expect(langForEdit(doc)).toBe('zzz');
+  });
+  it('handles null/undefined doc gracefully', () => {
+    expect(langForEdit(null)).toBe('markdown');
+    expect(langForEdit(undefined)).toBe('markdown');
   });
 });
 

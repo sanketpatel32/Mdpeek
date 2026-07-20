@@ -16,7 +16,7 @@ import { initFileTree, setTreeRoot, setActivePath, refreshTree } from './views/f
 import { initCsvViewer } from './views/csv-viewer.js';
 import { initFolderSearch } from './views/folder-search.js';
 import { renderTabs } from './views/tabs.js';
-import { DocumentStore, isPdfPath, isImagePath, isExcalidrawPath, langFromPath } from './lib/documents.js';
+import { DocumentStore, isPdfPath, isImagePath, isExcalidrawPath, langFromPath, langForEdit } from './lib/documents.js';
 import { renderMarkdown, renderCode, renderCsv, parseCsv, prepareCodeLang } from './lib/renderer.js';
 import { saveSession, loadSession, loadRecents, addRecent, removeRecent, saveRecents } from './lib/persistence.js';
 import { NavHistory } from './lib/nav-history.js';
@@ -88,7 +88,7 @@ function renderWelcome() {
       <div class="welcome-main">
         <div class="welcome-brand">
           <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.18.3</span></h1>
+          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.19.0</span></h1>
           <p class="welcome-tagline">A lightweight Markdown viewer.</p>
         </div>
 
@@ -560,9 +560,15 @@ async function renderActive() {
         textarea: el.editor,
         preview: el.preview,
         gutter: el.gutter,
+        language: langForEdit(doc),
+        highlightEnabled: localStorage.getItem('mdpeek-editor-highlight') !== '0',
       });
     }
     doc.editor.setValue(doc.content);
+    // The <textarea> is shared across all tabs, so the editor instance is too.
+    // Switching tabs must re-set the language so the overlay re-highlights
+    // with the right grammar (e.g. .js → .py → .md).
+    doc.editor.setLanguage(langForEdit(doc));
     // Update the placeholder to match the doc type — code files shouldn't
     // say "Type markdown here...". The textarea's placeholder attribute is
     // what shows when the buffer is empty.
@@ -2140,6 +2146,7 @@ const SETTING_KEYS = [
   'mdpeek-line-numbers',
   'mdpeek-font-family',
   'mdpeek-autosave',
+  'mdpeek-editor-highlight',
 ];
 
 function openSettings() {
@@ -2192,6 +2199,9 @@ function syncSettingsControls() {
   const autosaveCb = document.getElementById('settings-autosave');
   if (autosaveCb) autosaveCb.checked = localStorage.getItem('mdpeek-autosave') !== '0';
 
+  const editorHighlightCb = document.getElementById('settings-editor-highlight');
+  if (editorHighlightCb) editorHighlightCb.checked = localStorage.getItem('mdpeek-editor-highlight') !== '0';
+
   // Notes folder display — show the configured path (or "Not set") so users
   // can see where daily notes will land without opening a dialog.
   const notesPath = document.getElementById('settings-notes-path');
@@ -2234,6 +2244,7 @@ document.getElementById('settings-reset').addEventListener('click', () => {
   if (find) find.setCaseSensitive(false);
   applyReadingComfort();
   applyLineNumbers();
+  applyEditorHighlightPref();
   syncSettingsControls();
 });
 
@@ -2344,6 +2355,23 @@ document.getElementById('settings-autosave').addEventListener('change', (e) => {
   localStorage.setItem('mdpeek-autosave', e.target.checked ? '1' : '0');
   if (!e.target.checked) clearTimeout(_autoSaveTimer);
 });
+
+// Editor syntax highlighting — toggle the live overlay on/off without restart.
+// Applies immediately to all open edit-mode editors so the user sees the
+// change the moment they flip the switch.
+document.getElementById('settings-editor-highlight').addEventListener('change', (e) => {
+  localStorage.setItem('mdpeek-editor-highlight', e.target.checked ? '1' : '0');
+  applyEditorHighlightPref();
+});
+
+// Read the editor-highlight pref and push it into every editor instance. Called
+// at startup, after the settings toggle flips, and after Reset to defaults.
+function applyEditorHighlightPref() {
+  const on = localStorage.getItem('mdpeek-editor-highlight') !== '0';
+  for (const doc of store.docs) {
+    if (doc.editor) doc.editor.setHighlightEnabled(on);
+  }
+}
 
 // Explorer context menu — toggle Windows right-click options dynamically.
 const ctxMenuEl = document.getElementById('settings-context-menu');

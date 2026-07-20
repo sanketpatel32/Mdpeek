@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-07-20
+
+### Added
+- **Live syntax highlighting in the editor:** code and markdown files now get colored as you type in edit mode. Uses a transparent-text overlay technique — the textarea stays native (caret, selection, IME, spellcheck all unchanged) while a `<pre><code class="hljs">` layer behind it shows the highlighted text.
+  - Reuses the already-bundled highlight.js (~36 languages built-in, plus on-demand loading for extras like `dockerfile`, `toml`, `ini`).
+  - **Zero installer growth** (6.13 MB, same as v0.18.3) — no new dependencies, just CSS + JS reuse.
+  - Theme-aware: colors follow the active app theme automatically (light/dark/dracula/nord/etc.).
+  - Works for markdown too — headings, bold, code spans, links, and fenced blocks get subtle color.
+- **New setting:** Settings → Editor → "Syntax highlighting in editor" (default on). Toggle live without restart.
+
+### Changed
+- `initEditor` accepts `language` + `highlightEnabled` options; the shared editor instance re-applies the language on every tab switch.
+- Editor `applyResult` / `insertAtCursor` now also re-highlight the overlay (programmatic value changes don't fire `input`).
+
 ## [0.18.3] - 2026-07-19
 
 ### Added

@@ -100,6 +100,23 @@ export function langFromPath(path) {
   return LANG_BY_EXT[ext] || ext;
 }
 
+// Pick the highlight.js language id to use for the editor overlay (v0.19.0).
+// Mirrors the doc-type branches in renderActive's edit-mode path:
+//   - .txt / Untitled-plain → 'plaintext' (no color)
+//   - code file (.js/.py/.rs/Dockerfile/...) → the hljs id from langFromPath
+//   - everything else (markdown / untitled default) → 'markdown'
+// Returns null for plaintext so the overlay short-circuits without rendering
+// any HTML — saves work on the most common "just typing notes" case.
+export function langForEdit(doc) {
+  if (!doc) return 'markdown';
+  if (doc.plain) return null;          // .txt — plain text, no highlight
+  if (doc.code) {
+    const lang = langFromPath(doc.path);
+    return lang || null;                // unknown code → null (no highlight)
+  }
+  return 'markdown';                    // markdown files + untitled default
+}
+
 export function createDocument({ path = null, content = '', mode = 'view', plain, excalidraw, code, csv, pinned = false } = {}) {
   // `plain` override lets a fresh Untitled tab be plain text without a .txt
   // path (used by the new-tab-format preference). When omitted, plainness is

@@ -915,6 +915,62 @@ mark.find-current {
   outline: none;
   tab-size: 2;
 }
+
+/* ---------- Live syntax-highlight overlay (v0.19.0) ----------
+   A <pre class="editor-overlay"><code class="hljs">…</code></pre> sits behind
+   the textarea with identical metrics. The textarea's text is made transparent
+   (caret stays visible via caret-color) so only the overlay's colored text
+   shows through. Toggle is the .highlight-on class on .editor-wrap, set by
+   editor.js based on the user setting + whether a language applies. */
+.editor-overlay {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 16px 20px;       /* MUST match .editor */
+  border: 0;
+  /* font-family is copied from getComputedStyle(textarea) by editor.js so the
+     !important user-font override on .editor is respected. */
+  font-size: 13.5px;        /* MUST match .editor */
+  line-height: 1.6;         /* MUST match .editor */
+  tab-size: 2;              /* MUST match .editor */
+  white-space: pre;
+  overflow: auto;           /* lets us sync scrollLeft/Top from the textarea */
+  pointer-events: none;     /* the textarea receives all input */
+  user-select: none;
+  color: var(--fg);
+  background: transparent;
+  scrollbar-width: none;    /* invisible — the textarea's scrollbar is real */
+  z-index: 0;               /* behind the textarea */
+}
+.editor-overlay::-webkit-scrollbar {
+  display: none;
+}
+.editor-overlay > code {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  background: none;
+  padding: 0;
+  white-space: pre;
+  display: block;
+}
+/* When highlighting is ON: textarea text turns transparent so the overlay's
+   colored text shows through. -webkit-text-fill-color is what WebView2's
+   text paint actually honors (overrides `color`). caret-color is left
+   untouched so the caret remains visible. The textarea sits at z-index:1
+   so the caret paints on top of the overlay. */
+.editor-wrap.highlight-on > .editor {
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  background: var(--bg);
+  position: relative;
+  z-index: 1;
+}
+/* When highlighting is OFF: hide the overlay entirely so the textarea's own
+   text (now opaque again because the rule above stops matching) shows. */
+.editor-wrap:not(.highlight-on) > .editor-overlay {
+  display: none;
+}
 #preview {
   flex: 1;
   overflow: auto;
