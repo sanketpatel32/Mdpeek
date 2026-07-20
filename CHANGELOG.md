@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.2] - 2026-07-19
+
+### Added
+- **"Open folder" action on the home screen:** The welcome card now has a fourth primary action alongside Open file / New note / Today's note. Opens the folder picker directly so the tiny folder icon in the explorer header is no longer the only way in. Shortcut hint `Ctrl+Shift+E` shown on the button.
+- **Settings → Changelog panel:** Bundles `CHANGELOG.md` at build time (via Vite's `?raw` import — zero config, no new deps) and renders it as sanitized markdown inside a new dedicated settings category. Links in the changelog open in the system browser via the existing `plugin-opener` routing.
+- **Settings → About panel:** New category with app logo, version, tagline, and two prominent buttons: **"View on GitHub"** (opens `https://github.com/sanketpatel32/Mdpeek`) and **"Report an issue"** (opens the issue tracker). Designed for discoverability of the project's source and contribution entry points.
+- **Settings → Tips panel:** Split out from the old combined "Help" category into its own panel, with refreshed content covering image annotation, CSV viewing, folder-wide search, and pinnable tabs (all features added in v0.17–v0.18 that weren't previously documented in-app).
+
+### Changed
+- **Settings sidebar reorganized into 7 flat categories:** General, Appearance, Editor, Shortcuts, Tips, Changelog, About. The previous single "Help" category is split into Shortcuts + Tips, with Changelog and About added as new top-level entries. Each topic is now one click away.
+- **Home screen responsive sizing:** Card width changed from a fixed `760px` cap to `min(820px, 94vw)` so wider windows use the extra room. Padding switched to `clamp()` so small windows get tighter spacing without overflowing. Added a mid-tier breakpoint at `880px` for ~700–900px windows.
+- **Toolbar declutter — Save button now hides when not applicable:** The Save button (Ctrl+S) was previously always visible, including on the welcome screen and on read-only viewers (PDF / image / CSV / Excalidraw) where it does nothing. New `syncToolbarForDoc(doc)` helper, called once per render, hides it in those contexts. All other toolbar buttons were already correctly gated per-branch.
+
+### Fixed
+- **Toolbar button consistency:** Consolidated scattered visibility logic so the rules are documented in one place (`syncToolbarForDoc`), making future additions obvious.
+
 ## [0.16.5] - 2026-07-19
 
 ### Fixed

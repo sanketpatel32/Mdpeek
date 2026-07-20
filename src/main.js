@@ -22,6 +22,14 @@ import { saveSession, loadSession, loadRecents, addRecent, removeRecent, saveRec
 import { NavHistory } from './lib/nav-history.js';
 import { escapeHtml } from './lib/escape.js';
 import { getIconForPath, relativeTime } from './lib/file-type.js';
+// CHANGELOG.md is bundled at build time as a string via Vite's built-in ?raw
+// suffix — no plugin or config needed. Rendered into the Settings → Changelog
+// panel on first open (so the running app always shows its own changelog).
+import changelogSource from '../CHANGELOG.md?raw';
+// GitHub repo URL — single source of truth for the About panel + any other
+// links pointing back to the project.
+const REPO_URL = 'https://github.com/sanketpatel32/Mdpeek';
+const REPO_ISSUES_URL = 'https://github.com/sanketpatel32/Mdpeek/issues';
 
 // ---------- themes ----------
 // Curated set: each entry maps the app theme id to its highlight.js theme id.
@@ -80,7 +88,7 @@ function renderWelcome() {
       <div class="welcome-main">
         <div class="welcome-brand">
           <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.18.1</span></h1>
+          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.18.2</span></h1>
           <p class="welcome-tagline">A lightweight Markdown viewer.</p>
         </div>
 
@@ -98,6 +106,11 @@ function renderWelcome() {
           <button class="welcome-action" data-action="daily" type="button">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             <span>Today's note</span>
+          </button>
+          <button class="welcome-action" data-action="open-folder" type="button">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            <span>Open folder</span>
+            <kbd>Ctrl+Shift+E</kbd>
           </button>
         </div>
 
@@ -284,6 +297,22 @@ let _activeExcalidraw = null; // controller for the currently-shown Excalidraw t
 let _activeImage = null; // controller for the currently-shown annotated image
 let _activeCsv = null; // controller for the currently-shown CSV/TSV table
 
+// Toolbar visibility sync — keeps the header uncluttered by hiding buttons
+// that have no effect in the current context. Called from every renderActive()
+// branch so the rules live in one place. `doc` is null on the welcome screen.
+//
+// Most buttons (open, explorer, folder-search, daily, zoom, back/forward,
+// theme, settings) are global and always shown. The sidebar (TOC) toggle is
+// gated separately by syncSidebarVisibility(). This helper only handles the
+// doc-specific actions that weren't already toggled inline in each branch.
+function syncToolbarForDoc(doc) {
+  // Save: only editable docs (markdown / plain / code in any mode). Hide on
+  // the welcome screen and for read-only viewers (PDF / image / csv /
+  // excalidraw) — there's nothing to write back to disk for those.
+  const editable = !!doc && !doc.pdf && !doc.image && !doc.csv && !doc.excalidraw;
+  el.save.classList.toggle('hidden', !editable);
+}
+
 async function renderActive() {
   // Sync the outgoing doc's editor content + caret + scroll back into its model.
   if (_lastRenderedId !== null && _lastRenderedId !== store.activeId) {
@@ -338,6 +367,10 @@ async function renderActive() {
   const doc = store.active();
   renderTabs(store);
   syncSidebarVisibility();
+  // Hide toolbar buttons that don't apply to the current doc (e.g. Save on
+  // the welcome screen or a read-only PDF/image/csv tab). Per-branch toggles
+  // below refine further (draw/export/mode).
+  syncToolbarForDoc(doc);
 
   // No doc, or an empty untouched Untitled tab in VIEW mode → show the welcome
   // screen. If the user explicitly switched to edit mode, show the editor even
@@ -1794,6 +1827,11 @@ const SETTING_KEYS = [
 
 function openSettings() {
   syncSettingsControls();
+  // Render the bundled CHANGELOG into the Changelog panel. Cheap to redo on
+  // every open (renderMarkdown has an LRU cache), and avoids rendering it at
+  // app startup when most users never visit this panel.
+  const changelogEl = document.getElementById('changelog-content');
+  if (changelogEl) changelogEl.innerHTML = renderMarkdown(changelogSource);
   el.settingsDialog.classList.remove('hidden');
   // Always open on the General category for predictability (in case the user
   // switched to another category last time and the .active state persisted).
@@ -1906,6 +1944,16 @@ if (settingsSidebar) settingsSidebar.addEventListener('click', (e) => {
   el.settingsDialog.querySelectorAll('.settings-panel').forEach((p) => {
     p.classList.toggle('hidden', p.dataset.cat !== name);
   });
+});
+
+// About panel — "View on GitHub" / "Report an issue" buttons open the system
+// browser via plugin-opener. Delegated so it survives settings re-opens.
+el.settingsDialog.addEventListener('click', (e) => {
+  const link = e.target.closest('.about-link[data-href]');
+  if (!link) return;
+  const href = link.dataset.href;
+  if (!href) return;
+  openUrl(href).catch((err) => toast('Could not open link: ' + fmtErr(err)));
 });
 
 // Segmented control (new-tab-mode). (new-tab-format is now a <select>.)
@@ -2159,6 +2207,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'open') openFileDialog();
   else if (action === 'new') newTab();
   else if (action === 'daily') openDailyNote();
+  else if (action === 'open-folder') openFolderForExplorer();
   else if (action === 'clear-recents') {
     saveRecents([]);
     // Re-render the welcome screen if it's currently visible.

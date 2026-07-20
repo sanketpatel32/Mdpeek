@@ -1205,7 +1205,10 @@ mark.find-current {
   flex: 1;
   min-height: 0;
   width: 100%;
-  padding: 32px 24px;
+  /* clamp() lets the outer padding shrink on small windows without ever
+     going below 16px or above 32px — keeps the card centered and breathing
+     at every size from 800×600 to 4K. */
+  padding: clamp(16px, 3vw, 32px) clamp(16px, 3vw, 24px);
   text-align: left;
   color: var(--fg-secondary);
   overflow: hidden;
@@ -1217,9 +1220,11 @@ mark.find-current {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
   gap: 28px;
   width: 100%;
-  max-width: 760px;
+  /* Scales with the viewport up to 820px instead of a fixed 760px cap, so
+     wider windows use the extra room instead of leaving dead space. */
+  max-width: min(820px, 94vw);
   max-height: 100%;
-  padding: 28px 32px;
+  padding: clamp(20px, 3vw, 32px) clamp(22px, 3vw, 32px);
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
@@ -1500,6 +1505,24 @@ mark.find-current {
   white-space: nowrap;
 }
 
+/* Mid-tier windows (~700–900px): tighten the card slightly so it doesn't
+   feel oversized or leave wide gutters. Two columns stay intact. */
+@media (max-width: 880px) {
+  .welcome-card {
+    gap: 20px;
+    padding: 22px 22px;
+  }
+  .welcome-logo {
+    width: 46px;
+    height: 46px;
+    border-radius: 11px;
+    margin-bottom: 10px;
+  }
+  .welcome-title {
+    font-size: 20px;
+  }
+}
+
 /* Narrow windows: collapse the two columns into one and allow vertical scroll
    as the last resort. */
 @media (max-width: 640px) {
@@ -1519,6 +1542,10 @@ mark.find-current {
   }
   .welcome-actions {
     align-items: stretch;
+  }
+  .welcome-action {
+    /* Tighter vertical rhythm when stacked so 4 buttons fit a short window. */
+    padding: 9px 12px;
   }
   .welcome-footer {
     justify-content: center;
@@ -2358,6 +2385,173 @@ mark.find-current {
   background: var(--code-bg);
   padding: 1px 5px;
   border-radius: 4px;
+}
+
+/* ---------- Changelog panel ---------- */
+/* The bundled CHANGELOG.md is rendered to sanitized HTML. Tune the prose down
+   so it reads as a compact reference list, not full-size document text. */
+.changelog-body {
+  padding: 4px 8px 4px 2px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--fg-secondary);
+}
+.changelog-body h1 {
+  font-size: 16px;
+  margin: 0 0 12px;
+  color: var(--fg);
+}
+.changelog-body h2 {
+  font-size: 13.5px;
+  font-weight: 600;
+  margin: 18px 0 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--fg);
+}
+.changelog-body h3 {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 12px 0 4px;
+  color: var(--accent);
+}
+.changelog-body h4,
+.changelog-body h5,
+.changelog-body h6 {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 10px 0 4px;
+  color: var(--fg);
+}
+.changelog-body p {
+  margin: 4px 0;
+}
+.changelog-body ul,
+.changelog-body ol {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+.changelog-body li {
+  margin: 2px 0;
+}
+.changelog-body a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.changelog-body a:hover {
+  text-decoration: underline;
+}
+.changelog-body code {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  background: var(--code-bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.changelog-body pre {
+  background: var(--code-bg);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  overflow-x: auto;
+  font-size: 11.5px;
+  margin: 8px 0;
+}
+.changelog-body pre code {
+  background: none;
+  padding: 0;
+}
+.changelog-body hr {
+  border: none;
+  border-top: 1px solid var(--border-subtle);
+  margin: 14px 0;
+}
+.changelog-body strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* ---------- About panel ---------- */
+.about-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 24px 20px 16px;
+  margin: 8px auto 0;
+  max-width: 360px;
+}
+.about-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 14px;
+}
+.about-name {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--fg);
+  margin: 0;
+}
+.about-version {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin: 4px 0 10px;
+  font-variant-numeric: tabular-nums;
+}
+.about-tagline {
+  font-size: 13px;
+  color: var(--fg-secondary);
+  margin: 0 0 18px;
+  line-height: 1.5;
+}
+.about-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.about-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 120ms var(--ease), border-color 120ms var(--ease),
+    transform 120ms var(--ease);
+}
+.about-link:hover {
+  background: var(--surface-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+.about-link.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+  box-shadow: 0 4px 12px var(--accent-soft);
+}
+.about-link.primary:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 6px 16px var(--accent-soft);
+}
+.about-footer {
+  font-size: 11px;
+  color: var(--fg-muted);
+  margin: 8px 0 0;
+  line-height: 1.5;
+  max-width: 320px;
 }
 
 /* Toggle switch (iOS/macOS style) for the find-case setting. */
