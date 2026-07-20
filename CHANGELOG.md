@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-07-20
+
+### Added
+- **Presentation mode:** turn any markdown document into a fullscreen slideshow by splitting on `---` (three or more hyphens on their own line). Click the new Present button in the toolbar (next to Export PDF) or use the command palette ("Start presentation"). Each slide gets its own centered article; navigate with the keyboard or by clicking the screen.
+  - **Keyboard:** `→` `↓` `PageDown` `Space` = next, `←` `↑` `PageUp` = previous, `Home`/`End` = jump to first/last, `F` = OS fullscreen, `S` = toggle style, `Esc` = exit.
+  - **Click:** on-screen arrows, or click the left/right half of the stage.
+  - **Two switchable styles** (press `S`): **Deck** (dark backdrop, big centered text — looks like Keynote/PowerPoint) and **Reading** (uses your app theme + normal text size). Persists across sessions.
+  - **YAML front-matter** is stripped automatically so it isn't read as slide 1.
+  - **Docs with no `---`** still work — they open as a single-slide fullscreen reading view.
+  - **Zero installer growth** (6.13 MB, same as v0.19.0) — no new dependencies; reuses the existing markdown renderer + app theme tokens.
+  - Toolbar button + command palette entry are visible only for Markdown documents.
+
+### Notes
+- External file edits during a presentation are not live-synced to the slides; exit + re-enter to pick up changes.
+- `---` inside a code fence is treated as a slide break (rare edge case; correct handling would require AST parsing).
+
 ## [0.19.0] - 2026-07-20
 
 ### Added

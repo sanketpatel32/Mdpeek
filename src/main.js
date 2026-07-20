@@ -88,7 +88,7 @@ function renderWelcome() {
       <div class="welcome-main">
         <div class="welcome-brand">
           <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.19.0</span></h1>
+          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.20.0</span></h1>
           <p class="welcome-tagline">A lightweight Markdown viewer.</p>
         </div>
 
@@ -149,6 +149,7 @@ const el = {
   sidebar: document.getElementById('btn-sidebar'),
   export: document.getElementById('btn-export'),
   exportPdf: document.getElementById('btn-export-pdf'),
+  present: document.getElementById('btn-present'),
   daily: document.getElementById('btn-daily'),
   explorer: document.getElementById('btn-explorer'),
   fileTree: document.getElementById('file-tree'),
@@ -176,6 +177,7 @@ const el = {
   toast: document.getElementById('toast'),
   dropzone: document.getElementById('dropzone'),
   pdfDrawToolbar: document.getElementById('pdf-draw-toolbar'),
+  slideshow: document.getElementById('slideshow'),
   ctxMenu: document.getElementById('ctx-menu'),
   treeCtxMenu: document.getElementById('tree-ctx-menu'),
   closeDialog: document.getElementById('close-dialog'),
@@ -383,6 +385,7 @@ async function renderActive() {
     el.mode.classList.remove('hidden');
     el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
+    if (el.present) el.present.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = ''; // clear stale TOC from the previous document
     el.document.classList.remove('code-viewer', 'image-viewer');
@@ -399,6 +402,7 @@ async function renderActive() {
     el.draw.classList.remove('hidden');
     el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
+    if (el.present) el.present.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
     el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'markdown-body');
@@ -428,6 +432,7 @@ async function renderActive() {
     el.draw.setAttribute('aria-label', 'Annotate image');
     el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
+    if (el.present) el.present.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
     el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'markdown-body');
@@ -445,6 +450,7 @@ async function renderActive() {
     el.draw.classList.add('hidden');
     el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
+    if (el.present) el.present.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
     el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'markdown-body');
@@ -474,6 +480,7 @@ async function renderActive() {
     el.draw.classList.add('hidden');
     el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
+    if (el.present) el.present.classList.add('hidden');
     el.pdfDrawToolbar.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
@@ -503,6 +510,7 @@ async function renderActive() {
       el.draw.classList.add('hidden');
       el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
+    if (el.present) el.present.classList.add('hidden');
       el.pdfDrawToolbar.classList.add('hidden');
       el.viewMode.classList.remove('hidden');
       el.toc.innerHTML = '';
@@ -532,9 +540,11 @@ async function renderActive() {
   // and restore the markdown-body class (removed by the code-viewer branch).
   el.pdfDrawToolbar.classList.add('hidden');
   el.draw.classList.add('hidden');
-  // Export to HTML only makes sense for real markdown docs (not plain text).
+  // Export to HTML / Present only make sense for real markdown docs (not
+  // plain text — there's nothing to split into slides for a .txt file).
   el.export.classList.toggle('hidden', !!doc.plain);
   if (el.exportPdf) el.exportPdf.classList.toggle('hidden', !!doc.plain);
+  if (el.present) el.present.classList.toggle('hidden', !!doc.plain);
   el.document.classList.remove('code-viewer', 'image-viewer');
   el.document.classList.add('markdown-body');
 
@@ -653,6 +663,7 @@ const palette = initCommandPalette(() => {
     { id: 'save', label: 'Save', hint: 'Ctrl+S', keywords: 'save write', run: saveActive },
     { id: 'export-html', label: 'Export to HTML', keywords: 'export html self-contained', run: exportHtml },
     { id: 'export-pdf', label: 'Export to PDF', keywords: 'export pdf print document', run: exportPdf },
+    { id: 'start-presentation', label: 'Start presentation', keywords: 'present slideshow slides deck fullscreen', run: togglePresentation },
     {
       id: 'folder-search',
       label: 'Search in folder',
@@ -687,7 +698,7 @@ const palette = initCommandPalette(() => {
   const doc = store.active();
   const hasDoc = !!doc;
   return cmds.filter((c) => {
-    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-pdf' || c.id === 'mode') && !hasDoc) return false;
+    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'mode') && !hasDoc) return false;
     return true;
   });
 });
@@ -1252,6 +1263,145 @@ function toggleThemeMenu() {
 function toggleFocus() {
   const on = document.body.classList.toggle('focus-mode');
   localStorage.setItem('mdpeek-focus', on ? '1' : '0');
+}
+
+// ---------- presentation mode (v0.20.0) ----------
+// Turn the active markdown doc into a fullscreen slideshow by splitting on
+// lines of 3+ hyphens (---). Keyboard nav: arrows/space/PageUp-Down/Home/End,
+// F = OS fullscreen, S = toggle deck ↔ reading style, Esc = exit.
+let _slideshow = null; // { slides: string[], index, style: 'deck'|'reading' } | null
+
+// Split markdown source into slide chunks. Strips YAML front-matter first
+// (so the leading ---\n...\n--- block isn't read as a slide delimiter), then
+// splits on lines that are ONLY 3+ hyphens. Empty leading/trailing chunks are
+// dropped (e.g. a trailing --- at EOF). A doc with no --- yields one slide.
+function splitSlides(md) {
+  if (!md) return [];
+  let src = md;
+  // YAML front-matter: leading ---\n...\n---\n. Non-greedy so it stops at the
+  // closing fence; if there's no closing fence the regex won't match and we
+  // treat the whole thing as content (rare, malformed).
+  const fm = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/.exec(src);
+  if (fm) src = src.slice(fm[0].length);
+  // Split on lines that are ONLY 3+ hyphens (with optional surrounding space).
+  // Multi-line flag so ^/$ match line boundaries, not just string boundaries.
+  const parts = src.split(/^[ \t]*-{3,}[ \t]*$/m);
+  // Trim each chunk + drop empty leading/trailing entries (keep empties in the
+  // middle — those are real blank slides the author may want).
+  const trimmed = parts.map((s) => s.replace(/^\n+/, '').replace(/\s+$/, ''));
+  while (trimmed.length > 0 && trimmed[0] === '') trimmed.shift();
+  while (trimmed.length > 0 && trimmed[trimmed.length - 1] === '') trimmed.pop();
+  return trimmed;
+}
+
+function togglePresentation() {
+  if (document.body.classList.contains('presenting')) {
+    exitPresentation();
+  } else {
+    enterPresentation();
+  }
+}
+
+function enterPresentation() {
+  const doc = store.active();
+  if (!doc || doc.pdf || doc.excalidraw || doc.code || doc.image || doc.csv) {
+    toast('Presentation is for Markdown documents');
+    return;
+  }
+  // Sync any pending editor changes into doc.content before splitting.
+  if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
+  const slides = splitSlides(doc.content);
+  if (slides.length === 0) {
+    toast('Nothing to present — the document is empty');
+    return;
+  }
+  // Build the slide articles. Rendered synchronously per slide (mermaid blocks
+  // render as static SVG if pre-rendered, otherwise raw code — skip the
+  // expensive enhanceDom mermaid pass for fast slide transitions).
+  const stage = el.slideshow.querySelector('.slide-stage');
+  stage.innerHTML = '';
+  for (const slideMd of slides) {
+    const article = document.createElement('article');
+    article.className = 'markdown-body slide';
+    article.innerHTML = renderMarkdown(slideMd);
+    stage.appendChild(article);
+  }
+  _slideshow = {
+    slides,
+    index: 0,
+    style: localStorage.getItem('mdpeek-slide-style') === 'reading' ? 'reading' : 'deck',
+  };
+  // Apply the style class on the overlay (drives all the .deck-style /
+  // .reading-style CSS rules) + the body class that reveals it.
+  el.slideshow.classList.remove('deck-style', 'reading-style');
+  el.slideshow.classList.add(_slideshow.style + '-style');
+  el.slideshow.classList.remove('hidden');
+  document.body.classList.add('presenting');
+  updateSlide();
+}
+
+function exitPresentation() {
+  document.body.classList.remove('presenting');
+  el.slideshow.classList.add('hidden');
+  // Drop the built slide articles so the next enter re-renders fresh content.
+  const stage = el.slideshow.querySelector('.slide-stage');
+  if (stage) stage.innerHTML = '';
+  // Exit OS fullscreen too if we entered it via F.
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {});
+  }
+  _slideshow = null;
+}
+
+function goToSlide(n) {
+  if (!_slideshow) return;
+  const total = _slideshow.slides.length;
+  _slideshow.index = Math.max(0, Math.min(n, total - 1));
+  updateSlide();
+}
+function nextSlide() { if (_slideshow) goToSlide(_slideshow.index + 1); }
+function prevSlide() { if (_slideshow) goToSlide(_slideshow.index - 1); }
+
+function updateSlide() {
+  if (!_slideshow) return;
+  const { index, slides } = _slideshow;
+  const articles = el.slideshow.querySelectorAll('.slide');
+  articles.forEach((a, i) => a.classList.toggle('active', i === index));
+  // Restart the slide-in animation on the newly-active slide so each
+  // transition animates (toggling the class alone won't re-trigger CSS
+  // animations without a reflow).
+  const active = articles[index];
+  if (active) {
+    active.style.animation = 'none';
+    // Force reflow so the animation restarts.
+    void active.offsetWidth;
+    active.style.animation = '';
+    active.scrollTop = 0;
+  }
+  const progress = el.slideshow.querySelector('.slide-progress');
+  if (progress) progress.textContent = `${index + 1} / ${slides.length}`;
+  const prev = el.slideshow.querySelector('.slide-arrow.prev');
+  const next = el.slideshow.querySelector('.slide-arrow.next');
+  if (prev) prev.disabled = index === 0;
+  if (next) next.disabled = index === slides.length - 1;
+}
+
+// Toggle between deck (dark, big, centered) and reading (theme, normal) styles.
+function toggleSlideStyle() {
+  if (!_slideshow) return;
+  _slideshow.style = _slideshow.style === 'deck' ? 'reading' : 'deck';
+  localStorage.setItem('mdpeek-slide-style', _slideshow.style);
+  el.slideshow.classList.remove('deck-style', 'reading-style');
+  el.slideshow.classList.add(_slideshow.style + '-style');
+}
+
+// Toggle OS-level fullscreen (F key in presentation). No-op if not supported.
+function toggleFullscreen() {
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {});
+  } else {
+    document.documentElement.requestFullscreen().catch(() => {});
+  }
 }
 
 // ---------- typewriter mode ----------
@@ -2065,7 +2215,26 @@ el.open.addEventListener('click', openFileDialog);
 el.save.addEventListener('click', saveActive);
 if (el.export) el.export.addEventListener('click', exportHtml);
 if (el.exportPdf) el.exportPdf.addEventListener('click', exportPdf);
+if (el.present) el.present.addEventListener('click', togglePresentation);
 if (el.daily) el.daily.addEventListener('click', openDailyNote);
+
+// Slideshow click navigation. Arrow buttons + click-on-stage halves advance
+// or retreat (PowerPoint convention). Delegated so it survives rebuilds.
+el.slideshow.addEventListener('click', (e) => {
+  const arrow = e.target.closest('.slide-arrow');
+  if (arrow) {
+    if (arrow.classList.contains('prev')) prevSlide();
+    else if (arrow.classList.contains('next')) nextSlide();
+    return;
+  }
+  // Click on the stage's left/right half → prev/next. Cheap hit-test.
+  const stage = e.target.closest('.slide-stage');
+  if (stage) {
+    const rect = stage.getBoundingClientRect();
+    if (e.clientX < rect.left + rect.width / 2) prevSlide();
+    else nextSlide();
+  }
+});
 
 // Formatting toolbar — one delegated handler covers all .fmt-btn clicks.
 // Looks up the active doc's editor and dispatches to its format(type) method.
@@ -2894,6 +3063,60 @@ window.addEventListener('keydown', (e) => {
 // preventDefault so WebView2 doesn't also fire native fullscreen. Escape exits
 // focus mode (handled here, before any other Escape handler can grab it).
 window.addEventListener('keydown', (e) => {
+  // Presentation-mode shortcuts take over the keyboard entirely while the
+  // slideshow is active. We bail out of the rest of the handler after handling
+  // one of these so nothing else (editor, find bar, palette) intercepts.
+  if (document.body.classList.contains('presenting')) {
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+      case 'PageDown':
+      case ' ':
+        e.preventDefault();
+        e.stopPropagation();
+        nextSlide();
+        return;
+      case 'ArrowLeft':
+      case 'ArrowUp':
+      case 'PageUp':
+        e.preventDefault();
+        e.stopPropagation();
+        prevSlide();
+        return;
+      case 'Home':
+        e.preventDefault();
+        e.stopPropagation();
+        goToSlide(0);
+        return;
+      case 'End':
+        e.preventDefault();
+        e.stopPropagation();
+        if (_slideshow) goToSlide(_slideshow.slides.length - 1);
+        return;
+      case 'Escape':
+        e.preventDefault();
+        e.stopPropagation();
+        exitPresentation();
+        return;
+      case 'f':
+      case 'F':
+        e.preventDefault();
+        e.stopPropagation();
+        toggleFullscreen();
+        return;
+      case 's':
+      case 'S':
+        e.preventDefault();
+        e.stopPropagation();
+        toggleSlideStyle();
+        return;
+    }
+    // Any other key: swallow it so the editor/find bar don't grab keystrokes
+    // while the textarea is hidden behind the slideshow.
+    e.preventDefault();
+    e.stopPropagation();
+    return;
+  }
   // Ctrl+Shift+P → command palette. Capture phase so the editor's keydown
   // handler (which intercepts Ctrl+letter combos for markdown shortcuts)
   // can't swallow it.

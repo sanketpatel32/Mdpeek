@@ -1944,6 +1944,169 @@ mark.find-current {
 .theme-swatch[data-sw="catppuccin"]  { --sw-bg: #1e1e2e; --sw-accent: #89b4fa; }
 
 /* ---------- Close / modal dialog ---------- */
+/* ---------- Presentation mode (v0.20.0) ----------
+   Fullscreen slideshow overlay. Splits a markdown doc on `---` lines and
+   shows one slide at a time. Two styles:
+     .deck-style   — dark backdrop, big centered text, looks like Keynote.
+     .reading-style — app theme colors, left-aligned, normal reading size.
+   Toggled by the #btn-present toolbar button or the command palette. */
+#slideshow {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;            /* above modal-overlay (900) + ctx-menu (1000) */
+  display: none;            /* shown via body.presenting */
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  animation: slide-fade-in 200ms var(--ease);
+}
+body.presenting #slideshow { display: flex; }
+@keyframes slide-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.slide-stage {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+.slide {
+  display: none;
+  max-width: min(1100px, 92vw);
+  max-height: 86vh;
+  overflow-y: auto;
+  padding: 0 5vw;
+  animation: slide-in 220ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+.slide.active { display: block; }
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Deck style — dark, big, centered. Looks like a presentation. */
+.slideshow.deck-style {
+  background: #1a1a1a;
+  color: #f5f5f7;
+}
+.slideshow.deck-style .slide {
+  font-size: clamp(20px, 2.4vw, 32px);
+  line-height: 1.5;
+  text-align: center;
+}
+.slideshow.deck-style .slide h1 {
+  font-size: clamp(36px, 5vw, 64px);
+  margin-bottom: 0.4em;
+  border: none;
+  color: #ffffff;
+}
+.slideshow.deck-style .slide h2 {
+  font-size: clamp(28px, 3.5vw, 44px);
+  border: none;
+  color: #f5f5f7;
+}
+.slideshow.deck-style .slide h3 {
+  font-size: clamp(22px, 2.8vw, 36px);
+}
+.slideshow.deck-style .slide p,
+.slideshow.deck-style .slide li {
+  font-size: clamp(18px, 2vw, 28px);
+}
+.slideshow.deck-style .slide ul,
+.slideshow.deck-style .slide ol {
+  display: inline-block;
+  text-align: left;
+}
+.slideshow.deck-style .slide code,
+.slideshow.deck-style .slide pre {
+  font-size: clamp(15px, 1.6vw, 22px);
+}
+.slideshow.deck-style .slide pre {
+  text-align: left;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 16px 20px;
+  border-radius: 10px;
+}
+.slideshow.deck-style .slide img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+.slideshow.deck-style .slide a {
+  color: #6cb6ff;
+}
+/* Force a dark code color scheme regardless of app theme so highlighted code
+   reads against the dark backdrop. */
+.slideshow.deck-style .hljs {
+  background: transparent;
+  color: #f5f5f7;
+}
+
+/* Reading style — inherits app theme + normal sizes, just fullscreen. */
+.slideshow.reading-style {
+  background: var(--bg);
+  color: var(--fg);
+}
+.slideshow.reading-style .slide {
+  font-size: clamp(16px, 1.6vw, 20px);
+  line-height: 1.7;
+  text-align: left;
+  max-width: min(900px, 92vw);
+}
+
+/* Controls (arrows + progress + hint) — work in both styles. */
+.slide-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(128, 128, 128, 0.2);
+  border: none;
+  color: inherit;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 150ms var(--ease), transform 100ms var(--ease);
+  z-index: 2;
+}
+.slide-arrow:hover:not(:disabled) {
+  background: rgba(128, 128, 128, 0.4);
+  transform: translateY(-50%) scale(1.06);
+}
+.slide-arrow:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+.slide-arrow.prev { left: 16px; }
+.slide-arrow.next { right: 16px; }
+.slide-progress {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 13px;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.slide-hint {
+  position: absolute;
+  bottom: 16px;
+  right: 20px;
+  font-size: 11px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
