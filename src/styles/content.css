@@ -1,12 +1,17 @@
 /* Rendered-markdown element styling.
    Content fills the full document pane width (no max-width cap, no centering).
    Comfortable side padding keeps lines readable; the scrollbar sits flush at
-   the right edge of the pane, aligned with the window. */
+   the right edge of the pane, aligned with the window.
+
+   IMPORTANT: width:0 only applies to #document (view mode, where it's a row
+   flex item and width:0 + flex:1 = "grow to fill"). #preview sits inside a
+   COLUMN flex container (.preview-pane), where width:0 would literally
+   collapse it. The .view-mode-only scope below restores the original
+   intent without breaking the edit-mode preview. */
 .markdown-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  width: 0; /* allow flex to control width; prevents overflow from long lines */
   min-width: 0;
   margin: 0;
   padding: 40px 48px 96px;
@@ -14,6 +19,19 @@
   color: var(--fg);
   font-size: 15px;
   font-family: var(--content-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", sans-serif) !important;
+}
+/* width:0 + flex:1 lets #document fill the row in view mode and prevents
+   long unbroken lines from overflowing horizontally. */
+.view-mode > .markdown-body,
+.view-mode .markdown-body#document {
+  width: 0;
+}
+/* #preview in edit mode is inside .preview-pane (column flex). It should
+   fill the pane's width naturally via align-items: stretch (the default).
+   Explicit width:100% makes this bulletproof against future container
+   changes. */
+.preview-pane > .markdown-body {
+  width: 100%;
 }
 /* When a document is rendered in the view pane, its top-level children fade
    + rise in subtly. Scoped to #document (view mode) only, NOT #preview, so the

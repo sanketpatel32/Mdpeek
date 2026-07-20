@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.3] - 2026-07-21
+
+### Fixed
+- **MAJOR: edit-mode preview was collapsing to ~96px wide**, causing rendered markdown to wrap one-word-per-line. The root cause was a CSS rule from v0.16.5 (`.markdown-body { width: 0 }`) that's correct for `#document` in view mode (where it's a row flex item and `width: 0 + flex: 1` means "grow to fill"), but wrong for `#preview` in edit mode (where it sits inside `.preview-pane`, a column flex container — there `width: 0` literally zeroes the width and `align-items: stretch` can't override an explicit width).Scoped `width: 0` to `.view-mode` only and added an explicit `width: 100%` rule for `.preview-pane > .markdown-body`. Verified with a headless browser + OCR: preview pane is now 631px wide and paragraphs wrap naturally across multiple words. This regression had been present since v0.16.5 but only became visible after the v0.21.0 collab work led users into edit mode more often.
+
 ## [0.21.2] - 2026-07-21
 
 ### Fixed
