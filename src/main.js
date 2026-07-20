@@ -14,6 +14,7 @@ import { initFindBar } from './views/find-bar.js';
 import { initCommandPalette, initQuickSwitcher } from './views/command-palette.js';
 import { initFileTree, setTreeRoot, setActivePath, refreshTree } from './views/file-tree.js';
 import { initCsvViewer } from './views/csv-viewer.js';
+import { initFolderSearch } from './views/folder-search.js';
 import { renderTabs } from './views/tabs.js';
 import { DocumentStore, isPdfPath, isImagePath, isExcalidrawPath, langFromPath } from './lib/documents.js';
 import { renderMarkdown, renderCode, renderCsv, parseCsv, prepareCodeLang } from './lib/renderer.js';
@@ -79,7 +80,7 @@ function renderWelcome() {
       <div class="welcome-main">
         <div class="welcome-brand">
           <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.17.0</span></h1>
+          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.18.0</span></h1>
           <p class="welcome-tagline">A lightweight Markdown viewer.</p>
         </div>
 
@@ -591,6 +592,20 @@ const palette = initCommandPalette(() => {
     { id: 'save', label: 'Save', hint: 'Ctrl+S', keywords: 'save write', run: saveActive },
     { id: 'export-html', label: 'Export to HTML', keywords: 'export html self-contained', run: exportHtml },
     { id: 'export-pdf', label: 'Export to PDF', keywords: 'export pdf print document', run: exportPdf },
+    {
+      id: 'folder-search',
+      label: 'Search in folder',
+      keywords: 'search find grep folder files recursive global',
+      run: () => {
+        const root = localStorage.getItem('mdpeek-explorer-root');
+        if (root) {
+          folderSearch.open(root);
+        } else {
+          toast('Open a folder in the explorer first');
+          toggleExplorer();
+        }
+      },
+    },
     { id: 'copy-rich', label: 'Copy as rich text', hint: 'Ctrl+Shift+C', keywords: 'copy rich html clipboard paste formatted', run: copyAsRichText },
     { id: 'mode', label: 'Toggle edit / view', hint: 'Ctrl+E', keywords: 'toggle edit view mode', run: toggleMode },
     { id: 'sidebar', label: 'Toggle sidebar (TOC)', hint: 'Ctrl+B', keywords: 'sidebar toc outline', run: toggleSidebar },
@@ -659,7 +674,11 @@ store.on('change', () => {
       navHistory.remove(id);
     }
   }
-  renderActive().catch((e) => {
+  renderActive().then(() => {
+    // After rendering settles, jump to a pending line if one was stashed on
+    // the active doc (e.g. by openPathAndJump from a folder-search result).
+    applyPendingLine(store.active());
+  }).catch((e) => {
     console.error('renderActive failed:', e);
     // Last-resort fallback: show the welcome screen so the app doesn't freeze.
     el.editMode.classList.add('hidden');
@@ -681,16 +700,80 @@ function persistSoon() {
 }
 
 // ---------- open / new / close ----------
-async function openPath(path, content) {
+async function openPath(path, content, opts = {}) {
   store.open({ path, content });
   // Record in the recents list (welcome screen) — only real files, not untitled.
   if (path) addRecent(path);
   // Highlight the open file in the explorer sidebar (if visible + in tree).
   if (path) setActivePath(path);
+  // Stash the requested line so the post-render hook can scroll to it once
+  // renderActive finishes (the store 'change' event fires synchronously inside
+  // store.open above, but renderActive itself runs as a microtask via .catch).
+  if (opts.line) {
+    const d = store.active();
+    if (d) d.pendingLine = opts.line;
+  }
   // PDFs are read-only binary — no file-watcher (the text-based watcher would
   // choke on bytes, and live-reload isn't meaningful for a PDF).
   // Excalidraw files are JSON but the canvas manages its own state — skip watcher.
   if (!isPdfPath(path) && !isExcalidrawPath(path)) await rewatch(path);
+}
+
+// Open a file from a search result and jump to a specific line. Reads the
+// file fresh (search results come from the Rust side, which doesn't ship
+// content back), then routes through openPath with the line hint. If the
+// file is markdown in view mode, surface the search query in the find bar
+// instead of trying to scroll to a source line (markdown view has no line
+// concept).
+async function openPathAndJump(path, line, query) {
+  try {
+    const content = await invoke('read_file', { path });
+    await openPath(path, content, { line });
+    // After openPath schedules the line jump, also kick off the find bar for
+    // markdown view-mode docs so in-document matches are highlighted.
+    const doc = store.active();
+    if (doc && !doc.code && !doc.csv && !doc.pdf && !doc.image && !doc.excalidraw && doc.mode === 'view' && query) {
+      // Wait one tick so renderActive has run.
+      setTimeout(() => {
+        if (find && query) find.open(query, { caseSensitive: false, focus: false });
+      }, 60);
+    }
+  } catch (e) {
+    toast('Could not open: ' + basename(path));
+  }
+}
+
+// Consume doc.pendingLine after renderActive finishes. Called from the
+// 'change' listener below once rendering settles. Three modes:
+//   - Edit mode (any text): use editor.setState to set caret + scroll.
+//   - Code view mode: pixel-scroll via gutter line-height.
+//   - Markdown view / others: no-op (callers like openPathAndJump activate
+//     the find bar instead).
+function applyPendingLine(doc) {
+  if (!doc || !doc.pendingLine) return;
+  const line = doc.pendingLine;
+  doc.pendingLine = null;
+  if (line < 1) return;
+  if (doc.mode === 'edit' && doc.editor) {
+    // Compute character offset + scrollTop via the same math the find bar uses.
+    const text = doc.editor.getValue();
+    const lines = text.split('\n');
+    let offset = 0;
+    for (let i = 0; i < Math.min(line - 1, lines.length); i++) {
+      offset += lines[i].length + 1;
+    }
+    const ta = doc.editor.textarea();
+    const lineHeight = parseFloat(getComputedStyle(ta).lineHeight) || 20;
+    const scrollTop = Math.max(0, (line - 1) * lineHeight - ta.clientHeight / 3);
+    doc.editor.setState({ start: offset, end: offset, scrollTop });
+  } else if (doc.code) {
+    // Code view: the gutter's <div>s share the <pre>'s line-height. Scroll
+    // the document so the target line lands roughly in the upper third.
+    const gutterDiv = el.document.querySelector('.code-gutter > div');
+    const lineHeight = gutterDiv ? (gutterDiv.getBoundingClientRect().height || 18) : 18;
+    el.document.scrollTop = Math.max(0, (line - 1) * lineHeight - el.document.clientHeight / 3);
+  }
+  // CSV / markdown-view / PDF / image / excalidraw: no line concept. No-op.
 }
 
 function newTab() {
@@ -791,14 +874,18 @@ async function ctxAction(action, tabId) {
   const doc = store.docs.find((d) => d.id === tabId);
   if (!doc) return;
   const idx = store.docs.findIndex((d) => d.id === tabId);
-  if (action === 'close') {
+  if (action === 'pin') {
+    store.setPinned(tabId, !doc.pinned);
+  } else if (action === 'close') {
     await closeTab(tabId);
   } else if (action === 'close-others') {
-    await closeDocs(store.docs.filter((d) => d.id !== tabId).map((d) => d.id));
+    // Pinned tabs survive "close others" — the user explicitly kept them.
+    await closeDocs(store.docs.filter((d) => d.id !== tabId && !d.pinned).map((d) => d.id));
   } else if (action === 'close-right') {
-    await closeDocs(store.docs.slice(idx + 1).map((d) => d.id));
+    await closeDocs(store.docs.slice(idx + 1).filter((d) => !d.pinned).map((d) => d.id));
   } else if (action === 'close-all') {
-    await closeDocs(store.docs.map((d) => d.id));
+    // Pinned tabs survive "close all" too — same reasoning.
+    await closeDocs(store.docs.filter((d) => !d.pinned).map((d) => d.id));
   }
 }
 
@@ -1293,6 +1380,25 @@ el.fileTreeBody.addEventListener('click', (e) => {
     openFolderForExplorer();
   }
 });
+// Right-click a folder in the tree → open the folder-wide search panel
+// targeting that folder. Right-clicking a file or empty space does nothing
+// special (no menu — the action is unambiguous, so a direct trigger is
+// simpler than building a context menu just for one item).
+el.fileTreeBody.addEventListener('contextmenu', (e) => {
+  const row = e.target.closest('.tree-row');
+  if (!row || row.dataset.kind !== 'dir') return;
+  e.preventDefault();
+  const path = row.dataset.path;
+  if (!path) return;
+  folderSearch.open(path);
+});
+
+// Folder-wide search panel. Singleton — built once on first open, then
+// reused. The onOpen callback receives (path, line, query) and routes the
+// click through openPathAndJump so the file opens at the right line.
+const folderSearch = initFolderSearch((path, line, query) => {
+  openPathAndJump(path, line, query);
+});
 
 async function openFolderForExplorer() {
   try {
@@ -1600,6 +1706,29 @@ document.getElementById('btn-forward').addEventListener('click', goForward);
 el.explorer.addEventListener('click', toggleExplorer);
 el.fileTreeClose.addEventListener('click', toggleExplorer);
 el.fileTreeOpen.addEventListener('click', openFolderForExplorer);
+// Toolbar button: open the folder-search panel. Prefers the current explorer
+// root; if none is set, prompts the user to pick a folder.
+const folderSearchBtn = document.getElementById('btn-folder-search');
+if (folderSearchBtn) {
+  folderSearchBtn.addEventListener('click', () => {
+    const root = localStorage.getItem('mdpeek-explorer-root');
+    if (root) {
+      folderSearch.open(root);
+    } else {
+      // No folder open yet — pick one. After picking, open the panel on it.
+      invoke('pick_folder')
+        .then((dir) => {
+          localStorage.setItem('mdpeek-explorer-root', dir);
+          setTreeRoot(dir);
+          if (el.fileTree.classList.contains('hidden')) toggleExplorer();
+          folderSearch.open(dir);
+        })
+        .catch((e) => {
+          if (e !== 'cancelled') toast('Could not open folder: ' + fmtErr(e));
+        });
+    }
+  });
+}
 el.zoomIn.addEventListener('click', zoomIn);
 el.zoomOut.addEventListener('click', zoomOut);
 // Clicking the % badge resets to 100% (same as Ctrl+0).
@@ -2082,17 +2211,23 @@ el.tabStrip.addEventListener('contextmenu', (e) => {
   e.preventDefault();
   const id = tab.dataset.id;
   const idx = store.docs.findIndex((d) => d.id === id);
+  const items = el.ctxMenu.querySelectorAll('.ctx-item');
+  // Relabel the pin item to reflect the target tab's current pinned state.
+  const target = store.docs.find((d) => d.id === id);
+  const isPinned = !!target?.pinned;
   // Disable items that would be no-ops (e.g. "Close others" with only one tab,
-  // "Close to the right" when the tab is already the last one).
+  // "Close to the right" when the tab is already the last one, "Close all"
+  // when every tab is pinned).
   const onlyTab = store.docs.length === 1;
   const isLast = idx === store.docs.length - 1;
-  const items = el.ctxMenu.querySelectorAll('.ctx-item');
+  const allPinned = store.docs.every((d) => d.pinned);
   items.forEach((btn) => {
     const a = btn.dataset.action;
     btn.disabled = false;
-    if (a === 'close-others' && onlyTab) btn.disabled = true;
-    if (a === 'close-right' && (onlyTab || isLast)) btn.disabled = true;
-    if (a === 'close-all' && onlyTab) btn.disabled = true;
+    if (a === 'pin') btn.textContent = isPinned ? 'Unpin tab' : 'Pin tab';
+    if (a === 'close-others' && (onlyTab || store.docs.filter((d) => d.id !== id && !d.pinned).length === 0)) btn.disabled = true;
+    if (a === 'close-right' && (onlyTab || isLast || store.docs.slice(idx + 1).every((d) => d.pinned))) btn.disabled = true;
+    if (a === 'close-all' && (onlyTab || allPinned)) btn.disabled = true;
     btn.dataset.tabId = id;
   });
   el.ctxMenu.classList.remove('hidden');
@@ -2664,8 +2799,9 @@ applyLineNumbers();
     if (session && Array.isArray(session.docs) && session.docs.length > 0) {
       const candidates = session.docs.filter((s) => {
         // Skip blank untouched Untitled tabs — restoring an empty tab would hide
-        // the welcome screen for no benefit.
-        if (s.path === null && (s.content === '' || s.content == null) && !s.dirty) {
+        // the welcome screen for no benefit. Pinned tabs survive even when
+        // blank (the user explicitly kept them around).
+        if (s.path === null && (s.content === '' || s.content == null) && !s.dirty && !s.pinned) {
           return false;
         }
         return true;

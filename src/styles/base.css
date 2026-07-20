@@ -920,6 +920,188 @@ mark.find-current {
   overflow: auto;
 }
 
+/* ---------- Folder-wide search panel ----------
+   Triggered by right-clicking a folder in the explorer or by the toolbar
+   magnifier button. Same overlay positioning as the find bar, but taller
+   and with a scrollable grouped results list. Mirrors find-bar tokens so
+   it reads as a sibling panel. */
+.folder-search-overlay {
+  position: fixed;
+  top: calc(var(--header-h) + 12px);
+  right: 16px;
+  z-index: 80;
+  width: 480px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - var(--header-h) - 40px);
+  display: flex;
+  flex-direction: column;
+  animation: find-in 180ms var(--ease, ease) both;
+}
+.folder-search-overlay.hidden {
+  display: none !important;
+}
+.folder-search-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  max-height: inherit;
+}
+.folder-search-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  flex-shrink: 0;
+}
+.folder-search-folder {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+  flex-shrink: 0;
+}
+.folder-search-toggle {
+  /* Reuses .tool-btn.icon-only. Active state mirrors the find-bar toggle. */
+  font-size: 11px;
+  font-weight: 700;
+  width: 28px;
+  height: 28px;
+}
+.folder-search-toggle.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.folder-search-input {
+  flex: 1;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 120ms var(--ease, ease);
+}
+.folder-search-input:focus {
+  border-color: var(--accent);
+}
+.folder-search-count {
+  font-size: 11px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 30px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.folder-search-results {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 80px;
+  max-height: calc(100vh - var(--header-h) - 100px);
+  background: var(--bg);
+  font-family: "SFMono-Regular", Consolas, "Segoe UI Mono", monospace;
+  font-size: 12px;
+}
+.search-file-group {
+  border-bottom: 1px solid var(--border-subtle);
+}
+.search-file-group:last-child {
+  border-bottom: none;
+}
+.search-file-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg-elevated);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.search-file-name {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search-file-count {
+  font-size: 10px;
+  color: var(--fg-muted);
+  background: var(--surface-active);
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.search-match {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 4px 12px 4px 28px;
+  cursor: pointer;
+  transition: background-color 100ms var(--ease, ease);
+  border-left: 2px solid transparent;
+}
+.search-match:hover {
+  background: var(--surface-hover);
+  border-left-color: var(--accent);
+}
+.search-line {
+  flex-shrink: 0;
+  width: 32px;
+  text-align: right;
+  font-size: 10.5px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+.search-text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--fg-secondary);
+}
+.search-text mark {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 2px;
+  padding: 0 1px;
+  font-weight: 600;
+}
+.search-empty,
+.search-truncated {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--fg-muted);
+  font-size: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.search-truncated {
+  padding: 8px 12px;
+  text-align: center;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  font-style: italic;
+}
+
 /* ---------- Utility ---------- */
 .hidden {
   display: none !important;
@@ -1467,6 +1649,41 @@ mark.find-current {
   background: var(--surface-active);
   color: var(--danger);
   transform: scale(1.12);
+}
+
+/* Pinned tabs — shrink to icon-only, hide title + close, keep dirty dot as
+   an overlay on the icon. Survive bulk-close; stick to the left of the strip. */
+.tab.pinned {
+  max-width: 40px;
+  min-width: 32px;
+  padding: 0 6px;
+  justify-content: center;
+}
+.tab.pinned .tab-title {
+  display: none;
+}
+.tab.pinned .tab-close {
+  display: none;
+}
+.tab.pinned .tab-icon {
+  margin: 0;
+}
+.tab.pinned .tab-dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  font-size: 7px;
+  margin-left: 0;
+}
+.tab.pinned.active::after {
+  left: 4px;
+  right: 4px;
+}
+/* Divider between pinned and unpinned groups — only when an unpinned tab
+   directly follows a pinned one. */
+.tab.pinned + .tab:not(.pinned) {
+  border-left: 1px solid var(--border-subtle);
+  margin-left: 4px;
 }
 .tab-new {
   background: transparent;

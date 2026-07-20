@@ -88,6 +88,9 @@
           <button id="btn-explorer" class="tool-btn icon-only" title="Toggle file explorer (Ctrl+Shift+E)" aria-label="Toggle file explorer">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
           </button>
+          <button id="btn-folder-search" class="tool-btn icon-only" title="Search in folder" aria-label="Search in folder">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </button>
           <button id="btn-export" class="tool-btn icon-only hidden" title="Export as HTML" aria-label="Export as HTML">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           </button>
@@ -285,6 +288,8 @@
     </div>
 
     <div id="ctx-menu" class="ctx-menu hidden" role="menu">
+      <button class="ctx-item" data-action="pin" role="menuitem">Pin tab</button>
+      <div class="ctx-sep"></div>
       <button class="ctx-item" data-action="close" role="menuitem">Close</button>
       <button class="ctx-item" data-action="close-others" role="menuitem">Close others</button>
       <button class="ctx-item" data-action="close-right" role="menuitem">Close to the right</button>

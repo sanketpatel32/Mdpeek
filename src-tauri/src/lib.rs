@@ -152,6 +152,7 @@ pub fn run() {
             commands::save_annotated_image,
             commands::pick_folder,
             commands::list_dir,
+            commands::search_in_folder,
             commands::register_context_menu,
             commands::unregister_context_menu,
             commands::is_context_menu_registered,

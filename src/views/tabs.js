@@ -27,10 +27,14 @@ export function renderTabs(store) {
   const html = store.docs
     .map((d) => {
       const active = d.id === store.activeId ? ' active' : '';
+      const pinned = d.pinned ? ' pinned' : '';
       const dirty = d.dirty ? '<span class="tab-dot" title="Unsaved changes">●</span>' : '';
       const icon = iconFor(d);
       const title = escapeHtml(titleFor(d));
-      return `<div class="tab${active}" data-id="${d.id}" title="${escapeHtml(d.path || 'Untitled')}">
+      // Pinned tabs: title is hidden via CSS; the close × is also hidden (you
+      // unpin via the context menu, not by closing). Title attribute still
+      // carries the filename so hover-tooltips keep working.
+      return `<div class="tab${active}${pinned}" data-id="${d.id}" title="${escapeHtml(d.path || 'Untitled')}">
         ${icon}<span class="tab-title">${title}</span>${dirty}
         <span class="tab-close" data-id="${d.id}" title="Close (Ctrl+W)">×</span>
       </div>`;

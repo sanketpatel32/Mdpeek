@@ -190,6 +190,233 @@ pub fn list_dir(path: String) -> Result<Vec<DirEntry>, String> {
     Ok(dirs)
 }
 
+// ---------- folder-wide search ----------
+
+/// Single-line match inside a file.
+#[derive(Serialize, Clone)]
+pub struct SearchMatch {
+    pub line: u32,          // 1-based line number
+    pub column: u32,        // 0-based column of the first match on the line
+    pub text: String,       // the matching line, trimmed + capped at 300 chars
+    pub match_start: usize, // byte offset of the first match within `text`
+    pub match_end: usize,   // byte offset after the last match byte
+}
+
+/// All matches within a single file.
+#[derive(Serialize)]
+pub struct FileSearchResult {
+    pub path: String,
+    pub matches: Vec<SearchMatch>,
+}
+
+/// Top-level result returned by `search_in_folder`.
+#[derive(Serialize)]
+pub struct SearchSummary {
+    pub results: Vec<FileSearchResult>, // sorted by path, only files with matches
+    pub truncated: bool,                // true if any cap was hit
+    pub total_matches: usize,
+    pub files_scanned: usize,           // text files actually scanned
+    pub files_with_matches: usize,
+}
+
+// Directories to skip during the recursive walk — same list as `list_dir`'s
+// SKIP_DIRS, kept in sync so search results match what the tree shows.
+const SEARCH_SKIP_DIRS: &[&str] = &["node_modules", "target", "dist", "build", "__pycache__"];
+
+// Extensions that are virtually always binary — never opened as text. Extends
+// the BINARY_EXTS list used by `read_file` with archive/media/font/binary
+// formats so search doesn't waste time decoding (and polluting results with)
+// files that aren't greppable.
+const SEARCH_BINARY_EXTS: &[&str] = &[
+    "pdf", "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif",
+    "zip", "gz", "tar", "tgz", "rar", "7z", "bz2", "xz",
+    "exe", "dll", "so", "dylib", "class", "jar", "wasm", "o", "a",
+    "mp3", "mp4", "mov", "avi", "mkv", "ogg", "wav", "flac", "webm",
+    "woff", "woff2", "ttf", "otf", "eot",
+    "excalidraw", "ipynb",
+    "db", "sqlite", "sqlite3", "pak",
+];
+
+fn search_is_binary_ext(path: &str) -> bool {
+    let lower = path.to_lowercase();
+    SEARCH_BINARY_EXTS.iter().any(|ext| {
+        lower.ends_with(&format!(".{}", ext)) ||
+        // Basename match for extensionless files (e.g. "Dockerfile" — not binary,
+        // but be defensive against lockfile-style binary-ish names).
+        std::path::Path::new(&lower)
+            .file_name()
+            .map(|n| n.to_string_lossy().as_ref() == *ext)
+            .unwrap_or(false)
+    })
+}
+
+// Read up to `cap` bytes and reject if a NUL byte appears in the prefix —
+// classic `grep -I` heuristic for skipping binaries that slipped past the
+// extension check.
+fn search_looks_binary(path: &std::path::Path) -> bool {
+    use std::io::Read;
+    let mut file = match fs::File::open(path) {
+        Ok(f) => f,
+        Err(_) => return true, // treat unreadable as "skip"
+    };
+    let mut buf = [0u8; 8192];
+    let n = match file.read(&mut buf) {
+        Ok(n) => n,
+        Err(_) => return true,
+    };
+    buf[..n].iter().any(|&b| b == 0)
+}
+
+// Trim leading/trailing whitespace + cap the line so a single very-long line
+// doesn't bloat the payload. Returns (trimmed_text, trim_offset) so the JS
+// side can recompute match positions relative to the trimmed string.
+fn trim_and_cap(line: &str, cap: usize) -> (String, usize) {
+    let trimmed = line.trim();
+    // If the trimmed line fits, no capping needed.
+    let char_count = trimmed.chars().count();
+    if char_count <= cap {
+        return (trimmed.to_string(), 0);
+    }
+    // Cap by characters (not bytes) to avoid splitting a multi-byte sequence.
+    let kept: String = trimmed.chars().take(cap).collect();
+    // We don't try to preserve original byte offsets across the trim+cap;
+    // the caller recomputes match positions on the returned text directly.
+    (kept + "…", 0)
+}
+
+/// Recursively grep `query` across every text file under `root`. Returns
+/// matches grouped by file, sorted by path. Plain substring search (case-
+/// sensitive toggle); regex would require adding the `regex` crate, deferred.
+///
+/// Caps: `max_results` total matches (default 1000) and 200 files with
+/// matches — when either is hit, `truncated = true` so the UI can surface a
+/// "narrow your search" hint.
+#[tauri::command]
+pub fn search_in_folder(
+    root: String,
+    query: String,
+    case_sensitive: bool,
+    max_results: Option<usize>,
+) -> Result<SearchSummary, String> {
+    // Empty query → empty result. The JS side debounces, but guard anyway.
+    if query.is_empty() {
+        return Ok(SearchSummary {
+            results: Vec::new(),
+            truncated: false,
+            total_matches: 0,
+            files_scanned: 0,
+            files_with_matches: 0,
+        });
+    }
+    let max_matches = max_results.unwrap_or(1000);
+    const MAX_FILES_WITH_MATCHES: usize = 200;
+    let needle = if case_sensitive { query.clone() } else { query.to_lowercase() };
+
+    let mut results: Vec<FileSearchResult> = Vec::new();
+    let mut total_matches = 0usize;
+    let mut files_scanned = 0usize;
+    let mut truncated = false;
+
+    // Explicit stack to avoid recursion limits on deep trees.
+    let mut stack: Vec<std::path::PathBuf> = vec![std::path::PathBuf::from(&root)];
+    while let Some(dir) = stack.pop() {
+        let entries = match fs::read_dir(&dir) {
+            Ok(e) => e,
+            Err(_) => continue, // skip unreadable directories silently
+        };
+        for entry in entries.flatten() {
+            // Stop early once limits are hit.
+            if total_matches >= max_matches || results.len() >= MAX_FILES_WITH_MATCHES {
+                truncated = true;
+                break;
+            }
+            let file_name = entry.file_name();
+            let name = file_name.to_string_lossy().to_string();
+            // Same dotfile + skip-dir rules as `list_dir`.
+            if name.starts_with('.') {
+                continue;
+            }
+            let meta = match entry.metadata() {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+            if meta.is_dir() {
+                if SEARCH_SKIP_DIRS.contains(&name.as_str()) {
+                    continue;
+                }
+                stack.push(entry.path());
+                continue;
+            }
+            // Skip files with binary extensions.
+            let path_str = entry.path().display().to_string();
+            if search_is_binary_ext(&path_str) {
+                continue;
+            }
+            // Skip files that look binary (NUL in the first 8 KB).
+            if search_looks_binary(&entry.path()) {
+                continue;
+            }
+            // Read + decode. Lossy conversion means invalid UTF-8 becomes U+FFFD
+            // but the search still works on the valid portions.
+            let bytes = match fs::read(entry.path()) {
+                Ok(b) => b,
+                Err(_) => continue,
+            };
+            files_scanned += 1;
+            let content = String::from_utf8_lossy(&bytes);
+            let mut file_matches: Vec<SearchMatch> = Vec::new();
+            for (i, line) in content.lines().enumerate() {
+                if total_matches + file_matches.len() >= max_matches {
+                    truncated = true;
+                    break;
+                }
+                let haystack = if case_sensitive { line.to_string() } else { line.to_lowercase() };
+                // Find the first match on the line (one match per line keeps the
+                // UI scannable; multi-match-per-line is overkill for v0.18.0).
+                if let Some(idx) = haystack.find(&needle) {
+                    let (text, _trim_off) = trim_and_cap(line, 300);
+                    // Recompute the match offset on the trimmed text. The trim
+                    // may have shifted the position; find again on the lowercased
+                    // trimmed version.
+                    let trimmed_lower = if case_sensitive { text.clone() } else { text.to_lowercase() };
+                    let (match_start, match_end) = match trimmed_lower.find(&needle) {
+                        Some(start) => (start, start + needle.len().min(trimmed_lower.len() - start)),
+                        None => (0, 0), // trim shifted the match out of view — rare, degrade gracefully
+                    };
+                    file_matches.push(SearchMatch {
+                        line: (i + 1) as u32,
+                        column: idx as u32,
+                        text,
+                        match_start,
+                        match_end,
+                    });
+                }
+            }
+            if !file_matches.is_empty() {
+                total_matches += file_matches.len();
+                results.push(FileSearchResult { path: path_str, matches: file_matches });
+                if results.len() >= MAX_FILES_WITH_MATCHES {
+                    truncated = true;
+                }
+            }
+        }
+        if truncated {
+            break;
+        }
+    }
+
+    // Sort by path so the result list reads top-to-bottom through the tree.
+    results.sort_by(|a, b| a.path.cmp(&b.path));
+    let files_with_matches = results.len();
+    Ok(SearchSummary {
+        results,
+        truncated,
+        total_matches,
+        files_scanned,
+        files_with_matches,
+    })
+}
+
 #[tauri::command]
 pub fn register_context_menu() -> Result<(), String> {
     #[cfg(target_os = "windows")]

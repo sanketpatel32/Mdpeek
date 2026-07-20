@@ -100,7 +100,7 @@ export function langFromPath(path) {
   return LANG_BY_EXT[ext] || ext;
 }
 
-export function createDocument({ path = null, content = '', mode = 'view', plain, excalidraw, code, csv } = {}) {
+export function createDocument({ path = null, content = '', mode = 'view', plain, excalidraw, code, csv, pinned = false } = {}) {
   // `plain` override lets a fresh Untitled tab be plain text without a .txt
   // path (used by the new-tab-format preference). When omitted, plainness is
   // derived from the path as before.
@@ -121,6 +121,7 @@ export function createDocument({ path = null, content = '', mode = 'view', plain
     excalidraw: isExcalidraw, // true = Excalidraw canvas tab
     code: isCode, // true = rendered read-only with syntax highlighting
     csv: isCsv, // true = rendered as a sortable/filterable table
+    pinned: !!pinned, // true = pinned to the left of the tab strip, survives bulk-close
     dirty: false,
     scrollY: 0,
     editor: null, // lazy-init in main.js when entering edit mode
@@ -148,7 +149,7 @@ export class DocumentStore {
     return this.docs.find((d) => d.id === this.activeId) || null;
   }
 
-  open({ path = null, content = '', plain, mode, excalidraw, code, csv } = {}) {
+  open({ path = null, content = '', plain, mode, excalidraw, code, csv, pinned } = {}) {
     // Duplicate check: files on disk (path != null) open once.
     if (path !== null) {
       const existing = this.docs.find((d) => d.path === path);
@@ -157,7 +158,7 @@ export class DocumentStore {
         return existing;
       }
     }
-    const doc = createDocument({ path, content, plain, mode, excalidraw, code, csv });
+    const doc = createDocument({ path, content, plain, mode, excalidraw, code, csv, pinned });
     this.docs.push(doc);
     this.activeId = doc.id;
     this._emit('change');
@@ -199,13 +200,32 @@ export class DocumentStore {
     }
   }
 
+  // Toggle a tab's pinned flag. Pinned tabs render at the left of the strip,
+  // shrink to icon-only, and survive bulk-close actions. After updating the
+  // flag, the docs array is stable-sorted so all pinned docs come first —
+  // this keeps render order in sync without waiting for serialize/restore.
+  setPinned(id, pinned) {
+    const d = this.docs.find((x) => x.id === id);
+    if (!d || d.pinned === pinned) return;
+    d.pinned = pinned;
+    // Stable partition: pinned first, preserve relative order within each group.
+    const pinnedDocs = this.docs.filter((x) => x.pinned);
+    const otherDocs = this.docs.filter((x) => !x.pinned);
+    this.docs = [...pinnedDocs, ...otherDocs];
+    this._emit('change');
+  }
+
   // Plain-serializable snapshot for persistence.
   serialize() {
     return {
       // Skip blank untouched Untitled tabs — they shouldn't be restored on next
-      // launch (we'd rather show the welcome screen than an empty tab).
+      // launch (we'd rather show the welcome screen than an empty tab), UNLESS
+      // they're pinned (a user explicitly kept a scratch tab around).
       docs: this.docs
-        .filter((d) => d.path !== null || d.content !== '' || d.dirty)
+        .filter((d) => d.pinned || d.path !== null || d.content !== '' || d.dirty)
+        // Sort so pinned tabs come first — preserves left-to-right ordering
+        // across sessions, and the activeId fallback naturally prefers them.
+        .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
         .map((d) => ({
           id: d.id,
           path: d.path,
@@ -221,6 +241,7 @@ export class DocumentStore {
           excalidraw: d.excalidraw || false,
           code: d.code || false,
           csv: d.csv || false,
+          pinned: d.pinned || false,
         })),
       activeId: this.activeId,
     };
@@ -240,6 +261,7 @@ export class DocumentStore {
         const excalidraw = d.excalidraw !== undefined ? !!d.excalidraw : isExcalidrawPath(path);
         const csv = d.csv !== undefined ? !!d.csv : (!plain && !pdf && !image && !excalidraw && isCsvPath(path));
         const code = d.code !== undefined ? !!d.code : (!plain && !pdf && !image && !excalidraw && !csv && isCodePath(path));
+        const pinned = d.pinned !== undefined ? !!d.pinned : false;
         return {
           id: typeof d.id === 'string' ? d.id : newId(),
           path,
@@ -252,6 +274,7 @@ export class DocumentStore {
           excalidraw,
           code,
           csv,
+          pinned,
           dirty: false, // never restore as dirty — content was just re-read
           scrollY: Number.isFinite(d.scrollY) ? d.scrollY : 0,
           editor: null,

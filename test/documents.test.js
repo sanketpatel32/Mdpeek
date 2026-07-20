@@ -268,6 +268,88 @@ describe('DocumentStore', () => {
     expect(d.dirty).toBe(false);
   });
 
+  it('createDocument defaults pinned=false', () => {
+    const d = createDocument({ path: '/a.md' });
+    expect(d.pinned).toBe(false);
+  });
+
+  it('createDocument accepts pinned override', () => {
+    const d = createDocument({ path: '/a.md', pinned: true });
+    expect(d.pinned).toBe(true);
+  });
+
+  it('setPinned flips the flag', () => {
+    const d = store.open({ path: '/a.md', content: 'a' });
+    expect(d.pinned).toBe(false);
+    store.setPinned(d.id, true);
+    expect(d.pinned).toBe(true);
+    store.setPinned(d.id, false);
+    expect(d.pinned).toBe(false);
+  });
+
+  it('setPinned(true) moves the doc before all unpinned (stable)', () => {
+    const a = store.open({ path: '/a.md', content: 'a' });
+    const b = store.open({ path: '/b.md', content: 'b' });
+    const c = store.open({ path: '/c.md', content: 'c' });
+    // Initial order: [a, b, c]. Pin c — it should move to the front.
+    store.setPinned(c.id, true);
+    expect(store.docs.map((d) => d.id)).toEqual([c.id, a.id, b.id]);
+    // Pin a — now [c, a] (both pinned, stable relative order) + b unpinned.
+    store.setPinned(a.id, true);
+    expect(store.docs.map((d) => d.id)).toEqual([c.id, a.id, b.id]);
+    // Unpin c — a stays pinned, c falls back into the unpinned group.
+    store.setPinned(c.id, false);
+    expect(store.docs.map((d) => d.id)).toEqual([a.id, c.id, b.id]);
+  });
+
+  it('setPinned is a no-op when the flag is unchanged', () => {
+    const d = store.open({ path: '/a.md', content: 'a' });
+    const cb = vi.fn();
+    store.on('change', cb);
+    store.setPinned(d.id, false); // already false
+    expect(cb).not.toHaveBeenCalled();
+    store.setPinned(d.id, true);  // changes — emits
+    expect(cb).toHaveBeenCalledTimes(1);
+    store.setPinned(d.id, true);  // already true — no emit
+    expect(cb).toHaveBeenCalledTimes(1);
+  });
+
+  it('serialize writes pinned docs first', () => {
+    const a = store.open({ path: '/a.md', content: 'a' });
+    const b = store.open({ path: '/b.md', content: 'b' });
+    store.setPinned(b.id, true);
+    const snap = store.serialize();
+    expect(snap.docs.map((d) => d.path)).toEqual(['/b.md', '/a.md']);
+    expect(snap.docs[0].pinned).toBe(true);
+    expect(snap.docs[1].pinned).toBe(false);
+  });
+
+  it('serialize preserves blank pinned untitled tabs', () => {
+    // A blank untitled tab is normally filtered out at serialize time, but a
+    // pinned one should survive (the user explicitly kept it around).
+    const d = store.open({ path: null, content: '' });
+    store.setPinned(d.id, true);
+    const snap = store.serialize();
+    expect(snap.docs).toHaveLength(1);
+    expect(snap.docs[0].pinned).toBe(true);
+  });
+
+  it('restore reads pinned back', () => {
+    const store2 = new DocumentStore();
+    store2.restore({
+      docs: [
+        { id: 'p1', path: '/pinned.md', content: 'p', pinned: true },
+        { id: 'u1', path: '/unpinned.md', content: 'u', pinned: false },
+        { id: 'u2', path: '/legacy.md', content: 'l' }, // no pinned field
+      ],
+      activeId: 'p1',
+    });
+    expect(store2.docs[0].pinned).toBe(true);
+    expect(store2.docs[1].pinned).toBe(false);
+    // Legacy session without pinned field defaults to false.
+    expect(store2.docs[2].pinned).toBe(false);
+  });
+
   it('emits "change" on open/switch/close', () => {
     const cb = vi.fn();
     store.on('change', cb);
