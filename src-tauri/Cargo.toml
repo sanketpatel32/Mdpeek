@@ -26,4 +26,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rfd = "0.15"
 notify = "6"
+# File operations in the explorer (Delete → Recycle Bin, recursive copy/move).
+# Small footprint, no extra native deps on Windows (uses IShellDispatch via COM
+# which ships with the OS).
+trash = "5"
 

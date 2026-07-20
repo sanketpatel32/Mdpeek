@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.3] - 2026-07-19
+
+### Added
+- **File operations in the explorer:** right-click any file or folder in the file tree to get a full context menu — **Cut** (Ctrl+X), **Copy** (Ctrl+C), **Paste** (Ctrl+V), **Rename** (F2), **Delete** (Del), plus "Search in folder…" on directories. Standard Windows-explorer UX backed by four new Rust commands:
+  - `delete_path` — moves to the OS Recycle Bin via the `trash` crate (recoverable, never permanent).
+  - `rename_path` — atomic rename with full-path destination + overwrite guard.
+  - `copy_path` — recursive copy of files OR directories, always produces a non-colliding name (`foo (copy).md`, `foo (copy 2).md`, …).
+  - `move_path` — Cut+Paste: fast atomic rename first, copy+trash fallback for cross-volume edge cases.
+- **Inline rename editor in the tree:** Rename turns the row's name into a focused text input prefilled with the current name. For files, the extension stays unselected (matching Explorer). Enter commits, Esc cancels, blur commits. Rejects illegal Windows filename characters (`\ / : * ? " < > |`).
+- **Keyboard shortcuts for tree ops:** Ctrl+X / Ctrl+C / Ctrl+V / Delete / F2 fire on the last-clicked tree row — but only when focus isn't in the editor or an input field, so normal text editing is never hijacked.
+- **Cut visual feedback:** rows on the clipboard via Cut are dimmed + struck-through until pasted.
+- **Smart delete confirmation:** the delete dialog lists how many open tabs will close (and how many have unsaved changes) BEFORE the delete happens, so you're not surprised by a second unsaved-changes prompt afterwards.
+
+### Fixed
+- **Settings → Changelog panel was invisible:** the `#changelog-content` div had a `markdown-body` class whose `width: 0` rule (intentional for the flex-driven document pane) collapsed the panel to nothing. Removed the class; the standalone `.changelog-body` CSS now styles every element (h1/h2/h3/p/ul/ol/li/a/code/pre/hr/strong) itself.
+
 ## [0.18.2] - 2026-07-19
 
 ### Added

@@ -517,3 +517,188 @@ fn run_reg_delete(key: &str) -> Result<(), String> {
     }
     Ok(())
 }
+
+// ============================================================================
+// File operations for the explorer (Delete / Rename / Copy / Move)
+// ============================================================================
+//
+// These back the right-click Cut / Copy / Paste / Rename / Delete actions in
+// the file-tree context menu. Conventions:
+//   - Delete → OS trash (recoverable via the Recycle Bin), never permanent.
+//   - Copy/Move into a directory never overwrite: a non-colliding destination
+//     name is chosen via unique_name() (e.g. "foo (copy).md", "foo (copy 2).md").
+//   - All commands take absolute paths and validate existence before acting.
+
+/// Move a file or directory (recursively) to the OS trash. Recoverable.
+#[tauri::command]
+pub async fn delete_path(path: String) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+    if !p.exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+    // trash::delete works on both files and directories; no need to distinguish.
+    trash::delete(&path).map_err(|e| format!("Failed to move to trash: {}", e))
+}
+
+/// Rename / move a single file or directory to a new full path. Fails if the
+/// destination already exists (we never overwrite). Returns the new path.
+#[tauri::command]
+pub async fn rename_path(from: String, to: String) -> Result<String, String> {
+    let from_p = std::path::Path::new(&from);
+    let to_p = std::path::Path::new(&to);
+    if !from_p.exists() {
+        return Err(format!("Source does not exist: {}", from));
+    }
+    if to_p.exists() {
+        return Err(format!("Destination already exists: {}", to));
+    }
+    // Create the parent of `to` if missing (rare — usually the same dir).
+    if let Some(parent) = to_p.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    fs::rename(&from, &to).map_err(|e| format!("Rename failed: {}", e))?;
+    Ok(to)
+}
+
+/// Copy a file OR directory (recursively) into `dst_dir`. The destination
+/// name is uniquified so it never overwrites. Returns the final full path.
+#[tauri::command]
+pub async fn copy_path(src: String, dst_dir: String) -> Result<String, String> {
+    let src_p = std::path::Path::new(&src);
+    if !src_p.exists() {
+        return Err(format!("Source does not exist: {}", src));
+    }
+    let dst_dir_p = std::path::Path::new(&dst_dir);
+    if !dst_dir_p.is_dir() {
+        return Err(format!("Destination is not a directory: {}", dst_dir));
+    }
+    let src_name = src_p
+        .file_name()
+        .ok_or_else(|| "Source has no file name".to_string())?
+        .to_string_lossy()
+        .to_string();
+    let final_name = unique_name(&dst_dir, &src_name);
+    let final_path = dst_dir_p.join(&final_name);
+    if src_p.is_dir() {
+        copy_dir_recursive(src_p, &final_path)
+            .map_err(|e| format!("Directory copy failed: {}", e))?;
+    } else {
+        fs::copy(src_p, &final_path).map_err(|e| format!("File copy failed: {}", e))?;
+    }
+    // to_string_lossy is fine here — paths from the tree are valid UTF-8 on
+    // Windows (the picker wouldn't have produced them otherwise).
+    Ok(final_path.to_string_lossy().to_string())
+}
+
+/// Move a file OR directory into `dst_dir` (used by Cut → Paste). Tries a
+/// fast atomic rename first; falls back to copy+trash on cross-volume moves
+/// (rare on Windows but possible). Destination is uniquified. Returns the
+/// final full path.
+#[tauri::command]
+pub async fn move_path(src: String, dst_dir: String) -> Result<String, String> {
+    let src_p = std::path::Path::new(&src);
+    if !src_p.exists() {
+        return Err(format!("Source does not exist: {}", src));
+    }
+    let dst_dir_p = std::path::Path::new(&dst_dir);
+    if !dst_dir_p.is_dir() {
+        return Err(format!("Destination is not a directory: {}", dst_dir));
+    }
+    let src_name = src_p
+        .file_name()
+        .ok_or_else(|| "Source has no file name".to_string())?
+        .to_string_lossy()
+        .to_string();
+    let final_name = unique_name(&dst_dir, &src_name);
+    let final_path = dst_dir_p.join(&final_name);
+
+    // Fast path: atomic rename (same volume). Windows' MoveFileEx (used by
+    // std::fs::rename) also handles cross-volume moves transparently, so this
+    // almost always succeeds; the copy+trash fallback below only triggers in
+    // edge cases (locked files, special filesystems, permission issues).
+    match fs::rename(src_p, &final_path) {
+        Ok(()) => Ok(final_path.to_string_lossy().to_string()),
+        Err(_) => {
+            // Fallback: copy then trash the original. Surface errors from
+            // either step so the caller (and user) sees what went wrong.
+            if src_p.is_dir() {
+                copy_dir_recursive(src_p, &final_path)
+                    .map_err(|e| format!("Move (copy step) failed: {}", e))?;
+            } else {
+                fs::copy(src_p, &final_path)
+                    .map_err(|e| format!("Move (copy step) failed: {}", e))?;
+            }
+            trash::delete(src_p).map_err(|e| format!("Move (delete step) failed: {}", e))?;
+            Ok(final_path.to_string_lossy().to_string())
+        }
+    }
+}
+
+/// Pick a non-colliding name inside `dir` based on `name`. If `dir/name` is
+/// free, returns `name` unchanged. Otherwise appends " (copy)", " (copy 2)",
+/// etc. to the stem (extension preserved for files; no split for directories).
+fn unique_name(dir: &str, name: &str) -> String {
+    let dir_p = std::path::Path::new(dir);
+    // Fast path: no collision.
+    if !dir_p.join(name).exists() {
+        return name.to_string();
+    }
+    // Split stem + extension. For directories (no extension) stem=name, ext="".
+    // Use Path::file_stem + Path::extension to handle multi-dot names like
+    // "archive.tar.gz" → stem="archive.tar", ext="gz" (matches Explorer).
+    let name_p = std::path::Path::new(name);
+    let stem = name_p
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| name.to_string());
+    let ext = name_p
+        .extension()
+        .map(|s| format!(".{}", s.to_string_lossy()))
+        .unwrap_or_default();
+
+    let mut i = 1;
+    loop {
+        let candidate = if i == 1 {
+            format!("{} (copy){}", stem, ext)
+        } else {
+            format!("{} (copy {}){}", stem, ext, i)
+        };
+        if !dir_p.join(&candidate).exists() {
+            return candidate;
+        }
+        i += 1;
+        // Safety valve — shouldn't happen in practice.
+        if i > 9999 {
+            return format!("{} (copy {}){}", stem, i, ext);
+        }
+    }
+}
+
+/// Recursively copy a directory tree from `src` to `dst`. Creates `dst` and
+/// all intermediate dirs as needed. Preserves neither permissions nor mtimes
+/// (best-effort only — content copy is what matters for the explorer use case).
+fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    fs::create_dir_all(dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let path = entry.path();
+        let file_type = entry.file_type()?;
+        let target = dst.join(entry.file_name());
+        if file_type.is_dir() {
+            copy_dir_recursive(&path, &target)?;
+        } else if file_type.is_symlink() {
+            // Copy the link target rather than recreating the symlink — keeps
+            // the operation self-contained and avoids dangling links if the
+            // target is on a different volume.
+            let meta = fs::metadata(&path)?;
+            if meta.is_dir() {
+                copy_dir_recursive(&path, &target)?;
+            } else {
+                fs::copy(&path, &target)?;
+            }
+        } else {
+            fs::copy(&path, &target)?;
+        }
+    }
+    Ok(())
+}

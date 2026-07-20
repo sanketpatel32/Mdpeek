@@ -88,7 +88,7 @@ function renderWelcome() {
       <div class="welcome-main">
         <div class="welcome-brand">
           <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.18.2</span></h1>
+          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.18.3</span></h1>
           <p class="welcome-tagline">A lightweight Markdown viewer.</p>
         </div>
 
@@ -177,6 +177,7 @@ const el = {
   dropzone: document.getElementById('dropzone'),
   pdfDrawToolbar: document.getElementById('pdf-draw-toolbar'),
   ctxMenu: document.getElementById('ctx-menu'),
+  treeCtxMenu: document.getElementById('tree-ctx-menu'),
   closeDialog: document.getElementById('close-dialog'),
   closeRemember: document.getElementById('close-remember'),
   confirmDialog: document.getElementById('confirm-dialog'),
@@ -1433,19 +1434,335 @@ el.fileTreeBody.addEventListener('click', (e) => {
   if (e.target.closest('#tree-open-btn')) {
     openFolderForExplorer();
   }
+  // Track the last-clicked row so the Cut/Copy/Paste/Delete/F2 keyboard
+  // shortcuts have a target when the tree has focus. Cleared by the editor
+  // and other inputs' focus handlers below.
+  const row = e.target.closest('.tree-row');
+  if (row && row.dataset.path) {
+    _treeActivePath = row.dataset.path;
+    _treeActiveKind = row.dataset.kind;
+  }
 });
-// Right-click a folder in the tree → open the folder-wide search panel
-// targeting that folder. Right-clicking a file or empty space does nothing
-// special (no menu — the action is unambiguous, so a direct trigger is
-// simpler than building a context menu just for one item).
+// Clear the tree-active tracker when focus moves to the editor — the editor
+// owns its own Ctrl+C/X/V semantics and we must not hijack them. The general
+// input/textarea guard in the keydown handler below covers other fields.
+el.editor.addEventListener('focus', () => { _treeActivePath = null; _treeActiveKind = null; });
+
+// ---------- File-tree context menu (Cut/Copy/Paste/Rename/Delete) ----------
+// Standard Windows-explorer-style right-click menu on files and folders in
+// the explorer tree. Backed by the delete_path / rename_path / copy_path /
+// move_path Rust commands. Clipboard state is in-memory only — it doesn't
+// survive app restart and doesn't touch the system clipboard.
+let _clipboard = null;       // { path, op: 'cut'|'copy' } | null
+let _treeCtxTarget = null;   // { path, kind: 'file'|'dir', row } last right-click target
+let _treeActivePath = null;  // last-clicked tree row path (for keyboard shortcuts)
+let _treeActiveKind = null;  // 'file' | 'dir' | null (matches _treeActivePath)
+
+// Return the parent directory of a Windows or POSIX path (no trailing sep).
+function parentDir(p) {
+  if (!p) return '';
+  const idx = Math.max(p.lastIndexOf('\\'), p.lastIndexOf('/'));
+  return idx > 0 ? p.slice(0, idx) : p;
+}
+// True if `path` is `root` itself or anywhere underneath it (case-insensitive,
+// Windows paths are case-insensitive on disk).
+function isPathUnder(path, root) {
+  if (!path || !root) return false;
+  const p = path.toLowerCase().replace(/[\\/]+$/, '');
+  const r = root.toLowerCase().replace(/[\\/]+$/, '');
+  return p === r || p.startsWith(r + '\\') || p.startsWith(r + '/');
+}
+
+// Show the menu at the cursor, populating items based on the target kind +
+// current clipboard state.
+function showTreeCtxMenu(row, e) {
+  const path = row.dataset.path;
+  const kind = row.dataset.kind; // 'file' | 'dir'
+  _treeCtxTarget = { path, kind, row };
+  const isDir = kind === 'dir';
+  // Paste requires: target is a directory AND clipboard has something.
+  const canPaste = isDir && !!_clipboard && !isPathUnder(_clipboard.path, path);
+  // Per-item visibility / disabled state.
+  el.treeCtxMenu.querySelectorAll('.ctx-item').forEach((btn) => {
+    const action = btn.dataset.action;
+    btn.disabled = false;
+    if (action === 'paste') btn.disabled = !canPaste;
+  });
+  // "Search in folder…" only makes sense on directories. Toggle its visibility
+  // and the separator above it together.
+  const searchBtn = el.treeCtxMenu.querySelector('.tree-ctx-search');
+  const searchSep = el.treeCtxMenu.querySelector('.tree-ctx-search-sep');
+  if (isDir) {
+    searchBtn?.classList.remove('hidden');
+    searchSep?.classList.remove('hidden');
+  } else {
+    searchBtn?.classList.add('hidden');
+    searchSep?.classList.add('hidden');
+  }
+  // Clamp so the menu never overflows the window edge (same trick as tab menu).
+  el.treeCtxMenu.classList.remove('hidden');
+  const rect = el.treeCtxMenu.getBoundingClientRect();
+  el.treeCtxMenu.classList.add('hidden');
+  const x = Math.min(e.clientX, window.innerWidth - rect.width - 4);
+  const y = Math.min(e.clientY, window.innerHeight - rect.height - 4);
+  el.treeCtxMenu.style.left = x + 'px';
+  el.treeCtxMenu.style.top = y + 'px';
+  el.treeCtxMenu.classList.remove('hidden');
+}
+function hideTreeCtxMenu() {
+  el.treeCtxMenu.classList.add('hidden');
+}
+
+// Apply/remove the visual "cut" mark on tree rows that match the clipboard path.
+function syncCutMark() {
+  el.fileTreeBody.querySelectorAll('.tree-row.cut').forEach((r) => r.classList.remove('cut'));
+  if (_clipboard && _clipboard.op === 'cut') {
+    const row = el.fileTreeBody.querySelector(`.tree-row[data-path="${cssEscape(_clipboard.path)}"]`);
+    row?.classList.add('cut');
+  }
+}
+// Escape a string for safe use inside a CSS attribute selector. The tree
+// renders paths verbatim into data-path, so they may contain characters that
+// break the selector (quotes, backslashes).
+function cssEscape(s) {
+  if (window.CSS && typeof window.CSS.escape === 'function') return window.CSS.escape(s);
+  return String(s).replace(/["\\]/g, '\\$&');
+}
+
 el.fileTreeBody.addEventListener('contextmenu', (e) => {
   const row = e.target.closest('.tree-row');
-  if (!row || row.dataset.kind !== 'dir') return;
+  if (!row) return; // right-click on empty tree space → no menu
   e.preventDefault();
-  const path = row.dataset.path;
-  if (!path) return;
-  folderSearch.open(path);
+  showTreeCtxMenu(row, e);
 });
+
+el.treeCtxMenu.addEventListener('click', (e) => {
+  const btn = e.target.closest('.ctx-item');
+  if (!btn || btn.disabled) return;
+  const action = btn.dataset.action;
+  hideTreeCtxMenu();
+  treeCtxAction(action).catch((err) => {
+    console.error('treeCtxAction failed:', err);
+    toast('Operation failed: ' + fmtErr(err));
+  });
+});
+
+// Dismiss the tree menu on outside click, Escape, scroll, or window blur —
+// mirrors the tab context menu's dismiss logic.
+window.addEventListener('mousedown', (e) => {
+  if (!el.treeCtxMenu.classList.contains('hidden') && !el.treeCtxMenu.contains(e.target)) {
+    hideTreeCtxMenu();
+  }
+});
+window.addEventListener('blur', hideTreeCtxMenu);
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !el.treeCtxMenu.classList.contains('hidden')) hideTreeCtxMenu();
+});
+el.fileTreeBody.addEventListener('scroll', hideTreeCtxMenu, { passive: true });
+
+// Dispatch a tree context-menu action. `action` is the data-action attribute.
+// All paths come from `_treeCtxTarget` (the row that was right-clicked).
+async function treeCtxAction(action) {
+  const target = _treeCtxTarget;
+  if (!target) return;
+  const { path, kind } = target;
+  if (action === 'cut') {
+    if (!path) return;
+    _clipboard = { path, op: 'cut' };
+    syncCutMark();
+    return;
+  }
+  if (action === 'copy') {
+    if (!path) return;
+    _clipboard = { path, op: 'copy' };
+    syncCutMark(); // clears any previous cut mark
+    return;
+  }
+  if (action === 'paste') {
+    if (kind !== 'dir' || !_clipboard) return;
+    await pasteInto(path);
+    return;
+  }
+  if (action === 'rename') {
+    if (!path) return;
+    startRenameInTree(target.row, path);
+    return;
+  }
+  if (action === 'delete') {
+    if (!path) return;
+    await deleteFromTree(path);
+    return;
+  }
+  if (action === 'search') {
+    if (kind !== 'dir') return;
+    folderSearch.open(path);
+    return;
+  }
+}
+
+// Copy (op=copy) or move (op=cut) `_clipboard.path` into `dstDir`.
+async function pasteInto(dstDir) {
+  const src = _clipboard?.path;
+  const op = _clipboard?.op;
+  if (!src || !op) return;
+  // Guard: never paste a folder into itself or one of its descendants.
+  if (isPathUnder(dstDir, src)) {
+    toast("Can't paste a folder into itself");
+    return;
+  }
+  try {
+    let newPath;
+    if (op === 'cut') {
+      newPath = await invoke('move_path', { src, dstDir });
+      // Cut is a one-shot operation — clear the clipboard on success.
+      _clipboard = null;
+    } else {
+      newPath = await invoke('copy_path', { src, dstDir });
+    }
+    syncCutMark();
+    refreshTree();
+    toast(op === 'cut' ? 'Moved' : 'Copied', { onClick: null });
+  } catch (e) {
+    toast('Paste failed: ' + fmtErr(e));
+  }
+}
+
+// Prompt → move to Recycle Bin → clean up open tabs + recents → refresh.
+async function deleteFromTree(path) {
+  const name = basename(path);
+  // Compute affected tabs up front so the confirm dialog can mention them —
+  // avoids a second unsaved-changes prompt after the delete already happened.
+  const affected = store.docs.filter((d) => d.path && (d.path === path || isPathUnder(d.path, path)));
+  const dirtyCount = affected.filter((d) => d.dirty).length;
+  const tabNote = affected.length > 0
+    ? `\n\n${affected.length} open ${affected.length === 1 ? 'tab' : 'tabs'} will close` +
+      (dirtyCount > 0 ? ` (${dirtyCount} with unsaved changes — recover from the Recycle Bin if needed).` : '.')
+    : '';
+  const choice = await confirmDialog({
+    title: `Delete "${name}"?`,
+    text: `Move to the Recycle Bin? You can restore it from there.${tabNote}`,
+    buttons: [
+      { id: 'cancel', label: 'Cancel', kind: 'secondary' },
+      { id: 'delete', label: 'Delete', kind: 'danger' },
+    ],
+  });
+  if (choice !== 'delete') return;
+  try {
+    await invoke('delete_path', { path });
+    // Force-close affected tabs WITHOUT a second unsaved-changes prompt: the
+    // delete is already done + the user was warned in the dialog above. Tabs
+    // with unsaved buffers lose their in-memory edits (the file itself is in
+    // the Recycle Bin if it had been saved at any point).
+    for (const d of affected) {
+      if (d.editor) d.editor.destroy();
+      if (_lastRenderedId === d.id) _lastRenderedId = null;
+      store.close(d.id);
+    }
+    if (store.docs.length === 0) {
+      newTab();
+      if (!store.active()) renderActive();
+    } else if (store.active()) {
+      await rewatch(store.active().path);
+      renderActive();
+    }
+    // Strip the path from recents (file or folder) + anything underneath it.
+    const remaining = loadRecents().filter((r) => !r.path || (r.path !== path && !isPathUnder(r.path, path)));
+    saveRecents(remaining);
+    // If the clipboard pointed at the deleted path, drop it.
+    if (_clipboard && isPathUnder(_clipboard.path, path)) {
+      _clipboard = null;
+    }
+    syncCutMark();
+    refreshTree();
+    toast(`"${name}" moved to Recycle Bin`);
+  } catch (e) {
+    toast('Delete failed: ' + fmtErr(e));
+  }
+}
+
+// Replace the row's name span with a focused text input prefilled with the
+// current name (extension auto-selected-out for files). Enter commits, Esc
+// cancels, blur commits. Commuting to rename_path updates the active doc's
+// path in place if it matches.
+function startRenameInTree(row, path) {
+  if (!row) return;
+  const nameSpan = row.querySelector('.tree-name');
+  if (!nameSpan) return;
+  const oldName = basename(path);
+  const dir = parentDir(path);
+  const isDir = row.dataset.kind === 'dir';
+  // Split stem / ext for files so the user can rename without touching the ext.
+  let stem = oldName, ext = '';
+  if (!isDir && oldName.lastIndexOf('.') > 0) {
+    const dot = oldName.lastIndexOf('.');
+    stem = oldName.slice(0, dot);
+    ext = oldName.slice(dot); // includes the dot
+  }
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'tree-name-input';
+  input.value = oldName;
+  input.spellcheck = false;
+  nameSpan.replaceWith(input);
+  input.focus();
+  // Select the stem only (Explorer behavior: ext stays unselected).
+  if (ext && !isDir) {
+    input.setSelectionRange(0, stem.length);
+  } else {
+    input.select();
+  }
+  let committed = false;
+  const commit = async () => {
+    if (committed) return;
+    committed = true;
+    const newName = input.value.trim();
+    input.removeEventListener('keydown', onKey);
+    input.removeEventListener('blur', commit);
+    // No-op rename.
+    if (!newName || newName === oldName) {
+      input.replaceWith(nameSpan);
+      return;
+    }
+    // Reject names containing path separators or other illegal Windows chars.
+    if (/[\\/:*?"<>|]/.test(newName)) {
+      toast('Name can\'t contain \\ / : * ? " < > |');
+      input.replaceWith(nameSpan);
+      return;
+    }
+    const newPath = dir ? (dir + '\\' + newName) : newName;
+    try {
+      await invoke('rename_path', { from: path, to: newPath });
+      // If the renamed path was the active doc, update its path in place so
+      // save/watch keep working without forcing a tab close.
+      store.docs.forEach((d) => {
+        if (d.path === path) d.path = newPath;
+      });
+      // Recents: keep them — the next focus-driven re-sync will reconcile.
+      refreshTree();
+    } catch (e) {
+      toast('Rename failed: ' + fmtErr(e));
+      input.replaceWith(nameSpan);
+    }
+  };
+  const cancel = () => {
+    if (committed) return;
+    committed = true;
+    input.removeEventListener('keydown', onKey);
+    input.removeEventListener('blur', commit);
+    input.replaceWith(nameSpan);
+  };
+  const onKey = (ev) => {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      commit();
+    } else if (ev.key === 'Escape') {
+      ev.preventDefault();
+      cancel();
+    }
+  };
+  input.addEventListener('keydown', onKey);
+  input.addEventListener('blur', commit);
+}
 
 // Folder-wide search panel. Singleton — built once on first open, then
 // reused. The onOpen callback receives (path, line, query) and routes the
@@ -2496,6 +2813,45 @@ window.addEventListener('keydown', (e) => {
     zoomReset();
   }
 }, true);
+
+// Tree keyboard shortcuts: Cut / Copy / Paste / Delete / Rename. ONLY fire
+// when a tree row was the last thing clicked AND focus isn't in the editor or
+// an input — otherwise we'd hijack normal text-editing shortcuts.
+window.addEventListener('keydown', (e) => {
+  if (_treeActivePath == null) return;
+  // Bail if the user is typing in an input/textarea/contenteditable — those
+  // own these shortcuts (e.g. Ctrl+C copies selected text, not a tree row).
+  const ae = document.activeElement;
+  if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+  // Also bail if the explorer panel isn't currently visible.
+  if (el.fileTree.classList.contains('hidden')) return;
+
+  const ctrl = e.ctrlKey || e.metaKey;
+  if (ctrl && e.key.toLowerCase() === 'x') {
+    e.preventDefault();
+    _treeCtxTarget = { path: _treeActivePath, kind: _treeActiveKind, row: null };
+    treeCtxAction('cut').catch((err) => toast('Cut failed: ' + fmtErr(err)));
+  } else if (ctrl && e.key.toLowerCase() === 'c') {
+    e.preventDefault();
+    _treeCtxTarget = { path: _treeActivePath, kind: _treeActiveKind, row: null };
+    treeCtxAction('copy').catch((err) => toast('Copy failed: ' + fmtErr(err)));
+  } else if (ctrl && e.key.toLowerCase() === 'v') {
+    // Paste needs a directory target — use the active row only if it's a dir.
+    if (_treeActiveKind !== 'dir') return;
+    e.preventDefault();
+    _treeCtxTarget = { path: _treeActivePath, kind: _treeActiveKind, row: null };
+    treeCtxAction('paste').catch((err) => toast('Paste failed: ' + fmtErr(err)));
+  } else if (e.key === 'Delete') {
+    e.preventDefault();
+    _treeCtxTarget = { path: _treeActivePath, kind: _treeActiveKind, row: null };
+    treeCtxAction('delete').catch((err) => toast('Delete failed: ' + fmtErr(err)));
+  } else if (e.key === 'F2') {
+    e.preventDefault();
+    const row = el.fileTreeBody.querySelector(`.tree-row[data-path="${cssEscape(_treeActivePath)}"]`);
+    _treeCtxTarget = { path: _treeActivePath, kind: _treeActiveKind, row };
+    treeCtxAction('rename').catch((err) => toast('Rename failed: ' + fmtErr(err)));
+  }
+});
 
 // F3 (no modifier) = repeat last search. Shift+F3 = backward. Capture phase so
 // it works regardless of focus, and so WebView2 doesn't swallow it.

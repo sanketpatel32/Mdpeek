@@ -297,6 +297,20 @@
       <button class="ctx-item" data-action="close-all" role="menuitem">Close all</button>
     </div>
 
+    <!-- File-tree context menu (Cut/Copy/Paste/Rename/Delete + folder search).
+         Populated dynamically per right-click — Paste and Search are shown
+         conditionally; Paste is disabled when the clipboard is empty. -->
+    <div id="tree-ctx-menu" class="ctx-menu hidden" role="menu">
+      <button class="ctx-item" data-action="cut" role="menuitem">Cut <span class="ctx-hint">Ctrl+X</span></button>
+      <button class="ctx-item" data-action="copy" role="menuitem">Copy <span class="ctx-hint">Ctrl+C</span></button>
+      <button class="ctx-item" data-action="paste" role="menuitem" disabled>Paste <span class="ctx-hint">Ctrl+V</span></button>
+      <div class="ctx-sep"></div>
+      <button class="ctx-item" data-action="rename" role="menuitem">Rename <span class="ctx-hint">F2</span></button>
+      <button class="ctx-item" data-action="delete" role="menuitem">Delete <span class="ctx-hint">Del</span></button>
+      <div class="ctx-sep tree-ctx-search-sep hidden"></div>
+      <button class="ctx-item tree-ctx-search hidden" data-action="search" role="menuitem">Search in folder…</button>
+    </div>
+
     <div id="close-dialog" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="close-dialog-title">
       <div class="modal">
         <h2 id="close-dialog-title" class="modal-title">Close mdpeek</h2>
@@ -581,9 +595,13 @@
               </div>
             </div>
 
-            <!-- Changelog (populated at open time from CHANGELOG.md?raw) -->
+            <!-- Changelog (populated at open time from CHANGELOG.md?raw).
+                 NOTE: do NOT add .markdown-body here — that class sets
+                 width:0 (designed for the flex-driven document pane) which
+                 collapses the content inside the settings panel. The
+                 .changelog-body class below covers all element styling. -->
             <div class="settings-panel hidden" data-cat="changelog">
-              <div id="changelog-content" class="changelog-body markdown-body"></div>
+              <div id="changelog-content" class="changelog-body"></div>
             </div>
 
             <!-- About -->
@@ -591,7 +609,7 @@
               <div class="about-card">
                 <img src="/icon.png" alt="mdpeek" class="about-logo" />
                 <h3 class="about-name">mdpeek</h3>
-                <div class="about-version">Version <span id="about-version">0.18.2</span></div>
+                <div class="about-version">Version <span id="about-version">0.18.3</span></div>
                 <p class="about-tagline">A lightweight Markdown viewer &amp; editor for Windows.</p>
                 <div class="about-links">
                   <button class="about-link primary" data-href="https://github.com/sanketpatel32/Mdpeek" type="button">

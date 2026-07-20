@@ -1788,6 +1788,37 @@ mark.find-current {
   margin: 4px 2px;
   background: var(--border-subtle);
 }
+/* Keyboard-shortcut hint shown at the right of a .ctx-item (used by the
+   file-tree context menu). Muted and right-aligned. */
+.ctx-hint {
+  margin-left: auto;
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+
+/* ---------- File-tree context menu extras ---------- */
+/* Cut visual feedback: dim + strike the source row while it sits on the
+   clipboard waiting to be pasted. */
+.tree-row.cut {
+  opacity: 0.5;
+}
+.tree-row.cut .tree-name {
+  text-decoration: line-through;
+}
+/* Inline rename editor — replaces the .tree-name span while editing. */
+.tree-name-input {
+  font: inherit;
+  font-size: 13px;
+  padding: 1px 4px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--fg);
+  outline: none;
+  min-width: 80px;
+  max-width: 100%;
+}
 
 /* ---------- Theme menu ---------- */
 /* The palette button + dropdown share a positioned wrapper so the menu can
