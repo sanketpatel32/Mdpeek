@@ -191,7 +191,9 @@ function buildTrysteroProvider() {
     peerMeta.delete(peerId);
     emit();
     // If the host dropped and we're a receiver, surface it so the UI can
-    // convert the shared tab to a local unsaved doc.
+    // convert the shared tab to a local unsaved doc. We do NOT auto-teardown
+    // here because the UI needs to read the last-known Yjs state to preserve
+    // the receiver's edits. The UI calls endSession() after it's done.
     if (role === 'receiver' && peerMeta.size === 0) {
       for (const cb of listeners) cb({ ...getStatus(), hostLeft: true });
     }

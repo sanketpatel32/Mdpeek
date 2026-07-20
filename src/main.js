@@ -91,7 +91,7 @@ function renderWelcome() {
       <div class="welcome-main">
         <div class="welcome-brand">
           <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.21.1</span></h1>
+          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.21.2</span></h1>
           <p class="welcome-tagline">A lightweight Markdown viewer.</p>
         </div>
 
@@ -200,6 +200,7 @@ const el = {
   joinConfirmBtn: document.getElementById('join-confirm-btn'),
   joinCancelBtn: document.getElementById('join-cancel-btn'),
   collabStatus: document.getElementById('collab-status'),
+  collabEnd: document.getElementById('collab-end'),
   peerCarets: document.getElementById('peer-carets'),
 };
 
@@ -610,9 +611,14 @@ async function renderActive() {
     doc.editor.setLanguage(langForEdit(doc));
     // If this is the doc currently bound to a collab session, re-bind the
     // fresh editor instance to Yjs (renderActive destroys the editor on tab
-    // switch, so we need to re-attach on return).
-    if (collab.getStatus().active && _collabDocId === doc.id) {
-      collab.bindEditor(doc.editor);
+    // switch, so we need to re-attach on return). Wrapped in try/catch so a
+    // collab hiccup never blocks normal editing.
+    try {
+      if (collab.getStatus().active && _collabDocId === doc.id) {
+        collab.bindEditor(doc.editor);
+      }
+    } catch (e) {
+      console.error('collab bindEditor failed (non-fatal):', e);
     }
     // Update the placeholder to match the doc type — code files shouldn't
     // say "Type markdown here...". The textarea's placeholder attribute is
@@ -1505,6 +1511,11 @@ function updateCollabStatus(status) {
   el.collabStatus.classList.toggle('hidden', !active);
   if (!active) {
     clearPeerCarets();
+    // If the session ended unexpectedly (host left, network drop, etc.) make
+    // sure the share modal reflects that and the user is told.
+    if (!el.shareDialog.classList.contains('hidden')) {
+      refreshShareModal(status);
+    }
     return;
   }
   const text = status.peerCount > 0
@@ -1514,30 +1525,27 @@ function updateCollabStatus(status) {
   // Re-render peer carets if the bound editor is the active one.
   renderPeerCarets(status);
   // Update the share modal status line if it's open.
-  if (!el.shareDialog.classList.contains('hidden')) {
-    if (status.role === 'host') {
-      el.shareStatus.textContent = status.peerCount > 0
-        ? `● ${status.peerCount} ${status.peerCount === 1 ? 'collaborator' : 'collaborators'} connected`
-        : 'Waiting for a collaborator to join…';
-      el.shareStatus.classList.toggle('connected', status.peerCount > 0);
-      el.shareEndBtn.classList.toggle('hidden', status.peerCount === 0);
-      // Hide the link row once a peer is connected (no need to keep copying).
-      const linkRow = el.shareDialog.querySelector('.share-link-row');
-      const footnote = el.shareDialog.querySelector('.share-footnote');
-      if (linkRow) linkRow.style.display = status.peerCount > 0 ? 'none' : '';
-      if (footnote) footnote.style.display = status.peerCount > 0 ? 'none' : '';
-    }
-  }
+  refreshShareModal(status);
   // Surface host-left to receivers.
   if (status.hostLeft) {
-    toast('Host ended the session. This tab is now a local document — use Save as… to keep your copy.', { persistent: true });
     const doc = store.docs.find((d) => d.id === _collabDocId);
     if (doc) {
+      // Pull the latest Yjs text into the doc so the receiver keeps all edits.
+      try {
+        if (doc.editor) doc.content = doc.editor.getValue();
+      } catch { /* editor may be detached */ }
       doc.shared = false;
+      doc.dirty = true; // unsaved local copy now
       renderTabs(store);
     }
     _collabDocId = null;
-    collab.unbindEditor();
+    try { collab.unbindEditor(); } catch { /* already unbound */ }
+    // Tear down the network session now that we've captured the final state.
+    try { collab.endSession(); } catch { /* already gone */ }
+    if (el.collabStatus) el.collabStatus.classList.add('hidden');
+    clearPeerCarets();
+    closeShareModal();
+    toast('Host ended the session. This tab is now a local document — use Save as… to keep your copy.', { persistent: true });
   }
 }
 
@@ -1547,14 +1555,13 @@ collab.on(updateCollabStatus);
 function openShareModal() {
   const doc = store.active();
   if (!doc) return;
-  if (collab.getStatus().active) {
-    // Session already running — just show its current state.
-    el.shareLinkInput.value = '';
-    el.shareStatus.textContent = 'Waiting for a collaborator to join…';
-    el.shareStatus.classList.remove('connected', 'error');
-    el.shareEndBtn.classList.add('hidden');
+  const status = collab.getStatus();
+  if (status.active) {
+    // Session already running — show current state. Don't clobber the link
+    // (host may want to copy it again) and don't reset the status text to
+    // "waiting" if peers are already connected.
+    refreshShareModal(status);
     el.shareDialog.classList.remove('hidden');
-    updateCollabStatus(collab.getStatus());
     return;
   }
   // Sync the editor's current text into doc.content before seeding Yjs, so
@@ -1572,7 +1579,7 @@ function openShareModal() {
     });
     collab.setLocalIdentity({ name: defaultCollabName() });
     el.shareLinkInput.value = result.inviteUrl;
-    el.shareStatus.textContent = 'Waiting for a collaborator to join…';
+    refreshShareModal(collab.getStatus());
     // Bind the active editor to the Y.Text. Force edit mode so the textarea
     // exists (you can't share a read-only view).
     if (doc.mode !== 'edit') {
@@ -1580,11 +1587,15 @@ function openShareModal() {
       renderActive();
     }
     // After renderActive rebuilds the editor, bind it on the next tick.
+    // Guard with active-check in case endSession ran in between.
     requestAnimationFrame(() => {
+      if (!collab.getStatus().active) return;
       const d = store.active();
       if (d && d.editor) {
-        collab.bindEditor(d.editor);
-        _collabDocId = d.id;
+        try {
+          collab.bindEditor(d.editor);
+          _collabDocId = d.id;
+        } catch (e) { console.error('bindEditor failed:', e); }
       }
     });
   } catch (err) {
@@ -1593,19 +1604,67 @@ function openShareModal() {
   }
 }
 
+// Single source of truth for the share modal's status text + button states.
+// Called whenever collab status changes (via updateCollabStatus) and on open.
+function refreshShareModal(status) {
+  if (!el.shareDialog || el.shareDialog.classList.contains('hidden')) return;
+  if (status.role === 'host') {
+    if (status.peerCount > 0) {
+      el.shareStatus.textContent = `● ${status.peerCount} ${status.peerCount === 1 ? 'collaborator' : 'collaborators'} connected`;
+      el.shareStatus.classList.add('connected');
+      el.shareStatus.classList.remove('error');
+      el.shareEndBtn.classList.remove('hidden');
+      // Hide the link row + footnote once a peer is connected (no need to
+      // keep copying the link; the End button is the main action now).
+      const linkRow = el.shareDialog.querySelector('.share-link-row');
+      const footnote = el.shareDialog.querySelector('.share-footnote');
+      if (linkRow) linkRow.style.display = 'none';
+      if (footnote) footnote.style.display = 'none';
+    } else {
+      el.shareStatus.textContent = 'Waiting for a collaborator to join…';
+      el.shareStatus.classList.remove('connected', 'error');
+      el.shareEndBtn.classList.remove('hidden'); // always available once active
+      const linkRow = el.shareDialog.querySelector('.share-link-row');
+      const footnote = el.shareDialog.querySelector('.share-footnote');
+      if (linkRow) linkRow.style.display = '';
+      if (footnote) footnote.style.display = '';
+    }
+  } else if (status.role === 'receiver') {
+    el.shareStatus.textContent = status.peerCount > 0
+      ? `● Connected to host`
+      : 'Connecting to host…';
+    el.shareStatus.classList.toggle('connected', status.peerCount > 0);
+    el.shareEndBtn.classList.remove('hidden');
+    const linkRow = el.shareDialog.querySelector('.share-link-row');
+    const footnote = el.shareDialog.querySelector('.share-footnote');
+    if (linkRow) linkRow.style.display = 'none';
+    if (footnote) footnote.style.display = 'none';
+  }
+}
+
 function closeShareModal() {
   el.shareDialog.classList.add('hidden');
 }
 
 async function endCollabSession() {
-  collab.endSession();
+  // Tear down the network session first so peers get a clean disconnect.
+  try { collab.endSession(); } catch (e) { console.error('endSession:', e); }
+  try { collab.unbindEditor(); } catch { /* already unbound */ }
   // Convert the host's shared doc back to a normal doc (it's still on disk).
+  // On the receiver side, the shared tab becomes a local unsaved doc.
   const doc = store.docs.find((d) => d.id === _collabDocId);
   if (doc) {
     doc.shared = false;
+    // Mark as dirty so the user is prompted to save before closing (they
+    // might want to keep the collaborator's edits locally).
+    if (doc.path === null) doc.dirty = true;
     renderTabs(store);
   }
   _collabDocId = null;
+  // Hide the status pill immediately (the collab.on callback will also do
+  // this, but doing it here avoids a flicker if the callback is delayed).
+  if (el.collabStatus) el.collabStatus.classList.add('hidden');
+  clearPeerCarets();
   closeShareModal();
   toast('Session ended');
 }
@@ -1665,10 +1724,13 @@ async function confirmJoin() {
     closeJoinDialog();
     // Bind the editor after renderActive builds it for the new tab.
     requestAnimationFrame(() => {
+      if (!collab.getStatus().active) return;
       const d = store.active();
       if (d && d.editor) {
-        collab.bindEditor(d.editor);
-        _collabDocId = d.id;
+        try {
+          collab.bindEditor(d.editor);
+          _collabDocId = d.id;
+        } catch (e) { console.error('bindEditor after join failed:', e); }
       }
     });
     toast('Joined session');
@@ -2614,7 +2676,15 @@ if (el.shareCancelBtn) el.shareCancelBtn.addEventListener('click', closeShareMod
 if (el.shareEndBtn) el.shareEndBtn.addEventListener('click', endCollabSession);
 if (el.joinConfirmBtn) el.joinConfirmBtn.addEventListener('click', confirmJoin);
 if (el.joinCancelBtn) el.joinCancelBtn.addEventListener('click', closeJoinDialog);
-if (el.collabStatus) el.collabStatus.addEventListener('click', openShareModal);
+if (el.collabStatus) el.collabStatus.addEventListener('click', (e) => {
+  // The × button has its own handler; don't double-handle.
+  if (e.target === el.collabEnd) return;
+  openShareModal();
+});
+if (el.collabEnd) el.collabEnd.addEventListener('click', (e) => {
+  e.stopPropagation();
+  endCollabSession();
+});
 if (el.daily) el.daily.addEventListener('click', openDailyNote);
 
 // Slideshow click navigation. Arrow buttons + click-on-stage halves advance

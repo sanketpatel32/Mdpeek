@@ -2240,6 +2240,29 @@ body.presenting #slideshow { display: flex; }
 .collab-status:hover {
   background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
+.collab-end {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 100ms, background 100ms;
+}
+.collab-end:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--danger) 25%, transparent);
+  color: var(--danger);
+}
 .collab-status .collab-dot {
   width: 7px;
   height: 7px;

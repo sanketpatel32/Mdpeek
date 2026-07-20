@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.2] - 2026-07-21
+
+### Fixed
+- **Share modal status logic was brittle:** opening Share while a session was already active reset the status to "Waiting…" even when peers were connected, and the End Session button only appeared after a peer joined (so the host couldn't cancel a stuck "waiting" session). Reworked into a single `refreshShareModal(status)` helper that drives the status text, link row visibility, and End button state from one place. The End Session button is now always available once a session is active.
+- **Host-left wasn't tearing down the receiver's session:** when the host disconnected, the receiver's UI was notified but the underlying Yjs/Trystero session stayed alive, leaving a zombie session that blocked starting a new one. The host-left handler now reads the final Yjs state into the doc, marks it dirty (so the user is prompted to save), then calls `endSession()` cleanly.
+- **Connection lifecycle hardening:** all `collab.bindEditor` / `collab.endSession` / `collab.unbindEditor` calls in main.js are now wrapped in try/catch so a collab hiccup never blocks normal editing or tab switching. The receiver's requestAnimationFrame after `joinSession` also re-checks `getStatus().active` before binding (defends against the user canceling mid-connect).
+- **Receiver's tab now keeps its edits when the host leaves:** the doc content is captured from the live editor before teardown, and the tab flips to a normal unsaved doc (dirty flag set) so "Save as…" preserves the work.
+- **Status pill now has an inline × button** to end the session without having to open the Share panel. The pill body still opens the panel.
+
+### Changed
+- **Share modal's "Close" button renamed to "Hide panel"** to make clear it doesn't end the session (the End Session button is the destructive action). Removed the `hidden` class from End Session in the markup — visibility is now driven entirely by `refreshShareModal` based on session state.
+
 ## [0.21.1] - 2026-07-20
 
 ### Fixed

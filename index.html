@@ -57,9 +57,10 @@
         <button id="tab-new" class="tab-new" title="New tab (Ctrl+N)">+</button>
       </div>
 
-      <div id="collab-status" class="collab-status hidden" role="status" aria-live="polite" title="Click to open the share panel">
+      <div id="collab-status" class="collab-status hidden" role="status" aria-live="polite" title="Live collaboration — click to open panel">
         <span class="collab-dot" aria-hidden="true"></span>
         <span class="collab-text">Live</span>
+        <button id="collab-end" class="collab-end" type="button" title="End session" aria-label="End collaboration session">×</button>
       </div>
 
       <span class="header-spacer" data-tauri-drag-region></span>
@@ -371,8 +372,8 @@
         <p class="share-footnote">Anyone with the link can edit. Don't share sensitive documents publicly.</p>
         <div id="share-status" class="share-status">Generating invite link…</div>
         <div class="modal-actions">
-          <button class="modal-btn modal-btn-secondary" id="share-cancel-btn" type="button">Close</button>
-          <button class="modal-btn modal-btn-danger hidden" id="share-end-btn" type="button">End session</button>
+          <button class="modal-btn modal-btn-secondary" id="share-cancel-btn" type="button">Hide panel</button>
+          <button class="modal-btn modal-btn-danger" id="share-end-btn" type="button">End session</button>
         </div>
       </div>
     </div>
@@ -677,7 +678,7 @@
               <div class="about-card">
                 <img src="/icon.png" alt="mdpeek" class="about-logo" />
                 <h3 class="about-name">mdpeek</h3>
-                <div class="about-version">Version <span id="about-version">0.21.1</span></div>
+                <div class="about-version">Version <span id="about-version">0.21.2</span></div>
                 <p class="about-tagline">A lightweight Markdown viewer &amp; editor for Windows.</p>
                 <div class="about-links">
                   <button class="about-link primary" data-href="https://github.com/sanketpatel32/Mdpeek" type="button">
