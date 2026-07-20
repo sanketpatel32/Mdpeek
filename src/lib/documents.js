@@ -117,7 +117,7 @@ export function langForEdit(doc) {
   return 'markdown';                    // markdown files + untitled default
 }
 
-export function createDocument({ path = null, content = '', mode = 'view', plain, excalidraw, code, csv, pinned = false } = {}) {
+export function createDocument({ path = null, content = '', mode = 'view', plain, excalidraw, code, csv, pinned = false, shared = false } = {}) {
   // `plain` override lets a fresh Untitled tab be plain text without a .txt
   // path (used by the new-tab-format preference). When omitted, plainness is
   // derived from the path as before.
@@ -139,6 +139,7 @@ export function createDocument({ path = null, content = '', mode = 'view', plain
     code: isCode, // true = rendered read-only with syntax highlighting
     csv: isCsv, // true = rendered as a sortable/filterable table
     pinned: !!pinned, // true = pinned to the left of the tab strip, survives bulk-close
+    shared: !!shared, // true = P2P collaboration tab; not persisted, no Save button
     dirty: false,
     scrollY: 0,
     editor: null, // lazy-init in main.js when entering edit mode
@@ -166,7 +167,7 @@ export class DocumentStore {
     return this.docs.find((d) => d.id === this.activeId) || null;
   }
 
-  open({ path = null, content = '', plain, mode, excalidraw, code, csv, pinned } = {}) {
+  open({ path = null, content = '', plain, mode, excalidraw, code, csv, pinned, shared } = {}) {
     // Duplicate check: files on disk (path != null) open once.
     if (path !== null) {
       const existing = this.docs.find((d) => d.path === path);
@@ -175,7 +176,7 @@ export class DocumentStore {
         return existing;
       }
     }
-    const doc = createDocument({ path, content, plain, mode, excalidraw, code, csv, pinned });
+    const doc = createDocument({ path, content, plain, mode, excalidraw, code, csv, pinned, shared });
     this.docs.push(doc);
     this.activeId = doc.id;
     this._emit('change');
@@ -239,6 +240,9 @@ export class DocumentStore {
       // launch (we'd rather show the welcome screen than an empty tab), UNLESS
       // they're pinned (a user explicitly kept a scratch tab around).
       docs: this.docs
+        // Skip shared/collab tabs — they're tied to a live network session
+        // and can't be meaningfully restored after a restart.
+        .filter((d) => !d.shared)
         .filter((d) => d.pinned || d.path !== null || d.content !== '' || d.dirty)
         // Sort so pinned tabs come first — preserves left-to-right ordering
         // across sessions, and the activeId fallback naturally prefers them.

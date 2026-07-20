@@ -22,6 +22,9 @@ import { saveSession, loadSession, loadRecents, addRecent, removeRecent, saveRec
 import { NavHistory } from './lib/nav-history.js';
 import { escapeHtml } from './lib/escape.js';
 import { getIconForPath, relativeTime } from './lib/file-type.js';
+// Real-time P2P collaboration (v0.21.0). Yjs + Trystero + Tauri deep-link.
+import * as collab from './collab.js';
+import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
 // CHANGELOG.md is bundled at build time as a string via Vite's built-in ?raw
 // suffix — no plugin or config needed. Rendered into the Settings → Changelog
 // panel on first open (so the running app always shows its own changelog).
@@ -88,7 +91,7 @@ function renderWelcome() {
       <div class="welcome-main">
         <div class="welcome-brand">
           <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.20.0</span></h1>
+          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.21.0</span></h1>
           <p class="welcome-tagline">A lightweight Markdown viewer.</p>
         </div>
 
@@ -183,6 +186,21 @@ const el = {
   closeDialog: document.getElementById('close-dialog'),
   closeRemember: document.getElementById('close-remember'),
   confirmDialog: document.getElementById('confirm-dialog'),
+  // Collaboration (v0.21.0)
+  share: document.getElementById('btn-share'),
+  shareDialog: document.getElementById('share-dialog'),
+  shareLinkInput: document.getElementById('share-link-input'),
+  shareCopyBtn: document.getElementById('share-copy-btn'),
+  shareStatus: document.getElementById('share-status'),
+  shareCancelBtn: document.getElementById('share-cancel-btn'),
+  shareEndBtn: document.getElementById('share-end-btn'),
+  joinDialog: document.getElementById('join-dialog'),
+  joinText: document.getElementById('join-dialog-text'),
+  joinStatus: document.getElementById('join-dialog-status'),
+  joinConfirmBtn: document.getElementById('join-confirm-btn'),
+  joinCancelBtn: document.getElementById('join-cancel-btn'),
+  collabStatus: document.getElementById('collab-status'),
+  peerCarets: document.getElementById('peer-carets'),
 };
 
 // ---------- helpers ----------
@@ -328,6 +346,10 @@ async function renderActive() {
       if (prev.mode === 'edit' && prev.editor) {
         prev.content = prev.editor.getValue();
         prev.editorState = prev.editor.getState();
+        // If this doc is bound to a collab session, detach the binding before
+        // the editor is destroyed (otherwise Y.Text observers reference a
+        // dead textarea). The binding is re-established on tab return.
+        if (_collabDocId === prev.id) collab.unbindEditor();
         // CRITICAL: destroy the outgoing editor's listeners. The <textarea> is
         // shared across all tabs; without this, switching between edit-mode
         // tabs stacks N keydown/input handlers on it, and every editor action
@@ -386,6 +408,7 @@ async function renderActive() {
     el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
     if (el.present) el.present.classList.add('hidden');
+    if (el.share) el.share.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = ''; // clear stale TOC from the previous document
     el.document.classList.remove('code-viewer', 'image-viewer');
@@ -403,6 +426,7 @@ async function renderActive() {
     el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
     if (el.present) el.present.classList.add('hidden');
+    if (el.share) el.share.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
     el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'markdown-body');
@@ -433,6 +457,7 @@ async function renderActive() {
     el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
     if (el.present) el.present.classList.add('hidden');
+    if (el.share) el.share.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
     el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'markdown-body');
@@ -451,6 +476,7 @@ async function renderActive() {
     el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
     if (el.present) el.present.classList.add('hidden');
+    if (el.share) el.share.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
     el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'markdown-body');
@@ -481,6 +507,7 @@ async function renderActive() {
     el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
     if (el.present) el.present.classList.add('hidden');
+    if (el.share) el.share.classList.add('hidden');
     el.pdfDrawToolbar.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
@@ -511,6 +538,7 @@ async function renderActive() {
       el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
     if (el.present) el.present.classList.add('hidden');
+    if (el.share) el.share.classList.add('hidden');
       el.pdfDrawToolbar.classList.add('hidden');
       el.viewMode.classList.remove('hidden');
       el.toc.innerHTML = '';
@@ -545,6 +573,7 @@ async function renderActive() {
   el.export.classList.toggle('hidden', !!doc.plain);
   if (el.exportPdf) el.exportPdf.classList.toggle('hidden', !!doc.plain);
   if (el.present) el.present.classList.toggle('hidden', !!doc.plain);
+  if (el.share) el.share.classList.toggle('hidden', !!doc.plain || collab.getStatus().active);
   el.document.classList.remove('code-viewer', 'image-viewer');
   el.document.classList.add('markdown-body');
 
@@ -579,6 +608,12 @@ async function renderActive() {
     // Switching tabs must re-set the language so the overlay re-highlights
     // with the right grammar (e.g. .js → .py → .md).
     doc.editor.setLanguage(langForEdit(doc));
+    // If this is the doc currently bound to a collab session, re-bind the
+    // fresh editor instance to Yjs (renderActive destroys the editor on tab
+    // switch, so we need to re-attach on return).
+    if (collab.getStatus().active && _collabDocId === doc.id) {
+      collab.bindEditor(doc.editor);
+    }
     // Update the placeholder to match the doc type — code files shouldn't
     // say "Type markdown here...". The textarea's placeholder attribute is
     // what shows when the buffer is empty.
@@ -664,6 +699,8 @@ const palette = initCommandPalette(() => {
     { id: 'export-html', label: 'Export to HTML', keywords: 'export html self-contained', run: exportHtml },
     { id: 'export-pdf', label: 'Export to PDF', keywords: 'export pdf print document', run: exportPdf },
     { id: 'start-presentation', label: 'Start presentation', keywords: 'present slideshow slides deck fullscreen', run: togglePresentation },
+    { id: 'start-collab', label: 'Share for live collaboration', keywords: 'collaborate share live pair peer realtime sync', run: openShareModal },
+    { id: 'end-collab', label: 'End collaboration session', keywords: 'leave stop end disconnect collab', run: endCollabSession },
     {
       id: 'folder-search',
       label: 'Search in folder',
@@ -697,8 +734,13 @@ const palette = initCommandPalette(() => {
   // doesn't need to be exhaustive — it's a power-user shortcut, not a menu.
   const doc = store.active();
   const hasDoc = !!doc;
+  const collabActive = collab.getStatus().active;
   return cmds.filter((c) => {
-    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'mode') && !hasDoc) return false;
+    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode') && !hasDoc) return false;
+    // 'end-collab' is only meaningful when a session is running.
+    if (c.id === 'end-collab' && !collabActive) return false;
+    // 'start-collab' is hidden once a session is active (use End instead).
+    if (c.id === 'start-collab' && collabActive) return false;
     return true;
   });
 });
@@ -866,6 +908,22 @@ function newTab() {
 async function closeTab(id) {
   const doc = store.docs.find((d) => d.id === id);
   if (!doc) return;
+  // Closing the shared tab ends the live session — confirm first.
+  if (doc.shared && collab.getStatus().active) {
+    const choice = await confirmDialog({
+      title: 'End collaboration session?',
+      text: 'Closing this tab will end the live session and disconnect your collaborator.',
+      buttons: [
+        { id: 'cancel', label: 'Cancel', kind: 'secondary' },
+        { id: 'end', label: 'End session', kind: 'danger' },
+      ],
+    });
+    if (choice === null || choice === 'cancel') return;
+    if (_collabDocId === id) {
+      collab.endSession();
+      _collabDocId = null;
+    }
+  }
   if (doc.dirty) {
     const name = basename(doc.path);
     const choice = await confirmDialog({
@@ -1413,6 +1471,340 @@ function toggleTypewriter() {
   const doc = store.active();
   if (doc && doc.editor) doc.editor.setTypewriter(!on);
   toast(on ? 'Typewriter off' : 'Typewriter on');
+}
+
+// ---------- real-time collaboration (v0.21.0) ----------
+//
+// Host flow:  click Share → collab.startSession(text) → modal shows invite URL
+//             → peer joins via URL → both editors stay in sync via Yjs.
+// Receiver:   mdpeek://invite URL → join confirm → shared tab created → bound
+//             to the host's Yjs doc.
+// The textarea ↔ Y.Text binding lives in collab.js; here we only own the UI
+// (modal state, status pill, peer caret rendering, tab badges, close guards).
+
+// Track which doc.id is currently bound to the collab session, so we can
+// re-bind when switching back to it after visiting another tab.
+let _collabDocId = null;
+// Pending invite URL captured before the user has confirmed join — used by
+// the join dialog.
+let _pendingInvite = null;
+
+// Pick a friendly default identity for awareness (cursor label). We don't ask
+// the user; the OS hostname is a reasonable stand-in without being identifiable.
+function defaultCollabName() {
+  try {
+    // WebView2 exposes navigator.userAgent but no hostname; fall back to a
+    // generic label. (Could prompt the user later; out of scope for MVP.)
+    return 'User-' + Math.floor(Math.random() * 9000 + 1000);
+  } catch { return 'User'; }
+}
+
+function updateCollabStatus(status) {
+  if (!el.collabStatus) return;
+  const active = status.active;
+  el.collabStatus.classList.toggle('hidden', !active);
+  if (!active) {
+    clearPeerCarets();
+    return;
+  }
+  const text = status.peerCount > 0
+    ? `Live · ${status.peerCount} ${status.peerCount === 1 ? 'peer' : 'peers'}`
+    : (status.role === 'host' ? 'Live · waiting' : 'Live · connecting');
+  el.collabStatus.querySelector('.collab-text').textContent = text;
+  // Re-render peer carets if the bound editor is the active one.
+  renderPeerCarets(status);
+  // Update the share modal status line if it's open.
+  if (!el.shareDialog.classList.contains('hidden')) {
+    if (status.role === 'host') {
+      el.shareStatus.textContent = status.peerCount > 0
+        ? `● ${status.peerCount} ${status.peerCount === 1 ? 'collaborator' : 'collaborators'} connected`
+        : 'Waiting for a collaborator to join…';
+      el.shareStatus.classList.toggle('connected', status.peerCount > 0);
+      el.shareEndBtn.classList.toggle('hidden', status.peerCount === 0);
+      // Hide the link row once a peer is connected (no need to keep copying).
+      const linkRow = el.shareDialog.querySelector('.share-link-row');
+      const footnote = el.shareDialog.querySelector('.share-footnote');
+      if (linkRow) linkRow.style.display = status.peerCount > 0 ? 'none' : '';
+      if (footnote) footnote.style.display = status.peerCount > 0 ? 'none' : '';
+    }
+  }
+  // Surface host-left to receivers.
+  if (status.hostLeft) {
+    toast('Host ended the session. This tab is now a local document — use Save as… to keep your copy.', { persistent: true });
+    const doc = store.docs.find((d) => d.id === _collabDocId);
+    if (doc) {
+      doc.shared = false;
+      renderTabs(store);
+    }
+    _collabDocId = null;
+    collab.unbindEditor();
+  }
+}
+
+// Subscribe once at startup.
+collab.on(updateCollabStatus);
+
+function openShareModal() {
+  const doc = store.active();
+  if (!doc) return;
+  if (collab.getStatus().active) {
+    // Session already running — just show its current state.
+    el.shareLinkInput.value = '';
+    el.shareStatus.textContent = 'Waiting for a collaborator to join…';
+    el.shareStatus.classList.remove('connected', 'error');
+    el.shareEndBtn.classList.add('hidden');
+    el.shareDialog.classList.remove('hidden');
+    updateCollabStatus(collab.getStatus());
+    return;
+  }
+  // Sync the editor's current text into doc.content before seeding Yjs, so
+  // the host's latest keystrokes are what the receiver starts from.
+  if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
+  el.shareLinkInput.value = 'Generating…';
+  el.shareStatus.textContent = 'Generating invite link…';
+  el.shareStatus.classList.remove('connected', 'error');
+  el.shareEndBtn.classList.add('hidden');
+  el.shareDialog.classList.remove('hidden');
+  try {
+    const result = collab.startSession(doc.content || '', {
+      title: doc.path ? doc.path.split(/[\\/]/).pop() : 'Shared note',
+      language: langForEdit(doc) || 'markdown',
+    });
+    collab.setLocalIdentity({ name: defaultCollabName() });
+    el.shareLinkInput.value = result.inviteUrl;
+    el.shareStatus.textContent = 'Waiting for a collaborator to join…';
+    // Bind the active editor to the Y.Text. Force edit mode so the textarea
+    // exists (you can't share a read-only view).
+    if (doc.mode !== 'edit') {
+      doc.mode = 'edit';
+      renderActive();
+    }
+    // After renderActive rebuilds the editor, bind it on the next tick.
+    requestAnimationFrame(() => {
+      const d = store.active();
+      if (d && d.editor) {
+        collab.bindEditor(d.editor);
+        _collabDocId = d.id;
+      }
+    });
+  } catch (err) {
+    el.shareStatus.textContent = 'Could not start session: ' + (err?.message || err);
+    el.shareStatus.classList.add('error');
+  }
+}
+
+function closeShareModal() {
+  el.shareDialog.classList.add('hidden');
+}
+
+async function endCollabSession() {
+  collab.endSession();
+  // Convert the host's shared doc back to a normal doc (it's still on disk).
+  const doc = store.docs.find((d) => d.id === _collabDocId);
+  if (doc) {
+    doc.shared = false;
+    renderTabs(store);
+  }
+  _collabDocId = null;
+  closeShareModal();
+  toast('Session ended');
+}
+
+async function copyShareLink() {
+  const url = el.shareLinkInput.value;
+  if (!url || url === 'Generating…') return;
+  try {
+    await navigator.clipboard.writeText(url);
+    const original = el.shareCopyBtn.textContent;
+    el.shareCopyBtn.textContent = 'Copied!';
+    setTimeout(() => { el.shareCopyBtn.textContent = original; }, 1500);
+  } catch {
+    el.shareLinkInput.focus();
+    el.shareLinkInput.select();
+    toast('Copy failed — select the link manually');
+  }
+}
+
+// ---------- receiver: invite URL → join ----------
+
+function showJoinDialog(roomId) {
+  _pendingInvite = roomId;
+  el.joinStatus.classList.add('hidden');
+  el.joinStatus.textContent = '';
+  el.joinConfirmBtn.disabled = false;
+  el.joinConfirmBtn.textContent = 'Join';
+  el.joinDialog.classList.remove('hidden');
+}
+
+function closeJoinDialog() {
+  el.joinDialog.classList.add('hidden');
+  _pendingInvite = null;
+}
+
+async function confirmJoin() {
+  if (!_pendingInvite) { closeJoinDialog(); return; }
+  const roomId = _pendingInvite;
+  el.joinConfirmBtn.disabled = true;
+  el.joinConfirmBtn.textContent = 'Connecting…';
+  el.joinStatus.textContent = 'Reaching the host over P2P…';
+  el.joinStatus.classList.remove('hidden', 'error');
+  try {
+    collab.setLocalIdentity({ name: defaultCollabName() });
+    const result = await collab.joinSession(roomId);
+    // Create a new shared tab seeded with the host's current text + title.
+    const doc = store.open({
+      path: null,
+      content: result.initialText || '',
+      mode: 'edit',
+      shared: true,
+    });
+    if (result.title) doc._collabTitle = result.title;
+    // The user-facing tab title for a shared doc: host's filename + "(shared)".
+    // We can't easily override renderTabs here, but the .shared class adds a
+    // "(shared)" suffix via CSS — good enough for MVP.
+    closeJoinDialog();
+    // Bind the editor after renderActive builds it for the new tab.
+    requestAnimationFrame(() => {
+      const d = store.active();
+      if (d && d.editor) {
+        collab.bindEditor(d.editor);
+        _collabDocId = d.id;
+      }
+    });
+    toast('Joined session');
+  } catch (err) {
+    el.joinStatus.textContent = (err?.message || String(err));
+    el.joinStatus.classList.add('error');
+    el.joinConfirmBtn.disabled = false;
+    el.joinConfirmBtn.textContent = 'Join';
+  }
+}
+
+function handleInviteUrl(url) {
+  const parsed = collab.parseInviteUrl(url);
+  if (!parsed) return;
+  if (collab.getStatus().active) {
+    toast('You are already in a collaboration session. End it first.');
+    return;
+  }
+  showJoinDialog(parsed.roomId);
+}
+
+// ---------- peer caret rendering ----------
+//
+// For each remote peer with a known caret offset, render a thin colored bar
+// at the corresponding character position in the textarea. We measure positions
+// via a hidden mirror <div> with the same font/padding — standard technique.
+
+let _caretMirror = null;
+function ensureCaretMirror() {
+  if (_caretMirror) return _caretMirror;
+  _caretMirror = document.createElement('div');
+  _caretMirror.className = 'collab-mirror';
+  _caretMirror.setAttribute('aria-hidden', 'true');
+  // Match the textarea's typography + box model exactly so the character
+  // bounding boxes line up. Pulled from getComputedStyle at render time.
+  const ta = el.editor;
+  const cs = getComputedStyle(ta);
+  _caretMirror.style.font = cs.font;
+  _caretMirror.style.fontSize = cs.fontSize;
+  _caretMirror.style.fontFamily = cs.fontFamily;
+  _caretMirror.style.lineHeight = cs.lineHeight;
+  _caretMirror.style.letterSpacing = cs.letterSpacing;
+  _caretMirror.style.whiteSpace = 'pre-wrap';
+  _caretMirror.style.wordWrap = 'break-word';
+  _caretMirror.style.padding = cs.padding;
+  _caretMirror.style.border = cs.border;
+  _caretMirror.style.boxSizing = cs.boxSizing;
+  _caretMirror.style.position = 'absolute';
+  _caretMirror.style.visibility = 'hidden';
+  _caretMirror.style.pointerEvents = 'none';
+  _caretMirror.style.zIndex = '-1';
+  // Width matches the textarea's content width (minus scrollbar).
+  _caretMirror.style.width = ta.clientWidth + 'px';
+  el.peerCarets.parentElement.appendChild(_caretMirror);
+  return _caretMirror;
+}
+
+function clearPeerCarets() {
+  if (el.peerCarets) el.peerCarets.innerHTML = '';
+}
+
+function renderPeerCarets(status) {
+  if (!el.peerCarets) return;
+  // Only render when the bound doc is the one currently visible.
+  const doc = store.active();
+  if (!doc || doc.id !== _collabDocId || !doc.editor) {
+    clearPeerCarets();
+    return;
+  }
+  const ta = el.editor;
+  if (!ta || ta.offsetParent === null) { clearPeerCarets(); return; }
+  const mirror = ensureCaretMirror();
+  // Mirror the textarea's current text + scroll so caret positions are correct.
+  mirror.textContent = ta.value;
+  mirror.scrollTop = ta.scrollTop;
+  mirror.scrollLeft = ta.scrollLeft;
+  // Remove carets for peers that no longer exist; add/update the rest.
+  const seenIds = new Set();
+  for (const peer of status.peers) {
+    if (typeof peer.caret !== 'number') continue;
+    seenIds.add(peer.id);
+    let node = el.peerCarets.querySelector(`[data-peer="${cssAttrEscape(peer.id)}"]`);
+    if (!node) {
+      node = document.createElement('div');
+      node.className = 'peer-caret';
+      node.dataset.peer = peer.id;
+      node.style.setProperty('--peer-color', peer.color || '#3b82f6');
+      const label = document.createElement('div');
+      label.className = 'peer-caret-label';
+      label.textContent = peer.name || 'Peer';
+      const bar = document.createElement('div');
+      bar.className = 'peer-caret-bar';
+      node.append(label, bar);
+      el.peerCarets.appendChild(node);
+    }
+    positionCaret(node, peer.caret, mirror, ta);
+  }
+  // Drop carets for peers not in the new status.
+  el.peerCarets.querySelectorAll('.peer-caret').forEach((n) => {
+    if (!seenIds.has(n.dataset.peer)) n.remove();
+  });
+}
+
+// Map a character offset in the textarea to a {left, top, height} rect in
+// peer-carets coordinate space, using the mirror element's caret rect.
+function positionCaret(node, offset, mirror, ta) {
+  // Place a sentinel span at the offset and measure its rect.
+  const text = mirror.textContent;
+  const safeOffset = Math.max(0, Math.min(offset, text.length));
+  const before = document.createTextNode(text.slice(0, safeOffset));
+  const marker = document.createElement('span');
+  marker.textContent = '\u200b'; // zero-width space — preserves layout
+  const after = document.createTextNode(text.slice(safeOffset));
+  mirror.replaceChildren(before, marker, after);
+  const markerRect = marker.getBoundingClientRect();
+  const taRect = ta.getBoundingClientRect();
+  const parentRect = el.peerCarets.getBoundingClientRect();
+  // Caret sits at the right edge of the marker.
+  const left = markerRect.right - parentRect.left;
+  const top = markerRect.top - parentRect.top;
+  node.style.transform = `translate(${left}px, ${top}px)`;
+  node.style.height = `${markerRect.height || 18}px`;
+}
+
+// Escape a string for use in a CSS attribute selector ([data-peer="…"]).
+function cssAttrEscape(s) {
+  return String(s).replace(/["\\]/g, '\\$&');
+}
+
+// The bound doc is being torn down (tab closed or app closing). End the
+// session cleanly and notify peers.
+function teardownCollabIfActive() {
+  if (collab.getStatus().active) {
+    collab.endSession();
+    _collabDocId = null;
+  }
 }
 
 // ---------- daily note ----------
@@ -2216,6 +2608,13 @@ el.save.addEventListener('click', saveActive);
 if (el.export) el.export.addEventListener('click', exportHtml);
 if (el.exportPdf) el.exportPdf.addEventListener('click', exportPdf);
 if (el.present) el.present.addEventListener('click', togglePresentation);
+if (el.share) el.share.addEventListener('click', openShareModal);
+if (el.shareCopyBtn) el.shareCopyBtn.addEventListener('click', copyShareLink);
+if (el.shareCancelBtn) el.shareCancelBtn.addEventListener('click', closeShareModal);
+if (el.shareEndBtn) el.shareEndBtn.addEventListener('click', endCollabSession);
+if (el.joinConfirmBtn) el.joinConfirmBtn.addEventListener('click', confirmJoin);
+if (el.joinCancelBtn) el.joinCancelBtn.addEventListener('click', closeJoinDialog);
+if (el.collabStatus) el.collabStatus.addEventListener('click', openShareModal);
 if (el.daily) el.daily.addEventListener('click', openDailyNote);
 
 // Slideshow click navigation. Arrow buttons + click-on-stage halves advance
@@ -3232,6 +3631,24 @@ function resolveClose(action) {
 }
 
 listen('close-requested', () => {
+  // Warn before hiding/quitting during a live session: minimizing to tray
+  // keeps the session alive (the window is just hidden), but quitting ends
+  // it for everyone. Surface that distinction.
+  if (collab.getStatus().active) {
+    confirmDialog({
+      title: 'Leave the collaboration session?',
+      text: 'You are currently sharing a document live. Quitting will end the session for everyone. Minimizing to tray keeps it running in the background.',
+      buttons: [
+        { id: 'cancel', label: 'Stay', kind: 'secondary' },
+        { id: 'tray', label: 'Minimize to tray', kind: 'primary' },
+        { id: 'quit', label: 'Quit + end session', kind: 'danger' },
+      ],
+    }).then((choice) => {
+      if (choice === 'tray') doMinimizeToTray();
+      else if (choice === 'quit') { collab.endSession(); doQuitApp(); }
+    }).catch(() => {});
+    return;
+  }
   showCloseDialog();
 }).catch((e) => console.error('close-requested listener failed:', e));
 
@@ -3433,6 +3850,20 @@ listen('open-file', (event) => {
   }
 }).catch((e) => console.error('open-file listener failed:', e));
 
+// Warm-start invite URL: mdpeek was already running when the user clicked a
+// mdpeek://join?room=… link. The single-instance plugin emits `open-url`; the
+// deep-link plugin also fires onOpenUrl. Listen on both so we cover whatever
+// path the OS took. (The two are mutually exclusive in practice — single-
+// instance handles warm launches, deep-link handles cases where the scheme
+// was invoked without going through single-instance.)
+listen('open-url', (event) => {
+  const url = typeof event.payload === 'string' ? event.payload : event.payload?.url;
+  if (url) handleInviteUrl(url);
+}).catch((e) => console.error('open-url listener failed:', e));
+onOpenUrl((urls) => {
+  for (const u of urls || []) handleInviteUrl(String(u));
+}).catch(() => { /* deep-link plugin may be unavailable in dev */ });
+
 window.addEventListener('hljs-language-registered', () => {
   renderActive().catch(() => {});
 });
@@ -3519,6 +3950,19 @@ applyLineNumbers();
       }
     } catch {
       /* ignore */
+    }
+
+    // Cold-start: was mdpeek launched by clicking a mdpeek:// invite link?
+    // (Warm launches are handled by the `open-url` event listener below.)
+    try {
+      const initialUrl = await invoke('get_initial_url');
+      if (initialUrl) {
+        await renderActive(); // make sure the window is up before prompting
+        handleInviteUrl(initialUrl);
+        return;
+      }
+    } catch {
+      /* ignore — deep-link plugin not available */
     }
 
     // If still no tabs (fresh launch, no session, no argv), show the welcome

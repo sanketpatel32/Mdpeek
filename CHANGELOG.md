@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-07-20
+
+### Added
+- **Real-time P2P collaboration:** invite someone to edit your document live, Google-Docs-style, over a direct peer-to-peer connection. No accounts, no servers, no setup beyond sharing a link.
+  - **How to start:** open any markdown or plain-text document, click the new **Share** button in the toolbar (next to Present), copy the invite link, and send it to your collaborator. They click the link, mdpeek opens, and a shared tab appears with both of you editing the same document.
+  - **Invite links:** `mdpeek://join?room=<16-char-id>`. Clicking the link on a machine with mdpeek installed opens the app and prompts to join. The custom URL scheme is registered with Windows at install time.
+  - **Conflict-free editing:** powered by **Yjs** (a CRDT library). Both of you can type at the same cursor at the same time — concurrent edits merge deterministically and never conflict.
+  - **Serverless P2P:** uses **Trystero** (WebRTC) with public BitTorrent trackers as a rendezvous. All traffic is direct between the two machines and encrypted via WebRTC's DTLS. We don't run any servers for this.
+  - **Live cursors:** see your collaborator's cursor position + name in real time, rendered as a colored bar over the editor.
+  - **Host owns the file:** the host's Save (Ctrl+S) writes to disk normally; the receiver's tab is a transient shared view. If the host ends the session, the receiver's tab converts to a local unsaved document they can "Save as…" to keep their copy.
+  - **Status pill:** a pulsing "Live · N peers" indicator in the header shows the connection state. Click it to reopen the share panel.
+  - **Smart close guards:** closing the shared tab, closing the app window, or quitting all prompt before tearing down the session (so you don't accidentally end a live session).
+  - **Installer growth: +71 KB** (6.13 MB → 6.20 MB) — Yjs + Trystero + the deep-link plugin combined.
+  - **Command palette:** "Share for live collaboration" and "End collaboration session" entries.
+
+### Notes
+- **Works on most home networks** out of the box. Strict corporate VPNs/firewalls and some cellular NATs may block WebRTC connections — in that case, the receiver sees a "could not reach the host" error and should try a different network. A paid TURN relay would fix this but isn't included (out of scope for v0.21.0).
+- **Anyone with the invite link can edit.** Room IDs are 80-bit random (guessing is infeasible), but there is no authentication layer. Don't share sensitive documents publicly.
+- **`mdpeek://` scheme registration** happens at install time. Users who upgrade from v0.20.0 (rather than installing fresh) may need to re-run the installer for the scheme to be registered.
+- One collaboration session per app instance for MVP. Multiple simultaneous shared docs + chat sidebar + voice + mobile are out of scope for this release.
+- Shared tabs are not persisted across restarts — they're tied to the live network session.
+
 ## [0.20.0] - 2026-07-20
 
 ### Added

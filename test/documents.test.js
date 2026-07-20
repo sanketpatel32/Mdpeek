@@ -11,7 +11,13 @@ describe('createDocument', () => {
     expect(d.dirty).toBe(false);
     expect(d.scrollY).toBe(0);
     expect(d.editor).toBe(null);
+    expect(d.shared).toBe(false);
     expect(typeof d.id).toBe('string');
+  });
+
+  it('accepts the shared flag for collaboration tabs', () => {
+    const d = createDocument({ content: '# live', shared: true });
+    expect(d.shared).toBe(true);
   });
 
   it('untitled docs have null path', () => {
@@ -364,6 +370,17 @@ describe('DocumentStore', () => {
     const snap = store.serialize();
     expect(snap.docs).toHaveLength(1);
     expect(snap.docs[0].pinned).toBe(true);
+  });
+
+  it('serialize skips shared/collab tabs (they cannot survive a restart)', () => {
+    // Shared tabs are tied to a live network session and have no local path
+    // — they must not be persisted into the session snapshot.
+    const a = store.open({ path: '/local.md', content: 'local' });
+    const b = store.open({ path: null, content: '# from host', shared: true });
+    const snap = store.serialize();
+    const ids = snap.docs.map((d) => d.id);
+    expect(ids).toContain(a.id);
+    expect(ids).not.toContain(b.id);
   });
 
   it('restore reads pinned back', () => {

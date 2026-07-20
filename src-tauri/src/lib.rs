@@ -16,6 +16,15 @@ use watcher::WatcherState;
 #[derive(Default)]
 struct PendingFile(pub Mutex<Option<String>>);
 
+/// Holds a `mdpeek://` invite URL passed on the command line at cold launch
+/// (i.e. the app wasn't running when the user clicked an invite link, so the
+/// OS launched mdpeek with the URL as argv[1]). Warm launches are routed
+/// through the single-instance callback → `open-url` event directly; this
+/// state only covers the cold-start case. The frontend pulls it once on
+/// startup via `get_initial_url`.
+#[derive(Default)]
+struct PendingUrl(pub Mutex<Option<String>>);
+
 #[derive(Serialize, Clone)]
 struct FilePayload {
     path: String,
@@ -64,10 +73,13 @@ pub fn run() {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();
-                    // argv[0] is the exe; argv[1] (if present) is the file path.
+                    // argv[0] is the exe; argv[1] (if present) is either a file
+                    // path (double-clicked .md) or a `mdpeek://` invite URL.
                     if argv.len() > 1 {
-                        let path = argv[1].clone();
-                        if let Ok(payload) = read_file_for_frontend(&path) {
+                        let arg = argv[1].clone();
+                        if arg.starts_with("mdpeek://") {
+                            let _ = window.emit("open-url", arg);
+                        } else if let Ok(payload) = read_file_for_frontend(&arg) {
                             let _ = window.emit("open-file", payload);
                         }
                     }
@@ -75,19 +87,36 @@ pub fn run() {
             }),
         );
         builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+        // Custom URL scheme (mdpeek://). Registers the scheme with the OS at
+        // install time (Windows registry via NSIS) so clicking an invite link
+        // launches or focuses mdpeek with the URL as argv[1].
+        builder = builder.plugin(tauri_plugin_deep_link::init());
     }
 
-    // Seed pending file from argv at launch (Windows passes the .md path as argv[1]
-    // when the user double-clicks a file with mdpeek set as default).
-    let initial: PendingFile = {
-        let args: Vec<String> = std::env::args().collect();
-        PendingFile(Mutex::new(if args.len() > 1 { Some(args[1].clone()) } else { None }))
-    };
+    // Seed pending file / url from argv at launch.
+    //  - argv[1] = "C:\path\notes.md"  → double-clicked .md (PendingFile)
+    //  - argv[1] = "mdpeek://join?…"   → clicked invite link (PendingUrl)
+    let args: Vec<String> = std::env::args().collect();
+    let arg1 = args.get(1).map(String::as_str);
+    let initial: PendingFile = PendingFile(Mutex::new(
+        match arg1 {
+            Some(s) if s.starts_with("mdpeek://") => None,
+            Some(s) => Some(s.to_string()),
+            None => None,
+        },
+    ));
+    let initial_url: PendingUrl = PendingUrl(Mutex::new(
+        match arg1 {
+            Some(s) if s.starts_with("mdpeek://") => Some(s.to_string()),
+            _ => None,
+        },
+    ));
 
     builder
         .plugin(tauri_plugin_opener::init())
         .manage(WatcherState::default())
         .manage(initial)
+        .manage(initial_url)
         .setup(|app| {
             // ---------- System tray ----------
             // Tray icon: left-click shows the window, right-click opens a menu
@@ -162,6 +191,7 @@ pub fn run() {
             commands::is_context_menu_registered,
             watcher::watch_path,
             get_initial_file,
+            get_initial_url,
             hide_to_tray,
             quit_app,
         ])
@@ -200,5 +230,15 @@ fn get_initial_file(state: tauri::State<PendingFile>) -> Result<Option<FilePaylo
     } else {
         Ok(None)
     }
+}
+
+/// Frontend calls this once on startup to pull any `mdpeek://` invite URL that
+/// launched the app cold (e.g. user clicked an invite link in their browser
+/// while mdpeek wasn't running). Returns None for normal launches. Warm
+/// launches go through the single-instance → `open-url` event path instead.
+#[tauri::command]
+fn get_initial_url(state: tauri::State<PendingUrl>) -> Result<Option<String>, String> {
+    let mut guard = state.0.lock().map_err(|e| e.to_string())?;
+    Ok(guard.take())
 }
 

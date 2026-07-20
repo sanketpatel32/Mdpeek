@@ -57,6 +57,11 @@
         <button id="tab-new" class="tab-new" title="New tab (Ctrl+N)">+</button>
       </div>
 
+      <div id="collab-status" class="collab-status hidden" role="status" aria-live="polite" title="Click to open the share panel">
+        <span class="collab-dot" aria-hidden="true"></span>
+        <span class="collab-text">Live</span>
+      </div>
+
       <span class="header-spacer" data-tauri-drag-region></span>
 
       <div class="toolbar">
@@ -99,6 +104,9 @@
           </button>
           <button id="btn-present" class="tool-btn icon-only hidden" title="Present (split on ---)" aria-label="Start presentation">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
+          </button>
+          <button id="btn-share" class="tool-btn icon-only hidden" title="Share for live collaboration" aria-label="Share document for live collaboration">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
           </button>
           <button id="btn-daily" class="tool-btn icon-only" title="Open or create today's note (YYYY-MM-DD.md)" aria-label="Open or create today's note">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -241,6 +249,7 @@
           <div class="editor-wrap">
             <div id="gutter" class="gutter" aria-hidden="true"></div>
             <textarea id="editor" class="editor" spellcheck="false" placeholder="Type markdown here..."></textarea>
+            <div id="peer-carets" class="peer-carets" aria-hidden="true"></div>
           </div>
           <div id="editor-status" class="editor-status hidden" aria-live="polite"></div>
         </div>
@@ -346,6 +355,38 @@
         <h2 id="confirm-title" class="modal-title"></h2>
         <p id="confirm-text" class="modal-text"></p>
         <div id="confirm-actions" class="modal-actions"></div>
+      </div>
+    </div>
+
+    <!-- Share for live collaboration (host side). Shows the invite link, peer
+         count, and an End-session button once a peer joins. -->
+    <div id="share-dialog" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="share-dialog-title">
+      <div class="modal">
+        <h2 id="share-dialog-title" class="modal-title">Collaborate live</h2>
+        <p class="modal-text">Share this link with someone who has mdpeek installed. You'll both edit this document in real time.</p>
+        <div class="share-link-row">
+          <input id="share-link-input" class="share-link-input" type="text" readonly spellcheck="false" />
+          <button id="share-copy-btn" class="modal-btn modal-btn-primary" type="button">Copy</button>
+        </div>
+        <p class="share-footnote">Anyone with the link can edit. Don't share sensitive documents publicly.</p>
+        <div id="share-status" class="share-status">Generating invite link…</div>
+        <div class="modal-actions">
+          <button class="modal-btn modal-btn-secondary" id="share-cancel-btn" type="button">Close</button>
+          <button class="modal-btn modal-btn-danger hidden" id="share-end-btn" type="button">End session</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Join confirm (receiver side). Shown when an invite URL is opened. -->
+    <div id="join-dialog" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="join-dialog-title">
+      <div class="modal">
+        <h2 id="join-dialog-title" class="modal-title">Join collaboration session?</h2>
+        <p id="join-dialog-text" class="modal-text">A shared document will open in a new tab. The host's filename and your edits will sync live.</p>
+        <div id="join-dialog-status" class="share-status hidden"></div>
+        <div class="modal-actions">
+          <button class="modal-btn modal-btn-secondary" id="join-cancel-btn" type="button">Cancel</button>
+          <button class="modal-btn modal-btn-primary" id="join-confirm-btn" type="button">Join</button>
+        </div>
       </div>
     </div>
 
@@ -577,6 +618,7 @@
                     <tr><td><kbd>Ctrl</kbd>+scroll</td><td>Zoom in / out</td></tr>
                         <tr><td><kbd>F11</kbd></td><td>Focus / Zen mode</td></tr>
                         <tr><td>Present button</td><td>Start presentation (split on <code>---</code>)</td></tr>
+                        <tr><td>Share button</td><td>Start live collaboration (P2P, invite link)</td></tr>
                         <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd></td><td>Toggle typewriter mode</td></tr>
                         <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd></td><td>Copy as rich text (paste formatted)</td></tr>
                         <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd></td><td>Toggle file explorer</td></tr>
@@ -615,6 +657,7 @@
                   <li>Right-click a folder in the explorer to search across every file inside it.</li>
                   <li>Pin frequently-used tabs via right-click → <em>Pin tab</em>. Pinned tabs survive app restarts.</li>
                   <li>Present any markdown doc as a slideshow: separate slides with <code>---</code> on its own line, then click the Present button (or use the command palette). Press <kbd>S</kbd> to switch between deck and reading styles.</li>
+                  <li>Live collaboration: click the Share button to get an invite link. Anyone with mdpeek installed + that link can edit your document in real time (no accounts, end-to-end encrypted via WebRTC). Both peers see each other's cursor. Works on most home networks; corporate VPNs/firewalls may block P2P.</li>
                   <li>Wiki-links like <code>[[Note]]</code> or relative links like <code>[readme](README.md)</code> open the linked file as a new tab when clicked.</li>
                 </ul>
               </div>
@@ -634,7 +677,7 @@
               <div class="about-card">
                 <img src="/icon.png" alt="mdpeek" class="about-logo" />
                 <h3 class="about-name">mdpeek</h3>
-                <div class="about-version">Version <span id="about-version">0.20.0</span></div>
+                <div class="about-version">Version <span id="about-version">0.21.0</span></div>
                 <p class="about-tagline">A lightweight Markdown viewer &amp; editor for Windows.</p>
                 <div class="about-links">
                   <button class="about-link primary" data-href="https://github.com/sanketpatel32/Mdpeek" type="button">

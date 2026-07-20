@@ -28,14 +28,18 @@ export function renderTabs(store) {
     .map((d) => {
       const active = d.id === store.activeId ? ' active' : '';
       const pinned = d.pinned ? ' pinned' : '';
+      const shared = d.shared ? ' shared' : '';
       const dirty = d.dirty ? '<span class="tab-dot" title="Unsaved changes">●</span>' : '';
+      // Shared docs show a green "live" dot so the collab state is visible at a
+      // glance even when there are no unsaved changes.
+      const sharedDot = d.shared ? '<span class="tab-dot" title="Live collaboration">●</span>' : '';
       const icon = iconFor(d);
       const title = escapeHtml(titleFor(d));
       // Pinned tabs: title is hidden via CSS; the close × is also hidden (you
       // unpin via the context menu, not by closing). Title attribute still
       // carries the filename so hover-tooltips keep working.
-      return `<div class="tab${active}${pinned}" data-id="${d.id}" title="${escapeHtml(d.path || 'Untitled')}">
-        ${icon}<span class="tab-title">${title}</span>${dirty}
+      return `<div class="tab${active}${pinned}${shared}" data-id="${d.id}" title="${escapeHtml(d.path || (d.shared ? 'Shared document' : 'Untitled'))}">
+        ${icon}<span class="tab-title">${title}</span>${dirty}${sharedDot}
         <span class="tab-close" data-id="${d.id}" title="Close (Ctrl+W)">×</span>
       </div>`;
     })
