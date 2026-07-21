@@ -141,14 +141,74 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150,
   }
 
   // ----- gutter (line numbers synced to textarea scroll) -----
+  // ----- gutter (line numbers synced to textarea scroll) -----
+  // The gutter must visually align with the textarea's lines, including
+  // soft-wrapped lines (long lines that span multiple visual rows). To do this
+  // we measure each logical line's rendered height via a hidden mirror element
+  // that matches the textarea's width + font, then size each gutter row to the
+  // corresponding visual height. The line number is shown once per logical
+  // line (top-aligned); wrapped continuations are blank gutter rows of the
+  // same height. This keeps the numbers perfectly aligned with the text.
+  let gutterMirror = null;
+  function ensureGutterMirror() {
+    if (gutterMirror) return gutterMirror;
+    gutterMirror = document.createElement('div');
+    gutterMirror.setAttribute('aria-hidden', 'true');
+    gutterMirror.style.position = 'absolute';
+    gutterMirror.style.visibility = 'hidden';
+    gutterMirror.style.pointerEvents = 'none';
+    gutterMirror.style.whiteSpace = 'pre-wrap';
+    gutterMirror.style.wordWrap = 'break-word';
+    gutterMirror.style.overflow = 'hidden';
+    gutterMirror.style.margin = '0';
+    gutterMirror.style.border = '0';
+    // Width + font get synced from the textarea on each syncGutter call.
+    document.body.appendChild(gutterMirror);
+    return gutterMirror;
+  }
+  function syncGutterMirror() {
+    if (!gutterMirror) return;
+    const cs = getComputedStyle(textarea);
+    gutterMirror.style.fontFamily = cs.fontFamily;
+    gutterMirror.style.fontSize = cs.fontSize;
+    gutterMirror.style.lineHeight = cs.lineHeight;
+    gutterMirror.style.letterSpacing = cs.letterSpacing;
+    gutterMirror.style.tabSize = cs.tabSize;
+    gutterMirror.style.padding = cs.padding;
+    gutterMirror.style.boxSizing = cs.boxSizing;
+    gutterMirror.style.width = textarea.clientWidth + 'px';
+  }
   function syncGutter() {
     if (!gutter) return;
-    const n = lineCount(textarea.value);
-    // Rebuild only when line count changes — avoids flicker on every keystroke.
-    if (gutter.childElementCount !== n) {
+    const text = textarea.value;
+    const lines = text.length ? text.split('\n') : [''];
+    const n = lines.length;
+    // Cheap path: rebuild only when line count changes. Heights for soft-wraps
+    // are recomputed below regardless (cheap — one DOM measurement per line).
+    if (gutter.childElementCount !== n || gutter.dataset.lastCount !== String(n)) {
       let html = '';
       for (let i = 1; i <= n; i++) html += `<div>${i}</div>`;
       gutter.innerHTML = html;
+      gutter.dataset.lastCount = String(n);
+    }
+    // Measure each logical line's visual height and apply to the gutter row.
+    // Skipped if the wrap is off (no soft-wrapping) — every line is one row.
+    if (textarea.getAttribute('wrap') === 'off') return;
+    const mirror = ensureGutterMirror();
+    syncGutterMirror();
+    const cs = getComputedStyle(textarea);
+    const linePx = parseFloat(cs.lineHeight) || 22;
+    // Subtract the mirror's top+bottom padding so we measure only the text
+    // rows (otherwise a single 1-line entry would measure as 2 rows due to
+    // the padding being counted as another line-height).
+    const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    const kids = gutter.children;
+    for (let i = 0; i < n; i++) {
+      mirror.textContent = lines[i] || ' ';
+      const totalH = mirror.getBoundingClientRect().height;
+      const contentH = Math.max(0, totalH - padY);
+      const rows = Math.max(1, Math.round(contentH / linePx));
+      if (kids[i]) kids[i].style.height = (rows * linePx) + 'px';
     }
   }
   function onScroll() {
@@ -258,6 +318,14 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150,
   on('keyup', textarea, centerActiveLine);
   on('click', textarea, centerActiveLine);
   on('scroll', textarea, onScroll);
+  // Re-sync gutter when the textarea is resized (window resize, sidebar
+  // toggle, theme change, etc.) — wrap width changes affect line wrapping
+  // and thus the visual height of each logical line.
+  let gutterResizeObserver = null;
+  if (typeof ResizeObserver !== 'undefined') {
+    gutterResizeObserver = new ResizeObserver(() => { syncGutter(); });
+    gutterResizeObserver.observe(textarea);
+  }
 
   // Re-highlight when an extra language (e.g. dockerfile, toml) finishes its
   // dynamic import. Same trick main.js uses to re-render the code viewer.
@@ -410,13 +478,18 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150,
       clearTimeout(hlTimer);
       for (const [target, type, fn] of listeners) target.removeEventListener(type, fn);
       listeners.length = 0;
-      // Remove the overlay element so re-creating the editor (new tab in edit
-      // mode) doesn't stack stale overlays inside .editor-wrap.
+      if (gutterResizeObserver) { gutterResizeObserver.disconnect(); gutterResizeObserver = null; }
+      // Remove the overlay + mirror so re-creating the editor (new tab in edit
+      // mode) doesn't stack stale overlays inside .editor-wrap or leak mirrors.
       if (overlay && overlay.parentElement) {
         overlay.parentElement.removeChild(overlay);
       }
       overlay = null;
       codeEl = null;
+      if (gutterMirror && gutterMirror.parentElement) {
+        gutterMirror.parentElement.removeChild(gutterMirror);
+      }
+      gutterMirror = null;
     },
   };
 }

@@ -875,7 +875,13 @@ mark.find-current {
 /* editor-wrap = gutter + textarea side by side, sharing one scroll context.
    Provides the visible background for the editor area — the textarea's own
    background is transparent (when highlight-on) so the syntax-highlight
-   overlay at z-index:0 shows through. */
+   overlay at z-index:0 shows through.
+
+   LAYOUT STRATEGY: the gutter is `position: absolute` (out of flex flow),
+   pinned to the left edge. The textarea + overlay both take the FULL wrap
+   width and share the same coordinate system — this guarantees the overlay
+   text aligns with the textarea text perfectly. The gutter just paints on
+   top with its own opaque background. */
 .editor-wrap {
   flex: 1;
   display: flex;
@@ -884,8 +890,11 @@ mark.find-current {
   background: var(--bg);
 }
 .gutter {
-  flex: 0 0 auto;
-  min-width: 44px;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 44px;
   padding: 16px 8px 16px 12px; /* matches .editor top/bottom padding */
   overflow: hidden; /* sync via scrollTop in JS, no visible scrollbar */
   background: var(--surface);
@@ -898,6 +907,8 @@ mark.find-current {
   text-align: right;
   user-select: none;
   white-space: pre;
+  z-index: 3; /* above overlay (0) and textarea (1); below peer-carets (2) — wait, above both so line numbers always visible */
+  pointer-events: none;
   /* The gutter scrolls with the textarea via JS (onScroll → gutter.scrollTop).
      Hide its scrollbar so the gutter looks static even as it tracks scroll. */
   scrollbar-width: none;
@@ -912,10 +923,13 @@ mark.find-current {
   border: none;
   background: var(--bg);
   color: var(--fg);
+  /* Padding-left accounts for the gutter (44px) so the textarea's text starts
+     AFTER the gutter strip. The textarea takes the full wrap width but its
+     text is inset. The overlay matches this padding so they stay aligned. */
   font-family: var(--content-font-family, "SFMono-Regular", "Cascadia Code", Consolas, monospace) !important;
   font-size: 13.5px;
   line-height: 1.6;
-  padding: 16px 20px;
+  padding: 16px 20px 16px 64px; /* top right bottom left — left = 44 (gutter) + 20 (text inset) */
   outline: none;
   tab-size: 2;
 }
@@ -930,7 +944,7 @@ mark.find-current {
   position: absolute;
   inset: 0;
   margin: 0;
-  padding: 16px 20px;       /* MUST match .editor */
+  padding: 16px 20px 16px 64px;  /* MUST match .editor (left = 44 gutter + 20 inset) */
   border: 0;
   /* font-family is copied from getComputedStyle(textarea) by editor.js so the
      !important user-font override on .editor is respected. */
@@ -2284,7 +2298,18 @@ body.presenting #slideshow { display: flex; }
   100% { box-shadow: 0 0 0 0   color-mix(in srgb, var(--accent) 0%, transparent); }
 }
 
-/* Share + Join modal: link row, status line, footnote. */
+/* Share modal — wider than the standard modal so the invite link + copy
+   button fit comfortably without truncation. */
+.share-modal {
+  min-width: 480px;
+  max-width: min(560px, 92vw);
+}
+/* Link block holds the input + footnote. It's hidden by JS once a peer
+   connects (no need to keep copying the link). The status block then
+   takes over as the primary info. */
+.share-link-block {
+  transition: opacity 150ms var(--ease);
+}
 .share-link-row {
   display: flex;
   gap: 8px;
@@ -2311,19 +2336,76 @@ body.presenting #slideshow { display: flex; }
   margin: 4px 0 0;
 }
 .share-status {
-  font-size: 13px;
-  margin: 10px 0;
-  opacity: 0.85;
-  min-height: 1.2em;
+  font-size: 13.5px;
+  margin: 14px 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  opacity: 0.95;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.share-status::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fg-muted);
+  flex: 0 0 auto;
+  animation: collab-pulse 2s infinite;
 }
 .share-status.connected {
   color: var(--accent);
   opacity: 1;
   font-weight: 500;
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+.share-status.connected::before {
+  background: var(--accent);
 }
 .share-status.error {
   color: var(--danger);
   opacity: 1;
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+}
+.share-status.error::before {
+  background: var(--danger);
+  animation: none;
+}
+/* Share modal action row: End session is the destructive primary when a
+   session is active; otherwise it's de-emphasized so users don't click it
+   by accident before sharing. */
+.share-actions {
+  gap: 10px;
+}
+.share-actions .modal-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.share-actions .modal-btn svg {
+  flex: 0 0 auto;
+}
+#share-end-btn {
+  /* When no session active, render as a quiet secondary so it doesn't compete
+     with Copy. JS adds a .active class to make it prominent. */
+  background: transparent;
+  color: var(--fg-muted);
+  border-color: var(--border);
+}
+#share-end-btn.active {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #ffffff;
+  font-weight: 500;
+}
+#share-end-btn.active:hover {
+  filter: brightness(1.08);
 }
 
 /* Peer carets overlaying the textarea. Container is absolutely positioned

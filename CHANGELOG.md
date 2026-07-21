@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.5] - 2026-07-21
+
+### Fixed — comprehensive editor layout overhaul
+- **Line numbers (gutter) and text alignment fixed.** Previously the gutter was a flex sibling of the textarea, and the highlight overlay spanned the full editor-wrap width — so the overlay's text rendered ON TOP of the gutter area (where line numbers live) whenever syntax highlighting was on. Reworked the layout:
+  - Gutter is now `position: absolute` (out of flex flow) at the left edge with its own opaque background and `z-index: 3` so it paints over anything underneath.
+  - Textarea and overlay both span the FULL editor-wrap width and share the same coordinate system, with `padding-left: 64px` (= 44 gutter + 20 text inset) so their text starts AFTER the gutter strip. Their text positions are now perfectly aligned by construction.
+- **Gutter numbers now align with soft-wrapped lines.** Previously each logical line got exactly one gutter row (22px) regardless of how many visual rows it wrapped to — so long paragraphs would drift the numbers below them out of sync. Now `syncGutter()` measures each logical line's rendered height via a hidden mirror element (matching the textarea's font, padding, and width) and sizes the corresponding gutter row to `rows × lineHeight`. Empty/short lines get one row; wrapped paragraphs get multiple rows. The result: line numbers always line up with their text, no matter how the content wraps.
+- A `ResizeObserver` on the textarea re-syncs the gutter on window resize, sidebar toggle, theme change, or any other resize — so the alignment survives layout shifts.
+- `.editor-wrap` now provides the visible editor background; the textarea's background is transparent (when highlight-on) so the syntax overlay behind it actually shows.
+
+### Improved — share modal UX
+- **End Session button redesigned**: now has an inline disconnect icon, becomes prominent (solid red, white text, bold) only when a session is actually active, and stays quiet/hidden before then. Clicking it correctly closes the share modal AND dismisses the "Live" status pill in the header.
+- **Share modal status box** is now a styled card with a pulsing colored dot — green/accent when peers are connected, red on errors, grey when waiting. Reads as a real status indicator instead of plain text.
+- Share modal is now slightly wider (`min-width: 480px`) so the invite URL + Copy button sit comfortably without truncation.
+- The invite-link block (input + footnote) collapses with a transition once a peer connects — no need to keep showing "Copy" when the session is already live.
+
 ## [0.21.4] - 2026-07-21
 
 ### Fixed

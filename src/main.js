@@ -91,7 +91,7 @@ function renderWelcome() {
       <div class="welcome-main">
         <div class="welcome-brand">
           <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.21.4</span></h1>
+          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.21.5</span></h1>
           <p class="welcome-tagline">A lightweight Markdown viewer.</p>
         </div>
 
@@ -1608,37 +1608,41 @@ function openShareModal() {
 // Called whenever collab status changes (via updateCollabStatus) and on open.
 function refreshShareModal(status) {
   if (!el.shareDialog || el.shareDialog.classList.contains('hidden')) return;
+  const linkBlock = el.shareDialog.querySelector('.share-link-block');
   if (status.role === 'host') {
     if (status.peerCount > 0) {
-      el.shareStatus.textContent = `● ${status.peerCount} ${status.peerCount === 1 ? 'collaborator' : 'collaborators'} connected`;
+      el.shareStatus.textContent = `${status.peerCount} ${status.peerCount === 1 ? 'collaborator' : 'collaborators'} connected — editing live`;
       el.shareStatus.classList.add('connected');
       el.shareStatus.classList.remove('error');
+      el.shareEndBtn.classList.add('active');
       el.shareEndBtn.classList.remove('hidden');
-      // Hide the link row + footnote once a peer is connected (no need to
-      // keep copying the link; the End button is the main action now).
-      const linkRow = el.shareDialog.querySelector('.share-link-row');
-      const footnote = el.shareDialog.querySelector('.share-footnote');
-      if (linkRow) linkRow.style.display = 'none';
-      if (footnote) footnote.style.display = 'none';
+      // Hide the link block once a peer is connected (no need to keep copying
+      // the link; End session is the primary action now).
+      if (linkBlock) linkBlock.style.display = 'none';
     } else {
       el.shareStatus.textContent = 'Waiting for a collaborator to join…';
       el.shareStatus.classList.remove('connected', 'error');
-      el.shareEndBtn.classList.remove('hidden'); // always available once active
-      const linkRow = el.shareDialog.querySelector('.share-link-row');
-      const footnote = el.shareDialog.querySelector('.share-footnote');
-      if (linkRow) linkRow.style.display = '';
-      if (footnote) footnote.style.display = '';
+      el.shareEndBtn.classList.add('active'); // session is active → prominent
+      el.shareEndBtn.classList.remove('hidden');
+      if (linkBlock) linkBlock.style.display = '';
     }
   } else if (status.role === 'receiver') {
     el.shareStatus.textContent = status.peerCount > 0
-      ? `● Connected to host`
+      ? 'Connected to host — editing live'
       : 'Connecting to host…';
     el.shareStatus.classList.toggle('connected', status.peerCount > 0);
+    el.shareStatus.classList.remove('error');
+    el.shareEndBtn.classList.add('active');
     el.shareEndBtn.classList.remove('hidden');
-    const linkRow = el.shareDialog.querySelector('.share-link-row');
-    const footnote = el.shareDialog.querySelector('.share-footnote');
-    if (linkRow) linkRow.style.display = 'none';
-    if (footnote) footnote.style.display = 'none';
+    // Receivers never see the invite link (they're not the host).
+    if (linkBlock) linkBlock.style.display = 'none';
+  } else {
+    // No active session — reset everything to the "generate" state.
+    el.shareStatus.textContent = 'Generating invite link…';
+    el.shareStatus.classList.remove('connected', 'error');
+    el.shareEndBtn.classList.remove('active');
+    el.shareEndBtn.classList.add('hidden');
+    if (linkBlock) linkBlock.style.display = '';
   }
 }
 

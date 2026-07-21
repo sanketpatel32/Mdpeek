@@ -362,18 +362,23 @@
     <!-- Share for live collaboration (host side). Shows the invite link, peer
          count, and an End-session button once a peer joins. -->
     <div id="share-dialog" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="share-dialog-title">
-      <div class="modal">
+      <div class="modal share-modal">
         <h2 id="share-dialog-title" class="modal-title">Collaborate live</h2>
         <p class="modal-text">Share this link with someone who has mdpeek installed. You'll both edit this document in real time.</p>
-        <div class="share-link-row">
-          <input id="share-link-input" class="share-link-input" type="text" readonly spellcheck="false" />
-          <button id="share-copy-btn" class="modal-btn modal-btn-primary" type="button">Copy</button>
+        <div id="share-link-block" class="share-link-block">
+          <div class="share-link-row">
+            <input id="share-link-input" class="share-link-input" type="text" readonly spellcheck="false" />
+            <button id="share-copy-btn" class="modal-btn modal-btn-primary" type="button">Copy</button>
+          </div>
+          <p class="share-footnote">Anyone with the link can edit. Don't share sensitive documents publicly.</p>
         </div>
-        <p class="share-footnote">Anyone with the link can edit. Don't share sensitive documents publicly.</p>
         <div id="share-status" class="share-status">Generating invite link…</div>
-        <div class="modal-actions">
+        <div class="modal-actions share-actions">
           <button class="modal-btn modal-btn-secondary" id="share-cancel-btn" type="button">Hide panel</button>
-          <button class="modal-btn modal-btn-danger" id="share-end-btn" type="button">End session</button>
+          <button class="modal-btn modal-btn-danger" id="share-end-btn" type="button">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 17l5-5-5-5M21 12H9M9 7H6a3 3 0 0 0-3 3v4a3 3 0 0 0 3 3h3"/></svg>
+            End session
+          </button>
         </div>
       </div>
     </div>
@@ -678,7 +683,7 @@
               <div class="about-card">
                 <img src="/icon.png" alt="mdpeek" class="about-logo" />
                 <h3 class="about-name">mdpeek</h3>
-                <div class="about-version">Version <span id="about-version">0.21.4</span></div>
+                <div class="about-version">Version <span id="about-version">0.21.5</span></div>
                 <p class="about-tagline">A lightweight Markdown viewer &amp; editor for Windows.</p>
                 <div class="about-links">
                   <button class="about-link primary" data-href="https://github.com/sanketpatel32/Mdpeek" type="button">
