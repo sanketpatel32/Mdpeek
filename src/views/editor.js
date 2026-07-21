@@ -171,7 +171,7 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150,
     const cs = getComputedStyle(textarea);
     gutterMirror.style.fontFamily = cs.fontFamily;
     gutterMirror.style.fontSize = cs.fontSize;
-    gutterMirror.style.lineHeight = cs.lineHeight;
+    gutterMirror.style.lineHeight = textarea.style.lineHeight || cs.lineHeight;
     gutterMirror.style.letterSpacing = cs.letterSpacing;
     gutterMirror.style.tabSize = cs.tabSize;
     gutterMirror.style.padding = cs.padding;
@@ -192,21 +192,35 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150,
       gutter.dataset.lastCount = String(n);
     }
     // Measure each logical line's visual height and apply to the gutter row.
-    // Skipped if the wrap is off (no soft-wrapping) — every line is one row.
     const cs = getComputedStyle(textarea);
+    const fs = parseFloat(cs.fontSize) || 13.5;
+    const rawLh = parseFloat(cs.lineHeight);
+    const linePx = Math.max(1, Math.round(rawLh || (fs * 1.6)));
+    const linePxStr = linePx + 'px';
+
+    textarea.style.lineHeight = linePxStr;
     gutter.style.fontFamily = cs.fontFamily;
     gutter.style.fontSize = cs.fontSize;
-    gutter.style.lineHeight = cs.lineHeight;
+    gutter.style.lineHeight = linePxStr;
     gutter.style.paddingTop = cs.paddingTop;
     gutter.style.paddingBottom = cs.paddingBottom;
-    const linePx = parseFloat(cs.lineHeight) || 22;
+
+    if (overlay) {
+      overlay.style.lineHeight = linePxStr;
+      overlay.style.fontSize = cs.fontSize;
+      overlay.style.fontFamily = cs.fontFamily;
+      overlay.style.paddingTop = cs.paddingTop;
+      overlay.style.paddingBottom = cs.paddingBottom;
+    }
+
+    cachedLineHeight = linePx;
     const kids = gutter.children;
 
     if (textarea.getAttribute('wrap') === 'off') {
       for (let i = 0; i < n; i++) {
         if (kids[i]) {
-          kids[i].style.height = linePx + 'px';
-          kids[i].style.lineHeight = cs.lineHeight;
+          kids[i].style.height = linePxStr;
+          kids[i].style.lineHeight = linePxStr;
         }
       }
       return;
@@ -224,7 +238,7 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150,
       const rows = Math.max(1, Math.round(contentH / linePx));
       if (kids[i]) {
         kids[i].style.height = (rows * linePx) + 'px';
-        kids[i].style.lineHeight = cs.lineHeight;
+        kids[i].style.lineHeight = linePxStr;
       }
     }
   }
@@ -250,10 +264,8 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150,
     const ta = textarea;
     const { selectionStart } = ta;
     const lineNum = ta.value.slice(0, selectionStart).split('\n').length - 1;
-    if (!cachedLineHeight) {
-      cachedLineHeight = parseFloat(getComputedStyle(ta).lineHeight) || 22;
-    }
-    const target = lineNum * cachedLineHeight - ta.clientHeight / 2 + cachedLineHeight / 2;
+    const lh = cachedLineHeight || 22;
+    const target = lineNum * lh - ta.clientHeight / 2 + lh / 2;
     ta.scrollTop = Math.max(0, target);
     if (gutter) gutter.scrollTop = ta.scrollTop;
   }
@@ -266,18 +278,20 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150,
   function updateActiveLineMarker() {
     const wrap = textarea.parentElement;
     if (!wrap) return;
-    if (!cachedLineHeight) {
-      cachedLineHeight = parseFloat(getComputedStyle(textarea).lineHeight) || 22;
-    }
     const cs = getComputedStyle(textarea);
+    const fs = parseFloat(cs.fontSize) || 13.5;
+    const rawLh = parseFloat(cs.lineHeight);
+    const linePx = Math.max(1, Math.round(rawLh || (fs * 1.6)));
+    cachedLineHeight = linePx;
+
     const padTop = parseFloat(cs.paddingTop) || 0;
     const text = textarea.value;
     const before = text.slice(0, textarea.selectionStart);
     const lineNum = before.split('\n').length - 1;
     // Offset = top padding + (logical line × lineHeight) − current scroll.
-    const top = padTop + (lineNum * cachedLineHeight) - textarea.scrollTop;
+    const top = padTop + (lineNum * linePx) - textarea.scrollTop;
     wrap.style.setProperty('--active-line-top', `${top}px`);
-    wrap.style.setProperty('--active-line-h', `${cachedLineHeight}px`);
+    wrap.style.setProperty('--active-line-h', `${linePx}px`);
   }
 
   // ----- keydown: Tab, Enter, auto-pair, wrap shortcuts, find -----
