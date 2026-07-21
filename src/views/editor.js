@@ -275,6 +275,14 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150,
   //   --active-line-top, --active-line-h (in px, scroll-relative)
   // and a thin ::before pseudo on .editor-wrap renders the highlight. JS keeps
   // the offsets fresh on input, scroll, click, and resize.
+  //
+  // MUST run after syncGutter() on any code path that changes line content —
+  // we read the gutter children's wrap-aware heights (syncGutter sets them via
+  // the mirror element) to compute the strip's top. The naive lineNum × linePx
+  // formula breaks the moment any prior line soft-wraps: each wrapped line
+  // occupies multiple visual rows, so the strip would paint on the wrong row.
+  // That was half of the "cursor points to one line, text is somewhere else"
+  // bug — the other half was the overlay not wrapping (fixed in base.css).
   function updateActiveLineMarker() {
     const wrap = textarea.parentElement;
     if (!wrap) return;
@@ -285,11 +293,25 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150,
     cachedLineHeight = linePx;
 
     const padTop = parseFloat(cs.paddingTop) || 0;
-    const text = textarea.value;
-    const before = text.slice(0, textarea.selectionStart);
+    const before = textarea.value.slice(0, textarea.selectionStart);
     const lineNum = before.split('\n').length - 1;
-    // Offset = top padding + (logical line × lineHeight) − current scroll.
-    const top = padTop + (lineNum * linePx) - textarea.scrollTop;
+
+    // Wrap-aware top: sum the visual heights of every logical line above the
+    // caret's line. The gutter children carry wrap-aware heights set by
+    // syncGutter (one child per logical line, height = rows × linePx). Falls
+    // back to the simple lineNum × linePx formula only when the gutter isn't
+    // populated yet (first paint, before syncGutter ran) or has fewer rows.
+    let topOffset = 0;
+    if (gutter && gutter.children.length > 0) {
+      const kids = gutter.children;
+      const upto = Math.min(lineNum, kids.length);
+      for (let i = 0; i < upto; i++) {
+        topOffset += parseFloat(getComputedStyle(kids[i]).height) || linePx;
+      }
+    } else {
+      topOffset = lineNum * linePx;
+    }
+    const top = padTop + topOffset - textarea.scrollTop;
     wrap.style.setProperty('--active-line-top', `${top}px`);
     wrap.style.setProperty('--active-line-h', `${linePx}px`);
   }

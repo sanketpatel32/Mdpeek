@@ -1005,8 +1005,14 @@ mark.find-current {
   font-size: 13.5px;        /* MUST match .editor */
   line-height: 1.6;         /* MUST match .editor */
   tab-size: 2;              /* MUST match .editor */
-  white-space: pre;
-  overflow: auto;           /* lets us sync scrollLeft/Top from the textarea */
+  /* WRAP MODE MUST MATCH .editor exactly. The textarea is pre-wrap + break-word
+     by default; if the overlay stays `pre`, long lines overflow horizontally
+     here while wrapping in the textarea, so the colored text drifts onto the
+     wrong rows after the first wrapped line. This was the root cause of the
+     "cursor points to one line but the colored text is elsewhere" bug. */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  overflow: hidden;         /* no horizontal scroll — wrapping handles layout */
   pointer-events: none;     /* the textarea receives all input */
   user-select: none;
   color: var(--fg);
@@ -1023,7 +1029,11 @@ mark.find-current {
   line-height: inherit;
   background: none;
   padding: 0;
-  white-space: pre;
+  /* Match the overlay's wrap rules so the inner <code> doesn't opt back into
+     `pre` (which would re-introduce the drift bug inside the code element). */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;   /* belt-and-suspenders match for WebView2 layout */
   display: block;
 }
 /* When highlighting is ON: textarea text turns transparent so the overlay's

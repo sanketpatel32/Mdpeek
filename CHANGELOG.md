@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.9] - 2026-07-21
+
+### Fixed — syntax-highlight overlay drift on wrapped lines (the "cursor points to one line but the text is elsewhere" bug)
+- **The colored syntax-highlight overlay did not soft-wrap, but the textarea did.** The textarea is `white-space: pre-wrap; overflow-wrap: break-word` by default; `.editor-overlay` and its inner `<code>` were pinned to `white-space: pre`. So as soon as any line in the buffer was long enough to wrap, the overlay's colored text overflowed horizontally while the textarea's actual text wrapped onto a second visual row. Every line below the wrap then rendered the *overlay's* colors on a different row than the *textarea's* actual caret — colored text drifted upward, away from where you were actually editing. Fixed by setting `white-space: pre-wrap; overflow-wrap: break-word` on both `.editor-overlay` and `.editor-overlay > code` so the overlay's wrap rules are byte-identical to the textarea's. Also switched `.editor-overlay` from `overflow: auto` → `overflow: hidden` (with wrapping on, horizontal scroll is no longer needed or wanted).
+- **Active-line highlight strip was on the wrong visual row after any wrapped line.** `updateActiveLineMarker()` used the formula `top = padTop + lineNum × linePx − scrollTop`, which assumes every logical line is exactly one visual row tall. The moment any prior line soft-wrapped, the strip landed on the wrong row. Rewrote it to sum the *actual* per-line heights from the gutter children (which already carry wrap-aware heights computed via the mirror element in `syncGutter`). Falls back to the simple formula only before the gutter is populated (first paint). Regression test added in `test/editor-gutter.test.js`.
+- Measured against the running app: after the fix, overlay-line-top matches textarea-text-line-top within 0 px for every line in a buffer with wraps, and the active-line strip top matches the gutter number top within 0 px. Pre-fix these were off by 22 px per wrapped row above the caret.
+
 ## [0.21.8] - 2026-07-21
 
 ### Fixed — zero-drift editor line number gutter
