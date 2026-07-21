@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-07-21
+
+### Changed — Live Collaboration Status Pill Polish
+- **Compact & Minimalist Pill Design:** Redesigned the top-bar P2P Live Collaboration status indicator (`Live · waiting` / `Live · N peers`) to match the 26px compact height, theme surface variables, and subtle border styling of the top toolbar.
+- **Refined Interactivity:** Added active scale transitions and subtle danger highlight on the session end (`×`) button.
+
 ## [0.23.0] - 2026-07-21
 
 ### Changed — Minimalist Top Bar Redesign
