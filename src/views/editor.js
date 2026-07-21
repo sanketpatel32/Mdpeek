@@ -220,12 +220,15 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150,
       overlay.scrollLeft = textarea.scrollLeft;
       overlay.scrollTop = textarea.scrollTop;
     }
+    // Re-position the active-line marker so it scrolls with the text.
+    updateActiveLineMarker();
   }
   // Typewriter mode: vertically center the line containing the caret. Called
   // after every input/selection change while the mode is on. Reads the
   // textarea's lineHeight (cached) and the caret offset to compute the line.
   let cachedLineHeight = 0;
   function centerActiveLine() {
+    updateActiveLineMarker();
     if (!typewriter) return;
     const ta = textarea;
     const { selectionStart } = ta;
@@ -236,6 +239,28 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150,
     const target = lineNum * cachedLineHeight - ta.clientHeight / 2 + cachedLineHeight / 2;
     ta.scrollTop = Math.max(0, target);
     if (gutter) gutter.scrollTop = ta.scrollTop;
+  }
+  // Active-line highlight: paint a thin background strip on the caret line so
+  // the user always sees where they are, even when text is transparent under
+  // the highlight overlay. We do this by setting two CSS vars on the wrap:
+  //   --active-line-top, --active-line-h (in px, scroll-relative)
+  // and a thin ::before pseudo on .editor-wrap renders the highlight. JS keeps
+  // the offsets fresh on input, scroll, click, and resize.
+  function updateActiveLineMarker() {
+    const wrap = textarea.parentElement;
+    if (!wrap) return;
+    if (!cachedLineHeight) {
+      cachedLineHeight = parseFloat(getComputedStyle(textarea).lineHeight) || 22;
+    }
+    const cs = getComputedStyle(textarea);
+    const padTop = parseFloat(cs.paddingTop) || 0;
+    const text = textarea.value;
+    const before = text.slice(0, textarea.selectionStart);
+    const lineNum = before.split('\n').length - 1;
+    // Offset = top padding + (logical line × lineHeight) − current scroll.
+    const top = padTop + (lineNum * cachedLineHeight) - textarea.scrollTop;
+    wrap.style.setProperty('--active-line-top', `${top}px`);
+    wrap.style.setProperty('--active-line-h', `${cachedLineHeight}px`);
   }
 
   // ----- keydown: Tab, Enter, auto-pair, wrap shortcuts, find -----
@@ -323,7 +348,11 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150,
   // and thus the visual height of each logical line.
   let gutterResizeObserver = null;
   if (typeof ResizeObserver !== 'undefined') {
-    gutterResizeObserver = new ResizeObserver(() => { syncGutter(); });
+    gutterResizeObserver = new ResizeObserver(() => {
+      syncGutter();
+      cachedLineHeight = 0; // force re-measure in case font-size changed
+      updateActiveLineMarker();
+    });
     gutterResizeObserver.observe(textarea);
   }
 
@@ -337,6 +366,7 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150,
 
   refresh();
   syncGutter();
+  updateActiveLineMarker();
   // First-paint highlight + class setup. Skipped internally if the textarea
   // isn't visible yet (e.g. opening in view mode); re-runs when it becomes
   // visible via setValue / scheduleHighlight on first input.

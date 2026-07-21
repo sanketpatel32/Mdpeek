@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.6] - 2026-07-21
+
+### Fixed — caret invisible under syntax highlighting
+- **The text cursor (caret) was invisible in markdown and other highlighted files.** When `.highlight-on` flipped the textarea's text to `transparent` (so the colored syntax overlay could show through), browsers computed `caret-color` from `color` — which meant the caret inherited `transparent` and vanished. Pinned `caret-color: var(--fg)` on `.editor` so the caret is always a solid themed color regardless of the transparent-text overlay state. The previous comment claiming "caret-color is left untouched so the caret remains visible" was wrong; this fixes the actual bug.
+- Editor `.editor::selection` now pins selection background to `var(--accent-soft)` so selected text is visible across all themes even when the editor text is transparent.
+
+### Added — active-line highlight
+- **A subtle tinted strip now marks the line containing the caret**, so you can always see where you are even when the text itself is transparent under the syntax overlay. The strip is painted by `.editor-wrap::before` and positioned via two CSS vars (`--active-line-top`, `--active-line-h`) updated by `editor.js` on input, click, scroll, and resize. The strip sits behind the textarea + overlay (z-index: 0) so it never obscures text or syntax colors.
+
+### Changed — editor layering discipline
+- `.editor` now has unconditional `position: relative; z-index: 1` (previously only under `.highlight-on`). This ensures the textarea paints above the wrap's `::before` active-line strip in both highlight-on and -off states.
+
 ## [0.21.5] - 2026-07-21
 
 ### Fixed — comprehensive editor layout overhaul

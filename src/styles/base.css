@@ -889,6 +889,31 @@ mark.find-current {
   position: relative;
   background: var(--bg);
 }
+/* Active-line highlight: a thin tinted strip painted behind the textarea on
+   the line containing the caret. The position + height are set as CSS vars
+   (--active-line-top / --active-line-h) by editor.js on input, scroll, and
+   resize. Without this, the transparent-text overlay (highlight-on mode)
+   makes it very hard to find the caret at a glance. The strip sits at
+   z-index:0, behind the overlay (z-index:0 → overlay wins via DOM order on
+   equal z-index, and the textarea at z-index:1 paints above both). The
+   horizontal inset matches the textarea's left padding so the highlight
+   doesn't extend under the gutter. */
+.editor-wrap::before {
+  content: "";
+  position: absolute;
+  /* JS sets --active-line-top (px, scroll-relative) and --active-line-h (px).
+     Fall back to a value that paints nothing if the vars aren't set yet. */
+  top: var(--active-line-top, -9999px);
+  left: 44px;            /* gutter width — highlight starts after the gutter */
+  right: 0;
+  height: var(--active-line-h, 0px);
+  background: var(--surface-hover);
+  pointer-events: none;
+  z-index: 0;
+  /* Transition only the top position so scroll repositioning is smooth but
+     the strip doesn't flicker on input. */
+  transition: top 60ms linear;
+}
 .gutter {
   position: absolute;
   top: 0;
@@ -923,6 +948,17 @@ mark.find-current {
   border: none;
   background: var(--bg);
   color: var(--fg);
+  /* EXPLICIT caret-color — when .highlight-on flips the text to transparent,
+     browsers compute caret-color from `color` by default, which would hide
+     the caret along with the text. Pinning it to --fg keeps the caret solid
+     and visible regardless of the transparent-text overlay state. */
+  caret-color: var(--fg);
+  /* Position + z-index so the textarea paints ABOVE the wrap's ::before
+     active-line strip (and the overlay) in BOTH highlight-on and -off states.
+     Without this the active-line strip would cover the text when highlight
+     is off (the .highlight-on rule below only sets z-index conditionally). */
+  position: relative;
+  z-index: 1;
   /* Padding-left accounts for the gutter (44px) so the textarea's text starts
      AFTER the gutter strip. The textarea takes the full wrap width but its
      text is inset. The overlay matches this padding so they stay aligned. */
@@ -932,6 +968,18 @@ mark.find-current {
   padding: 16px 20px 16px 64px; /* top right bottom left — left = 44 (gutter) + 20 (text inset) */
   outline: none;
   tab-size: 2;
+}
+/* Selection color pinned to the editor: the default CanvasText selection
+   reads as white-on-white on light themes when the editor text is transparent
+   under .highlight-on. Accent-soft gives a themed, on-brand selection that
+   reads clearly across every theme. */
+.editor::selection {
+  background: var(--accent-soft);
+  color: var(--fg);
+}
+.editor::-moz-selection {
+  background: var(--accent-soft);
+  color: var(--fg);
 }
 
 /* ---------- Live syntax-highlight overlay (v0.19.0) ----------
@@ -974,18 +1022,16 @@ mark.find-current {
 }
 /* When highlighting is ON: textarea text turns transparent so the overlay's
    colored text shows through. -webkit-text-fill-color is what WebView2's
-   text paint actually honors (overrides `color`). caret-color is left
-   untouched so the caret remains visible. The textarea sits at z-index:1
-   so the caret paints on top of the overlay. CRITIALLY the textarea's
-   background must also be transparent — a solid bg would hide the overlay
-   behind it (which is at z-index:0). The .editor-wrap parent provides the
-   visible background via var(--bg). */
+   text paint actually honors (overrides `color`). caret-color is set to
+   var(--fg) unconditionally on .editor above, so the caret stays solid and
+   visible even though the text is transparent. The textarea's background
+   must also be transparent — a solid bg would hide the overlay behind it
+   (which is at z-index:0). The .editor-wrap parent provides the visible
+   background via var(--bg). */
 .editor-wrap.highlight-on > .editor {
   color: transparent;
   -webkit-text-fill-color: transparent;
   background: transparent;
-  position: relative;
-  z-index: 1;
 }
 /* When highlighting is OFF: hide the overlay entirely so the textarea's own
    text (now opaque again because the rule above stops matching) shows. */
