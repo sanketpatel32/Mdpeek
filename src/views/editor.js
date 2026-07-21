@@ -48,16 +48,25 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150,
     // Insert as the first child so it sits behind the textarea in stacking
     // order (CSS z-index does the real layering; this is a sane fallback).
     wrap.insertBefore(overlay, wrap.firstChild);
-    syncOverlayFont();
+    syncOverlayMetrics();
   }
-  // Copy the textarea's resolved font-family onto the overlay. Necessary
-  // because .editor's font-family has !important and uses var(--content-font-
-  // family) which resolves at runtime; CSS alone can't propagate the resolved
-  // value across elements.
-  function syncOverlayFont() {
+  // Keep the overlay's complete text viewport identical to the textarea. CSS
+  // alone is not enough: once the textarea gets a vertical scrollbar its
+  // clientWidth becomes narrower while the absolutely-positioned overlay does
+  // not. That small width difference can make one layer wrap a line and the
+  // other layer not wrap it, shifting every following line by a full row.
+  function syncOverlayMetrics() {
     if (!overlay) return;
     const cs = getComputedStyle(textarea);
     overlay.style.fontFamily = cs.fontFamily;
+    overlay.style.fontSize = cs.fontSize;
+    overlay.style.lineHeight = textarea.style.lineHeight || cs.lineHeight;
+    overlay.style.letterSpacing = cs.letterSpacing;
+    overlay.style.tabSize = cs.tabSize;
+    overlay.style.padding = cs.padding;
+    overlay.style.boxSizing = 'border-box';
+    overlay.style.width = textarea.clientWidth + 'px';
+    overlay.style.height = textarea.clientHeight + 'px';
   }
   // Render the highlighted HTML into the overlay. Synchronous; cheap for
   // typical files (<5ms). No-op when overlay isn't built yet.
@@ -205,13 +214,7 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150,
     gutter.style.paddingTop = cs.paddingTop;
     gutter.style.paddingBottom = cs.paddingBottom;
 
-    if (overlay) {
-      overlay.style.lineHeight = linePxStr;
-      overlay.style.fontSize = cs.fontSize;
-      overlay.style.fontFamily = cs.fontFamily;
-      overlay.style.paddingTop = cs.paddingTop;
-      overlay.style.paddingBottom = cs.paddingBottom;
-    }
+    if (overlay) syncOverlayMetrics();
 
     cachedLineHeight = linePx;
     const kids = gutter.children;
@@ -456,9 +459,8 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150,
       typewriter = !!on;
       cachedLineHeight = 0; // recompute in case font size changed since init
       if (typewriter) centerActiveLine();
-      // Font-size changes from the typewriter-mode setter (if any) should
-      // re-sync the overlay font too.
-      syncOverlayFont();
+      // Font/viewport changes must keep the overlay on the same wrap boundary.
+      syncOverlayMetrics();
     },
     // Set the active language for highlighting. Pass null or 'plaintext' to
     // disable. Triggers an immediate re-highlight + class update.

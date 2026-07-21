@@ -996,7 +996,8 @@ mark.find-current {
    editor.js based on the user setting + whether a language applies. */
 .editor-overlay {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
   margin: 0;
   padding: 16px 20px 16px 64px;  /* MUST match .editor (left = 44 gutter + 20 inset) */
   border: 0;
@@ -1033,7 +1034,6 @@ mark.find-current {
      `pre` (which would re-introduce the drift bug inside the code element). */
   white-space: pre-wrap;
   overflow-wrap: break-word;
-  word-break: break-word;   /* belt-and-suspenders match for WebView2 layout */
   display: block;
 }
 /* When highlighting is ON: textarea text turns transparent so the overlay's

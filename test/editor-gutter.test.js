@@ -50,6 +50,34 @@ describe('Editor Gutter Alignment', () => {
     editor.destroy();
   });
 
+  it('matches the overlay viewport to the textarea client area', () => {
+    // A textarea's vertical scrollbar reduces clientWidth. The overlay has no
+    // scrollbar, so using the wrapper width makes the two layers wrap at
+    // different words and shifts every later line by one visual row.
+    Object.defineProperty(textarea, 'clientWidth', { configurable: true, value: 613 });
+    Object.defineProperty(textarea, 'clientHeight', { configurable: true, value: 377 });
+    textarea.style.fontSize = '15px';
+    textarea.style.lineHeight = '24px';
+    textarea.style.padding = '16px 20px 16px 64px';
+
+    const editor = initEditor({
+      textarea,
+      gutter,
+      language: 'markdown',
+    });
+
+    const overlay = container.querySelector('.editor-overlay');
+    expect(overlay).not.toBeNull();
+    expect(overlay.style.width).toBe('613px');
+    expect(overlay.style.height).toBe('377px');
+    expect(overlay.style.fontSize).toBe('15px');
+    expect(overlay.style.lineHeight).toBe('24px');
+    expect(overlay.style.padding).toBe('16px 20px 16px 64px');
+    expect(overlay.style.boxSizing).toBe('border-box');
+
+    editor.destroy();
+  });
+
   // Regression: when a logical line soft-wraps to multiple visual rows, the
   // active-line strip must sum the wrap-aware heights of every prior gutter
   // row, not assume one-row-per-line. The pre-fix formula

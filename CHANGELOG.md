@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.10] - 2026-07-21
+
+### Fixed — editor text, line numbers, and active row stay aligned
+- Matched the syntax-highlight overlay width and height to the textarea's actual client area. The textarea's vertical scrollbar previously made its text viewport narrower than the overlay, so the two layers wrapped long lines at different words and every following line appeared one row apart.
+- Removed the overlay-only `word-break` rule so both text layers use the same wrapping algorithm.
+- Added a regression test that locks the overlay to the textarea viewport, including the scrollbar-reduced width.
+
 ## [0.21.9] - 2026-07-21
 
 ### Fixed — syntax-highlight overlay drift on wrapped lines (the "cursor points to one line but the text is elsewhere" bug)
