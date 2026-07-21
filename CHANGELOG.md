@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.11] - 2026-07-21
+
+### Fixed — editor text and cursor alignment
+- Removed the separate syntax-highlight overlay from edit mode. Visible text and the cursor now come from the same native textarea, eliminating cross-layer font, DPI, scroll, and wrapping drift.
+- Disabled source-line wrapping in edit mode. Every source line now occupies one fixed-height visual row and matches exactly one gutter number; long lines scroll horizontally.
+- Removed the obsolete editor syntax-highlighting setting and the hidden wrap-measurement mirror.
+- Added regression coverage that rejects a second text-rendering layer and enforces fixed source rows.
+
 ## [0.21.10] - 2026-07-21
 
 ### Fixed — editor text, line numbers, and active row stay aligned

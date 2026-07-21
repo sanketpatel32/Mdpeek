@@ -872,16 +872,8 @@ mark.find-current {
   border-radius: 3px;
 }
 
-/* editor-wrap = gutter + textarea side by side, sharing one scroll context.
-   Provides the visible background for the editor area — the textarea's own
-   background is transparent (when highlight-on) so the syntax-highlight
-   overlay at z-index:0 shows through.
-
-   LAYOUT STRATEGY: the gutter is `position: absolute` (out of flex flow),
-   pinned to the left edge. The textarea + overlay both take the FULL wrap
-   width and share the same coordinate system — this guarantees the overlay
-   text aligns with the textarea text perfectly. The gutter just paints on
-   top with its own opaque background. */
+/* Editor wrapper contains one native textarea plus an absolute line-number
+   gutter. Text and caret are intentionally rendered by the same element. */
 .editor-wrap {
   flex: 1;
   display: flex;
@@ -892,12 +884,9 @@ mark.find-current {
 /* Active-line highlight: a thin tinted strip painted behind the textarea on
    the line containing the caret. The position + height are set as CSS vars
    (--active-line-top / --active-line-h) by editor.js on input, scroll, and
-   resize. Without this, the transparent-text overlay (highlight-on mode)
-   makes it very hard to find the caret at a glance. The strip sits at
-   z-index:0, behind the overlay (z-index:0 → overlay wins via DOM order on
-   equal z-index, and the textarea at z-index:1 paints above both). The
-   horizontal inset matches the textarea's left padding so the highlight
-   doesn't extend under the gutter. */
+   resize. The strip sits at z-index:0 behind the textarea. The horizontal
+   inset matches the textarea's left padding so it does not extend under the
+   gutter. */
 .editor-wrap::before {
   content: "";
   position: absolute;
@@ -938,7 +927,7 @@ mark.find-current {
   text-align: right;
   user-select: none;
   white-space: pre;
-  z-index: 3; /* above overlay (0) and textarea (1); below peer-carets (2) — wait, above both so line numbers always visible */
+  z-index: 3; /* above the textarea so line numbers always remain visible */
   pointer-events: none;
   /* The gutter scrolls with the textarea via JS (onScroll → gutter.scrollTop).
      Hide its scrollbar so the gutter looks static even as it tracks scroll. */
@@ -954,31 +943,22 @@ mark.find-current {
   border: none;
   background: var(--bg);
   color: var(--fg);
-  /* EXPLICIT caret-color — when .highlight-on flips the text to transparent,
-     browsers compute caret-color from `color` by default, which would hide
-     the caret along with the text. Pinning it to --fg keeps the caret solid
-     and visible regardless of the transparent-text overlay state. */
   caret-color: var(--fg);
-  /* Position + z-index so the textarea paints ABOVE the wrap's ::before
-     active-line strip (and the overlay) in BOTH highlight-on and -off states.
-     Without this the active-line strip would cover the text when highlight
-     is off (the .highlight-on rule below only sets z-index conditionally). */
+  /* Paint above the wrapper's active-line strip. */
   position: relative;
   z-index: 1;
   /* Padding-left accounts for the gutter (44px) so the textarea's text starts
-     AFTER the gutter strip. The textarea takes the full wrap width but its
-     text is inset. The overlay matches this padding so they stay aligned. */
+     AFTER the gutter strip. */
   font-family: var(--content-font-family, "SFMono-Regular", "Cascadia Code", Consolas, monospace) !important;
   font-size: 13.5px;
   line-height: 1.6;
   padding: 16px 20px 16px 64px; /* top right bottom left — left = 44 (gutter) + 20 (text inset) */
   outline: none;
   tab-size: 2;
+  white-space: pre;
+  overflow-wrap: normal;
 }
-/* Selection color pinned to the editor: the default CanvasText selection
-   reads as white-on-white on light themes when the editor text is transparent
-   under .highlight-on. Accent-soft gives a themed, on-brand selection that
-   reads clearly across every theme. */
+/* Keep selection readable across themes. */
 .editor::selection {
   background: var(--accent-soft);
   color: var(--fg);
@@ -988,72 +968,6 @@ mark.find-current {
   color: var(--fg);
 }
 
-/* ---------- Live syntax-highlight overlay (v0.19.0) ----------
-   A <pre class="editor-overlay"><code class="hljs">…</code></pre> sits behind
-   the textarea with identical metrics. The textarea's text is made transparent
-   (caret stays visible via caret-color) so only the overlay's colored text
-   shows through. Toggle is the .highlight-on class on .editor-wrap, set by
-   editor.js based on the user setting + whether a language applies. */
-.editor-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  margin: 0;
-  padding: 16px 20px 16px 64px;  /* MUST match .editor (left = 44 gutter + 20 inset) */
-  border: 0;
-  /* font-family is copied from getComputedStyle(textarea) by editor.js so the
-     !important user-font override on .editor is respected. */
-  font-size: 13.5px;        /* MUST match .editor */
-  line-height: 1.6;         /* MUST match .editor */
-  tab-size: 2;              /* MUST match .editor */
-  /* WRAP MODE MUST MATCH .editor exactly. The textarea is pre-wrap + break-word
-     by default; if the overlay stays `pre`, long lines overflow horizontally
-     here while wrapping in the textarea, so the colored text drifts onto the
-     wrong rows after the first wrapped line. This was the root cause of the
-     "cursor points to one line but the colored text is elsewhere" bug. */
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-  overflow: hidden;         /* no horizontal scroll — wrapping handles layout */
-  pointer-events: none;     /* the textarea receives all input */
-  user-select: none;
-  color: var(--fg);
-  background: transparent;
-  scrollbar-width: none;    /* invisible — the textarea's scrollbar is real */
-  z-index: 0;               /* behind the textarea */
-}
-.editor-overlay::-webkit-scrollbar {
-  display: none;
-}
-.editor-overlay > code {
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-  background: none;
-  padding: 0;
-  /* Match the overlay's wrap rules so the inner <code> doesn't opt back into
-     `pre` (which would re-introduce the drift bug inside the code element). */
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-  display: block;
-}
-/* When highlighting is ON: textarea text turns transparent so the overlay's
-   colored text shows through. -webkit-text-fill-color is what WebView2's
-   text paint actually honors (overrides `color`). caret-color is set to
-   var(--fg) unconditionally on .editor above, so the caret stays solid and
-   visible even though the text is transparent. The textarea's background
-   must also be transparent — a solid bg would hide the overlay behind it
-   (which is at z-index:0). The .editor-wrap parent provides the visible
-   background via var(--bg). */
-.editor-wrap.highlight-on > .editor {
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  background: transparent;
-}
-/* When highlighting is OFF: hide the overlay entirely so the textarea's own
-   text (now opaque again because the rule above stops matching) shows. */
-.editor-wrap:not(.highlight-on) > .editor-overlay {
-  display: none;
-}
 #preview {
   flex: 1;
   overflow: auto;

@@ -33,11 +33,7 @@ describe('Editor Gutter Alignment', () => {
     textarea.style.paddingBottom = '20px';
     textarea.style.fontFamily = 'Inter, sans-serif';
 
-    const editor = initEditor({
-      textarea,
-      gutter,
-      highlightEnabled: false,
-    });
+    const editor = initEditor({ textarea, gutter });
 
     // Verify syncGutter copies computed typography to gutter
     expect(gutter.style.fontSize).toBe('18px');
@@ -50,83 +46,40 @@ describe('Editor Gutter Alignment', () => {
     editor.destroy();
   });
 
-  it('matches the overlay viewport to the textarea client area', () => {
-    // A textarea's vertical scrollbar reduces clientWidth. The overlay has no
-    // scrollbar, so using the wrapper width makes the two layers wrap at
-    // different words and shifts every later line by one visual row.
-    Object.defineProperty(textarea, 'clientWidth', { configurable: true, value: 613 });
-    Object.defineProperty(textarea, 'clientHeight', { configurable: true, value: 377 });
-    textarea.style.fontSize = '15px';
-    textarea.style.lineHeight = '24px';
-    textarea.style.padding = '16px 20px 16px 64px';
+  it('uses the textarea as the only text-rendering layer', () => {
+    // Regression: the old editor hid textarea glyphs and rendered a separate
+    // syntax-highlight overlay. Wrapping or font differences made visible text
+    // drift away from the native textarea caret.
+    container.classList.add('highlight-on');
 
-    const editor = initEditor({
-      textarea,
-      gutter,
-      language: 'markdown',
-    });
+    const editor = initEditor({ textarea, gutter });
 
-    const overlay = container.querySelector('.editor-overlay');
-    expect(overlay).not.toBeNull();
-    expect(overlay.style.width).toBe('613px');
-    expect(overlay.style.height).toBe('377px');
-    expect(overlay.style.fontSize).toBe('15px');
-    expect(overlay.style.lineHeight).toBe('24px');
-    expect(overlay.style.padding).toBe('16px 20px 16px 64px');
-    expect(overlay.style.boxSizing).toBe('border-box');
+    expect(container.classList.contains('highlight-on')).toBe(false);
+    expect(container.querySelector('.editor-overlay')).toBeNull();
+    expect(textarea.getAttribute('wrap')).toBe('off');
 
     editor.destroy();
   });
 
-  // Regression: when a logical line soft-wraps to multiple visual rows, the
-  // active-line strip must sum the wrap-aware heights of every prior gutter
-  // row, not assume one-row-per-line. The pre-fix formula
-  //   top = padTop + lineNum × linePx
-  // painted the strip on the wrong visual row after any wrapped line, which
-  // was half of the "cursor points to one line but text is elsewhere" bug.
-  // We simulate wrap by manually assigning the wrapped gutter row a taller
-  // height (the mirror-based measurement does this in real layout; jsdom
-  // doesn't lay out, so we inject the post-measurement heights directly).
-  it('places the active-line strip using wrap-aware row heights', () => {
-    // 4 logical lines: L1, L2 (wraps), L4, L5. Caret will land at the start
-    // of L4 — visually below the wrapped row.
-    textarea.value = 'L1\nL2 long wrapped line\nL4\nL5';
+  it('places the active-line strip on the same fixed-height source row', () => {
+    textarea.value = 'L1\nL2\nL3\nL4';
     textarea.style.fontSize = '13.5px';
     textarea.style.lineHeight = '22px';
     textarea.style.paddingTop = '16px';
     textarea.style.paddingBottom = '16px';
 
-    const editor = initEditor({
-      textarea,
-      gutter,
-      highlightEnabled: false,
-    });
+    const editor = initEditor({ textarea, gutter });
 
-    // syncGutter populated 4 gutter children (one per logical line). The wrapped
-    // line is L2 — gutter child index 1. Simulate the mirror's wrap measurement
-    // by giving that child a doubled height. (In real layout, syncGutter does
-    // this via the mirror element's getBoundingClientRect; jsdom returns 0
-    // there, so the production code's `|| linePx` fallback leaves every row at
-    // linePx. We set the value directly to test that updateActiveLineMarker
-    // reads the wrap-aware heights rather than recomputing lineNum × linePx.)
     expect(gutter.children.length).toBe(4);
-    gutter.children[1].style.height = '44px'; // 2 visual rows × 22px
+    for (const row of gutter.children) expect(row.style.height).toBe('22px');
 
-    // Place the caret at the start of L4 (logical line index 2 — visually
-    // BELOW the wrapped L2 row).
-    const l4Start = 'L1\nL2 long wrapped line\n'.length; // 24
-    textarea.setSelectionRange(l4Start, l4Start);
+    const l3Start = 'L1\nL2\n'.length;
+    textarea.setSelectionRange(l3Start, l3Start);
     textarea.dispatchEvent(new Event('click'));
 
     const wrap = textarea.parentElement;
     const stripTop = parseFloat(wrap.style.getPropertyValue('--active-line-top'));
-    // Expected: padTop(16) + L1(22) + L2-wrapped(44) − scrollTop(0) = 82.
-    // Pre-fix buggy value would have been 16 + 2 × 22 = 60 (no wrap awareness).
-    expect(stripTop).toBe(82);
-
-    // Sanity: the buggy value is different — confirms the test would catch a
-    // regression to the naive formula.
-    expect(stripTop).not.toBe(16 + 2 * 22);
+    expect(stripTop).toBe(16 + 2 * 22);
 
     editor.destroy();
   });
