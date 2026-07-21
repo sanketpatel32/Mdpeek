@@ -2532,8 +2532,13 @@ function applyZoom() {
   el.preview.style.fontSize = px;
   // The editor textarea zooms too, so edit mode tracks the same scale as view.
   if (el.editor) el.editor.style.fontSize = px;
+  if (el.gutter) el.gutter.style.fontSize = px;
   localStorage.setItem('mdpeek-zoom', String(zoomLevel));
   updateZoomIndicator();
+  const activeDoc = store && store.docs ? store.docs.find((d) => d.id === store.activeId) : null;
+  if (activeDoc && activeDoc.editor && activeDoc.editor.syncGutter) {
+    activeDoc.editor.syncGutter();
+  }
   // If a PDF is active, its pages + text layers + strokes must all re-render
   // at the new scale. Defer a tick so the font-size change settles first.
   if (_activePdf) {

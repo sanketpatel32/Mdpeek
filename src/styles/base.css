@@ -925,8 +925,14 @@ mark.find-current {
   background: var(--surface);
   border-right: 1px solid var(--border-subtle);
   color: var(--fg-muted);
-  font-family: "SFMono-Regular", "Cascadia Code", Consolas, "Liberation Mono",
-    monospace;
+  font-family: var(
+    --content-font-family,
+    "SFMono-Regular",
+    "Cascadia Code",
+    Consolas,
+    "Liberation Mono",
+    monospace
+  );
   font-size: 13.5px;
   line-height: 1.6;
   text-align: right;

@@ -112,7 +112,7 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150,
   // edit-mode preview re-renders on every keystroke. Diagrams render fully
   // when the doc is viewed in view mode.
   async function refresh() {
-    if (preview.offsetParent === null) return;
+    if (!preview || preview.offsetParent === null) return;
     preview.innerHTML = renderMarkdown(textarea.value);
     // Skip mermaid (expensive, re-renders on every keystroke) and folding
     // (the live preview is too transient for clickable triangles to be useful).
@@ -193,22 +193,39 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150,
     }
     // Measure each logical line's visual height and apply to the gutter row.
     // Skipped if the wrap is off (no soft-wrapping) — every line is one row.
-    if (textarea.getAttribute('wrap') === 'off') return;
+    const cs = getComputedStyle(textarea);
+    gutter.style.fontFamily = cs.fontFamily;
+    gutter.style.fontSize = cs.fontSize;
+    gutter.style.lineHeight = cs.lineHeight;
+    gutter.style.paddingTop = cs.paddingTop;
+    gutter.style.paddingBottom = cs.paddingBottom;
+    const linePx = parseFloat(cs.lineHeight) || 22;
+    const kids = gutter.children;
+
+    if (textarea.getAttribute('wrap') === 'off') {
+      for (let i = 0; i < n; i++) {
+        if (kids[i]) {
+          kids[i].style.height = linePx + 'px';
+          kids[i].style.lineHeight = cs.lineHeight;
+        }
+      }
+      return;
+    }
     const mirror = ensureGutterMirror();
     syncGutterMirror();
-    const cs = getComputedStyle(textarea);
-    const linePx = parseFloat(cs.lineHeight) || 22;
     // Subtract the mirror's top+bottom padding so we measure only the text
     // rows (otherwise a single 1-line entry would measure as 2 rows due to
     // the padding being counted as another line-height).
     const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
-    const kids = gutter.children;
     for (let i = 0; i < n; i++) {
       mirror.textContent = lines[i] || ' ';
       const totalH = mirror.getBoundingClientRect().height;
       const contentH = Math.max(0, totalH - padY);
       const rows = Math.max(1, Math.round(contentH / linePx));
-      if (kids[i]) kids[i].style.height = (rows * linePx) + 'px';
+      if (kids[i]) {
+        kids[i].style.height = (rows * linePx) + 'px';
+        kids[i].style.lineHeight = cs.lineHeight;
+      }
     }
   }
   function onScroll() {
@@ -478,6 +495,9 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150,
     // Apply a markdown formatting action from the toolbar. Supports wrap-based
     // (bold/italic/code/link) and line-prefix (headings/lists/quote) styles,
     // plus a fenced code-block insert. Each is a toggle when applicable.
+    syncGutter() {
+      syncGutter();
+    },
     format(type) {
       const s = textarea.selectionStart;
       const en = textarea.selectionEnd;
