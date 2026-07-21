@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.8] - 2026-07-21
+
+### Fixed — zero-drift editor line number gutter
+- **Subpixel line-height drift completely eliminated.** Enforced integer pixel `linePx` (`Math.round(lineHeight)`) explicitly on `<textarea>`, `.gutter`, `.editor-overlay`, and `gutterMirror`. This forces native `<textarea>` line box heights to match `.gutter` DOM row heights to 0.00px precision across documents of any length.
+
 ## [0.21.7] - 2026-07-21
 
 ### Fixed — editor line number gutter typography alignment
