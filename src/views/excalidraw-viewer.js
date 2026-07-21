@@ -68,12 +68,28 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
     // Instance-scoped debounce timer (was module-level — shared across
     // instances, which let one tab's destroy() clear another's pending save).
     let saveTimer = null;
+    // Excalidraw's imperative API — captured via the `excalidrawAPI` prop
+    // callback on first mount. Used for collab (updateScene from remote
+    // Yjs updates) and for getSceneElements (cheap live read).
+    let excalidrawAPI = null;
+    // Collab outbound hook — set by collab.bindExcalidraw. When non-null,
+    // every local onChange fires it immediately (NOT debounced) so remote
+    // peers see strokes with low latency. Yjs handles update coalescing.
+    let collabHook = null;
 
     // The onChange handler captures scene state + triggers a debounced save.
+    // It ALSO fires the collab hook (if attached) so Yjs gets every scene
+    // mutation in real time.
     const handleChange = (elements, appState, files) => {
       latestElements = elements;
       latestAppState = appState;
       latestFiles = files;
+      // Collab: push immediately. Yjs + the network layer do their own
+      // batching; adding our 1s save debounce here would make remote
+      // strokes lag by a full second.
+      if (collabHook) {
+        try { collabHook(elements); } catch (e) { console.error('collab hook failed:', e); }
+      }
       if (onSave) {
         clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
@@ -100,6 +116,9 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
           initialData: parsedData || { elements: [], appState: { viewBackgroundColor: '#ffffff' } },
           onChange: handleChange,
           theme: currentTheme,
+          // Capture the imperative API so collab can drive the canvas via
+          // updateScene() when remote Yjs updates arrive.
+          excalidrawAPI: (api) => { excalidrawAPI = api; },
         })
       );
       mounted = true;
@@ -126,8 +145,28 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
           return '';
         }
       },
+      // Push externally-driven elements into the canvas. Used by collab to
+      // apply remote Yjs updates. No-op if the imperative API isn't ready yet.
+      updateScene(elements) {
+        if (!excalidrawAPI || !Array.isArray(elements)) return;
+        try { excalidrawAPI.updateScene({ elements }); } catch (e) {
+          console.error('Excalidraw updateScene failed:', e);
+        }
+      },
+      // Read the live element array straight from Excalidraw. Used by collab
+      // for the outbound diff base (more current than the latestElements
+      // snapshot captured in onChange).
+      getSceneElements() {
+        if (!excalidrawAPI) return [];
+        try { return excalidrawAPI.getSceneElements() || []; } catch { return []; }
+      },
+      // Collab outbound hook registration. Bind on attach, clear on detach.
+      // The hook receives the elements array on every local onChange.
+      setCollabHook(fn) { collabHook = typeof fn === 'function' ? fn : null; },
+      clearCollabHook() { collabHook = null; },
       destroy() {
         clearTimeout(saveTimer);
+        collabHook = null;
         try {
           root.unmount();
         } catch {}
@@ -140,6 +179,13 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
     // clear error instead of leaving the user staring at a blank "Loading…" text.
     container.innerHTML = `<div class="pdf-error">Could not load Excalidraw: ${escapeHtml(String(e))}</div>`;
     console.error('Excalidraw load failed:', e);
-    return { getSceneJSON: () => '', destroy: () => {} };
+    return {
+      getSceneJSON: () => '',
+      updateScene: () => {},
+      getSceneElements: () => [],
+      setCollabHook: () => {},
+      clearCollabHook: () => {},
+      destroy: () => {},
+    };
   }
 }

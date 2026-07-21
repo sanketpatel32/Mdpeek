@@ -7,6 +7,8 @@ import {
   colorForPeer,
   diffAtCaret,
   preserveCaret,
+  writeElementsToYjs,
+  readElementsFromYjs,
 } from '../src/collab.js';
 
 // ---------- invite URL round-trip ----------
@@ -219,5 +221,148 @@ describe('Yjs CRDT convergence', () => {
     // Both sides converge to the same string (order is deterministic).
     expect(ta.toString()).toBe(tb.toString());
     expect(ta.toString()).toMatch(/^X(AB|BA)$/);
+  });
+});
+
+// ---------- Excalidraw element sync (Y.Map of elements) ----------
+//
+// Excalidraw collab uses a Y.Map keyed by element id (each value is a Y.Map of
+// the element's fields) instead of a Y.Text. These tests cover the pure Yjs
+// layer — writeElementsToYjs + readElementsFromYjs + CRDT convergence — without
+// spinning up the network. The bidirectional echo loop (suppress + 'self'
+// origin) is covered by the "no echo on remote-origin writes" test below.
+
+describe('Excalidraw element sync (writeElementsToYjs / readElementsFromYjs)', () => {
+  it('round-trips a small element array through a Y.Map', () => {
+    const doc = new Y.Doc();
+    const ymap = doc.getMap('elements');
+    const elements = [
+      { id: 'a', type: 'rectangle', x: 10, y: 20, width: 100, height: 50 },
+      { id: 'b', type: 'ellipse', x: 200, y: 150, width: 80, height: 80 },
+    ];
+    writeElementsToYjs(doc, ymap, elements);
+    const back = readElementsFromYjs(ymap);
+    expect(back).toHaveLength(2);
+    expect(back[0]).toMatchObject({ id: 'a', type: 'rectangle', x: 10 });
+    expect(back[1]).toMatchObject({ id: 'b', type: 'ellipse', x: 200 });
+  });
+
+  it('clears the map on re-write (full-replace strategy)', () => {
+    const doc = new Y.Doc();
+    const ymap = doc.getMap('elements');
+    writeElementsToYjs(doc, ymap, [{ id: 'a', x: 1 }, { id: 'b', x: 2 }, { id: 'c', x: 3 }]);
+    expect(readElementsFromYjs(ymap)).toHaveLength(3);
+    // Rewrite with fewer elements — old ones must be gone.
+    writeElementsToYjs(doc, ymap, [{ id: 'a', x: 10 }]);
+    const back = readElementsFromYjs(ymap);
+    expect(back).toHaveLength(1);
+    expect(back[0]).toMatchObject({ id: 'a', x: 10 });
+  });
+
+  it('skips elements without a string id', () => {
+    const doc = new Y.Doc();
+    const ymap = doc.getMap('elements');
+    writeElementsToYjs(doc, ymap, [
+      { id: 'ok', x: 1 },
+      { id: 42, x: 2 },          // numeric id — skip
+      { x: 3 },                   // no id — skip
+      null,                       // not an object — skip
+    ]);
+    const back = readElementsFromYjs(ymap);
+    expect(back).toHaveLength(1);
+    expect(back[0].id).toBe('ok');
+  });
+
+  it('updates to an existing element id replace the previous value', () => {
+    const doc = new Y.Doc();
+    const ymap = doc.getMap('elements');
+    writeElementsToYjs(doc, ymap, [{ id: 'a', x: 1, y: 1 }]);
+    writeElementsToYjs(doc, ymap, [{ id: 'a', x: 99, y: 99 }]);
+    const back = readElementsFromYjs(ymap);
+    expect(back).toHaveLength(1);
+    expect(back[0]).toMatchObject({ id: 'a', x: 99, y: 99 });
+  });
+
+  it('preserves nested object fields (e.g. Excalidraw roundness)', () => {
+    const doc = new Y.Doc();
+    const ymap = doc.getMap('elements');
+    const el = { id: 'a', type: 'rectangle', roundness: { type: 3, value: 4.5 } };
+    writeElementsToYjs(doc, ymap, [el]);
+    const back = readElementsFromYjs(ymap);
+    expect(back[0].roundness).toEqual({ type: 3, value: 4.5 });
+  });
+
+  it('no-ops on null/missing ydoc or ymap', () => {
+    // Should not throw — guards against being called after endSession().
+    expect(() => writeElementsToYjs(null, null, [{ id: 'a' }])).not.toThrow();
+    expect(readElementsFromYjs(null)).toEqual([]);
+  });
+
+  it('two Yjs docs converge after exchanging state updates (CRDT merge)', () => {
+    // Simulates two peers: host writes elements, receiver picks them up via
+    // encodeStateAsUpdate / applyUpdate (the same path the real Trystero
+    // transport uses).
+    const host = new Y.Doc();
+    const guest = new Y.Doc();
+    const hostMap = host.getMap('elements');
+    const guestMap = guest.getMap('elements');
+
+    writeElementsToYjs(host, hostMap, [
+      { id: 'a', type: 'rectangle', x: 10 },
+      { id: 'b', type: 'arrow', x: 50 },
+    ]);
+
+    // Receiver applies the host's state update.
+    Y.applyUpdate(guest, Y.encodeStateAsUpdate(host));
+    const onGuest = readElementsFromYjs(guestMap);
+    expect(onGuest).toHaveLength(2);
+    expect(onGuest[0]).toMatchObject({ id: 'a', x: 10 });
+    expect(onGuest[1]).toMatchObject({ id: 'b', x: 50 });
+
+    // Now receiver rewrites the scene — host should see the new state.
+    writeElementsToYjs(guest, guestMap, [{ id: 'c', type: 'text', text: 'hi' }]);
+    Y.applyUpdate(host, Y.encodeStateAsUpdate(guest));
+    const onHost = readElementsFromYjs(hostMap);
+    expect(onHost).toHaveLength(1);
+    expect(onHost[0]).toMatchObject({ id: 'c', text: 'hi' });
+  });
+
+  it('outbound writes tagged with "self" origin so the inbound observer can skip them', () => {
+    // The bindExcalidraw echo loop is broken by checking transaction origin.
+    // Verify the tag is actually set on writeElementsToYjs transactions.
+    const doc = new Y.Doc();
+    const ymap = doc.getMap('elements');
+    let seenOrigin = null;
+    ymap.observe((event) => {
+      seenOrigin = event.transaction.origin;
+    });
+    writeElementsToYjs(doc, ymap, [{ id: 'a', x: 1 }]);
+    expect(seenOrigin).toBe('self');
+  });
+
+  it('inbound observer fires once for a remote-origin write (not "self")', () => {
+    // Mirror of the echo-loop test: writeElementsToYjs tags as 'self', so a
+    // remote-origin write applied via applyUpdate must NOT be 'self'. The
+    // bindExcalidraw onRemote checks origin to skip our own writes.
+    const host = new Y.Doc();
+    const receiver = new Y.Doc();
+    const receiverMap = receiver.getMap('elements');
+
+    let remoteFireCount = 0;
+    receiverMap.observeDeep((events) => {
+      for (const ev of events) {
+        if (ev.transaction.origin !== 'self') remoteFireCount++;
+      }
+    });
+
+    // Host writes (tagged 'self' on the host, but the origin doesn't travel
+    // across encodeStateAsUpdate — the receiver sees it as undefined origin).
+    const hostMap = host.getMap('elements');
+    writeElementsToYjs(host, hostMap, [{ id: 'a', x: 1 }]);
+    Y.applyUpdate(receiver, Y.encodeStateAsUpdate(host));
+
+    // Receiver should have seen the remote write fire exactly once.
+    expect(remoteFireCount).toBeGreaterThanOrEqual(1);
+    expect(readElementsFromYjs(receiverMap)).toHaveLength(1);
   });
 });

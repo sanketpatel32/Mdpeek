@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-07-21
+
+### Added — live collaboration on plain text, code files, and Excalidraw canvases
+- **`.txt` (plain text) files can now be shared.** The Share button was previously hidden for plain-text docs; the gate (`doc.plain`) is removed. Host shares a `.txt` exactly like a markdown file — Yjs text CRDT, same Trystero transport, same Share modal. Receivers join into a plain-text tab (no markdown preview pane) that matches the host's UX.
+- **Excalidraw (`.excalidraw`) files can now be shared.** Full canvas collaboration: draw on one machine, see it appear on the other in real time. New `collab.startSessionExcalidraw` + `collab.bindExcalidraw` entry points in `src/collab.js` bind a `Y.Map<elementId, Y.Map<field, value>>` to the canvas via Excalidraw's imperative `updateScene` API. Each Excalidraw element becomes a Yjs map entry keyed by its stable string id; remote updates reassemble the elements array and push to the canvas. The bidirectional echo loop (canvas → Yjs → canvas) is broken by a `suppress` flag around inbound `updateScene` calls plus the `'self'` transaction origin on outbound writes.
+- The `excalidraw-viewer` controller (`src/views/excalidraw-viewer.js`) is extended with four new methods: `updateScene(elements)`, `getSceneElements()`, `setCollabHook(fn)`, `clearCollabHook()`. The hook is called from `handleChange` on every local canvas edit (immediately, NOT debounced — Yjs + the network handle coalescing, so the 1s save debounce would add a full second of latency for remote peers).
+- **Race-condition fix for receiver canvas mount.** On the receiver, `showExcalidraw` is async (lazy-loads React), so the canvas doesn't exist when `confirmJoin`'s `requestAnimationFrame` fires. Binding now happens inside the `showExcalidraw().then()` callback in `renderActive` once the controller is ready.
+
+### Changed — Share button visibility
+- The Share button is now hidden only when a session is already active (use End instead). The per-viewer branches (PDF/image/csv/welcome) still hide it for read-only formats as before; the plain-text gate is gone, and the Excalidraw branch now shows it.
+
+### Fixed — receiver language propagation (now inert, but documented)
+- Previously, the host's `language` metadata was discarded on the receiver (`confirmJoin` stored only `result.title`). The receiver now branches on `result.language` to decide what kind of tab to create (`'excalidraw'` → Excalidraw canvas, `null` → plain text, anything else → text). Note: since the recent editor refactor removed per-language syntax highlighting, the language metadata is currently informational only — it round-trips correctly so future language-aware features can use it.
+
+### Tests
+- 9 new tests in `test/collab.test.js` covering the Excalidraw Yjs layer: round-trip, full-replace semantics, invalid-element skipping, nested object preservation, null-state safety, two-peer CRDT convergence via `encodeStateAsUpdate`/`applyUpdate`, and the `'self'` origin tagging that breaks the echo loop.
+- 2 new tests in `test/documents.test.js` locking `shared + plain` (`.txt` collaboration) and `shared + excalidraw` (canvas collaboration) combinations on the document model.
+- **292/292 tests pass** (was 281).
+
+### Limitations (documented)
+- Image elements embedded in an Excalidraw scene sync their metadata but the binary `files` dict is NOT synced over Yjs — the receiver sees placeholders for embedded images. Future work.
+- Excalidraw cursor awareness (seeing the other peer's pointer move on your canvas) is not wired up; Yjs awareness supports it but Excalidraw's `onPointerUpdate` plumbing is a separate feature.
+- The full-replace Yjs strategy sends the entire Y.Map on every change. Fine for typical drawings (<1k elements); per-field Y.Map merging is a future optimization for very large scenes.
+
 ## [0.21.11] - 2026-07-21
 
 ### Fixed — editor text and cursor alignment

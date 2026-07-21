@@ -107,14 +107,16 @@ export function preserveCaret(oldText, newText, caret) {
 // ---------- module state ----------
 
 let ydoc = null;
-let ytext = null;
+let ytext = null;             // Y.Text — used by text-doc sessions (md/code/plain)
+let yelements = null;         // Y.Map<id, Y.Map<field, value>> — used by Excalidraw sessions
 let awareness = null;
 let room = null;
 let role = null;        // 'host' | 'receiver'
 let roomId = null;
 let peerMeta = new Map();     // peerId → { name, color, caret, selectionEnd }
 let boundEditor = null;       // editor object returned by initEditor()
-let boundCleanup = null;      // () → void; unbinds the current editor binding
+let boundExcalidraw = null;   // controller returned by showExcalidraw()
+let boundCleanup = null;      // () → void; unbinds the current binding (text or Excalidraw)
 let localName = 'Anonymous';
 let localColor = '#3b82f6';
 
@@ -331,6 +333,7 @@ export function endSession() {
     boundCleanup();
     boundCleanup = null;
     boundEditor = null;
+    boundExcalidraw = null;
   }
   try {
     if (awareness) awareness.destroy();
@@ -343,6 +346,7 @@ export function endSession() {
   } catch { /* ignore */ }
   ydoc = null;
   ytext = null;
+  yelements = null;
   awareness = null;
   room = null;
   role = null;
@@ -448,5 +452,144 @@ export function unbindEditor() {
     boundCleanup();
     boundCleanup = null;
     boundEditor = null;
+  }
+}
+
+// ---------- Excalidraw binding ----------
+//
+// Excalidraw scenes don't fit Y.Text: each shape is a structured object, and
+// we want element-level identity (so two peers moving two different shapes
+// don't conflict). The model is a top-level Y.Map keyed by element id, where
+// each value is a Y.Map of the element's fields. Local canvas changes do a
+// full-replace of the Y.Map (simple, correct, fine for typical drawings <1k
+// elements); remote Yjs changes reassemble the elements array and call
+// Excalidraw's imperative updateScene().
+//
+// The bidirectional echo loop is broken by:
+//   - The 'self' transaction origin on outbound writes (onRemote skips those).
+//   - A `suppress` boolean around inbound updateScene calls so the resulting
+//     onChange doesn't push back into Yjs.
+
+// Write the full elements array into a Yjs Y.Map. Clears and rebuilds —
+// O(n) per change, but Yjs's CRDT merge keeps it correct even when both peers
+// edit concurrently. Takes the ydoc + ymap as explicit args so it's pure and
+// unit-testable without spinning up a real session.
+export function writeElementsToYjs(ydoc, ymap, elements) {
+  if (!ydoc || !ymap) return;
+  const list = Array.isArray(elements) ? elements : [];
+  ydoc.transact(() => {
+    ymap.clear();
+    for (const el of list) {
+      if (!el || typeof el.id !== 'string') continue;
+      // new Y.Map() — no ydoc arg in this Yjs version (the parent is set
+      // implicitly when the map is inserted into ymap below).
+      const m = new Y.Map();
+      // Excalidraw element fields are all JSON-serializable primitives or
+      // plain objects — safe to drop straight into a Y.Map.
+      for (const [k, v] of Object.entries(el)) m.set(k, v);
+      ymap.set(el.id, m);
+    }
+  }, 'self');
+}
+
+// Internal: write to the active session's ymap.
+function writeActive(elements) {
+  writeElementsToYjs(ydoc, yelements, elements);
+}
+
+// Read a Yjs Y.Map back as a plain elements array (order preserved by
+// insertion). Pure — takes the ymap as an arg.
+export function readElementsFromYjs(ymap) {
+  if (!ymap) return [];
+  const out = [];
+  ymap.forEach((m) => {
+    const obj = {};
+    m.forEach((v, k) => { obj[k] = v; });
+    out.push(obj);
+  });
+  return out;
+}
+
+export function startSessionExcalidraw(initialElements, { title } = {}) {
+  if (ydoc) throw new Error('Session already active');
+  role = 'host';
+  roomId = generateRoomId();
+  // The 'excalidraw' language sentinel tells the receiver's confirmJoin to
+  // create an Excalidraw tab (not a text tab). Picked because no real source
+  // code language is named 'excalidraw'.
+  hostMeta = { title: title || 'Shared drawing', language: 'excalidraw' };
+  ydoc = new Y.Doc();
+  yelements = ydoc.getMap('elements');
+  awareness = new Awareness(ydoc);
+  awareness.setLocalStateField('user', { name: localName, color: localColor });
+  writeActive(initialElements || []);
+  try {
+    buildTrysteroProvider();
+  } catch (err) {
+    endSession();
+    throw err;
+  }
+  emit();
+  return { roomId, inviteUrl: buildInviteUrl(roomId), title: hostMeta.title, language: 'excalidraw' };
+}
+
+export function bindExcalidraw(ctrl) {
+  if (!ydoc || !yelements) throw new Error('No active excalidraw session');
+  if (!ctrl || typeof ctrl.updateScene !== 'function') {
+    throw new Error('Invalid Excalidraw controller');
+  }
+  if (boundExcalidraw === ctrl) return;
+  if (boundCleanup) boundCleanup();
+
+  let suppress = false;
+
+  // Outbound: canvas changed → Yjs. Registered as the controller's collab
+  // hook; called from handleChange in the viewer on every local edit.
+  function pushLocal(elements) {
+    if (suppress) return;
+    writeActive(elements);
+  }
+
+  // Inbound: Yjs changed → canvas. Reassemble the elements array and push
+  // to Excalidraw via updateScene. Wrapped in suppress so the resulting
+  // onChange (which calls pushLocal) is a no-op — breaks the echo loop.
+  // The 'self' transaction origin is the second layer of protection.
+  function onRemote() {
+    if (suppress) return;
+    suppress = true;
+    try {
+      ctrl.updateScene(readElementsFromYjs(yelements));
+    } catch (e) {
+      console.error('Excalidraw inbound updateScene failed:', e);
+    }
+    suppress = false;
+  }
+
+  // observeDeep fires on top-level Y.Map changes (add/remove element ids)
+  // AND on inner Y.Map changes (element field mutations like drag updates).
+  // The plain observe() callback only catches the former — drag would be
+  // invisible to remote peers without observeDeep.
+  yelements.observeDeep(onRemote);
+  ctrl.setCollabHook(pushLocal);
+
+  // Initial paint from current Yjs state. Covers:
+  //   - Receiver binding after the host's elements have already arrived.
+  //   - Host binding right after startSessionExcalidraw seeded the Y.Map.
+  suppress = true;
+  try { onRemote(); } catch { /* controller not ready — will sync on next change */ }
+  suppress = false;
+
+  boundExcalidraw = ctrl;
+  boundCleanup = () => {
+    try { yelements.unobserveDeep(onRemote); } catch { /* yelements may be torn down */ }
+    try { ctrl.clearCollabHook(); } catch {}
+  };
+}
+
+export function unbindExcalidraw() {
+  if (boundCleanup) {
+    boundCleanup();
+    boundCleanup = null;
+    boundExcalidraw = null;
   }
 }

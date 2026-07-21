@@ -367,8 +367,14 @@ async function renderActive() {
       _activePdf.destroy();
       _activePdf = null;
     }
-    // Tear down the outgoing Excalidraw tab (unmounts React).
+    // Tear down the outgoing Excalidraw tab (unmounts React). If this tab
+    // was bound to a collab session, detach the binding first so Yjs
+    // observers stop referencing the soon-to-be-dead controller. The binding
+    // is re-established on tab return inside the showExcalidraw .then().
     if (_activeExcalidraw) {
+      if (_collabDocId === prev?.id) {
+        try { collab.unbindExcalidraw(); } catch { /* already unbound */ }
+      }
       _activeExcalidraw.destroy();
       _activeExcalidraw = null;
     }
@@ -469,7 +475,9 @@ async function renderActive() {
     return;
   }
 
-  // Excalidraw: full canvas editor, no edit toggle, no TOC.
+  // Excalidraw: full canvas editor, no edit toggle, no TOC. Collaboration
+  // (Share) is supported — bindExcalidraw syncs the canvas via a Y.Map of
+  // elements over the same Yjs+Trystero transport text docs use.
   if (doc.excalidraw) {
     el.editMode.classList.add('hidden');
     el.mode.classList.add('hidden');
@@ -477,7 +485,8 @@ async function renderActive() {
     el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
     if (el.present) el.present.classList.add('hidden');
-    if (el.share) el.share.classList.add('hidden');
+    // Share visible unless a session is already active.
+    if (el.share) el.share.classList.toggle('hidden', collab.getStatus().active);
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
     el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'markdown-body');
@@ -494,6 +503,15 @@ async function renderActive() {
         ctrl.destroy();
       } else {
         _activeExcalidraw = ctrl;
+        // If a collab session is active AND this doc is the shared one, bind
+        // the canvas now. Handles two cases:
+        //   1. Receiver cold-join: confirmJoin created the tab then waited
+        //      for the canvas to mount — this .then() is the signal.
+        //   2. Host/Receiver tab-switch back to the shared Excalidraw tab:
+        //      the previous binding was torn down on tab-out; re-attach.
+        if (collab.getStatus().active && _collabDocId === doc.id) {
+          try { collab.bindExcalidraw(ctrl); } catch (e) { console.error('bindExcalidraw:', e); }
+        }
       }
     }).catch((e) => toast('Could not open Excalidraw: ' + fmtErr(e)));
     return;
@@ -574,7 +592,11 @@ async function renderActive() {
   el.export.classList.toggle('hidden', !!doc.plain);
   if (el.exportPdf) el.exportPdf.classList.toggle('hidden', !!doc.plain);
   if (el.present) el.present.classList.toggle('hidden', !!doc.plain);
-  if (el.share) el.share.classList.toggle('hidden', !!doc.plain || collab.getStatus().active);
+  // Share (collab) button: visible for any editable text doc (markdown, code,
+  // plain .txt) and for Excalidraw canvases. Hidden only when a session is
+  // already active (use End instead) — the per-viewer branches above already
+  // hide it for read-only formats (PDF/image/csv/welcome).
+  if (el.share) el.share.classList.toggle('hidden', collab.getStatus().active);
   el.document.classList.remove('code-viewer', 'image-viewer');
   el.document.classList.add('markdown-body');
 
@@ -1526,14 +1548,24 @@ function updateCollabStatus(status) {
     if (doc) {
       // Pull the latest Yjs text into the doc so the receiver keeps all edits.
       try {
-        if (doc.editor) doc.content = doc.editor.getValue();
-      } catch { /* editor may be detached */ }
+        // Text doc: pull the latest Yjs text into the doc so the receiver
+        // keeps all edits. Excalidraw doc: pull the latest canvas scene via
+        // the controller (independent of Yjs — the canvas state is the
+        // source of truth on the receiver side once unbound).
+        if (doc.excalidraw && _activeExcalidraw) {
+          const json = _activeExcalidraw.getSceneJSON();
+          if (json) doc.content = json;
+        } else if (doc.editor) {
+          doc.content = doc.editor.getValue();
+        }
+      } catch { /* editor/controller may be detached */ }
       doc.shared = false;
       doc.dirty = true; // unsaved local copy now
       renderTabs(store);
     }
     _collabDocId = null;
     try { collab.unbindEditor(); } catch { /* already unbound */ }
+    try { collab.unbindExcalidraw(); } catch { /* already unbound */ }
     // Tear down the network session now that we've captured the final state.
     try { collab.endSession(); } catch { /* already gone */ }
     if (el.collabStatus) el.collabStatus.classList.add('hidden');
@@ -1545,6 +1577,19 @@ function updateCollabStatus(status) {
 
 // Subscribe once at startup.
 collab.on(updateCollabStatus);
+
+// Parse a serialized Excalidraw scene JSON string into its elements array.
+// Returns [] for empty/corrupt input. Used by openShareModal to seed the
+// Excalidraw Yjs session from the host's current canvas state.
+function parseExcalidrawElements(json) {
+  if (!json || typeof json !== 'string') return [];
+  try {
+    const data = JSON.parse(json);
+    return Array.isArray(data?.elements) ? data.elements : [];
+  } catch {
+    return [];
+  }
+}
 
 function openShareModal() {
   const doc = store.active();
@@ -1558,40 +1603,74 @@ function openShareModal() {
     el.shareDialog.classList.remove('hidden');
     return;
   }
-  // Sync the editor's current text into doc.content before seeding Yjs, so
-  // the host's latest keystrokes are what the receiver starts from.
-  if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
+  // Capture the host's current state before seeding Yjs.
+  //   - Text docs (markdown/code/plain): pull the latest keystrokes from the
+  //     textarea (doc.content can lag by a few ms).
+  //   - Excalidraw: force-flush the canvas scene into doc.content first —
+  //     the viewer's onChange save is debounced 1s, so unflushed strokes
+  //     would be missed.
+  if (doc.excalidraw) {
+    if (_activeExcalidraw) {
+      const json = _activeExcalidraw.getSceneJSON();
+      if (json) doc.content = json;
+    }
+  } else if (doc.mode === 'edit' && doc.editor) {
+    doc.content = doc.editor.getValue();
+  }
   el.shareLinkInput.value = 'Generating…';
   el.shareStatus.textContent = 'Generating invite link…';
   el.shareStatus.classList.remove('connected', 'error');
   el.shareEndBtn.classList.add('hidden');
   el.shareDialog.classList.remove('hidden');
   try {
-    const result = collab.startSession(doc.content || '', {
-      title: doc.path ? doc.path.split(/[\\/]/).pop() : 'Shared note',
-      language: langForEdit(doc) || 'markdown',
-    });
+    let result;
+    if (doc.excalidraw) {
+      // Excalidraw session: bind a Y.Map of elements, not a Y.Text.
+      const elements = parseExcalidrawElements(doc.content);
+      result = collab.startSessionExcalidraw(elements, {
+        title: doc.path ? doc.path.split(/[\\/]/).pop() : 'Shared drawing',
+      });
+    } else {
+      result = collab.startSession(doc.content || '', {
+        title: doc.path ? doc.path.split(/[\\/]/).pop() : 'Shared note',
+        language: langForEdit(doc) || 'markdown',
+      });
+    }
     collab.setLocalIdentity({ name: defaultCollabName() });
     el.shareLinkInput.value = result.inviteUrl;
     refreshShareModal(collab.getStatus());
-    // Bind the active editor to the Y.Text. Force edit mode so the textarea
-    // exists (you can't share a read-only view).
-    if (doc.mode !== 'edit') {
-      doc.mode = 'edit';
-      renderActive();
-    }
-    // After renderActive rebuilds the editor, bind it on the next tick.
-    // Guard with active-check in case endSession ran in between.
-    requestAnimationFrame(() => {
-      if (!collab.getStatus().active) return;
-      const d = store.active();
-      if (d && d.editor) {
-        try {
-          collab.bindEditor(d.editor);
-          _collabDocId = d.id;
-        } catch (e) { console.error('bindEditor failed:', e); }
+    // Capture the doc id so the showExcalidraw .then() callback (and the
+    // text-binding rAF below) know which doc to bind to.
+    _collabDocId = doc.id;
+    if (doc.excalidraw) {
+      // The Excalidraw controller already exists (host is viewing the canvas).
+      // Bind immediately — no race on the host side. The receiver's binding
+      // happens later in the showExcalidraw .then() callback because the
+      // canvas mounts async on the receiver.
+      if (_activeExcalidraw) {
+        try { collab.bindExcalidraw(_activeExcalidraw); }
+        catch (e) { console.error('bindExcalidraw failed:', e); }
       }
-    });
+    } else {
+      // Text doc: force edit mode so the textarea exists (can't share a
+      // read-only view).
+      if (doc.mode !== 'edit') {
+        doc.mode = 'edit';
+        renderActive();
+      }
+      // After renderActive rebuilds the editor, bind it on the next tick.
+      // Guard with active-check in case endSession ran in between.
+      requestAnimationFrame(() => {
+        if (!collab.getStatus().active) return;
+        const d = store.active();
+        if (d && d.editor) {
+          try {
+            collab.bindEditor(d.editor);
+            _collabDocId = d.id;
+          } catch (e) { console.error('bindEditor failed:', e); }
+        }
+      });
+    }
   } catch (err) {
     el.shareStatus.textContent = 'Could not start session: ' + (err?.message || err);
     el.shareStatus.classList.add('error');
@@ -1647,7 +1726,11 @@ function closeShareModal() {
 async function endCollabSession() {
   // Tear down the network session first so peers get a clean disconnect.
   try { collab.endSession(); } catch (e) { console.error('endSession:', e); }
+  // Defensive: unbind whichever binding was active (text or Excalidraw).
+  // endSession already ran boundCleanup, but this protects against half-
+  // initialized state where one of the two was never attached.
   try { collab.unbindEditor(); } catch { /* already unbound */ }
+  try { collab.unbindExcalidraw(); } catch { /* already unbound */ }
   // Convert the host's shared doc back to a normal doc (it's still on disk).
   // On the receiver side, the shared tab becomes a local unsaved doc.
   const doc = store.docs.find((d) => d.id === _collabDocId);
@@ -1708,28 +1791,56 @@ async function confirmJoin() {
   try {
     collab.setLocalIdentity({ name: defaultCollabName() });
     const result = await collab.joinSession(roomId);
-    // Create a new shared tab seeded with the host's current text + title.
-    const doc = store.open({
-      path: null,
-      content: result.initialText || '',
-      mode: 'edit',
-      shared: true,
-    });
+    // Branch on the host's doc type. The host's language meta tells us what
+    // kind of tab to create on the receiver side:
+    //   'excalidraw' → Excalidraw canvas tab
+    //   null         → plain text (.txt) — no markdown preview
+    //   'markdown'   → markdown (default)
+    //   other string → code file in that language (e.g. 'javascript')
+    let doc;
+    if (result.language === 'excalidraw') {
+      // Receiver's tab is a fresh Excalidraw canvas; the actual scene arrives
+      // via Yjs once bindExcalidraw runs (after the canvas mounts — see the
+      // .then() on showExcalidraw in renderActive).
+      doc = store.open({ path: null, content: '', excalidraw: true, shared: true });
+    } else {
+      doc = store.open({
+        path: null,
+        content: result.initialText || '',
+        mode: 'edit',
+        shared: true,
+      });
+      // Plain-text host (.txt) → behave as plain text on the receiver too so
+      // the markdown preview pane stays hidden (matches host UX).
+      if (result.language === null) doc.plain = true;
+      // Code-language host: the editor no longer has per-language syntax
+      // highlighting (the overlay was removed in the v0.22 editor refactor),
+      // so we don't need to propagate the language to the receiver's editor.
+      // The language meta is still round-tripped so future reintroduction of
+      // highlighting (or other language-aware features) can use it.
+    }
     if (result.title) doc._collabTitle = result.title;
     // The user-facing tab title for a shared doc: host's filename + "(shared)".
     // We can't easily override renderTabs here, but the .shared class adds a
     // "(shared)" suffix via CSS — good enough for MVP.
     closeJoinDialog();
+    // Capture the doc id so the canvas-mount .then() callback in renderActive
+    // knows which doc to bind Excalidraw to (the receiver canvas mounts async).
+    _collabDocId = doc.id;
     // Bind the editor after renderActive builds it for the new tab.
+    // For Excalidraw tabs the binding is handled in the showExcalidraw .then()
+    // callback because the controller doesn't exist yet — rAF would race it.
     requestAnimationFrame(() => {
       if (!collab.getStatus().active) return;
       const d = store.active();
-      if (d && d.editor) {
-        try {
+      if (!d) return;
+      try {
+        if (d.excalidraw && _activeExcalidraw) {
+          collab.bindExcalidraw(_activeExcalidraw);
+        } else if (d.editor && !d.excalidraw) {
           collab.bindEditor(d.editor);
-          _collabDocId = d.id;
-        } catch (e) { console.error('bindEditor after join failed:', e); }
-      }
+        }
+      } catch (e) { console.error('bind after join failed:', e); }
     });
     toast('Joined session');
   } catch (err) {

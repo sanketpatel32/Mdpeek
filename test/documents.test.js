@@ -20,6 +20,30 @@ describe('createDocument', () => {
     expect(d.shared).toBe(true);
   });
 
+  // v0.22.0: collaboration now covers .txt files too (the Share button is no
+  // longer hidden for plain docs). A receiver joining a shared .txt session
+  // gets created via store.open({ path: null, plain: true, shared: true }),
+  // so the receiver's tab stays plain (no markdown preview pane).
+  it('accepts shared + plain together for collaboration on .txt files', () => {
+    const d = createDocument({ path: null, content: 'plain text', plain: true, shared: true });
+    expect(d.shared).toBe(true);
+    expect(d.plain).toBe(true);
+    // Plain docs default to edit mode — the receiver immediately has a textarea
+    // to bind to Yjs.
+    expect(d.mode).toBe('edit');
+  });
+
+  // v0.22.0: shared Excalidraw canvases. The receiver's tab opens with the
+  // excalidraw flag so renderActive mounts the canvas (the scene arrives via
+  // Yjs, not the initial content).
+  it('accepts shared + excalidraw together for canvas collaboration', () => {
+    const d = createDocument({ path: null, content: '', excalidraw: true, shared: true });
+    expect(d.shared).toBe(true);
+    expect(d.excalidraw).toBe(true);
+    // Excalidraw tabs have no edit mode — the canvas is always interactive.
+    expect(d.mode).toBe('view');
+  });
+
   it('untitled docs have null path', () => {
     const d = createDocument({ content: '' });
     expect(d.path).toBe(null);
