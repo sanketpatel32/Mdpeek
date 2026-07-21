@@ -91,7 +91,7 @@ function renderWelcome() {
       <div class="welcome-main">
         <div class="welcome-brand">
           <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.21.3</span></h1>
+          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.21.4</span></h1>
           <p class="welcome-tagline">A lightweight Markdown viewer.</p>
         </div>
 

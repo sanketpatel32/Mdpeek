@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.4] - 2026-07-21
+
+### Fixed
+- **MAJOR: editor text was invisible when syntax highlighting was on.** The textarea had `background: var(--bg)` (solid color) which completely covered the highlight overlay sitting behind it at z-index:0. Even though the textarea's text was made transparent (per the overlay technique), the solid background hid the overlay's colored text — so users saw a blank white editor pane while typing.
+  - Fix: textarea background is now `transparent` when `.highlight-on` is active; the editor-wrap parent provides the visible background instead.
+  - Verified with a headless browser + OCR: editor text now appears in both highlight-on and highlight-off modes (previously only worked in highlight-off).
+
 ## [0.21.3] - 2026-07-21
 
 ### Fixed

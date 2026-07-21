@@ -872,12 +872,16 @@ mark.find-current {
   border-radius: 3px;
 }
 
-/* editor-wrap = gutter + textarea side by side, sharing one scroll context. */
+/* editor-wrap = gutter + textarea side by side, sharing one scroll context.
+   Provides the visible background for the editor area — the textarea's own
+   background is transparent (when highlight-on) so the syntax-highlight
+   overlay at z-index:0 shows through. */
 .editor-wrap {
   flex: 1;
   display: flex;
   overflow: hidden;
   position: relative;
+  background: var(--bg);
 }
 .gutter {
   flex: 0 0 auto;
@@ -958,11 +962,14 @@ mark.find-current {
    colored text shows through. -webkit-text-fill-color is what WebView2's
    text paint actually honors (overrides `color`). caret-color is left
    untouched so the caret remains visible. The textarea sits at z-index:1
-   so the caret paints on top of the overlay. */
+   so the caret paints on top of the overlay. CRITIALLY the textarea's
+   background must also be transparent — a solid bg would hide the overlay
+   behind it (which is at z-index:0). The .editor-wrap parent provides the
+   visible background via var(--bg). */
 .editor-wrap.highlight-on > .editor {
   color: transparent;
   -webkit-text-fill-color: transparent;
-  background: var(--bg);
+  background: transparent;
   position: relative;
   z-index: 1;
 }
