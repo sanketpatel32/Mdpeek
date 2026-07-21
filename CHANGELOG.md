@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.2] - 2026-07-21
+
+### Changed — Kanban is now a full-page view with drag-and-drop
+- **The board is now a full-page view** (not a modal). Toggled via `body.kanban-mode`, mirroring the slideshow's `body.presenting` pattern. The view replaces the entire app surface while open — no more cramped modal card, the board gets the full window.
+- **Tasks can ONLY be added to the "To do" column.** The In progress + Done columns no longer have add inputs — their footers are gone. The only way to populate them is to **drag cards in from another column**.
+- **HTML5 drag-and-drop between columns.** Every card is `draggable="true"`; every column is a drop target. While a card is being dragged over a column, that column tints with the accent color so it's obvious where the drop will land. The card being dragged dims to 40% opacity (the "you're holding this" cue).
+- Moved cards land at the bottom of their new column (bumped `createdAt`), so the most-recently-moved card is always last.
+- The `Ctrl+Shift+K` shortcut now **toggles** the board (open if closed, close if open). **Esc also closes** the board. No click-outside-to-close because there's no overlay anymore.
+
+### Layout / visual polish
+- New toolbar-style header (`.kanban-toolbar`) with the title + a Done button on the right. The Done button has an inline × icon and "Done" label.
+- Three-column grid fills the page with 16px gutters + 20px outer padding. Each column scrolls internally, not the board.
+- Column header dots moved into a `.kanban-column-header-label` span so the layout is title + dot on the left, count badge on the right.
+- Subtle 160ms fade-in animation on open (matches the slideshow).
+
+### Tests
+- No new automated tests (drag-and-drop is browser-interaction glue; the underlying `moveKanbanTask` is a 5-line function not worth pinning down in jsdom).
+- Existing 292/292 tests pass unchanged.
+
+### Verified end-to-end in the running app
+- Full-page layout (view replaces the app surface when open).
+- Only the To-Do column has an Add input (In progress + Done have no footer).
+- New tasks always land in To-Do regardless of which status the caller passes.
+- Dragging a card from To-Do to Done moves it (todo count 3 → 2, done count 1 → 2); the moved card appears in the Done column; localStorage reflects the new status.
+- Esc closes; Ctrl+Shift+K toggles open/closed.
+
 ## [0.22.1] - 2026-07-21
 
 ### Added — global Kanban board

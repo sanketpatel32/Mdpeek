@@ -386,19 +386,22 @@
       </div>
     </div>
 
-    <!-- Global Kanban board. Three columns (To do / In progress / Done).
-         Tasks are stored globally in localStorage (mdpeek-kanban-tasks) so the
-         board survives app restarts and is the same across every tab. -->
-    <div id="kanban-dialog" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="kanban-dialog-title">
-      <div class="modal kanban-modal">
-        <div class="kanban-header">
-          <h2 id="kanban-dialog-title" class="modal-title">Kanban board</h2>
-          <button class="modal-btn modal-btn-secondary" id="kanban-done-btn" type="button">Done</button>
-        </div>
-        <div class="kanban-board" id="kanban-board">
-          <!-- Columns are rendered by JS to keep the markup in sync with the
-               task data model. Three columns: todo / progress / done. -->
-        </div>
+    <!-- Global Kanban board (v0.22.2). Full-page view (same layering model as
+         the slideshow), three columns (To do / In progress / Done). New tasks
+         can only be added to "To do" — move them by dragging. Tasks are stored
+         globally in localStorage (mdpeek-kanban-tasks) so the board survives
+         app restarts and is the same across every tab. -->
+    <div id="kanban-view" class="kanban-view" role="dialog" aria-modal="true" aria-labelledby="kanban-view-title">
+      <header class="kanban-toolbar">
+        <h2 id="kanban-view-title" class="kanban-toolbar-title">Kanban board</h2>
+        <button class="tool-btn" id="kanban-done-btn" type="button" title="Close (Esc)" aria-label="Close Kanban board">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <span>Done</span>
+        </button>
+      </header>
+      <div class="kanban-board" id="kanban-board">
+        <!-- Columns are rendered by JS to keep the markup in sync with the
+             task data model. Three columns: todo / progress / done. -->
       </div>
     </div>
 
@@ -692,7 +695,7 @@
               <div class="about-card">
                 <img src="/icon.png" alt="mdpeek" class="about-logo" />
                 <h3 class="about-name">mdpeek</h3>
-                <div class="about-version">Version <span id="about-version">0.22.1</span></div>
+                <div class="about-version">Version <span id="about-version">0.22.2</span></div>
                 <p class="about-tagline">A lightweight Markdown viewer &amp; editor for Windows.</p>
                 <div class="about-links">
                   <button class="about-link primary" data-href="https://github.com/sanketpatel32/Mdpeek" type="button">

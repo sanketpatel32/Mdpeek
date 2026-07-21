@@ -203,10 +203,10 @@ const el = {
   collabEnd: document.getElementById('collab-end'),
   peerCarets: document.getElementById('peer-carets'),
 
-  // Kanban (v0.22.1) — global task board. Persisted in localStorage so the
-  // board survives app restarts and is shared across every tab.
+  // Kanban (v0.22.2) — full-page global task board. Persisted in localStorage
+  // so the board survives app restarts and is shared across every tab.
   kanban: document.getElementById('btn-kanban'),
-  kanbanDialog: document.getElementById('kanban-dialog'),
+  kanbanView: document.getElementById('kanban-view'),
   kanbanBoard: document.getElementById('kanban-board'),
   kanbanDoneBtn: document.getElementById('kanban-done-btn'),
 };
@@ -1731,18 +1731,28 @@ function closeShareModal() {
   el.shareDialog.classList.add('hidden');
 }
 
-// ---------- Global Kanban board (v0.22.1) ----------
+// ---------- Global Kanban board (v0.22.2) ----------
 //
-// A simple three-column task board (To do / In progress / Done) that lives at
-// the app level — not tied to any tab or document. Tasks are stored globally
-// in localStorage (mdpeek-kanban-tasks) and persist across restarts. The
-// board is intentionally minimal: add via a per-column input, delete via a ×
-// button on each card. No drag-and-drop, no priorities, no dates — the user
-// asked for "very simple and sorted".
+// A full-page three-column task board (To do / In progress / Done) that lives
+// at the app level — not tied to any tab or document. Tasks are stored globally
+// in localStorage (mdpeek-kanban-tasks) and persist across restarts.
+//
+// v0.22.2 changes from v0.22.1:
+//   - The board is now a FULL-PAGE view (not a modal). Toggled via
+//     `body.kanban-mode` (same pattern the slideshow uses with
+//     `body.presenting`). The board replaces the entire app view while open.
+//   - Tasks can ONLY be added to the "To do" column (the only column with an
+//     Add input). Move them between columns by dragging. There is no Add
+//     footer on In progress / Done — the only way to populate them is to drag
+//     cards in.
+//   - HTML5 drag-and-drop between columns. Cards are `draggable="true"`; each
+//     column is a drop target that tints while a card hovers over it.
 
 const KANBAN_KEY = 'mdpeek-kanban-tasks';
 const KANBAN_STATUSES = ['todo', 'progress', 'done'];
 const KANBAN_LABELS = { todo: 'To do', progress: 'In progress', done: 'Done' };
+// The only status new tasks can be added to. Other columns fill up by dragging.
+const KANBAN_ADD_STATUS = 'todo';
 
 // Load tasks from localStorage. Shape: `{ id, status, text, createdAt }[]`.
 // Defensive against corrupt/legacy data — bad rows are dropped.
@@ -1777,6 +1787,9 @@ function saveKanbanTasks(tasks) {
 }
 
 let _kanbanTasks = loadKanbanTasks();
+// The id of the card currently being dragged. Set on dragstart, cleared on
+// dragend / drop. Used by the column drop handlers to know which task to move.
+let _kanbanDragId = null;
 
 // Escape user task text before injecting into innerHTML. Reuses the global
 // escapeHtml imported from lib/escape.js. Trailing/leading whitespace gets
@@ -1791,37 +1804,57 @@ function renderKanban() {
     const count = cards.length;
     const cardsHtml = cards.length
       ? cards.map((t) => `
-        <div class="kanban-card" data-id="${t.id}">
+        <div class="kanban-card" data-id="${t.id}" draggable="true">
           <span class="kanban-card-text">${escapeHtml(t.text)}</span>
           <button class="kanban-card-delete" data-id="${t.id}" title="Delete task" aria-label="Delete task">×</button>
         </div>`).join('')
       : '<div class="kanban-empty">No tasks</div>';
+    // The Add-task footer renders ONLY on the To-Do column. Other columns
+    // have no input — cards arrive there only via drag-and-drop.
+    const footer = status === KANBAN_ADD_STATUS
+      ? `<div class="kanban-column-footer">
+          <input class="kanban-add-input" data-status="${status}" type="text" placeholder="Add a task…" maxlength="280" aria-label="Add task to ${KANBAN_LABELS[status]}" />
+          <button class="kanban-add-btn" data-status="${status}" type="button">Add</button>
+        </div>`
+      : '';
     return `
       <div class="kanban-column" data-status="${status}">
         <div class="kanban-column-header">
-          <span>${KANBAN_LABELS[status]}</span>
+          <span class="kanban-column-header-label"><span class="kanban-column-dot"></span>${KANBAN_LABELS[status]}</span>
           <span class="kanban-column-count">${count}</span>
         </div>
         <div class="kanban-cards">${cardsHtml}</div>
-        <div class="kanban-column-footer">
-          <input class="kanban-add-input" data-status="${status}" type="text" placeholder="Add a task…" maxlength="280" aria-label="Add task to ${KANBAN_LABELS[status]}" />
-          <button class="kanban-add-btn" data-status="${status}" type="button">Add</button>
-        </div>
+        ${footer}
       </div>`;
   }).join('');
   el.kanbanBoard.innerHTML = html;
 }
 
-// Add a task to a column. Empty / whitespace-only text is ignored.
+// Add a task. Only the To-Do status accepts new tasks; if any other status
+// is passed we redirect to To-Do (defensive — the UI only renders an input on
+// To-Do anyway). Empty / whitespace-only text is ignored.
 function addKanbanTask(status, text) {
   const trimmed = (text || '').trim();
   if (!trimmed) return;
   _kanbanTasks.push({
     id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    status,
+    status: KANBAN_ADD_STATUS,
     text: trimmed,
     createdAt: Date.now(),
   });
+  saveKanbanTasks(_kanbanTasks);
+  renderKanban();
+}
+
+// Move a task to a different column. No-op if the task isn't found or is
+// already in the target status. Bumps createdAt so the card lands at the
+// bottom of its new column (most-recently-moved last).
+function moveKanbanTask(id, newStatus) {
+  if (!KANBAN_STATUSES.includes(newStatus)) return;
+  const task = _kanbanTasks.find((t) => t.id === id);
+  if (!task || task.status === newStatus) return;
+  task.status = newStatus;
+  task.createdAt = Date.now();
   saveKanbanTasks(_kanbanTasks);
   renderKanban();
 }
@@ -1836,16 +1869,16 @@ function deleteKanbanTask(id) {
 }
 
 function openKanban() {
-  if (!el.kanbanDialog) return;
+  if (!el.kanbanView) return;
   renderKanban();
-  el.kanbanDialog.classList.remove('hidden');
-  // Focus the first column's add input so the user can immediately type.
-  const firstInput = el.kanbanBoard.querySelector('.kanban-add-input');
-  if (firstInput) firstInput.focus();
+  document.body.classList.add('kanban-mode');
+  // Focus the To-Do column's add input so the user can immediately type.
+  const input = el.kanbanBoard.querySelector('.kanban-add-input');
+  if (input) input.focus();
 }
 
 function closeKanban() {
-  if (el.kanbanDialog) el.kanbanDialog.classList.add('hidden');
+  document.body.classList.remove('kanban-mode');
 }
 
 
@@ -2928,22 +2961,16 @@ if (el.collabEnd) el.collabEnd.addEventListener('click', (e) => {
 if (el.daily) el.daily.addEventListener('click', openDailyNote);
 
 // ---------- Kanban event wiring ----------
-// Open button + Done button + click-outside-to-close.
+// Open button + Done button. Esc-to-close is handled in the global keydown
+// listener (see "Ctrl+Shift+K → open the global Kanban board" below — the Esc
+// branch sits in the same handler). No click-outside-to-close because the
+// Kanban is a full-page view, not an overlay.
 if (el.kanban) el.kanban.addEventListener('click', openKanban);
 if (el.kanbanDoneBtn) el.kanbanDoneBtn.addEventListener('click', closeKanban);
-if (el.kanbanDialog) {
-  el.kanbanDialog.addEventListener('click', (e) => {
-    // Only close when clicking the overlay itself, not when clicking inside
-    // the modal card. Matches the share/settings dialog behavior.
-    if (e.target === el.kanbanDialog) closeKanban();
-  });
-  el.kanbanDialog.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { e.preventDefault(); closeKanban(); }
-  });
-}
-// Delegated handlers on the board: Add button clicks, Enter in inputs, and
-// Delete button clicks. Delegation survives the renderKanban innerHTML
-// rebuilds — no per-card listeners to track.
+// Delegated handlers on the board: Add button clicks, Enter in inputs, Delete
+// button clicks, and the full HTML5 drag-and-drop lifecycle (dragstart,
+// dragover, dragenter, dragleave, drop, dragend). Delegation survives the
+// renderKanban innerHTML rebuilds — no per-card listeners to track.
 if (el.kanbanBoard) {
   el.kanbanBoard.addEventListener('click', (e) => {
     const addBtn = e.target.closest('.kanban-add-btn');
@@ -2970,8 +2997,67 @@ if (el.kanbanBoard) {
     e.preventDefault();
     addKanbanTask(input.dataset.status, input.value);
     input.value = '';
-    // Keep focus on the same column for rapid entry.
+    // Keep focus on the To-Do input for rapid entry.
     input.focus();
+  });
+
+  // ----- drag-and-drop -----
+  // HTML5 DnD lifecycle. We carry the dragged card's task id in
+  // _kanbanDragId (module-level, set on dragstart) because dataTransfer is
+  // awkward to read outside the drop handler and DragEvents don't always
+  // include the source element on the drop side in every browser.
+  el.kanbanBoard.addEventListener('dragstart', (e) => {
+    const card = e.target.closest('.kanban-card');
+    if (!card) return;
+    _kanbanDragId = card.dataset.id;
+    card.classList.add('kanban-card-dragging');
+    // Required by some browsers for the drag to actually start.
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', _kanbanDragId); } catch { /* some browsers reject setData */ }
+  });
+  el.kanbanBoard.addEventListener('dragend', (e) => {
+    const card = e.target.closest('.kanban-card');
+    if (card) card.classList.remove('kanban-card-dragging');
+    // Clear the in-flight id and any lingering drop-target highlights.
+    _kanbanDragId = null;
+    el.kanbanBoard.querySelectorAll('.kanban-column-drop').forEach((c) => c.classList.remove('kanban-column-drop'));
+  });
+  // dragover MUST call preventDefault or the browser treats the column as a
+  // non-drop-zone (the default for most elements). We also toggle the
+  // drop-target highlight class.
+  el.kanbanBoard.addEventListener('dragover', (e) => {
+    if (!_kanbanDragId) return;
+    const col = e.target.closest('.kanban-column');
+    if (!col) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  });
+  el.kanbanBoard.addEventListener('dragenter', (e) => {
+    if (!_kanbanDragId) return;
+    const col = e.target.closest('.kanban-column');
+    if (!col) return;
+    col.classList.add('kanban-column-drop');
+  });
+  el.kanbanBoard.addEventListener('dragleave', (e) => {
+    if (!_kanbanDragId) return;
+    const col = e.target.closest('.kanban-column');
+    if (!col) return;
+    // Only clear the highlight when the pointer leaves the column entirely
+    // (relatedTarget is outside the column). dragleave fires on every child
+    // element boundary, so without this check the highlight flickers.
+    if (!col.contains(e.relatedTarget)) {
+      col.classList.remove('kanban-column-drop');
+    }
+  });
+  el.kanbanBoard.addEventListener('drop', (e) => {
+    if (!_kanbanDragId) return;
+    const col = e.target.closest('.kanban-column');
+    if (!col) return;
+    e.preventDefault();
+    const newStatus = col.dataset.status;
+    moveKanbanTask(_kanbanDragId, newStatus);
+    _kanbanDragId = null;
+    el.kanbanBoard.querySelectorAll('.kanban-column-drop').forEach((c) => c.classList.remove('kanban-column-drop'));
   });
 }
 
@@ -3892,11 +3978,21 @@ window.addEventListener('keydown', (e) => {
     toggleExplorer();
     return;
   }
-  // Ctrl+Shift+K → open the global Kanban board.
+  // Ctrl+Shift+K → toggle the global Kanban board. Also closes it (so the
+  // user can hit the same shortcut to dismiss).
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'K' || e.key === 'k')) {
     e.preventDefault();
     e.stopPropagation();
-    openKanban();
+    if (document.body.classList.contains('kanban-mode')) closeKanban();
+    else openKanban();
+    return;
+  }
+  // Esc → close the Kanban board (full-page view). Only fires when the board
+  // is open. Lives here (the global keydown handler) so it works regardless
+  // of focus inside the board.
+  if (e.key === 'Escape' && document.body.classList.contains('kanban-mode')) {
+    e.preventDefault();
+    closeKanban();
     return;
   }
   if (e.key === 'F11') {
