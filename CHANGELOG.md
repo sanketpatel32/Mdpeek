@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.7] - 2026-07-21
+
+### Fixed — editor line number gutter typography alignment
+- **Line numbers (gutter) vertical alignment fixed.** Synchronized `fontSize`, `lineHeight`, `paddingTop`, `paddingBottom`, and `fontFamily` from the editor `<textarea>` directly to `.gutter` and its child row elements (`.gutter > div`). This ensures line numbers match the exact line-box height and vertical baseline position of editor lines regardless of document length, font settings, or zoom level.
+- **Zoom & font scaling gutter sync.** `applyZoom()` now scales `el.gutter.style.fontSize` and triggers `syncGutter()` on editor zoom/font updates so line numbers re-align dynamically.
+
 ## [0.21.6] - 2026-07-21
 
 ### Fixed — caret invisible under syntax highlighting
