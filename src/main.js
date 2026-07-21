@@ -202,6 +202,13 @@ const el = {
   collabStatus: document.getElementById('collab-status'),
   collabEnd: document.getElementById('collab-end'),
   peerCarets: document.getElementById('peer-carets'),
+
+  // Kanban (v0.22.1) — global task board. Persisted in localStorage so the
+  // board survives app restarts and is shared across every tab.
+  kanban: document.getElementById('btn-kanban'),
+  kanbanDialog: document.getElementById('kanban-dialog'),
+  kanbanBoard: document.getElementById('kanban-board'),
+  kanbanDoneBtn: document.getElementById('kanban-done-btn'),
 };
 
 // ---------- helpers ----------
@@ -749,6 +756,7 @@ const palette = initCommandPalette(() => {
     { id: 'zoom-reset', label: 'Reset zoom', hint: 'Ctrl+0', keywords: 'zoom reset 100', run: zoomReset },
     { id: 'theme', label: 'Cycle theme', keywords: 'theme color light dark cycle', run: cycleTheme },
     { id: 'settings', label: 'Open settings', keywords: 'settings preferences options', run: openSettings },
+    { id: 'kanban', label: 'Open Kanban board', hint: 'Ctrl+Shift+K', keywords: 'kanban board tasks todo done progress', run: openKanban },
     { id: 'check-updates', label: 'Check for updates', keywords: 'update version check', run: () => checkForUpdates(false) },
     { id: 'quit', label: 'Quit mdpeek', keywords: 'quit exit close', run: doQuitApp },
   ];
@@ -1722,6 +1730,124 @@ function refreshShareModal(status) {
 function closeShareModal() {
   el.shareDialog.classList.add('hidden');
 }
+
+// ---------- Global Kanban board (v0.22.1) ----------
+//
+// A simple three-column task board (To do / In progress / Done) that lives at
+// the app level — not tied to any tab or document. Tasks are stored globally
+// in localStorage (mdpeek-kanban-tasks) and persist across restarts. The
+// board is intentionally minimal: add via a per-column input, delete via a ×
+// button on each card. No drag-and-drop, no priorities, no dates — the user
+// asked for "very simple and sorted".
+
+const KANBAN_KEY = 'mdpeek-kanban-tasks';
+const KANBAN_STATUSES = ['todo', 'progress', 'done'];
+const KANBAN_LABELS = { todo: 'To do', progress: 'In progress', done: 'Done' };
+
+// Load tasks from localStorage. Shape: `{ id, status, text, createdAt }[]`.
+// Defensive against corrupt/legacy data — bad rows are dropped.
+function loadKanbanTasks() {
+  try {
+    const raw = localStorage.getItem(KANBAN_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((t) => t && typeof t.text === 'string' && KANBAN_STATUSES.includes(t.status))
+      .map((t) => ({
+        id: typeof t.id === 'string' ? t.id : `task-${Math.random().toString(36).slice(2)}`,
+        status: t.status,
+        text: t.text,
+        createdAt: typeof t.createdAt === 'number' ? t.createdAt : Date.now(),
+      }));
+  } catch {
+    return [];
+  }
+}
+
+// Persist the task list. Wrapped in try/catch — quota errors or disabled
+// storage shouldn't crash the app, the user just loses persistence for that
+// one write.
+function saveKanbanTasks(tasks) {
+  try {
+    localStorage.setItem(KANBAN_KEY, JSON.stringify(tasks));
+  } catch (e) {
+    console.error('Could not save Kanban tasks:', e);
+  }
+}
+
+let _kanbanTasks = loadKanbanTasks();
+
+// Escape user task text before injecting into innerHTML. Reuses the global
+// escapeHtml imported from lib/escape.js. Trailing/leading whitespace gets
+// trimmed; we render with white-space: pre-wrap so internal line breaks the
+// user typed stay intact.
+function renderKanban() {
+  if (!el.kanbanBoard) return;
+  const html = KANBAN_STATUSES.map((status) => {
+    const cards = _kanbanTasks
+      .filter((t) => t.status === status)
+      .sort((a, b) => a.createdAt - b.createdAt);
+    const count = cards.length;
+    const cardsHtml = cards.length
+      ? cards.map((t) => `
+        <div class="kanban-card" data-id="${t.id}">
+          <span class="kanban-card-text">${escapeHtml(t.text)}</span>
+          <button class="kanban-card-delete" data-id="${t.id}" title="Delete task" aria-label="Delete task">×</button>
+        </div>`).join('')
+      : '<div class="kanban-empty">No tasks</div>';
+    return `
+      <div class="kanban-column" data-status="${status}">
+        <div class="kanban-column-header">
+          <span>${KANBAN_LABELS[status]}</span>
+          <span class="kanban-column-count">${count}</span>
+        </div>
+        <div class="kanban-cards">${cardsHtml}</div>
+        <div class="kanban-column-footer">
+          <input class="kanban-add-input" data-status="${status}" type="text" placeholder="Add a task…" maxlength="280" aria-label="Add task to ${KANBAN_LABELS[status]}" />
+          <button class="kanban-add-btn" data-status="${status}" type="button">Add</button>
+        </div>
+      </div>`;
+  }).join('');
+  el.kanbanBoard.innerHTML = html;
+}
+
+// Add a task to a column. Empty / whitespace-only text is ignored.
+function addKanbanTask(status, text) {
+  const trimmed = (text || '').trim();
+  if (!trimmed) return;
+  _kanbanTasks.push({
+    id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    status,
+    text: trimmed,
+    createdAt: Date.now(),
+  });
+  saveKanbanTasks(_kanbanTasks);
+  renderKanban();
+}
+
+// Delete a task by id. No-op if the id isn't found.
+function deleteKanbanTask(id) {
+  const before = _kanbanTasks.length;
+  _kanbanTasks = _kanbanTasks.filter((t) => t.id !== id);
+  if (_kanbanTasks.length === before) return;
+  saveKanbanTasks(_kanbanTasks);
+  renderKanban();
+}
+
+function openKanban() {
+  if (!el.kanbanDialog) return;
+  renderKanban();
+  el.kanbanDialog.classList.remove('hidden');
+  // Focus the first column's add input so the user can immediately type.
+  const firstInput = el.kanbanBoard.querySelector('.kanban-add-input');
+  if (firstInput) firstInput.focus();
+}
+
+function closeKanban() {
+  if (el.kanbanDialog) el.kanbanDialog.classList.add('hidden');
+}
+
 
 async function endCollabSession() {
   // Tear down the network session first so peers get a clean disconnect.
@@ -2801,6 +2927,54 @@ if (el.collabEnd) el.collabEnd.addEventListener('click', (e) => {
 });
 if (el.daily) el.daily.addEventListener('click', openDailyNote);
 
+// ---------- Kanban event wiring ----------
+// Open button + Done button + click-outside-to-close.
+if (el.kanban) el.kanban.addEventListener('click', openKanban);
+if (el.kanbanDoneBtn) el.kanbanDoneBtn.addEventListener('click', closeKanban);
+if (el.kanbanDialog) {
+  el.kanbanDialog.addEventListener('click', (e) => {
+    // Only close when clicking the overlay itself, not when clicking inside
+    // the modal card. Matches the share/settings dialog behavior.
+    if (e.target === el.kanbanDialog) closeKanban();
+  });
+  el.kanbanDialog.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); closeKanban(); }
+  });
+}
+// Delegated handlers on the board: Add button clicks, Enter in inputs, and
+// Delete button clicks. Delegation survives the renderKanban innerHTML
+// rebuilds — no per-card listeners to track.
+if (el.kanbanBoard) {
+  el.kanbanBoard.addEventListener('click', (e) => {
+    const addBtn = e.target.closest('.kanban-add-btn');
+    if (addBtn) {
+      const status = addBtn.dataset.status;
+      const input = el.kanbanBoard.querySelector(`.kanban-add-input[data-status="${status}"]`);
+      if (input) {
+        addKanbanTask(status, input.value);
+        input.value = '';
+        input.focus();
+      }
+      return;
+    }
+    const del = e.target.closest('.kanban-card-delete');
+    if (del) {
+      deleteKanbanTask(del.dataset.id);
+      return;
+    }
+  });
+  el.kanbanBoard.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const input = e.target.closest('.kanban-add-input');
+    if (!input) return;
+    e.preventDefault();
+    addKanbanTask(input.dataset.status, input.value);
+    input.value = '';
+    // Keep focus on the same column for rapid entry.
+    input.focus();
+  });
+}
+
 // Slideshow click navigation. Arrow buttons + click-on-stage halves advance
 // or retreat (PowerPoint convention). Delegated so it survives rebuilds.
 el.slideshow.addEventListener('click', (e) => {
@@ -3716,6 +3890,13 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     e.stopPropagation();
     toggleExplorer();
+    return;
+  }
+  // Ctrl+Shift+K → open the global Kanban board.
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'K' || e.key === 'k')) {
+    e.preventDefault();
+    e.stopPropagation();
+    openKanban();
     return;
   }
   if (e.key === 'F11') {

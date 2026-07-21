@@ -112,6 +112,9 @@
           <button id="btn-daily" class="tool-btn icon-only" title="Open or create today's note (YYYY-MM-DD.md)" aria-label="Open or create today's note">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
           </button>
+          <button id="btn-kanban" class="tool-btn icon-only" title="Kanban board (Ctrl+Shift+K)" aria-label="Open Kanban board">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="12" rx="1"/><rect x="17" y="3" width="4" height="8" rx="1"/></svg>
+          </button>
         </div>
         <span class="tool-separator" aria-hidden="true"></span>
         <div class="tool-group zoom-widget">
@@ -379,6 +382,22 @@
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 17l5-5-5-5M21 12H9M9 7H6a3 3 0 0 0-3 3v4a3 3 0 0 0 3 3h3"/></svg>
             End session
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Global Kanban board. Three columns (To do / In progress / Done).
+         Tasks are stored globally in localStorage (mdpeek-kanban-tasks) so the
+         board survives app restarts and is the same across every tab. -->
+    <div id="kanban-dialog" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="kanban-dialog-title">
+      <div class="modal kanban-modal">
+        <div class="kanban-header">
+          <h2 id="kanban-dialog-title" class="modal-title">Kanban board</h2>
+          <button class="modal-btn modal-btn-secondary" id="kanban-done-btn" type="button">Done</button>
+        </div>
+        <div class="kanban-board" id="kanban-board">
+          <!-- Columns are rendered by JS to keep the markup in sync with the
+               task data model. Three columns: todo / progress / done. -->
         </div>
       </div>
     </div>
@@ -673,7 +692,7 @@
               <div class="about-card">
                 <img src="/icon.png" alt="mdpeek" class="about-logo" />
                 <h3 class="about-name">mdpeek</h3>
-                <div class="about-version">Version <span id="about-version">0.22.0</span></div>
+                <div class="about-version">Version <span id="about-version">0.22.1</span></div>
                 <p class="about-tagline">A lightweight Markdown viewer &amp; editor for Windows.</p>
                 <div class="about-links">
                   <button class="about-link primary" data-href="https://github.com/sanketpatel32/Mdpeek" type="button">

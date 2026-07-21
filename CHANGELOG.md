@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-07-21
+
+### Added — global Kanban board
+- **A simple three-column task board — To do / In progress / Done — accessible from anywhere in the app via a toolbar button, the command palette, or `Ctrl+Shift+K`.** Tasks live globally (not per-document) in `localStorage` under `mdpeek-kanban-tasks`, so the board is the same across every tab and survives app restarts. No accounts, no sync — just local persistence.
+- Each column has its own "Add a task…" input at the bottom; press Enter or click Add to append a card. Cards can be deleted individually via the × button on each card. There is intentionally **no drag-and-drop, no priorities, no due dates** — the board is meant to be "very simple and sorted" as requested.
+- The board re-renders from data on every change (cheap; typical usage is <50 tasks), so no per-card event listeners leak across renders. Card text is HTML-escaped on render; user input is capped at 280 chars.
+- A colored dot on each column header (gray / amber / green) gives a quick visual cue for the three statuses.
+
+### Conventions followed
+- Toolbar button (`#btn-kanban`) added next to the daily-notes button, with the standard `tool-btn icon-only` class + inline feather-style SVG.
+- Modal markup mirrors the existing `#share-dialog` pattern (`.modal-overlay.hidden` + `.modal` card). Toggle is via `classList.add/remove('hidden')`, matching every other dialog in the app.
+- `Ctrl+Shift+K` shortcut added to the capture-phase keydown handler alongside `Ctrl+Shift+E` (explorer) and `Ctrl+Shift+C` (copy rich).
+- Command palette entry: `{ id: 'kanban', label: 'Open Kanban board', hint: 'Ctrl+Shift+K', keywords: 'kanban board tasks todo done progress' }`.
+- The `mdpeek-kanban-tasks` key is intentionally **NOT** in the `SETTING_KEYS` array — resetting all settings from the Settings panel should not wipe user tasks.
+
+### Tests
+- No new automated tests (the Kanban is pure DOM glue; the persistence layer is one-line `localStorage` wrappers and the rendering is a single template string — no logic worth pinning down in jsdom).
+- Existing 292/292 tests pass unchanged.
+
 ## [0.22.0] - 2026-07-21
 
 ### Added — live collaboration on plain text, code files, and Excalidraw canvases
