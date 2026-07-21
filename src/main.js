@@ -1787,9 +1787,21 @@ function saveKanbanTasks(tasks) {
 }
 
 let _kanbanTasks = loadKanbanTasks();
-// The id of the card currently being dragged. Set on dragstart, cleared on
-// dragend / drop. Used by the column drop handlers to know which task to move.
-let _kanbanDragId = null;
+// Pointer-based drag state for Kanban cards. We intentionally do NOT use the
+// HTML5 drag-and-drop API here: on Tauri 2 (Windows/WebView2) the OS-level
+// drag-drop handler intercepts dragstart/dragover/drop before the DOM sees
+// them, so HTML5 DnD between in-page elements silently fails. Pointer events
+// bypass that layer entirely and work in every environment.
+//
+// Lifecycle:
+//   pointerdown on a card → record id + start coords, attach window listeners
+//   pointermove            → past threshold? create ghost, highlight column
+//   pointerup              → if dragging, drop into the column under the cursor
+let _kanbanDrag = null;
+// Pixels of slack before a press becomes a drag. Below this the pointerdown is
+// treated as a no-op (the card's click handler still fires for the delete
+// button etc.).
+const KANBAN_DRAG_THRESHOLD = 4;
 
 // Escape user task text before injecting into innerHTML. Reuses the global
 // escapeHtml imported from lib/escape.js. Trailing/leading whitespace gets
@@ -1804,7 +1816,7 @@ function renderKanban() {
     const count = cards.length;
     const cardsHtml = cards.length
       ? cards.map((t) => `
-        <div class="kanban-card" data-id="${t.id}" draggable="true">
+        <div class="kanban-card" data-id="${t.id}">
           <span class="kanban-card-text">${escapeHtml(t.text)}</span>
           <button class="kanban-card-delete" data-id="${t.id}" title="Delete task" aria-label="Delete task">×</button>
         </div>`).join('')
@@ -3001,64 +3013,106 @@ if (el.kanbanBoard) {
     input.focus();
   });
 
-  // ----- drag-and-drop -----
-  // HTML5 DnD lifecycle. We carry the dragged card's task id in
-  // _kanbanDragId (module-level, set on dragstart) because dataTransfer is
-  // awkward to read outside the drop handler and DragEvents don't always
-  // include the source element on the drop side in every browser.
-  el.kanbanBoard.addEventListener('dragstart', (e) => {
+  // ----- drag-and-drop (pointer events) -----
+  // Why pointer events, not HTML5 DnD: Tauri 2's webview (WebView2 on
+  // Windows) intercepts OS-level drag events at the window layer, so HTML5
+  // dragstart/dragover/drop never fire for in-page elements — the Kanban
+  // cards appear "stuck". Pointer events bypass the OS layer and work in
+  // every environment (Tauri desktop + plain browser).
+  //
+  // The card itself gets pointerdown; window gets pointermove/pointerup
+  // (attached lazily once a press begins, removed on release). Delegated
+  // pointerdown survives the renderKanban innerHTML rebuilds.
+  el.kanbanBoard.addEventListener('pointerdown', (e) => {
+    // Ignore right/middle clicks and any press not on a card. Crucially, the
+    // delete button sits inside the card — its click handler still needs to
+    // fire, so we explicitly bail for presses on it.
+    if (e.button !== 0) return;
+    if (e.target.closest('.kanban-card-delete')) return;
     const card = e.target.closest('.kanban-card');
     if (!card) return;
-    _kanbanDragId = card.dataset.id;
-    card.classList.add('kanban-card-dragging');
-    // Required by some browsers for the drag to actually start.
-    e.dataTransfer.effectAllowed = 'move';
-    try { e.dataTransfer.setData('text/plain', _kanbanDragId); } catch { /* some browsers reject setData */ }
+    _kanbanDrag = {
+      id: card.dataset.id,
+      cardEl: card,
+      startX: e.clientX,
+      startY: e.clientY,
+      started: false,
+      ghost: null,
+      hoverCol: null,
+    };
+    window.addEventListener('pointermove', kanbanPointerMove);
+    window.addEventListener('pointerup', kanbanPointerUp, { once: true });
   });
-  el.kanbanBoard.addEventListener('dragend', (e) => {
-    const card = e.target.closest('.kanban-card');
-    if (card) card.classList.remove('kanban-card-dragging');
-    // Clear the in-flight id and any lingering drop-target highlights.
-    _kanbanDragId = null;
-    el.kanbanBoard.querySelectorAll('.kanban-column-drop').forEach((c) => c.classList.remove('kanban-column-drop'));
-  });
-  // dragover MUST call preventDefault or the browser treats the column as a
-  // non-drop-zone (the default for most elements). We also toggle the
-  // drop-target highlight class.
-  el.kanbanBoard.addEventListener('dragover', (e) => {
-    if (!_kanbanDragId) return;
-    const col = e.target.closest('.kanban-column');
-    if (!col) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  });
-  el.kanbanBoard.addEventListener('dragenter', (e) => {
-    if (!_kanbanDragId) return;
-    const col = e.target.closest('.kanban-column');
-    if (!col) return;
-    col.classList.add('kanban-column-drop');
-  });
-  el.kanbanBoard.addEventListener('dragleave', (e) => {
-    if (!_kanbanDragId) return;
-    const col = e.target.closest('.kanban-column');
-    if (!col) return;
-    // Only clear the highlight when the pointer leaves the column entirely
-    // (relatedTarget is outside the column). dragleave fires on every child
-    // element boundary, so without this check the highlight flickers.
-    if (!col.contains(e.relatedTarget)) {
-      col.classList.remove('kanban-column-drop');
+}
+
+// Move the ghost with the cursor + highlight whichever column the pointer is
+// over. `pointermove` fires a lot, so this stays cheap: just translate the
+// ghost and do a single document.elementFromPoint hit-test.
+function kanbanPointerMove(e) {
+  if (!_kanbanDrag) return;
+  const d = _kanbanDrag;
+  if (!d.started) {
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    // Wait until the pointer crosses the threshold so a plain click on a card
+    // (e.g. to focus before pressing Delete via keyboard) doesn't start a drag.
+    if (Math.abs(dx) < KANBAN_DRAG_THRESHOLD && Math.abs(dy) < KANBAN_DRAG_THRESHOLD) return;
+    d.started = true;
+    d.cardEl.classList.add('kanban-card-dragging');
+    // Build a floating ghost from the source card's text. Cloning the node
+    // directly would inherit its layout (grid widths etc.) — we want a
+    // free-floating copy, so build a fresh div with just the text content.
+    const ghost = document.createElement('div');
+    ghost.className = 'kanban-card-ghost';
+    const text = d.cardEl.querySelector('.kanban-card-text')?.textContent || '';
+    ghost.textContent = text;
+    document.body.appendChild(ghost);
+    d.ghost = ghost;
+  }
+  if (d.ghost) {
+    d.ghost.style.left = `${e.clientX}px`;
+    d.ghost.style.top = `${e.clientY}px`;
+  }
+  // Hide the ghost momentarily so elementFromPoint lands on whatever is
+  // actually under the cursor (the column), not the ghost itself. The ghost
+  // is pointer-events:none via CSS, but this is belt-and-suspenders across
+  // browsers that don't honor that on pointer events.
+  const prevDisplay = d.ghost?.style.display;
+  if (d.ghost) d.ghost.style.display = 'none';
+  const hit = document.elementFromPoint(e.clientX, e.clientY);
+  if (d.ghost) d.ghost.style.display = prevDisplay || '';
+  const col = hit?.closest('.kanban-column') || null;
+  if (col !== d.hoverCol) {
+    if (d.hoverCol) d.hoverCol.classList.remove('kanban-column-drop');
+    if (col) col.classList.add('kanban-column-drop');
+    d.hoverCol = col;
+  }
+}
+
+// Release: if the press crossed the drag threshold, drop into the column under
+// the cursor (if any). Always tear down listeners + ghost + highlights.
+function kanbanPointerUp(e) {
+  if (!_kanbanDrag) return;
+  const d = _kanbanDrag;
+  window.removeEventListener('pointermove', kanbanPointerMove);
+  if (d.started) {
+    // Find the drop column by hit-testing the release point — we can't trust
+    // d.hoverCol here because pointermove may not have fired for the exact
+    // release coords (the cursor can land between moves).
+    if (d.ghost) d.ghost.style.display = 'none';
+    const hit = document.elementFromPoint(e.clientX, e.clientY);
+    const col = hit?.closest('.kanban-column') || null;
+    if (col) {
+      const newStatus = col.dataset.status;
+      if (KANBAN_STATUSES.includes(newStatus)) {
+        moveKanbanTask(d.id, newStatus);
+      }
     }
-  });
-  el.kanbanBoard.addEventListener('drop', (e) => {
-    if (!_kanbanDragId) return;
-    const col = e.target.closest('.kanban-column');
-    if (!col) return;
-    e.preventDefault();
-    const newStatus = col.dataset.status;
-    moveKanbanTask(_kanbanDragId, newStatus);
-    _kanbanDragId = null;
-    el.kanbanBoard.querySelectorAll('.kanban-column-drop').forEach((c) => c.classList.remove('kanban-column-drop'));
-  });
+  }
+  d.cardEl?.classList.remove('kanban-card-dragging');
+  d.ghost?.remove();
+  el.kanbanBoard?.querySelectorAll('.kanban-column-drop').forEach((c) => c.classList.remove('kanban-column-drop'));
+  _kanbanDrag = null;
 }
 
 // Slideshow click navigation. Arrow buttons + click-on-stage halves advance

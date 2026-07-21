@@ -2672,17 +2672,43 @@ body.kanban-mode #kanban-view { display: flex; }
   color: var(--fg);
   word-break: break-word;
   cursor: grab;
+  /* Grab affordance via pointer events (not HTML5 DnD — Tauri's webview
+     intercepts HTML5 drag events at the OS layer and they never reach the
+     DOM). touch-action: none lets pointermove fire even on touch devices. */
+  touch-action: none;
   transition: border-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
 }
 .kanban-card:hover {
   border-color: var(--border);
 }
-/* While being dragged (HTML5 DnD sets this class via dragstart/dragend). The
-   low opacity signals "you're holding this" and makes it obvious which card
-   is in flight. */
+/* While being dragged (added on pointerdown past the threshold; removed on
+   pointerup). Low opacity signals "you're holding this" and makes it obvious
+   which card is in flight. */
 .kanban-card.kanban-card-dragging {
   opacity: 0.4;
   cursor: grabbing;
+}
+/* Floating clone that follows the cursor during a drag. Built fresh in JS
+   (kanbanPointerMove) so it isn't tied to the source card's grid layout.
+   Positioned at clientX/clientY with a centering transform; pointer-events
+   none so elementFromPoint hit-tests the column underneath, not the ghost. */
+.kanban-card-ghost {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 1200;
+  max-width: 320px;
+  padding: 10px 12px;
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  font-size: 13px;
+  line-height: 1.4;
+  word-break: break-word;
+  white-space: pre-wrap;
+  user-select: none;
 }
 .kanban-card-text {
   flex: 1;

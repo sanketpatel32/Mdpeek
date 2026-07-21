@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.3] - 2026-07-21
+
+### Fixed — Kanban drag-and-drop actually works in the desktop app
+- **Cards couldn't be moved between columns in the desktop (Tauri) build.** v0.22.2 used the HTML5 drag-and-drop API (`draggable="true"`, `dragstart`/`dragover`/`drop`), which works in a plain browser but is silently intercepted by Tauri 2's WebView2 at the OS layer on Windows. The events never reached the DOM, so dropping a card on another column did nothing.
+- **Rewrote the drag-and-drop on pointer events** (`pointerdown` / `pointermove` / `pointerup`). Pointer events bypass the OS drag-drop interception entirely and work in every environment (Tauri desktop + plain browser + touch). The lifecycle:
+  - `pointerdown` on a card (left button, not on the delete button) records the start position and id.
+  - `pointermove` past a 4-pixel slack threshold creates a floating ghost card that follows the cursor and highlights the column under the pointer.
+  - `pointerup` drops into the column under the cursor (if any), then tears down the ghost + highlights.
+- A plain click on a card (no movement) is now a no-op — the slack threshold prevents accidental drags when the user just wanted to focus the card.
+- **Visuals unchanged from v0.22.2:** source card still dims to 40% while dragged, target column still tints with the accent color, ghost is a fresh floating clone with an accent border + shadow.
+- Removed the `draggable="true"` attribute from cards (no longer needed). Added `touch-action: none` so pointer events fire reliably on touch devices.
+
 ## [0.22.2] - 2026-07-21
 
 ### Changed — Kanban is now a full-page view with drag-and-drop
