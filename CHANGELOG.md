@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-07-21
+
+### Changed — Minimalist Top Bar Redesign
+- **Organized toolbar controls into clean, rounded surface groups:** Buttons are now neatly grouped into logical clusters (History Navigation, Document Actions, View/Explorer Toggles, Tools & Productivity, Zoom Control, App Settings).
+- **Reduced visual clutter & button sizes:** Scaled toolbar icons and buttons down to a sleek 28px height with 16px icon dimensions and subtle borders, matching native macOS / Windows 11 Fluent editor aesthetics.
+- **Retained 100% of features:** All quick actions (Back/Forward, Open/Save, Edit Mode, PDF Annotations, TOC, File Explorer, Folder Search, HTML/PDF Export, Presentation, Share, Daily Notes, Kanban, Zoom, Themes, Settings) remain fully accessible and shortcut-enabled.
+
+### Changed — Redesigned Settings Changelog View
+- **Modern Timeline & Card Layout:** Upgraded the Settings Changelog tab with styled version banners, accent category badges (`### Fixed`, `### Changed`, etc.), code block borders, and clean typography.
+- **Improved Scannability:** Increased line-height and contrast for release notes so reviewing past updates is effortless.
+
 ## [0.22.3] - 2026-07-21
 
 ### Fixed — Kanban drag-and-drop actually works in the desktop app
