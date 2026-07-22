@@ -183,28 +183,32 @@ export function initTerminal({ cwdProvider, onToast }) {
       return;
     }
 
-    // Local cd command
+    // Fast local cd command without launching subshell process
     if (trimmed.toLowerCase().startsWith('cd') || trimmed.toLowerCase().startsWith('cd ') || trimmed.toLowerCase().startsWith('cd..')) {
       let targetDir = trimmed.replace(/^cd\s*/i, '').trim().replace(/^['"]|['"]$/g, '');
-      if (!targetDir) targetDir = '.';
       const baseDir = getWorkingDir();
+      let resolved = baseDir;
 
-      try {
-        const res = await invoke('run_shell_command', {
-          command: `cd /d "${targetDir}" && cd`,
-          cwd: baseDir,
-        });
-        if (res.exit_code === 0 && res.stdout.trim()) {
-          const resolvedPath = res.stdout.trim().split('\r\n').pop().trim();
-          if (active) active.cwd = resolvedPath;
-          updatePwdDisplay();
-          appendEntry(trimmed, '', '', 0, resolvedPath);
-        } else {
-          appendEntry(trimmed, '', res.stderr || 'The system cannot find the path specified.', res.exit_code, baseDir);
+      if (!targetDir || targetDir === '.') {
+        resolved = baseDir;
+      } else if (targetDir === '..') {
+        const parts = baseDir.split(/[\\/]/).filter(Boolean);
+        if (parts.length > 1) {
+          parts.pop();
+          resolved = parts.join('\\');
+          if (baseDir.includes(':') && !resolved.includes(':')) resolved += '\\';
+        } else if (parts.length === 1 && parts[0].includes(':')) {
+          resolved = parts[0] + '\\';
         }
-      } catch (err) {
-        appendEntry(trimmed, '', String(err), -1, baseDir);
+      } else if (/^[a-zA-Z]:[\\/]/.test(targetDir)) {
+        resolved = targetDir;
+      } else {
+        resolved = baseDir.replace(/[\\/]+$/, '') + '\\' + targetDir.replace(/^[\\/]+/, '');
       }
+
+      if (active) active.cwd = resolved;
+      updatePwdDisplay();
+      appendEntry(trimmed, '', '', 0, resolved);
       if (active) active.isExecuting = false;
       return;
     }

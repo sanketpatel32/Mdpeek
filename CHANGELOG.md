@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.1] - 2026-07-22
+
+### Fixed — Instant Pure-JS `cd` / `cd..` Resolution (Subshell-Free)
+- **Instant `cd` Execution:** Removed subshell execution delay for directory navigation commands (`cd`, `cd..`, `cd <dir>`, `cd \path`). `cd` operations now resolve in 0ms synchronously in JS, instant like a native shell prompt.
+
 ## [0.26.0] - 2026-07-22
 
 ### Added & Fixed — Multi-Tab Terminal & Directory Resolution Fix
