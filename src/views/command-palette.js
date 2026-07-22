@@ -145,3 +145,13 @@ export function initQuickSwitcher(getItems, onSelect) {
     onSelect,
   });
 }
+
+// Snippet picker — markdown templates & code fences.
+export function initSnippetPicker(getSnippets, onSelect) {
+  return makePicker({
+    id: 'snippet-picker',
+    placeholder: 'Select a template or snippet to insert…',
+    getItems: getSnippets,
+    onSelect,
+  });
+}
