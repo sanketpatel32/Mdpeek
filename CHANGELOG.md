@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.2] - 2026-07-22
+
+### Fixed — integrated terminal input and dimension sync
+
+- **Persistent PTY Stdin Writer:** Fixed a critical issue in `src-tauri/src/pty.rs` where `spawn_terminal` took and dropped the PTY writer as a smoke test, closing the process stdin. `TermEntry` now retains the writer handle persistently so `write_terminal` executes keystrokes correctly.
+- **Initial Viewport & Resize Sync:** Synchronized `fit.fit()` layout calculations and attached viewport listeners prior to invoking `resize_terminal` so terminal rows and columns stay aligned with xterm.js right from startup.
+- **Clipboard Operations:** Added custom key handlers for `Ctrl+C` (copy active text selection) and `Ctrl+V` (paste clipboard text).
+
 ## [0.27.1] - 2026-07-22
 
 ### Fixed — terminal "backend did not respond" error

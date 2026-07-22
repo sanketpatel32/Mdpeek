@@ -188,6 +188,26 @@ export function initTerminal({ cwdProvider, onToast }) {
       term.write(`\x1b[31mFailed to start terminal: ${escapeHtml(String(err))}\x1b[0m\r\n`);
     }
 
+    if (term.attachCustomKeyEventHandler) {
+      term.attachCustomKeyEventHandler((arg) => {
+        if (arg.type === 'keydown') {
+          if ((arg.ctrlKey || arg.metaKey) && (arg.key === 'c' || arg.key === 'C') && term.hasSelection()) {
+            navigator.clipboard.writeText(term.getSelection());
+            return false;
+          }
+          if ((arg.ctrlKey || arg.metaKey) && (arg.key === 'v' || arg.key === 'V')) {
+            navigator.clipboard.readText().then((text) => {
+              if (text && ptyId !== undefined) {
+                invoke('write_terminal', { id: ptyId, data: text }).catch(() => {});
+              }
+            }).catch(() => {});
+            return false;
+          }
+        }
+        return true;
+      });
+    }
+
     // Pipe keystrokes → PTY. onData fires on every key, including Ctrl+C
     // (\x03), Enter (\r), arrows, etc. — xterm.js does the keyboard mapping.
     const onDataDisp = term.onData((str) => {
@@ -202,6 +222,15 @@ export function initTerminal({ cwdProvider, onToast }) {
       if (ptyId === undefined) return;
       invoke('resize_terminal', { id: ptyId, cols, rows }).catch(() => { /* best-effort */ });
     });
+
+    if (ptyId !== undefined) {
+      requestAnimationFrame(() => {
+        try {
+          fit.fit();
+          invoke('resize_terminal', { id: ptyId, cols: term.cols, rows: term.rows }).catch(() => {});
+        } catch { /* noop */ }
+      });
+    }
 
     const tab = {
       id,

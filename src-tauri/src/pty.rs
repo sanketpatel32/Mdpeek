@@ -32,6 +32,7 @@ static NEXT_ID: AtomicU32 = AtomicU32::new(1);
 // boxed master is used for both writing (keystrokes) and resizing.
 pub(crate) struct TermEntry {
     master: Box<dyn MasterPty + Send>,
+    writer: Box<dyn Write + Send>,
     // Child handle: dropped on kill. Keeping it stored prevents the child from
     // being reaped prematurely if the user closes the drawer without killing
     // the tab.
@@ -164,9 +165,8 @@ pub fn spawn_terminal(
     let master = pair.master;
     eprintln!("[pty] master moved out of pair");
 
-    // Smoke-test that the PTY is writable before we commit to storing it.
-    // portable_pty semantics: take_writer yields a fresh writer per call.
-    let _ = master
+    // Take writer once and store it in TermEntry so it remains open and reusable.
+    let writer = master
         .take_writer()
         .map_err(|e| {
             eprintln!("[pty] take_writer FAILED: {e}");
@@ -200,6 +200,7 @@ pub fn spawn_terminal(
 
     let entry = TermEntry {
         master,
+        writer,
         _child: child,
     };
     state.0.lock().unwrap().insert(id, entry);
@@ -217,14 +218,11 @@ pub fn write_terminal(
 ) -> Result<(), String> {
     let mut map = state.0.lock().unwrap();
     let entry = map.get_mut(&id).ok_or_else(|| format!("no terminal with id {id}"))?;
-    let mut writer = entry
-        .master
-        .take_writer()
-        .map_err(|e| format!("take_writer failed: {e}"))?;
-    writer
+    entry
+        .writer
         .write_all(data.as_bytes())
         .map_err(|e| format!("write_all failed: {e}"))?;
-    let _ = writer.flush();
+    let _ = entry.writer.flush();
     Ok(())
 }
 
