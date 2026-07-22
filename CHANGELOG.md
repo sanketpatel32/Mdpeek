@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-07-22
+
+### Added & Fixed — Multi-Tab Terminal & Directory Resolution Fix
+- **Multi-Tab Terminal Drawer:** Added multi-tab support (`+` button, tab strip, close tab `✕`) allowing users to open and switch between multiple concurrent terminal sessions with independent working directories and command histories.
+- **`cd` & `cd..` Command Resolution:** Rewrote terminal directory navigation handling to support relative paths (`cd ..`, `cd subdir`, `cd /d D:\path`), updating prompt prefix and execution working directory cleanly.
+- **Dynamic Layout Shrinking:** Ensured open terminal drawer resizes main workspace area vertically without overlapping document viewer or file tree.
+
 ## [0.25.2] - 2026-07-22
 
 ### Fixed — File Explorer Chevrons & Layout Push-Down

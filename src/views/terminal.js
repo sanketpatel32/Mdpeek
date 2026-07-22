@@ -11,20 +11,103 @@ export function initTerminal({ cwdProvider, onToast }) {
   const pwdEl = document.getElementById('terminal-pwd');
   const clearBtn = document.getElementById('terminal-clear-btn');
   const closeBtn = document.getElementById('terminal-close-btn');
+  const tabsEl = document.getElementById('terminal-tabs');
+  const newTabBtn = document.getElementById('terminal-new-tab');
 
-  let currentCwd = null;
-  let commandHistory = [];
-  let historyIndex = -1;
-  let isExecuting = false;
+  let tabs = [];
+  let activeTabId = null;
+  let tabIdCounter = 1;
+
+  function createTab(name) {
+    const id = `term-${tabIdCounter++}`;
+    const initialCwd = cwdProvider() || '.';
+    const tab = {
+      id,
+      name: name || `Terminal ${tabIdCounter - 1}`,
+      cwd: initialCwd,
+      historyHtml: '',
+      commandHistory: [],
+      historyIndex: -1,
+      isExecuting: false,
+    };
+    tabs.push(tab);
+    switchTab(id);
+    renderTabs();
+    return tab;
+  }
+
+  function switchTab(id) {
+    const active = getActiveTab();
+    if (active) {
+      active.historyHtml = historyEl ? historyEl.innerHTML : '';
+    }
+    activeTabId = id;
+    const nextActive = getActiveTab();
+    if (nextActive && historyEl) {
+      historyEl.innerHTML = nextActive.historyHtml;
+      updatePwdDisplay();
+      if (input) {
+        input.value = '';
+        input.focus();
+      }
+    }
+    renderTabs();
+  }
+
+  function closeTab(id, e) {
+    if (e) e.stopPropagation();
+    if (tabs.length <= 1) {
+      // Keep at least one tab open
+      const tab = tabs[0];
+      tab.historyHtml = '';
+      tab.commandHistory = [];
+      tab.historyIndex = -1;
+      if (historyEl) historyEl.innerHTML = '';
+      updatePwdDisplay();
+      renderTabs();
+      return;
+    }
+    const idx = tabs.findIndex((t) => t.id === id);
+    tabs = tabs.filter((t) => t.id !== id);
+    if (activeTabId === id) {
+      const nextTab = tabs[Math.max(0, idx - 1)];
+      activeTabId = nextTab.id;
+      if (historyEl) historyEl.innerHTML = nextTab.historyHtml;
+      updatePwdDisplay();
+    }
+    renderTabs();
+  }
+
+  function getActiveTab() {
+    return tabs.find((t) => t.id === activeTabId) || tabs[0];
+  }
+
+  function renderTabs() {
+    if (!tabsEl) return;
+    tabsEl.innerHTML = '';
+    tabs.forEach((t) => {
+      const tabDiv = document.createElement('div');
+      tabDiv.className = `terminal-tab ${t.id === activeTabId ? 'active' : ''}`;
+      tabDiv.innerHTML = `<span>${escapeHtml(t.name)}</span><span class="terminal-tab-close" title="Close tab">✕</span>`;
+      tabDiv.addEventListener('click', () => switchTab(t.id));
+      const closeSpan = tabDiv.querySelector('.terminal-tab-close');
+      if (closeSpan) closeSpan.addEventListener('click', (e) => closeTab(t.id, e));
+      tabsEl.appendChild(tabDiv);
+    });
+  }
 
   function getWorkingDir() {
-    return currentCwd || cwdProvider() || '.';
+    const tab = getActiveTab();
+    return (tab && tab.cwd) || cwdProvider() || '.';
   }
 
   function updatePwdDisplay() {
     const dir = getWorkingDir();
     if (pwdEl) pwdEl.textContent = `PS ${dir}`;
   }
+
+  // Init first tab
+  createTab('Terminal 1');
 
   function open() {
     if (!drawer) return;
@@ -77,46 +160,52 @@ export function initTerminal({ cwdProvider, onToast }) {
     body.scrollTop = body.scrollHeight;
   }
 
+    if (newTabBtn) {
+    newTabBtn.addEventListener('click', () => createTab());
+  }
+
   async function execute(cmdStr) {
     const trimmed = cmdStr.trim();
-    if (!trimmed || isExecuting) return;
-    isExecuting = true;
+    const active = getActiveTab();
+    if (!trimmed || (active && active.isExecuting)) return;
+    if (active) active.isExecuting = true;
 
     if (input) input.value = '';
-    commandHistory.push(trimmed);
-    historyIndex = commandHistory.length;
+    if (active) {
+      active.commandHistory.push(trimmed);
+      active.historyIndex = active.commandHistory.length;
+    }
 
     // Local clear command
     if (trimmed.toLowerCase() === 'cls' || trimmed.toLowerCase() === 'clear') {
       clear();
-      isExecuting = false;
+      if (active) active.isExecuting = false;
       return;
     }
 
     // Local cd command
-    if (trimmed.toLowerCase().startsWith('cd ')) {
-      const targetDir = trimmed.substring(3).trim().replace(/^['"]|['"]$/g, '');
+    if (trimmed.toLowerCase().startsWith('cd') || trimmed.toLowerCase().startsWith('cd ') || trimmed.toLowerCase().startsWith('cd..')) {
+      let targetDir = trimmed.replace(/^cd\s*/i, '').trim().replace(/^['"]|['"]$/g, '');
+      if (!targetDir) targetDir = '.';
       const baseDir = getWorkingDir();
-      const newPath = targetDir.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(targetDir)
-        ? targetDir
-        : `${baseDir}/${targetDir}`;
 
       try {
         const res = await invoke('run_shell_command', {
-          command: `Set-Location "${newPath}"; Get-Location | Select-Object -ExpandProperty Path`,
+          command: `cd /d "${targetDir}" && cd`,
           cwd: baseDir,
         });
         if (res.exit_code === 0 && res.stdout.trim()) {
-          currentCwd = res.stdout.trim();
+          const resolvedPath = res.stdout.trim().split('\r\n').pop().trim();
+          if (active) active.cwd = resolvedPath;
           updatePwdDisplay();
-          appendEntry(trimmed, '', '', 0, currentCwd);
+          appendEntry(trimmed, '', '', 0, resolvedPath);
         } else {
-          appendEntry(trimmed, '', res.stderr || 'Directory not found', res.exit_code, baseDir);
+          appendEntry(trimmed, '', res.stderr || 'The system cannot find the path specified.', res.exit_code, baseDir);
         }
       } catch (err) {
         appendEntry(trimmed, '', String(err), -1, baseDir);
       }
-      isExecuting = false;
+      if (active) active.isExecuting = false;
       return;
     }
 
@@ -127,14 +216,14 @@ export function initTerminal({ cwdProvider, onToast }) {
         cwd: runCwd,
       });
       appendEntry(trimmed, res.stdout, res.stderr, res.exit_code, res.cwd || runCwd);
-      if (res.cwd) {
-        currentCwd = res.cwd;
+      if (res.cwd && active) {
+        active.cwd = res.cwd;
         updatePwdDisplay();
       }
     } catch (err) {
       appendEntry(trimmed, '', String(err), -1, runCwd);
     } finally {
-      isExecuting = false;
+      if (active) active.isExecuting = false;
     }
   }
 
@@ -229,18 +318,22 @@ export function initTerminal({ cwdProvider, onToast }) {
         execute(input.value);
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        if (historyIndex > 0) {
-          historyIndex--;
-          input.value = commandHistory[historyIndex] || '';
+        const active = getActiveTab();
+        if (active && active.historyIndex > 0) {
+          active.historyIndex--;
+          input.value = active.commandHistory[active.historyIndex] || '';
         }
       } else if (e.key === 'ArrowDown') {
         e.preventDefault();
-        if (historyIndex < commandHistory.length - 1) {
-          historyIndex++;
-          input.value = commandHistory[historyIndex] || '';
-        } else {
-          historyIndex = commandHistory.length;
-          input.value = '';
+        const active = getActiveTab();
+        if (active) {
+          if (active.historyIndex < active.commandHistory.length - 1) {
+            active.historyIndex++;
+            input.value = active.commandHistory[active.historyIndex] || '';
+          } else {
+            active.historyIndex = active.commandHistory.length;
+            input.value = '';
+          }
         }
       } else if (e.ctrlKey && e.key === 'l') {
         e.preventDefault();
