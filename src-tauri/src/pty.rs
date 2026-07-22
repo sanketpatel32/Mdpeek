@@ -230,7 +230,9 @@ pub fn write_terminal(
 /// and causes the reader thread to hit EOF.
 #[tauri::command]
 pub fn kill_terminal(state: tauri::State<'_, TermState>, id: u32) -> Result<(), String> {
-    state.0.lock().unwrap().remove(&id);
+    if let Some(mut entry) = state.0.lock().unwrap().remove(&id) {
+        let _ = entry._child.kill();
+    }
     Ok(())
 }
 

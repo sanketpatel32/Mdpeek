@@ -35,6 +35,23 @@ import changelogSource from '../CHANGELOG.md?raw';
 const REPO_URL = 'https://github.com/sanketpatel32/Mdpeek';
 const REPO_ISSUES_URL = 'https://github.com/sanketpatel32/Mdpeek/issues';
 
+// Global error handlers for app stability & non-fatal browser warning suppression
+window.addEventListener('error', (event) => {
+  if (event.message && (event.message.includes('ResizeObserver') || event.message.includes('Script error'))) {
+    event.stopImmediatePropagation();
+    return;
+  }
+  console.error('[mdpeek] Unhandled window error:', event.error || event.message);
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  if (event.reason && String(event.reason).includes('ResizeObserver')) {
+    event.stopImmediatePropagation();
+    return;
+  }
+  console.error('[mdpeek] Unhandled promise rejection:', event.reason);
+});
+
 // ---------- themes ----------
 // Curated set: each entry maps the app theme id to its highlight.js theme id.
 // applyTheme() enables exactly one hljs stylesheet so code blocks match.
@@ -3490,6 +3507,9 @@ function syncSettingsControls() {
   const lineNumCb = document.getElementById('settings-line-numbers');
   if (lineNumCb) lineNumCb.checked = localStorage.getItem('mdpeek-line-numbers') !== '0';
 
+  const activeLineCb = document.getElementById('settings-active-line');
+  if (activeLineCb) activeLineCb.checked = localStorage.getItem('mdpeek-active-line') !== '0';
+
   const autosaveCb = document.getElementById('settings-autosave');
   if (autosaveCb) autosaveCb.checked = localStorage.getItem('mdpeek-autosave') !== '0';
 
@@ -3663,6 +3683,15 @@ document.getElementById('settings-font-family').addEventListener('change', (e) =
 document.getElementById('settings-line-numbers').addEventListener('change', (e) => {
   localStorage.setItem('mdpeek-line-numbers', e.target.checked ? '1' : '0');
   applyLineNumbers();
+});
+
+// Active line highlight — toggle the line marker strip.
+document.getElementById('settings-active-line')?.addEventListener('change', (e) => {
+  localStorage.setItem('mdpeek-active-line', e.target.checked ? '1' : '0');
+  if (el.editMode) {
+    const ta = el.editMode.querySelector('.editor');
+    if (ta) ta.dispatchEvent(new Event('input'));
+  }
 });
 
 // Notes folder — re-pick where daily notes are saved.

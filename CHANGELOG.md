@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.1] - 2026-07-22
+
+### Changed — active line highlight refinement & app stability
+
+- **Refined Active Line Highlight**: Replaced heavy opaque line background blocks with a subtle transparent accent tint (`--accent-soft`) and a 2px left border indicator next to the gutter. Removed laggy position transition for zero-delay cursor tracking.
+- **Active Line Settings Toggle**: Added an "Active Line Highlight" checkbox in Settings → Editor so users can toggle line highlighting ON or OFF anytime.
+- **Improved App & PTY Process Cleanup**: Updated `kill_terminal` backend command in Rust (`src-tauri/src/pty.rs`) to explicitly call `_child.kill()` when closing terminal tabs to avoid orphaned subprocesses.
+- **Global Exception Guarding**: Added global handlers for unhandled promise rejections and ResizeObserver loop limit warnings to prevent non-fatal error dialogs/console noise.
+
 ## [0.28.0] - 2026-07-22
 
 ### Changed — modern Kanban Board UI & feature overhaul

@@ -122,8 +122,15 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
   // the offsets fresh on input, scroll, click, and resize.
   //
   function updateActiveLineMarker() {
+    if (!textarea || !textarea.isConnected) return;
     const wrap = textarea.parentElement;
     if (!wrap) return;
+    if (localStorage.getItem('mdpeek-active-line') === '0') {
+      wrap.style.setProperty('--active-line-opacity', '0');
+      return;
+    }
+    wrap.style.setProperty('--active-line-opacity', '1');
+
     const cs = getComputedStyle(textarea);
     const fs = parseFloat(cs.fontSize) || 13.5;
     const rawLh = parseFloat(cs.lineHeight);

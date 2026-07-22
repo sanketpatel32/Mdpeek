@@ -946,12 +946,12 @@ mark.find-current {
   left: 44px;            /* gutter width — highlight starts after the gutter */
   right: 0;
   height: var(--active-line-h, 0px);
-  background: var(--surface-hover);
+  background: var(--accent-soft);
+  border-left: 2px solid var(--accent);
   pointer-events: none;
   z-index: 0;
-  /* Transition only the top position so scroll repositioning is smooth but
-     the strip doesn't flicker on input. */
-  transition: top 60ms linear;
+  opacity: var(--active-line-opacity, 1);
+  transition: opacity 120ms var(--ease);
 }
 .gutter {
   position: absolute;
