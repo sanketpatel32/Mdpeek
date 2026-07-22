@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.3] - 2026-07-22
+
+### Fixed — image pasting support & xterm text descender clipping
+
+- **Font Descender Rendering Fix:** Resolved character descender clipping (`g` rendering like `q`, `y` like `v`) by removing raw CSS `var(...)` functions from `xterm.js` Canvas font family initialization and adding `getTerminalFontFamily()` + `lineHeight: 1.25`.
+- **Clipboard Image Paste to Terminal:** Added automatic image clipboard handling for `Ctrl+V` and DOM `paste` events. When pasting an image into the terminal (for Claude CLI / LLM tools), the image is saved to disk and its quoted path is inserted directly into the shell input line.
+
 ## [0.27.2] - 2026-07-22
 
 ### Fixed — integrated terminal input and dimension sync

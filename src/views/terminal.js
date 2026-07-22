@@ -29,6 +29,17 @@ export function readCssVar(name, fallback = '') {
   return trimmed || fallback;
 }
 
+// Compute a concrete font family stack for xterm.js Canvas context. Canvas 2D
+// font properties cannot evaluate CSS `var(...)` expressions.
+export function getTerminalFontFamily() {
+  const fontVar = readCssVar('--mono-font', '');
+  if (fontVar) {
+    const cleanFont = fontVar.replace(/^["']|["']$/g, '');
+    return `"${cleanFont}", "Cascadia Code", Consolas, "Fira Code", monospace`;
+  }
+  return '"Cascadia Code", Consolas, "Fira Code", monospace';
+}
+
 // Build an xterm.js theme object from the app's active theme CSS vars. xterm.js
 // expects hex strings (or `#rrggbb` / `rgba(...)`); we hand it the same colors
 // the rest of the app uses so the terminal matches the chosen theme. Falls
@@ -123,13 +134,44 @@ export function initTerminal({ cwdProvider, onToast }) {
     return mountEl;
   }
 
+  async function handlePastedImageBlob(blob) {
+    const active = getActiveTab();
+    if (!active || active.ptyId === undefined) return;
+    try {
+      const arrayBuffer = await blob.arrayBuffer();
+      const bytes = Array.from(new Uint8Array(arrayBuffer));
+      const ext = blob.type.includes('png') ? 'png' : blob.type.includes('jpeg') || blob.type.includes('jpg') ? 'jpg' : 'png';
+      const timestamp = Date.now();
+      const filename = `pasted_image_${timestamp}.${ext}`;
+
+      const baseDir = getWorkingDir() || '.';
+      let savedPath = '';
+      try {
+        const assetsDir = baseDir.endsWith('/') || baseDir.endsWith('\\') ? `${baseDir}assets` : `${baseDir}/assets`;
+        const resName = await invoke('save_image', { dir: assetsDir, filename, bytes });
+        savedPath = `${assetsDir}/${resName}`.replace(/\\/g, '/');
+      } catch {
+        const resName = await invoke('save_image', { dir: baseDir, filename, bytes });
+        savedPath = `${baseDir}/${resName}`.replace(/\\/g, '/');
+      }
+
+      const pathArg = `"${savedPath}" `;
+      await invoke('write_terminal', { id: active.ptyId, data: pathArg });
+      if (onToast) onToast(`Pasted image path to terminal: ${filename}`);
+    } catch (err) {
+      console.error('Failed to paste image to terminal:', err);
+      if (onToast) onToast('Failed to paste image');
+    }
+  }
+
   async function createTab() {
     const id = `term-${tabIdCounter++}`;
     const mountEl = makeMountEl();
 
     const term = new Terminal({
-      fontFamily: 'var(--mono-font, "Cascadia Code", Consolas, monospace)',
-      fontSize: 12.5,
+      fontFamily: getTerminalFontFamily(),
+      fontSize: 13,
+      lineHeight: 1.25,
       cursorBlink: true,
       allowProposedApi: true,
       theme: xtermThemeFromApp(),
@@ -196,11 +238,31 @@ export function initTerminal({ cwdProvider, onToast }) {
             return false;
           }
           if ((arg.ctrlKey || arg.metaKey) && (arg.key === 'v' || arg.key === 'V')) {
-            navigator.clipboard.readText().then((text) => {
-              if (text && ptyId !== undefined) {
-                invoke('write_terminal', { id: ptyId, data: text }).catch(() => {});
+            (async () => {
+              try {
+                if (navigator.clipboard.read) {
+                  const items = await navigator.clipboard.read();
+                  for (const item of items) {
+                    const imageType = item.types.find((t) => t.startsWith('image/'));
+                    if (imageType) {
+                      const blob = await item.getType(imageType);
+                      await handlePastedImageBlob(blob);
+                      return;
+                    }
+                  }
+                }
+                const text = await navigator.clipboard.readText();
+                if (text && ptyId !== undefined) {
+                  invoke('write_terminal', { id: ptyId, data: text }).catch(() => {});
+                }
+              } catch {
+                navigator.clipboard.readText().then((text) => {
+                  if (text && ptyId !== undefined) {
+                    invoke('write_terminal', { id: ptyId, data: text }).catch(() => {});
+                  }
+                }).catch(() => {});
               }
-            }).catch(() => {});
+            })();
             return false;
           }
         }
@@ -344,9 +406,18 @@ export function initTerminal({ cwdProvider, onToast }) {
     invoke('write_terminal', { id: active.ptyId, data: (cmdStr || '') + '\r' }).catch(() => {});
   }
 
-  // Drag-and-drop: drop files into the terminal — the quoted path becomes part
-  // of the current shell input line (same UX as a real terminal).
+  // Drag-and-drop & paste: drop or paste files/images into the terminal.
   if (drawer) {
+    drawer.addEventListener('paste', async (e) => {
+      const items = Array.from(e.clipboardData?.items || []);
+      const imageItem = items.find((item) => item.type.startsWith('image/'));
+      if (imageItem) {
+        e.preventDefault();
+        e.stopPropagation();
+        const blob = imageItem.getAsFile();
+        if (blob) await handlePastedImageBlob(blob);
+      }
+    });
     drawer.addEventListener('dragover', (e) => {
       e.preventDefault();
       drawer.classList.add('dragover');
@@ -433,7 +504,12 @@ export function initTerminal({ cwdProvider, onToast }) {
     // the user switches app theme.
     setTheme() {
       const theme = xtermThemeFromApp();
-      tabs.forEach((t) => { t.term.options.theme = theme; });
+      const fontFamily = getTerminalFontFamily();
+      tabs.forEach((t) => {
+        t.term.options.theme = theme;
+        t.term.options.fontFamily = fontFamily;
+        try { t.term.refresh(0, t.term.rows - 1); } catch { /* best effort */ }
+      });
     },
   };
 }
