@@ -725,8 +725,8 @@ pub fn run_shell_command(command: String, cwd: Option<String>) -> Result<Command
 
     #[cfg(target_os = "windows")]
     let mut cmd = {
-        let mut c = std::process::Command::new("powershell.exe");
-        c.args(&["-NoProfile", "-NonInteractive", "-Command", &command]);
+        let mut c = std::process::Command::new("cmd.exe");
+        c.args(&["/C", &command]);
         c
     };
 

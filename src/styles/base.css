@@ -287,11 +287,20 @@ body.focus-mode #file-tree {
 .workspace-container {
   flex: 1;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   overflow: hidden;
   position: relative;
   width: 100%;
   min-height: 0;
+}
+.workspace-main {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  min-height: 0;
+  position: relative;
+  width: 100%;
 }
 
 /* ---------- Main layout ---------- */
@@ -417,7 +426,7 @@ main {
   transition: transform 140ms var(--ease);
 }
 .tree-chevron.open {
-  transform: rotate(-90deg);
+  transform: rotate(90deg);
 }
 .tree-chevron-spacer {
   display: inline-block;
@@ -3367,13 +3376,12 @@ body.kanban-mode #kanban-view { display: flex; }
 
 /* ---------- Modern Integrated Terminal Drawer ---------- */
 .terminal-drawer {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  position: relative;
+  width: 100%;
   height: 260px;
   min-height: 120px;
   max-height: 80vh;
+  flex: 0 0 auto;
   background: var(--bg-elevated);
   border-top: 1px solid var(--border);
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
@@ -3382,7 +3390,7 @@ body.kanban-mode #kanban-view { display: flex; }
   z-index: 45;
   font-family: var(--mono-font, "Cascadia Code", "Fira Code", Consolas, monospace);
   backdrop-filter: blur(12px);
-  transition: transform 180ms var(--ease), opacity 180ms var(--ease);
+  transition: opacity 180ms var(--ease);
 }
 .terminal-resize-handle {
   position: absolute;

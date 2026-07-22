@@ -90,7 +90,7 @@ function rowFor(entry, depth) {
   row.dataset.path = entry.path;
   row.dataset.kind = entry.is_dir ? 'dir' : 'file';
   row.style.paddingLeft = `${depth * 14 + 10}px`;
-  const chevron = entry.is_dir ? '<svg class="tree-chevron" viewBox="0 0 16 16" width="10" height="10" aria-hidden="true"><polyline points="4 6 8 10 12 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '<span class="tree-chevron-spacer"></span>';
+  const chevron = entry.is_dir ? '<svg class="tree-chevron" viewBox="0 0 16 16" width="10" height="10" aria-hidden="true"><polyline points="6 4 10 8 6 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '<span class="tree-chevron-spacer"></span>';
   const icon = entry.is_dir ? dirIcon() : fileIcon(entry.name);
   row.innerHTML = `${chevron}${icon}<span class="tree-name">${escapeHtml(entry.name)}</span>`;
   return row;

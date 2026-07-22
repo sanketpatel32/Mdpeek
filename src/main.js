@@ -863,12 +863,14 @@ function insertSnippetIntoEditor(doc, textToInsert) {
 // ---------- Integrated PowerShell Terminal ----------
 const terminal = initTerminal({
   cwdProvider: () => {
+    const explorerRoot = localStorage.getItem('mdpeek-explorer-root');
+    if (explorerRoot) return explorerRoot;
     const activeDoc = store.active();
     if (activeDoc && activeDoc.path) {
       const idx = Math.max(activeDoc.path.lastIndexOf('/'), activeDoc.path.lastIndexOf('\\'));
       if (idx > -1) return activeDoc.path.substring(0, idx);
     }
-    return localStorage.getItem('mdpeek-explorer-root') || '.';
+    return '.';
   },
   onToast: (msg) => toast(msg),
 });

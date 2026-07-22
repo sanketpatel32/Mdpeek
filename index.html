@@ -227,57 +227,59 @@
     </header>
 
     <div class="workspace-container">
-      <aside id="file-tree" class="file-tree hidden" aria-label="File explorer">
-        <div class="file-tree-header">
-          <span class="file-tree-title">Explorer</span>
-          <div class="file-tree-actions">
-            <button id="file-tree-open" class="file-tree-action-btn" type="button" title="Open another folder..." aria-label="Open folder">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-            </button>
-            <button id="file-tree-close" class="file-tree-action-btn" type="button" title="Close explorer" aria-label="Close explorer">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-          </div>
-        </div>
-        <div id="file-tree-body" class="file-tree-body"></div>
-      </aside>
-
-      <main id="view-mode" class="view-mode">
-        <div id="reading-progress" class="reading-progress" aria-hidden="true"><div class="reading-progress-bar"></div></div>
-        <aside id="toc" class="toc" aria-label="Table of contents"></aside>
-        <article id="document" class="markdown-body"></article>
-      </main>
-
-      <main id="edit-mode" class="edit-mode hidden">
-        <div class="editor-pane">
-          <div class="pane-header edit-toolbar">
-            <span class="pane-label">Source</span>
-            <div class="fmt-tools" role="toolbar" aria-label="Formatting">
-              <button class="fmt-btn" data-fmt="h1" type="button" title="Heading 1" aria-label="Heading 1"><strong>H1</strong></button>
-              <button class="fmt-btn" data-fmt="h2" type="button" title="Heading 2" aria-label="Heading 2"><strong>H2</strong></button>
-              <button class="fmt-btn" data-fmt="bold" type="button" title="Bold (Ctrl+B)" aria-label="Bold"><strong>B</strong></button>
-              <button class="fmt-btn" data-fmt="italic" type="button" title="Italic (Ctrl+I)" aria-label="Italic"><em>I</em></button>
-              <button class="fmt-btn" data-fmt="code" type="button" title="Inline code (Ctrl+`)" aria-label="Inline code"><code>&lt;/&gt;</code></button>
-              <button class="fmt-btn" data-fmt="link" type="button" title="Link" aria-label="Link">🔗</button>
-              <button class="fmt-btn" data-fmt="ul" type="button" title="Bulleted list" aria-label="Bulleted list">•</button>
-              <button class="fmt-btn" data-fmt="ol" type="button" title="Numbered list" aria-label="Numbered list">1.</button>
-              <button class="fmt-btn" data-fmt="quote" type="button" title="Quote" aria-label="Quote">❝</button>
-              <button class="fmt-btn" data-fmt="fence" type="button" title="Code block" aria-label="Code block">{ }</button>
+      <div id="workspace-main" class="workspace-main">
+        <aside id="file-tree" class="file-tree hidden" aria-label="File explorer">
+          <div class="file-tree-header">
+            <span class="file-tree-title">Explorer</span>
+            <div class="file-tree-actions">
+              <button id="file-tree-open" class="file-tree-action-btn" type="button" title="Open another folder..." aria-label="Open folder">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              </button>
+              <button id="file-tree-close" class="file-tree-action-btn" type="button" title="Close explorer" aria-label="Close explorer">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
             </div>
           </div>
-          <div class="editor-wrap">
-            <div id="gutter" class="gutter" aria-hidden="true"></div>
-            <textarea id="editor" class="editor" wrap="off" spellcheck="false" placeholder="Type markdown here..."></textarea>
-            <div id="peer-carets" class="peer-carets" aria-hidden="true"></div>
+          <div id="file-tree-body" class="file-tree-body"></div>
+        </aside>
+
+        <main id="view-mode" class="view-mode">
+          <div id="reading-progress" class="reading-progress" aria-hidden="true"><div class="reading-progress-bar"></div></div>
+          <aside id="toc" class="toc" aria-label="Table of contents"></aside>
+          <article id="document" class="markdown-body"></article>
+        </main>
+
+        <main id="edit-mode" class="edit-mode hidden">
+          <div class="editor-pane">
+            <div class="pane-header edit-toolbar">
+              <span class="pane-label">Source</span>
+              <div class="fmt-tools" role="toolbar" aria-label="Formatting">
+                <button class="fmt-btn" data-fmt="h1" type="button" title="Heading 1" aria-label="Heading 1"><strong>H1</strong></button>
+                <button class="fmt-btn" data-fmt="h2" type="button" title="Heading 2" aria-label="Heading 2"><strong>H2</strong></button>
+                <button class="fmt-btn" data-fmt="bold" type="button" title="Bold (Ctrl+B)" aria-label="Bold"><strong>B</strong></button>
+                <button class="fmt-btn" data-fmt="italic" type="button" title="Italic (Ctrl+I)" aria-label="Italic"><em>I</em></button>
+                <button class="fmt-btn" data-fmt="code" type="button" title="Inline code (Ctrl+`)" aria-label="Inline code"><code>&lt;/&gt;</code></button>
+                <button class="fmt-btn" data-fmt="link" type="button" title="Link" aria-label="Link">🔗</button>
+                <button class="fmt-btn" data-fmt="ul" type="button" title="Bulleted list" aria-label="Bulleted list">•</button>
+                <button class="fmt-btn" data-fmt="ol" type="button" title="Numbered list" aria-label="Numbered list">1.</button>
+                <button class="fmt-btn" data-fmt="quote" type="button" title="Quote" aria-label="Quote">❝</button>
+                <button class="fmt-btn" data-fmt="fence" type="button" title="Code block" aria-label="Code block">{ }</button>
+              </div>
+            </div>
+            <div class="editor-wrap">
+              <div id="gutter" class="gutter" aria-hidden="true"></div>
+              <textarea id="editor" class="editor" wrap="off" spellcheck="false" placeholder="Type markdown here..."></textarea>
+              <div id="peer-carets" class="peer-carets" aria-hidden="true"></div>
+            </div>
+            <div id="editor-status" class="editor-status hidden" aria-live="polite"></div>
           </div>
-          <div id="editor-status" class="editor-status hidden" aria-live="polite"></div>
-        </div>
-        <div id="pane-resizer" class="pane-resizer" title="Drag to resize split panes"></div>
-        <div class="preview-pane">
-          <div class="pane-header">Preview</div>
-          <article id="preview" class="markdown-body"></article>
-        </div>
-      </main>
+          <div id="pane-resizer" class="pane-resizer" title="Drag to resize split panes"></div>
+          <div class="preview-pane">
+            <div class="pane-header">Preview</div>
+            <article id="preview" class="markdown-body"></article>
+          </div>
+        </main>
+      </div>
 
       <!-- Terminal Drawer -->
       <div id="terminal-drawer" class="terminal-drawer hidden">
@@ -806,7 +808,7 @@
               <div class="about-card">
                 <img src="/icon.png" alt="mdpeek" class="about-logo" />
                 <h3 class="about-name">mdpeek</h3>
-                <div class="about-version">Version <span id="about-version">0.25.1</span></div>
+                <div class="about-version">Version <span id="about-version">0.25.2</span></div>
                 <p class="about-tagline">A lightweight Markdown viewer &amp; editor for Windows.</p>
                 <div class="about-links">
                   <button class="about-link primary" data-href="https://github.com/sanketpatel32/Mdpeek" type="button">

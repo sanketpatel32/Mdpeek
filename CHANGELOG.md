@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.2] - 2026-07-22
+
+### Fixed — File Explorer Chevrons & Layout Push-Down
+- **Folder Chevron Direction Fix:** Fixed directory chevron icons in the File Explorer sidebar so right-pointing chevron (`>`) indicates a collapsed folder and down-pointing chevron (`v`) indicates an expanded folder.
+- **Non-overlapping Terminal Layout:** Refactored the main workspace layout container into a vertical flex column (`.workspace-container` -> `.workspace-main` + `.terminal-drawer`). Opening the Terminal Drawer now pushes up and resizes the file explorer, viewer, and editor panes cleanly without overlapping.
+- **Lightning-Fast Command Execution:** Switched backend command dispatch to `cmd.exe /C` on Windows for instant response times.
+- **Base Folder Auto-Sync:** Terminal directory automatically defaults to the open Explorer root directory.
+
 ## [0.25.1] - 2026-07-22
 
 ### Added — Resizable Layout Blocks & Terminal Drawer Polish
