@@ -161,6 +161,35 @@ export function initTerminal({ cwdProvider, onToast }) {
     });
   }
 
+  // Resizable Terminal Drawer height handler
+  const resizeHandle = document.getElementById('terminal-resize-handle');
+  if (resizeHandle && drawer) {
+    let startY = 0;
+    let startH = 0;
+
+    const onMouseMove = (e) => {
+      const deltaY = startY - e.clientY;
+      const newH = Math.min(Math.max(startH + deltaY, 120), window.innerHeight * 0.8);
+      drawer.style.height = `${newH}px`;
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    resizeHandle.addEventListener('mousedown', (e) => {
+      startY = e.clientY;
+      startH = drawer.getBoundingClientRect().height;
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = 'ns-resize';
+      document.body.style.userSelect = 'none';
+    });
+  }
+
   // Handle Paste of images and file items
   if (input) {
     input.addEventListener('paste', async (e) => {

@@ -546,20 +546,40 @@ main {
 /* ---------- Edit mode ---------- */
 .edit-mode {
   width: 100%;
+  display: flex;
 }
-.editor-pane,
-.preview-pane {
-  width: 50%;
+.editor-pane {
+  flex: 1 1 50%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-width: 150px;
 }
 .preview-pane {
+  flex: 1 1 50%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 150px;
   border-left: 1px solid var(--border-subtle);
 }
-/* Plain-text (.txt) docs: no preview pane, editor goes full width, and the
-   "Source" header is hidden (it only makes sense when split against Preview). */
-.edit-mode.plain .preview-pane {
+.pane-resizer {
+  width: 6px;
+  flex: 0 0 6px;
+  background: var(--surface);
+  border-left: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--border-subtle);
+  cursor: ew-resize;
+  z-index: 10;
+  transition: background-color 150ms var(--ease);
+}
+.pane-resizer:hover {
+  background: var(--accent);
+  opacity: 0.7;
+}
+/* Plain-text (.txt) docs: no preview pane, editor goes full width */
+.edit-mode.plain .preview-pane,
+.edit-mode.plain .pane-resizer {
   display: none;
 }
 .edit-mode.plain .editor-pane {
@@ -3352,7 +3372,8 @@ body.kanban-mode #kanban-view { display: flex; }
   left: 0;
   right: 0;
   height: 260px;
-  max-height: 50vh;
+  min-height: 120px;
+  max-height: 80vh;
   background: var(--bg-elevated);
   border-top: 1px solid var(--border);
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
@@ -3362,6 +3383,19 @@ body.kanban-mode #kanban-view { display: flex; }
   font-family: var(--mono-font, "Cascadia Code", "Fira Code", Consolas, monospace);
   backdrop-filter: blur(12px);
   transition: transform 180ms var(--ease), opacity 180ms var(--ease);
+}
+.terminal-resize-handle {
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
+  height: 8px;
+  cursor: ns-resize;
+  z-index: 50;
+}
+.terminal-resize-handle:hover {
+  background: var(--accent);
+  opacity: 0.5;
 }
 .terminal-drawer.dragover {
   border-top: 2px dashed var(--accent);

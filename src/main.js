@@ -213,6 +213,45 @@ const el = {
   kanbanDoneBtn: document.getElementById('kanban-done-btn'),
 };
 
+// Split pane drag-to-resize handler for Edit Mode
+(() => {
+  const resizer = document.getElementById('pane-resizer');
+  const editMode = el.editMode;
+  const editorPane = el.editMode ? el.editMode.querySelector('.editor-pane') : null;
+  const previewPane = el.editMode ? el.editMode.querySelector('.preview-pane') : null;
+
+  if (resizer && editMode && editorPane && previewPane) {
+    let startX = 0;
+    let startEditorW = 0;
+
+    const onMouseMove = (e) => {
+      const containerW = editMode.getBoundingClientRect().width;
+      const deltaX = e.clientX - startX;
+      let newW = startEditorW + deltaX;
+      newW = Math.max(150, Math.min(newW, containerW - 150));
+      const pct = (newW / containerW) * 100;
+      editorPane.style.flex = `0 0 ${pct}%`;
+      previewPane.style.flex = `0 0 ${100 - pct}%`;
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    resizer.addEventListener('mousedown', (e) => {
+      startX = e.clientX;
+      startEditorW = editorPane.getBoundingClientRect().width;
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = 'ew-resize';
+      document.body.style.userSelect = 'none';
+    });
+  }
+})();
+
 // ---------- helpers ----------
 const TOAST_TIMEOUT_MS = 2500;
 const UPDATE_CHECK_DELAY_MS = 3000; // let the UI settle before the network call
