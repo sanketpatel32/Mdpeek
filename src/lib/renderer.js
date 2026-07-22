@@ -459,35 +459,77 @@ function enhanceCodeBlocks(container) {
   if (typeof window === 'undefined') return;
   const pres = container.querySelectorAll('pre');
   pres.forEach((pre) => {
-    if (pre.querySelector(':scope > code') && !pre.querySelector('.copy-btn')) {
-      const btn = document.createElement('button');
-      btn.className = 'copy-btn';
-      btn.type = 'button';
-      btn.setAttribute('aria-label', 'Copy code');
-      btn.title = 'Copy';
-      btn.innerHTML =
-        '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
-      pre.append(btn);
+    if (pre.querySelector(':scope > code')) {
+      let actions = pre.querySelector('.code-actions');
+      if (!actions) {
+        actions = document.createElement('div');
+        actions.className = 'code-actions';
+        
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'code-action-btn save-code-btn';
+        saveBtn.type = 'button';
+        saveBtn.setAttribute('aria-label', 'Save code block as file');
+        saveBtn.title = 'Save code block';
+        saveBtn.innerHTML =
+          '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'code-action-btn copy-btn';
+        copyBtn.type = 'button';
+        copyBtn.setAttribute('aria-label', 'Copy code');
+        copyBtn.title = 'Copy';
+        copyBtn.innerHTML =
+          '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+
+        actions.append(saveBtn, copyBtn);
+        pre.append(actions);
+      }
     }
   });
 
-  if (!container.__copyHandler) {
+  if (!container.__codeActionHandler) {
     const handler = async (e) => {
-      const btn = e.target.closest('.copy-btn');
-      if (!btn || !container.contains(btn)) return;
-      const pre = btn.parentElement;
-      const code = pre.querySelector('code');
+      const copyBtn = e.target.closest('.copy-btn');
+      const saveBtn = e.target.closest('.save-code-btn');
+      if ((!copyBtn && !saveBtn) || !container.contains(copyBtn || saveBtn)) return;
+
+      const pre = (copyBtn || saveBtn).closest('pre');
+      const code = pre ? pre.querySelector('code') : null;
       if (!code) return;
-      try {
-        await navigator.clipboard.writeText(code.textContent);
-        flashCopied(btn);
-      } catch {
-        // clipboardwrite may fail in insecure contexts; fall back silently.
+
+      if (copyBtn) {
+        try {
+          await navigator.clipboard.writeText(code.textContent);
+          flashCopied(copyBtn);
+        } catch {}
+      } else if (saveBtn) {
+        saveCodeBlockAsFile(code, pre);
       }
     };
     container.addEventListener('click', handler);
-    container.__copyHandler = handler;
+    container.__codeActionHandler = handler;
   }
+}
+
+function saveCodeBlockAsFile(codeEl, preEl) {
+  let ext = 'txt';
+  const match = preEl.className.match(/language-([a-z0-9_-]+)/i) || codeEl.className.match(/language-([a-z0-9_-]+)/i);
+  if (match) {
+    const lang = match[1].toLowerCase();
+    const map = {
+      javascript: 'js', js: 'js', typescript: 'ts', ts: 'ts',
+      python: 'py', py: 'py', json: 'json', html: 'html', css: 'css',
+      sql: 'sql', bash: 'sh', sh: 'sh', rust: 'rs', rs: 'rs',
+      cpp: 'cpp', c: 'c', java: 'java', go: 'go', markdown: 'md', md: 'md',
+    };
+    ext = map[lang] || lang;
+  }
+  const blob = new Blob([codeEl.textContent], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `snippet.${ext}`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 // Briefly swap the button to a checkmark so the user sees feedback.
