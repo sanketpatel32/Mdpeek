@@ -1857,11 +1857,34 @@ function closeShareModal() {
 const KANBAN_KEY = 'mdpeek-kanban-tasks';
 const KANBAN_STATUSES = ['todo', 'progress', 'done'];
 const KANBAN_LABELS = { todo: 'To do', progress: 'In progress', done: 'Done' };
-// The only status new tasks can be added to. Other columns fill up by dragging.
 const KANBAN_ADD_STATUS = 'todo';
 
+let _kanbanFilter = '';
+
+function parseKanbanTags(text) {
+  if (!text) return [];
+  const tags = [];
+  const tagRegex = /(?:^|\s)(#[a-zA-Z0-9_\-]+|\[[a-zA-Z0-9_\-\s]+\])/g;
+  let match;
+  while ((match = tagRegex.exec(text)) !== null) {
+    const clean = match[1].trim();
+    if (!tags.includes(clean)) tags.push(clean);
+  }
+  return tags;
+}
+
+function formatKanbanTime(ts) {
+  if (!ts) return '';
+  const now = Date.now();
+  const diffSec = Math.floor((now - ts) / 1000);
+  if (diffSec < 60) return 'Just now';
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+  const d = new Date(ts);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 // Load tasks from localStorage. Shape: `{ id, status, text, createdAt }[]`.
-// Defensive against corrupt/legacy data — bad rows are dropped.
 function loadKanbanTasks() {
   try {
     const raw = localStorage.getItem(KANBAN_KEY);
@@ -1881,9 +1904,6 @@ function loadKanbanTasks() {
   }
 }
 
-// Persist the task list. Wrapped in try/catch — quota errors or disabled
-// storage shouldn't crash the app, the user just loses persistence for that
-// one write.
 function saveKanbanTasks(tasks) {
   try {
     localStorage.setItem(KANBAN_KEY, JSON.stringify(tasks));
@@ -1893,64 +1913,89 @@ function saveKanbanTasks(tasks) {
 }
 
 let _kanbanTasks = loadKanbanTasks();
-// Pointer-based drag state for Kanban cards. We intentionally do NOT use the
-// HTML5 drag-and-drop API here: on Tauri 2 (Windows/WebView2) the OS-level
-// drag-drop handler intercepts dragstart/dragover/drop before the DOM sees
-// them, so HTML5 DnD between in-page elements silently fails. Pointer events
-// bypass that layer entirely and work in every environment.
-//
-// Lifecycle:
-//   pointerdown on a card → record id + start coords, attach window listeners
-//   pointermove            → past threshold? create ghost, highlight column
-//   pointerup              → if dragging, drop into the column under the cursor
 let _kanbanDrag = null;
-// Pixels of slack before a press becomes a drag. Below this the pointerdown is
-// treated as a no-op (the card's click handler still fires for the delete
-// button etc.).
 const KANBAN_DRAG_THRESHOLD = 4;
 
-// Escape user task text before injecting into innerHTML. Reuses the global
-// escapeHtml imported from lib/escape.js. Trailing/leading whitespace gets
-// trimmed; we render with white-space: pre-wrap so internal line breaks the
-// user typed stay intact.
 function renderKanban() {
   if (!el.kanbanBoard) return;
+
+  const filter = (_kanbanFilter || '').toLowerCase().trim();
+  const filteredTasks = filter
+    ? _kanbanTasks.filter((t) => t.text.toLowerCase().includes(filter))
+    : _kanbanTasks;
+
+  // Stats and Progress
+  const totalCount = _kanbanTasks.length;
+  const doneCount = _kanbanTasks.filter((t) => t.status === 'done').length;
+  const percent = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+
+  const statsEl = document.getElementById('kanban-stats');
+  if (statsEl) {
+    statsEl.textContent = totalCount === 0 ? '0 tasks' : `${doneCount} of ${totalCount} done (${percent}%)`;
+  }
+  const barEl = document.getElementById('kanban-progress-bar');
+  if (barEl) {
+    barEl.style.width = `${percent}%`;
+  }
+
   const html = KANBAN_STATUSES.map((status) => {
-    const cards = _kanbanTasks
+    const cards = filteredTasks
       .filter((t) => t.status === status)
       .sort((a, b) => a.createdAt - b.createdAt);
     const count = cards.length;
+
     const cardsHtml = cards.length
-      ? cards.map((t) => `
-        <div class="kanban-card" data-id="${t.id}">
-          <span class="kanban-card-text">${escapeHtml(t.text)}</span>
-          <button class="kanban-card-delete" data-id="${t.id}" title="Delete task" aria-label="Delete task">×</button>
-        </div>`).join('')
-      : '<div class="kanban-empty">No tasks</div>';
-    // The Add-task footer renders ONLY on the To-Do column. Other columns
-    // have no input — cards arrive there only via drag-and-drop.
+      ? cards.map((t) => {
+          const isDone = t.status === 'done';
+          const tags = parseKanbanTags(t.text);
+          const tagsHtml = tags.length
+            ? `<div class="kanban-card-tags">${tags.map((tg) => `<span class="kanban-tag">${escapeHtml(tg)}</span>`).join('')}</div>`
+            : '';
+          const timeStr = formatKanbanTime(t.createdAt);
+          return `
+            <div class="kanban-card ${isDone ? 'kanban-card-done' : ''}" data-id="${t.id}">
+              <button class="kanban-card-checkbox ${isDone ? 'checked' : ''}" data-id="${t.id}" title="${isDone ? 'Mark as incomplete' : 'Mark as done'}" aria-label="Toggle status">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">${isDone ? '<polyline points="20 6 9 17 4 12"/>' : ''}</svg>
+              </button>
+              <div class="kanban-card-body">
+                <span class="kanban-card-text" title="Double-click to edit">${escapeHtml(t.text)}</span>
+                ${tagsHtml}
+                <span class="kanban-card-time">${timeStr}</span>
+              </div>
+              <button class="kanban-card-delete" data-id="${t.id}" title="Delete task" aria-label="Delete task">✕</button>
+            </div>`;
+        }).join('')
+      : `<div class="kanban-empty">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            ${status === 'todo' ? '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>' : status === 'progress' ? '<path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>' : '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>'}
+          </svg>
+          <span>${status === 'todo' ? 'No tasks to do' : status === 'progress' ? 'No tasks in progress' : 'No completed tasks'}</span>
+        </div>`;
+
     const footer = status === KANBAN_ADD_STATUS
       ? `<div class="kanban-column-footer">
-          <input class="kanban-add-input" data-status="${status}" type="text" placeholder="Add a task…" maxlength="280" aria-label="Add task to ${KANBAN_LABELS[status]}" />
+          <input class="kanban-add-input" data-status="${status}" type="text" placeholder="+ Add a new task…" maxlength="280" aria-label="Add task to ${KANBAN_LABELS[status]}" />
           <button class="kanban-add-btn" data-status="${status}" type="button">Add</button>
         </div>`
       : '';
+
     return `
       <div class="kanban-column" data-status="${status}">
         <div class="kanban-column-header">
-          <span class="kanban-column-header-label"><span class="kanban-column-dot"></span>${KANBAN_LABELS[status]}</span>
+          <span class="kanban-column-header-label">
+            <span class="kanban-column-dot"></span>
+            ${KANBAN_LABELS[status]}
+          </span>
           <span class="kanban-column-count">${count}</span>
         </div>
         <div class="kanban-cards">${cardsHtml}</div>
         ${footer}
       </div>`;
   }).join('');
+
   el.kanbanBoard.innerHTML = html;
 }
 
-// Add a task. Only the To-Do status accepts new tasks; if any other status
-// is passed we redirect to To-Do (defensive — the UI only renders an input on
-// To-Do anyway). Empty / whitespace-only text is ignored.
 function addKanbanTask(status, text) {
   const trimmed = (text || '').trim();
   if (!trimmed) return;
@@ -1964,9 +2009,6 @@ function addKanbanTask(status, text) {
   renderKanban();
 }
 
-// Move a task to a different column. No-op if the task isn't found or is
-// already in the target status. Bumps createdAt so the card lands at the
-// bottom of its new column (most-recently-moved last).
 function moveKanbanTask(id, newStatus) {
   if (!KANBAN_STATUSES.includes(newStatus)) return;
   const task = _kanbanTasks.find((t) => t.id === id);
@@ -1977,13 +2019,24 @@ function moveKanbanTask(id, newStatus) {
   renderKanban();
 }
 
-// Delete a task by id. No-op if the id isn't found.
 function deleteKanbanTask(id) {
   const before = _kanbanTasks.length;
   _kanbanTasks = _kanbanTasks.filter((t) => t.id !== id);
   if (_kanbanTasks.length === before) return;
   saveKanbanTasks(_kanbanTasks);
   renderKanban();
+}
+
+function clearDoneKanbanTasks() {
+  const doneTasks = _kanbanTasks.filter((t) => t.status === 'done');
+  if (doneTasks.length === 0) {
+    toast('No completed tasks to clear');
+    return;
+  }
+  _kanbanTasks = _kanbanTasks.filter((t) => t.status !== 'done');
+  saveKanbanTasks(_kanbanTasks);
+  renderKanban();
+  toast(`Cleared ${doneTasks.length} completed task(s)`);
 }
 
 function openKanban() {
@@ -3110,10 +3163,18 @@ if (el.daily) el.daily.addEventListener('click', openDailyNote);
 // Kanban is a full-page view, not an overlay.
 if (el.kanban) el.kanban.addEventListener('click', openKanban);
 if (el.kanbanDoneBtn) el.kanbanDoneBtn.addEventListener('click', closeKanban);
-// Delegated handlers on the board: Add button clicks, Enter in inputs, Delete
-// button clicks, and the full HTML5 drag-and-drop lifecycle (dragstart,
-// dragover, dragenter, dragleave, drop, dragend). Delegation survives the
-// renderKanban innerHTML rebuilds — no per-card listeners to track.
+
+const kanbanClearDoneBtn = document.getElementById('kanban-clear-done-btn');
+if (kanbanClearDoneBtn) kanbanClearDoneBtn.addEventListener('click', clearDoneKanbanTasks);
+
+const kanbanSearchInput = document.getElementById('kanban-search-input');
+if (kanbanSearchInput) {
+  kanbanSearchInput.addEventListener('input', (e) => {
+    _kanbanFilter = e.target.value;
+    renderKanban();
+  });
+}
+
 if (el.kanbanBoard) {
   el.kanbanBoard.addEventListener('click', (e) => {
     const addBtn = e.target.closest('.kanban-add-btn');
@@ -3127,12 +3188,67 @@ if (el.kanbanBoard) {
       }
       return;
     }
+
+    const checkboxBtn = e.target.closest('.kanban-card-checkbox');
+    if (checkboxBtn) {
+      e.stopPropagation();
+      const id = checkboxBtn.dataset.id;
+      const task = _kanbanTasks.find((t) => t.id === id);
+      if (task) {
+        if (task.status === 'done') {
+          moveKanbanTask(id, 'todo');
+        } else {
+          moveKanbanTask(id, 'done');
+        }
+      }
+      return;
+    }
+
     const del = e.target.closest('.kanban-card-delete');
     if (del) {
       deleteKanbanTask(del.dataset.id);
       return;
     }
   });
+
+  // Inline edit task text on double-click
+  el.kanbanBoard.addEventListener('dblclick', (e) => {
+    const textEl = e.target.closest('.kanban-card-text');
+    if (!textEl) return;
+    const cardEl = textEl.closest('.kanban-card');
+    if (!cardEl) return;
+    const id = cardEl.dataset.id;
+    const task = _kanbanTasks.find((t) => t.id === id);
+    if (!task) return;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'kanban-inline-edit';
+    input.value = task.text;
+    textEl.replaceWith(input);
+    input.focus();
+    input.select();
+
+    const commitEdit = () => {
+      const val = input.value.trim();
+      if (val && val !== task.text) {
+        task.text = val;
+        saveKanbanTasks(_kanbanTasks);
+      }
+      renderKanban();
+    };
+
+    input.addEventListener('keydown', (evt) => {
+      if (evt.key === 'Enter') {
+        evt.preventDefault();
+        commitEdit();
+      } else if (evt.key === 'Escape') {
+        renderKanban();
+      }
+    });
+    input.addEventListener('blur', commitEdit);
+  });
+
   el.kanbanBoard.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     const input = e.target.closest('.kanban-add-input');
@@ -3144,22 +3260,9 @@ if (el.kanbanBoard) {
     input.focus();
   });
 
-  // ----- drag-and-drop (pointer events) -----
-  // Why pointer events, not HTML5 DnD: Tauri 2's webview (WebView2 on
-  // Windows) intercepts OS-level drag events at the window layer, so HTML5
-  // dragstart/dragover/drop never fire for in-page elements — the Kanban
-  // cards appear "stuck". Pointer events bypass the OS layer and work in
-  // every environment (Tauri desktop + plain browser).
-  //
-  // The card itself gets pointerdown; window gets pointermove/pointerup
-  // (attached lazily once a press begins, removed on release). Delegated
-  // pointerdown survives the renderKanban innerHTML rebuilds.
   el.kanbanBoard.addEventListener('pointerdown', (e) => {
-    // Ignore right/middle clicks and any press not on a card. Crucially, the
-    // delete button sits inside the card — its click handler still needs to
-    // fire, so we explicitly bail for presses on it.
     if (e.button !== 0) return;
-    if (e.target.closest('.kanban-card-delete')) return;
+    if (e.target.closest('.kanban-card-delete') || e.target.closest('.kanban-card-checkbox') || e.target.closest('.kanban-inline-edit')) return;
     const card = e.target.closest('.kanban-card');
     if (!card) return;
     _kanbanDrag = {

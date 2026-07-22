@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-07-22
+
+### Changed — modern Kanban Board UI & feature overhaul
+
+- **Visual Refresh:** Redesigned the Kanban board with a modern header toolbar, subtle glassmorphism backdrop, colored column top-borders (`To Do` blue, `In Progress` amber, `Done` emerald), elevated card shadows (`box-shadow`), smooth drag rotation, and hover micro-animations.
+- **Completion Progress Bar & Live Task Stats:** Added an interactive header progress bar displaying overall completion percentage alongside live task counts (`N of M done (X%)`).
+- **Real-Time Task Filtering:** Integrated a instant search/filter bar in the Kanban header to filter cards across columns.
+- **Task Checkboxes & Inline Editing:** Added task completion checkboxes on cards for one-click status toggling and supported double-clicking task text for seamless inline editing.
+- **Auto-Parsed Tag Badges & Timestamps:** Automatically parses hashtags (`#bug`, `#feat`, `[High]`) into colorful pill badges and displays formatted relative timestamps (`Just now`, `5m ago`, `2h ago`).
+- **Clear Completed Action:** Added a "Clear Done" toolbar button to flush completed tasks in one click.
+
 ## [0.27.3] - 2026-07-22
 
 ### Fixed — image pasting support & xterm text descender clipping
