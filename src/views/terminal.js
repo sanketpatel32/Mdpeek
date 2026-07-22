@@ -165,21 +165,24 @@ export function initTerminal({ cwdProvider, onToast }) {
 
       // Race the spawn against a timeout so a missing backend (e.g. the page
       // loaded outside Tauri, or the Rust command hung) doesn't strand the
-      // tab forever with no PTY wired up. On timeout we render an error line
-      // and leave ptyId undefined — the rest of the module is no-op-safe for
-      // that case (onDataDisp / onResizeDisp check ptyId !== undefined).
-      const spawn = invoke('spawn_terminal', {
+      // tab forever with no PTY wired up. 15s is generous: a cold-started
+      // PowerShell on a slow machine with a heavy $PROFILE can take several
+      // seconds before its first byte. On timeout we render an error line and
+      // leave ptyId undefined — the rest of the module is no-op-safe for that
+      // case (onDataDisp / onResizeDisp check ptyId !== undefined).
+      const spawnPromise = invoke('spawn_terminal', {
         onEvent: chan,
         cwd: cwdProvider() || null,
         cols: term.cols,
         rows: term.rows,
       });
-      const res = await Promise.race([
-        spawn,
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('terminal backend did not respond (is the Tauri shell available?)')), 4000),
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error('terminal backend did not respond within 15s')),
+          15000,
         ),
-      ]);
+      );
+      const res = await Promise.race([spawnPromise, timeoutPromise]);
       ptyId = res.id;
     } catch (err) {
       term.write(`\x1b[31mFailed to start terminal: ${escapeHtml(String(err))}\x1b[0m\r\n`);

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.1] - 2026-07-22
+
+### Fixed — terminal "backend did not respond" error
+
+v0.27.0's terminal spawn had a **4-second frontend timeout** that was too aggressive. On machines with PowerShell 7 installed, the cold-launch sequence (probe `pwsh.exe --version` + spawn the ConPTY + PowerShell profile load + first IPC round-trip) regularly exceeded 4s, so the frontend gave up and showed *"Failed to start terminal: terminal backend did not respond"*. The backend was actually working — verified via `eprintln!` logs showing spawn completes in well under a second; the timeout was racing against unrelated IPC/profile overhead.
+
+Two fixes:
+
+- **Frontend timeout raised from 4s → 15s.** PowerShell cold-start with a heavy `$PROFILE` can take several seconds on first launch; 15s gives comfortable headroom while still failing cleanly if the backend is genuinely absent.
+- **PowerShell-7 probe made non-blocking.** The `pwsh.exe --version` detection used to run synchronously on the IPC thread via `Command::output()`. If `pwsh.exe` on PATH misbehaved (hung waiting for input, slow profile load), it could block the whole `spawn_terminal` command. Now the probe runs on a worker thread with stdin/stdout/stderr wired to `Stdio::null()` and a hard **1.5s `recv_timeout`** — on any doubt we fall back to the universally-installed `powershell.exe`.
+- Added diagnostic `eprintln!` logging at every checkpoint in `spawn_terminal` (openpty, probe result, spawn_command pid, slave drop, master move, take_writer, return id) so future spawn issues are immediately diagnosable in `tauri dev` output.
+
 ## [0.27.0] - 2026-07-22
 
 ### Changed — the terminal is now a real PTY (VS Code-style)

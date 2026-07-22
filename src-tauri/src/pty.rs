@@ -72,9 +72,11 @@ pub fn spawn_terminal(
     cols: Option<u16>,
     rows: Option<u16>,
 ) -> Result<SpawnResult, String> {
+    eprintln!("[pty] spawn_terminal: start (cwd={:?}, cols={:?}, rows={:?})", cwd, cols, rows);
     let id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
 
     let pty_system = native_pty_system();
+    eprintln!("[pty] openpty: opening ConPTY...");
     let pair = pty_system
         .openpty(PtySize {
             rows: rows.unwrap_or(24),
@@ -82,23 +84,45 @@ pub fn spawn_terminal(
             pixel_width: 0,
             pixel_height: 0,
         })
-        .map_err(|e| format!("openpty failed: {e}"))?;
+        .map_err(|e| {
+            eprintln!("[pty] openpty FAILED: {e}");
+            format!("openpty failed: {e}")
+        })?;
+    eprintln!("[pty] openpty: ok");
 
     // Pick the shell. PowerShell 5.1 (powershell.exe) ships with every
     // Windows 10+ install, so it's the safe default. PowerShell 7 (pwsh.exe)
     // is preferred when present because it has better ANSI + UTF-8 handling.
-    // Detection is a cheap PATH probe via std::process::Command -- no extra
-    // crate needed.
+    //
+    // The probe is defensively bounded: stdin/stdout/stderr are wired to null
+    // so nothing can block waiting for input, and we run it on a worker thread
+    // with a hard 1.5s join timeout so a misbehaving pwsh.exe on PATH can't
+    // hang the whole spawn_terminal command. On any doubt we fall back to the
+    // universally-installed powershell.exe.
     #[cfg(target_os = "windows")]
     let (program, args): (&str, Vec<&str>) = {
-        let pwsh7_present = std::process::Command::new("pwsh.exe")
-            .arg("--version")
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false);
+        use std::process::Stdio;
+        use std::sync::mpsc;
+        use std::time::Duration;
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let mut cmd = std::process::Command::new("pwsh.exe");
+            cmd.arg("--version")
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null());
+            let result = cmd
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false);
+            let _ = tx.send(result);
+        });
+        let pwsh7_present = rx.recv_timeout(Duration::from_millis(1500)).unwrap_or(false);
         if pwsh7_present {
+            eprintln!("[pty] probe: using pwsh.exe (PowerShell 7)");
             ("pwsh.exe", vec!["-NoLogo"])
         } else {
+            eprintln!("[pty] probe: using powershell.exe (Windows PowerShell 5.1)");
             ("powershell.exe", vec!["-NoLogo"])
         }
     };
@@ -112,6 +136,7 @@ pub fn spawn_terminal(
         (leaked, vec!["-l"])
     };
 
+    eprintln!("[pty] spawn_command: launching {} {:?}", program, args);
     let mut cmd = CommandBuilder::new(program);
     for a in args {
         cmd.arg(a);
@@ -123,21 +148,31 @@ pub fn spawn_terminal(
     let child = pair
         .slave
         .spawn_command(cmd)
-        .map_err(|e| format!("spawn_command failed: {e}"))?;
+        .map_err(|e| {
+            eprintln!("[pty] spawn_command FAILED: {e}");
+            format!("spawn_command failed: {e}")
+        })?;
+    eprintln!("[pty] spawn_command: ok (pid={})", child.process_id().unwrap_or(0));
 
     // The slave side is no longer needed once the child is spawned — drop it
     // so the master owns the PTY fully (required by portable_pty semantics).
     drop(pair.slave);
+    eprintln!("[pty] slave dropped");
 
     // Move the master out of the pair so we can use it without partial-move
     // issues. After this, `pair` is consumed.
     let master = pair.master;
+    eprintln!("[pty] master moved out of pair");
 
     // Smoke-test that the PTY is writable before we commit to storing it.
     // portable_pty semantics: take_writer yields a fresh writer per call.
     let _ = master
         .take_writer()
-        .map_err(|e| format!("take_writer failed: {e}"))?;
+        .map_err(|e| {
+            eprintln!("[pty] take_writer FAILED: {e}");
+            format!("take_writer failed: {e}")
+        })?;
+    eprintln!("[pty] take_writer: ok");
 
     // Reader thread: pump PTY → Channel. Runs until EOF (child exited) or
     // error. On exit sends one PtyEvent::Exit so the frontend can render a
@@ -168,6 +203,7 @@ pub fn spawn_terminal(
         _child: child,
     };
     state.0.lock().unwrap().insert(id, entry);
+    eprintln!("[pty] spawn_terminal: returning id={id}");
 
     Ok(SpawnResult { id })
 }
