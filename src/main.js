@@ -768,10 +768,13 @@ const palette = initCommandPalette(() => {
   const collabActive = collab.getStatus().active;
   return cmds.filter((c) => {
     if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet') && !hasDoc) return false;
-    // 'end-collab' is only meaningful when a session is running.
     if (c.id === 'end-collab' && !collabActive) return false;
-    // 'start-collab' is hidden once a session is active (use End instead).
     if (c.id === 'start-collab' && collabActive) return false;
+    if ((c.id === 'start-collab' || c.id === 'end-collab') && localStorage.getItem('mdpeek-feature-collab') === '0') return false;
+    if (c.id === 'kanban' && localStorage.getItem('mdpeek-feature-kanban') === '0') return false;
+    if (c.id === 'start-presentation' && localStorage.getItem('mdpeek-feature-present') === '0') return false;
+    if (c.id === 'snippet' && localStorage.getItem('mdpeek-feature-snippets') === '0') return false;
+    if (c.id === 'daily' && localStorage.getItem('mdpeek-feature-daily') === '0') return false;
     return true;
   });
 });
@@ -3009,6 +3012,7 @@ el.update.addEventListener('click', () => {
   } else {
     checkForUpdates(false);
   }
+});
 document.addEventListener('selectionchange', () => {
   updateEditorStatus();
 });
@@ -3278,16 +3282,11 @@ const SETTING_KEYS = [
   'mdpeek-autosave',
 ];
 
+let _changelogRendered = false;
 function openSettings() {
   syncSettingsControls();
-  // Render the bundled CHANGELOG into the Changelog panel. Cheap to redo on
-  // every open (renderMarkdown has an LRU cache), and avoids rendering it at
-  // app startup when most users never visit this panel.
-  const changelogEl = document.getElementById('changelog-content');
-  if (changelogEl) changelogEl.innerHTML = renderMarkdown(changelogSource);
   el.settingsDialog.classList.remove('hidden');
-  // Always open on the General category for predictability (in case the user
-  // switched to another category last time and the .active state persisted).
+  // Always open on the General category for predictability
   const firstCat = el.settingsDialog.querySelector('.settings-cat[data-cat="general"]');
   if (firstCat && !firstCat.classList.contains('active')) firstCat.click();
 }
@@ -3337,6 +3336,13 @@ function syncSettingsControls() {
     notesPath.classList.toggle('unset', !dir);
   }
 
+  // Feature flags synchronization
+  const features = ['collab', 'kanban', 'present', 'snippets', 'daily'];
+  features.forEach((feat) => {
+    const cb = document.getElementById(`settings-feature-${feat}`);
+    if (cb) cb.checked = localStorage.getItem(`mdpeek-feature-${feat}`) !== '0';
+  });
+
   // Windows Explorer context menu setting check (hide on non-Windows)
   const isWindows = navigator.userAgent.includes('Windows') || navigator.platform.indexOf('Win') > -1;
   const ctxRow = document.getElementById('setting-row-context-menu');
@@ -3351,6 +3357,20 @@ function syncSettingsControls() {
       }).catch((e) => console.error(e));
     }
   }
+}
+
+function applyFeatureFlags() {
+  const collabEnabled = localStorage.getItem('mdpeek-feature-collab') !== '0';
+  const kanbanEnabled = localStorage.getItem('mdpeek-feature-kanban') !== '0';
+  const presentEnabled = localStorage.getItem('mdpeek-feature-present') !== '0';
+  const dailyEnabled = localStorage.getItem('mdpeek-feature-daily') !== '0';
+
+  if (el.share) el.share.style.display = collabEnabled ? '' : 'none';
+  if (el.collabStatus && !collabEnabled) el.collabStatus.classList.add('hidden');
+
+  if (el.kanban) el.kanban.style.display = kanbanEnabled ? '' : 'none';
+  if (el.present) el.present.style.display = presentEnabled ? '' : 'none';
+  if (el.daily) el.daily.style.display = dailyEnabled ? '' : 'none';
 }
 
 function setSegActive(setting, value) {
@@ -3397,6 +3417,13 @@ if (settingsSidebar) settingsSidebar.addEventListener('click', (e) => {
   el.settingsDialog.querySelectorAll('.settings-panel').forEach((p) => {
     p.classList.toggle('hidden', p.dataset.cat !== name);
   });
+  if (name === 'changelog' && !_changelogRendered) {
+    const changelogEl = document.getElementById('changelog-content');
+    if (changelogEl) {
+      changelogEl.innerHTML = renderMarkdown(changelogSource);
+      _changelogRendered = true;
+    }
+  }
 });
 
 // About panel — "View on GitHub" / "Report an issue" buttons open the system
@@ -3479,6 +3506,17 @@ document.getElementById('settings-notes-pick').addEventListener('click', () => {
 document.getElementById('settings-autosave').addEventListener('change', (e) => {
   localStorage.setItem('mdpeek-autosave', e.target.checked ? '1' : '0');
   if (!e.target.checked) clearTimeout(_autoSaveTimer);
+});
+
+// Feature flags change handlers
+['collab', 'kanban', 'present', 'snippets', 'daily'].forEach((feat) => {
+  const cb = document.getElementById(`settings-feature-${feat}`);
+  if (cb) {
+    cb.addEventListener('change', (e) => {
+      localStorage.setItem(`mdpeek-feature-${feat}`, e.target.checked ? '1' : '0');
+      applyFeatureFlags();
+    });
+  }
 });
 
 // Explorer context menu — toggle Windows right-click options dynamically.
@@ -4098,6 +4136,7 @@ window.addEventListener('keydown', (e) => {
   }
   // Ctrl+Shift+S → open Markdown snippet/template picker.
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'S' || e.key === 's')) {
+    if (localStorage.getItem('mdpeek-feature-snippets') === '0') return;
     e.preventDefault();
     e.stopPropagation();
     snippetPicker.open();
@@ -4106,6 +4145,7 @@ window.addEventListener('keydown', (e) => {
   // Ctrl+Shift+K → toggle the global Kanban board. Also closes it (so the
   // user can hit the same shortcut to dismiss).
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'K' || e.key === 'k')) {
+    if (localStorage.getItem('mdpeek-feature-kanban') === '0') return;
     e.preventDefault();
     e.stopPropagation();
     if (document.body.classList.contains('kanban-mode')) closeKanban();
@@ -4463,6 +4503,7 @@ if (savedZoom >= ZOOM_MIN && savedZoom <= ZOOM_MAX) {
 }
 applyReadingComfort();
 applyLineNumbers();
+applyFeatureFlags();
 
 (async () => {
   try {
