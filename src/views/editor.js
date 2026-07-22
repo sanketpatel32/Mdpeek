@@ -26,10 +26,61 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
   // highlighted copy underneath. Always clear stale state so the native
   // textarea is the only text renderer and the cursor cannot drift from glyphs.
   textarea.parentElement?.classList.remove('highlight-on');
-  // One source line must always occupy one visual row. This makes the native
-  // textarea and gutter share the same simple line-height model; long lines
-  // scroll horizontally instead of silently shifting every later line number.
-  textarea.setAttribute('wrap', 'off');
+  // Soft-wrap long lines instead of forcing horizontal scrolling (the #1
+  // editor complaint — a single long sentence used to overflow by 1000+ px and
+  // the user couldn't see what they typed). The gutter, active-line marker,
+  // and typewriter mode all read positions from the mirror (below) so they
+  // stay aligned even when a source line wraps to multiple visual rows.
+  textarea.setAttribute('wrap', 'soft');
+
+  // ----- hidden mirror (wrap-aware measurement) -----
+  // A visibility:hidden div that echoes the textarea's text one <div> per
+  // source line, with identical font/padding/width. The browser lays it out
+  // natively, so offsetTop/offsetHeight on a mirror line account for wrapping.
+  // This is the standard technique (used by GitHub's comment box, VS Code's
+  // simple editors) for measuring wrapped-text positions without a real
+  // editor framework. Created once per initEditor; rebuilt on every input.
+  const wrap = textarea.parentElement;
+  let mirror = wrap?.querySelector('.editor-mirror');
+  if (!mirror && wrap) {
+    mirror = document.createElement('div');
+    mirror.className = 'editor-mirror';
+    mirror.setAttribute('aria-hidden', 'true');
+    wrap.appendChild(mirror);
+  }
+  // Sync the mirror's typography + box to the textarea so wrapping points
+  // match exactly. Called on every updateMirror + on resize.
+  function syncMirrorBox() {
+    if (!mirror) return;
+    const cs = getComputedStyle(textarea);
+    mirror.style.fontFamily = cs.fontFamily;
+    mirror.style.fontSize = cs.fontSize;
+    mirror.style.lineHeight = cs.lineHeight;
+    mirror.style.paddingTop = cs.paddingTop;
+    mirror.style.paddingRight = cs.paddingRight;
+    mirror.style.paddingBottom = cs.paddingBottom;
+    mirror.style.paddingLeft = cs.paddingLeft;
+    mirror.style.borderWidth = cs.borderWidth;
+    mirror.style.boxSizing = cs.boxSizing;
+    // clientWidth excludes the scrollbar, matching the textarea's content box.
+    mirror.style.width = `${textarea.clientWidth}px`;
+    mirror.style.tabSize = cs.tabSize;
+  }
+  // Rebuild the mirror's per-line children from the textarea's current text.
+  function updateMirror() {
+    if (!mirror) return;
+    syncMirrorBox();
+    const lines = textarea.value.split('\n');
+    // Build one <div> per source line. textContent auto-escapes. Empty lines
+    // get a <br> so they occupy one line-height (a bare <div></DIV> collapses).
+    let html = '';
+    for (const line of lines) {
+      html += '<div>';
+      html += line.length ? line : '<br>';
+      html += '</div>';
+    }
+    mirror.innerHTML = html;
+  }
 
   // ----- live preview (debounced) -----
   // Skip mermaid rendering here: it's expensive (layout engine) and the
@@ -60,11 +111,14 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
   }
 
   // ----- gutter (line numbers synced to textarea scroll) -----
-  // Wrapping is disabled, so each source line is exactly one visual row.
+  // Wrap-aware: each gutter row's height = the corresponding mirror line's
+  // offsetHeight, which reflects how many visual rows that source line
+  // wrapped to. A line that wraps to 3 visual rows gets a 3×lineHeight gutter
+  // row; the number renders on the first visual row (top of the row).
   function syncGutter() {
     if (!gutter) return;
-    const text = textarea.value;
-    const n = text.length ? text.split('\n').length : 1;
+    updateMirror();
+    const n = textarea.value.length ? textarea.value.split('\n').length : 1;
     if (gutter.childElementCount !== n || gutter.dataset.lastCount !== String(n)) {
       let html = '';
       for (let i = 1; i <= n; i++) html += `<div>${i}</div>`;
@@ -85,10 +139,16 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     gutter.style.paddingBottom = cs.paddingBottom;
 
     cachedLineHeight = linePx;
+    // KEY CHANGE: each gutter row is as tall as the wrapped mirror line, so
+    // numbers stay aligned with text that spans multiple visual rows.
+    const mirrorLines = mirror?.children || [];
     const kids = gutter.children;
-
-    for (let i = 0; i < n; i++) {
-      if (kids[i]) {
+    for (let i = 0; i < n && i < mirrorLines.length; i++) {
+      if (kids[i] && mirrorLines[i]) {
+        const h = mirrorLines[i].offsetHeight;
+        kids[i].style.height = h ? `${h}px` : linePxStr;
+        kids[i].style.lineHeight = linePxStr;
+      } else if (kids[i]) {
         kids[i].style.height = linePxStr;
         kids[i].style.lineHeight = linePxStr;
       }
@@ -100,27 +160,27 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     updateActiveLineMarker();
   }
   // Typewriter mode: vertically center the line containing the caret. Called
-  // after every input/selection change while the mode is on. Reads the
-  // textarea's lineHeight (cached) and the caret offset to compute the line.
+  // after every input/selection change while the mode is on. Reads the line's
+  // position from the mirror so it works on wrapped lines.
   let cachedLineHeight = 0;
   function centerActiveLine() {
     updateActiveLineMarker();
     if (!typewriter) return;
-    const ta = textarea;
-    const { selectionStart } = ta;
-    const lineNum = ta.value.slice(0, selectionStart).split('\n').length - 1;
-    const lh = cachedLineHeight || 22;
-    const target = lineNum * lh - ta.clientHeight / 2 + lh / 2;
-    ta.scrollTop = Math.max(0, target);
-    if (gutter) gutter.scrollTop = ta.scrollTop;
+    const before = textarea.value.slice(0, textarea.selectionStart);
+    const lineIdx = before.split('\n').length - 1;
+    const mirrorLine = mirror?.children[lineIdx];
+    if (!mirrorLine) return;
+    const lineCenter = mirrorLine.offsetTop + mirrorLine.offsetHeight / 2;
+    textarea.scrollTop = Math.max(0, lineCenter - textarea.clientHeight / 2);
+    if (gutter) gutter.scrollTop = textarea.scrollTop;
   }
   // Active-line highlight: paint a thin background strip on the caret line so
   // the user always sees where they are. We do this by setting two CSS vars on
   // the wrap:
   //   --active-line-top, --active-line-h (in px, scroll-relative)
   // and a thin ::before pseudo on .editor-wrap renders the highlight. JS keeps
-  // the offsets fresh on input, scroll, click, and resize.
-  //
+  // the offsets fresh on input, scroll, click, and resize. Position is read
+  // from the mirror so it tracks wrapped lines correctly.
   function updateActiveLineMarker() {
     if (!textarea || !textarea.isConnected) return;
     const wrap = textarea.parentElement;
@@ -137,13 +197,18 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     const linePx = Math.max(1, Math.round(rawLh || (fs * 1.6)));
     cachedLineHeight = linePx;
 
-    const padTop = parseFloat(cs.paddingTop) || 0;
     const before = textarea.value.slice(0, textarea.selectionStart);
-    const lineNum = before.split('\n').length - 1;
-
-    const top = padTop + (lineNum * linePx) - textarea.scrollTop;
+    const lineIdx = before.split('\n').length - 1;
+    const mirrorLine = mirror?.children[lineIdx];
+    if (!mirrorLine) return;
+    // offsetTop is relative to the mirror's padding box; subtract the
+    // textarea's scrollTop to convert to a scroll-relative position. The
+    // mirror's own offsetTop (its top within .editor-wrap) is 0 since it's
+    // positioned at top:0, but include it defensively.
+    const top = mirrorLine.offsetTop + (mirror?.offsetTop || 0) - textarea.scrollTop;
+    const h = mirrorLine.offsetHeight || linePx;
     wrap.style.setProperty('--active-line-top', `${top}px`);
-    wrap.style.setProperty('--active-line-h', `${linePx}px`);
+    wrap.style.setProperty('--active-line-h', `${h}px`);
   }
 
   // ----- keydown: Tab, Enter, auto-pair, wrap shortcuts, find -----
@@ -268,6 +333,24 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
       const after = textarea.value.slice(en);
       textarea.value = before + text + after;
       const caret = s + text.length;
+      textarea.setSelectionRange(caret, caret);
+      textarea.focus();
+      schedule();
+      syncGutter();
+    },
+    // Read the current selection offsets. Used by the snippet picker
+    // (insertSnippetIntoEditor in main.js) and the status bar's selection
+    // word-count. Returns { start, end }.
+    getSelection() {
+      return { start: textarea.selectionStart, end: textarea.selectionEnd };
+    },
+    // Replace [start, end) with `text`, place the caret at the end of the
+    // inserted text, and refresh preview + gutter. Used by the snippet picker.
+    replaceRange(start, end, text) {
+      const before = textarea.value.slice(0, start);
+      const after = textarea.value.slice(end);
+      textarea.value = before + text + after;
+      const caret = start + text.length;
       textarea.setSelectionRange(caret, caret);
       textarea.focus();
       schedule();

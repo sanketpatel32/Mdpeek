@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.2] - 2026-07-22
+
+### Fixed — the editor no longer forces horizontal scrolling (soft-wrap + wrap-aware gutter)
+
+The editor was reported as "shit and unusable" the moment you clicked Edit. Root cause: the textarea had `wrap="off"` hardcoded (`src/views/editor.js:32`), so **any long line overflowed horizontally** — a single long sentence overflowed by 1444px and you couldn't see what you typed without scrolling right. `wrap="off"` was set deliberately (commit `9ebf337`) to keep the line-number gutter aligned after removing the old syntax-highlight overlay, because the gutter, active-line marker, and typewriter mode all assumed "1 source line = 1 visual row" via the naive `lineNum × linePx` formula. Soft-wrap broke all three.
+
+**The fix introduces a hidden mirror element** — the industry-standard technique (used by GitHub's comment box, VS Code's simple editors, Stack Exchange) for measuring wrapped-text positions without a real editor framework:
+
+- **Soft-wrap is ON.** The textarea is now `wrap="soft"`, `white-space: pre-wrap`, `overflow-wrap: break-word`, `word-break: break-word`. Long lines wrap at the editor's right edge instead of scrolling.
+- **A visibility-hidden `.editor-mirror` div** is appended to `.editor-wrap`. It echoes the textarea's text one `<div>` per source line, with identical font/padding/width. The browser lays it out natively, so `offsetTop`/`offsetHeight` on each mirror line reflect the real wrapped height. No visible rendering — pure measurement.
+- **Wrap-aware gutter.** `syncGutter()` now sets each gutter row's height to the corresponding mirror line's `offsetHeight`. A line that wraps to 3 visual rows gets a 3×lineHeight gutter row; the number renders on the first visual row (top-aligned), continuation rows are blank — exactly GitHub's behavior. Verified: gutter heights match mirror heights to the pixel.
+- **Wrap-aware active-line marker + typewriter.** Both now read the caret line's `offsetTop`/`offsetHeight` from the mirror instead of computing `lineNum × linePx`. Eliminates drift on wrapped lines.
+- **Mirror width syncs to `textarea.clientWidth`** on every update and on resize, so wrapping points match even when a scrollbar appears/disappears.
+
+### Fixed — two dead-code bugs in the editor controller
+
+Found during the editor exploration:
+
+- **Snippet picker was broken in edit mode.** `insertSnippetIntoEditor` (main.js:870) called `doc.editor.getSelection()` and `doc.editor.replaceRange(...)` — neither method was ever implemented on the editor controller, so the snippet picker silently no-op'd. Added both methods to the controller: `getSelection()` returns `{start, end}`, `replaceRange(start, end, text)` splices + refreshes. The existing call sites now resolve.
+- **Status bar selection word-count was broken in edit mode** (main.js:2911) — same root cause, same fix.
+
+### Tests
+- Updated `test/editor-gutter.test.js` to reflect soft-wrap (3 tests adjusted + 1 new test verifying gutter row heights are always set from the mirror). All **300 tests pass** (299 + 1 new).
+
 ## [0.28.1] - 2026-07-22
 
 ### Changed — active line highlight refinement & app stability

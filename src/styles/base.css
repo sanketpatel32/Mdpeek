@@ -1005,8 +1005,12 @@ mark.find-current {
   padding: 16px 20px 16px 64px; /* top right bottom left — left = 44 (gutter) + 20 (text inset) */
   outline: none;
   tab-size: 2;
-  white-space: pre;
-  overflow-wrap: normal;
+  /* Soft-wrap long lines instead of forcing horizontal scrolling. The gutter,
+     active-line marker, and typewriter mode all read positions from the
+     .editor-mirror element so they stay aligned across wrapped rows. */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 /* Keep selection readable across themes. */
 .editor::selection {
@@ -1016,6 +1020,22 @@ mark.find-current {
 .editor::-moz-selection {
   background: var(--accent-soft);
   color: var(--fg);
+}
+/* Hidden mirror used by editor.js to measure wrapped-line positions for the
+   gutter, active-line marker, and typewriter mode. The browser lays it out
+   natively, so offsetTop/offsetHeight on each per-line <div> reflect the real
+   wrapped height. Typography, padding, and width are set inline by JS to match
+   the textarea exactly. */
+.editor-mirror {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 #preview {
