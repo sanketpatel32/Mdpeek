@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-07-22
+
+### Added — Modern Integrated PowerShell Terminal Drawer (`Ctrl+\``)
+- **Built-in PowerShell Console:** Toggleable bottom shell panel (`Ctrl+\`` or top bar terminal icon) powered by native Windows PowerShell process execution.
+- **Image & File Drag/Drop & Paste Support:** Drag and drop files/photos directly into the terminal or paste screenshots directly from the clipboard (`Ctrl+V`). Images are auto-saved to the active workspace and inserted as quoted file paths into your active CLI prompt.
+- **Command History & Directory Auto-Sync:** Navigate past commands with `↑`/`↓`, clear screen with `Ctrl+L`, and automatically sync working directory when switching tabs or using `cd`.
+
 ## [0.24.1] - 2026-07-22
 
 ### Fixed — Settings Modal Tab Switching Lag
