@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-07-22
+
+### Added — Save Code Block Action Button
+- **Direct Code Snippet Download:** Added a "Save code block" button next to "Copy code" on rendered code blocks in view mode. Automatically detects language extensions (`.js`, `.py`, `.ts`, `.json`, `.css`, `.html`, `.sql`, `.sh`, `.rs`, `.cpp`, `.go`) and saves snippet directly to disk.
+
+### Added — Markdown Template & Snippet Picker (`Ctrl+Shift+S`)
+- **Quick Snippet Inserter:** Added a dedicated template launcher (`Ctrl+Shift+S`) and command palette action to insert Markdown callout blocks (`[!NOTE]`, `[!TIP]`, `[!WARNING]`), 3x3 tables, task lists, code fences, KaTeX math blocks, and meeting notes templates.
+
+### Added — Selection Word & Character Counter
+- **Dynamic Status Bar Selection Counter:** Highlighting text in the editor or view pane now displays `Selected: X w, Y c` alongside total word and character counts in the status bar.
+
+### Fixed — Zoom & UI Polish
+- **Document & Editor Zoom:** Fixed CSS `var(--content-font-size)` binding so Zoom In / Out buttons and `Ctrl + Mouse Wheel` scale all rendered Markdown, preview, editor, and PDF views smoothly.
+- **Header Alignment & Live Collab Sharing:** Centered the `Live · waiting` collaboration status pill in the top header and restored the Share collaboration icon for code file tabs.
+
 ## [0.23.1] - 2026-07-21
 
 ### Changed — Live Collaboration Status Pill Polish
