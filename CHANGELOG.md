@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.1] - 2026-07-22
+
+### Added — Resizable Layout Blocks & Terminal Drawer Polish
+- **Dynamic Terminal Height Resizer:** Added a top drag handle to the Terminal Drawer (`#terminal-resize-handle`) allowing smooth mouse-drag height adjustment between 120px and 80vh.
+- **Edit Mode Split Pane Resizer:** Added a middle vertical drag handle (`#pane-resizer`) between the Source Editor and Live Preview panes for customizable split ratios.
+
 ## [0.25.0] - 2026-07-22
 
 ### Added — Modern Integrated PowerShell Terminal Drawer (`Ctrl+\``)
