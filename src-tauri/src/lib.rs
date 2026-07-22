@@ -189,6 +189,7 @@ pub fn run() {
             commands::register_context_menu,
             commands::unregister_context_menu,
             commands::is_context_menu_registered,
+            commands::run_shell_command,
             watcher::watch_path,
             get_initial_file,
             get_initial_url,

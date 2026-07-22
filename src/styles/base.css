@@ -3344,3 +3344,133 @@ body.kanban-mode #kanban-view { display: flex; }
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* ---------- Modern Integrated Terminal Drawer ---------- */
+.terminal-drawer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 260px;
+  max-height: 50vh;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  z-index: 45;
+  font-family: var(--mono-font, "Cascadia Code", "Fira Code", Consolas, monospace);
+  backdrop-filter: blur(12px);
+  transition: transform 180ms var(--ease), opacity 180ms var(--ease);
+}
+.terminal-drawer.dragover {
+  border-top: 2px dashed var(--accent);
+  background: var(--surface-hover);
+}
+.terminal-header {
+  height: 32px;
+  flex: 0 0 32px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-subtle);
+  user-select: none;
+}
+.terminal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-secondary);
+}
+.terminal-title svg {
+  color: var(--accent);
+}
+.terminal-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.terminal-action-btn {
+  background: transparent;
+  border: none;
+  color: var(--fg-muted);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.terminal-action-btn:hover {
+  background: var(--surface-hover);
+  color: var(--fg);
+}
+.terminal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--fg);
+  cursor: text;
+}
+.terminal-history {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.terminal-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.terminal-cmd-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.terminal-output {
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--fg);
+  font-weight: 400;
+  opacity: 0.92;
+  margin-left: 4px;
+}
+.terminal-output.error {
+  color: var(--danger, #f44336);
+}
+.terminal-prompt-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.terminal-prompt-prefix {
+  font-weight: 700;
+  color: var(--accent);
+  user-select: none;
+  white-space: nowrap;
+}
+.terminal-input-wrap {
+  flex: 1;
+}
+.terminal-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 12.5px;
+  padding: 0;
+}
+.terminal-input::placeholder {
+  color: var(--fg-muted);
+  opacity: 0.6;
+}
+

@@ -125,6 +125,9 @@
           <button id="btn-kanban" class="tool-btn icon-only" title="Kanban board (Ctrl+Shift+K)" aria-label="Open Kanban board">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="12" rx="1"/><rect x="17" y="3" width="4" height="8" rx="1"/></svg>
           </button>
+          <button id="btn-terminal" class="tool-btn icon-only" title="Toggle Terminal (Ctrl+`)" aria-label="Toggle terminal">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          </button>
         </div>
 
         <!-- Zoom -->
@@ -274,6 +277,29 @@
           <article id="preview" class="markdown-body"></article>
         </div>
       </main>
+
+      <!-- Terminal Drawer -->
+      <div id="terminal-drawer" class="terminal-drawer hidden">
+        <div class="terminal-header">
+          <div class="terminal-title">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            <span id="terminal-pwd">PowerShell</span>
+          </div>
+          <div class="terminal-actions">
+            <button id="terminal-clear-btn" class="terminal-action-btn" type="button" title="Clear terminal (Ctrl+L)">Clear</button>
+            <button id="terminal-close-btn" class="terminal-action-btn" type="button" title="Close terminal (Ctrl+`)">✕</button>
+          </div>
+        </div>
+        <div id="terminal-body" class="terminal-body" tabindex="0">
+          <div id="terminal-history" class="terminal-history"></div>
+          <div class="terminal-prompt-line">
+            <span id="terminal-prompt-prefix" class="terminal-prompt-prefix">PS &gt;</span>
+            <div class="terminal-input-wrap">
+              <input id="terminal-input" class="terminal-input" type="text" autocomplete="off" spellcheck="false" placeholder="Type PowerShell command..." />
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div id="dropzone" class="dropzone hidden">
@@ -650,6 +676,16 @@
                   </div>
                   <label class="setting-toggle">
                     <input type="checkbox" id="settings-feature-kanban" />
+                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+                  </label>
+                </div>
+                <div class="setting-row">
+                  <div class="setting-text">
+                    <div class="setting-label">Integrated Terminal</div>
+                    <div class="setting-desc">Enable PowerShell terminal drawer with image paste support (Ctrl+`)</div>
+                  </div>
+                  <label class="setting-toggle">
+                    <input type="checkbox" id="settings-feature-terminal" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>

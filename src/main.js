@@ -15,6 +15,7 @@ import { initCommandPalette, initQuickSwitcher, initSnippetPicker } from './view
 import { initFileTree, setTreeRoot, setActivePath, refreshTree } from './views/file-tree.js';
 import { initCsvViewer } from './views/csv-viewer.js';
 import { initFolderSearch } from './views/folder-search.js';
+import { initTerminal } from './views/terminal.js';
 import { renderTabs } from './views/tabs.js';
 import { DocumentStore, isPdfPath, isImagePath, isExcalidrawPath, langFromPath, langForEdit } from './lib/documents.js';
 import { renderMarkdown, renderCode, renderCsv, parseCsv, prepareCodeLang } from './lib/renderer.js';
@@ -167,6 +168,7 @@ const el = {
   settings: document.getElementById('btn-settings'),
   settingsDialog: document.getElementById('settings-dialog'),
   update: document.getElementById('btn-update'),
+  terminal: document.getElementById('btn-terminal'),
   tabStrip: document.getElementById('tab-strip'),
   viewMode: document.getElementById('view-mode'),
   editMode: document.getElementById('edit-mode'),
@@ -757,6 +759,7 @@ const palette = initCommandPalette(() => {
     { id: 'theme', label: 'Cycle theme', keywords: 'theme color light dark cycle', run: cycleTheme },
     { id: 'settings', label: 'Open settings', keywords: 'settings preferences options', run: openSettings },
     { id: 'kanban', label: 'Open Kanban board', hint: 'Ctrl+Shift+K', keywords: 'kanban board tasks todo done progress', run: openKanban },
+    { id: 'terminal', label: 'Toggle terminal', hint: 'Ctrl+`', keywords: 'terminal powershell shell cmd console cli', run: () => terminal.toggle() },
     { id: 'snippet', label: 'Insert template / snippet', hint: 'Ctrl+Shift+S', keywords: 'snippet template callout table code meeting insert', run: () => snippetPicker.open() },
     { id: 'check-updates', label: 'Check for updates', keywords: 'update version check', run: () => checkForUpdates(false) },
     { id: 'quit', label: 'Quit mdpeek', keywords: 'quit exit close', run: doQuitApp },
@@ -816,6 +819,23 @@ function insertSnippetIntoEditor(doc, textToInsert) {
     doc.content += '\n\n' + textToInsert;
     renderActive();
   }
+}
+
+// ---------- Integrated PowerShell Terminal ----------
+const terminal = initTerminal({
+  cwdProvider: () => {
+    const activeDoc = store.active();
+    if (activeDoc && activeDoc.path) {
+      const idx = Math.max(activeDoc.path.lastIndexOf('/'), activeDoc.path.lastIndexOf('\\'));
+      if (idx > -1) return activeDoc.path.substring(0, idx);
+    }
+    return localStorage.getItem('mdpeek-explorer-root') || '.';
+  },
+  onToast: (msg) => toast(msg),
+});
+
+if (el.terminal) {
+  el.terminal.addEventListener('click', () => terminal.toggle());
 }
 
 // ---------- quick switcher (Ctrl+P) ----------
@@ -3337,7 +3357,7 @@ function syncSettingsControls() {
   }
 
   // Feature flags synchronization
-  const features = ['collab', 'kanban', 'present', 'snippets', 'daily'];
+  const features = ['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily'];
   features.forEach((feat) => {
     const cb = document.getElementById(`settings-feature-${feat}`);
     if (cb) cb.checked = localStorage.getItem(`mdpeek-feature-${feat}`) !== '0';
@@ -3362,6 +3382,7 @@ function syncSettingsControls() {
 function applyFeatureFlags() {
   const collabEnabled = localStorage.getItem('mdpeek-feature-collab') !== '0';
   const kanbanEnabled = localStorage.getItem('mdpeek-feature-kanban') !== '0';
+  const terminalEnabled = localStorage.getItem('mdpeek-feature-terminal') !== '0';
   const presentEnabled = localStorage.getItem('mdpeek-feature-present') !== '0';
   const dailyEnabled = localStorage.getItem('mdpeek-feature-daily') !== '0';
 
@@ -3369,6 +3390,7 @@ function applyFeatureFlags() {
   if (el.collabStatus && !collabEnabled) el.collabStatus.classList.add('hidden');
 
   if (el.kanban) el.kanban.style.display = kanbanEnabled ? '' : 'none';
+  if (el.terminal) el.terminal.style.display = terminalEnabled ? '' : 'none';
   if (el.present) el.present.style.display = presentEnabled ? '' : 'none';
   if (el.daily) el.daily.style.display = dailyEnabled ? '' : 'none';
 }
@@ -3509,7 +3531,7 @@ document.getElementById('settings-autosave').addEventListener('change', (e) => {
 });
 
 // Feature flags change handlers
-['collab', 'kanban', 'present', 'snippets', 'daily'].forEach((feat) => {
+['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily'].forEach((feat) => {
   const cb = document.getElementById(`settings-feature-${feat}`);
   if (cb) {
     cb.addEventListener('change', (e) => {
@@ -4140,6 +4162,14 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     e.stopPropagation();
     snippetPicker.open();
+    return;
+  }
+  // Ctrl+` → toggle integrated terminal drawer.
+  if ((e.ctrlKey || e.metaKey) && e.key === '`') {
+    if (localStorage.getItem('mdpeek-feature-terminal') === '0') return;
+    e.preventDefault();
+    e.stopPropagation();
+    terminal.toggle();
     return;
   }
   // Ctrl+Shift+K → toggle the global Kanban board. Also closes it (so the
