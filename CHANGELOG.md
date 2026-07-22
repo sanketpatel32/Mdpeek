@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.1] - 2026-07-22
+
+### Fixed — Settings Modal Tab Switching Lag
+- **Lazy Changelog Rendering:** Resolved modal tab switching lag by rendering the Markdown CHANGELOG on demand when clicking the Changelog tab, rather than eagerly re-parsing it every time Settings opens.
+
+### Added — Settings Feature Flags Category
+- **Opt-out Non-essential Features:** Added a dedicated **Features** tab under Settings allowing users to disable/enable non-essential features (*Live Collaboration*, *Kanban Board*, *Presentation Slideshow*, *Markdown Snippets & Templates*, *Daily Notes*).
+- **Windows Explorer Right-click Integration:** Preserved and surfaced the *Open with mdpeek* / *Open folder in mdpeek* context menu toggle under Settings → General.
+
 ## [0.24.0] - 2026-07-22
 
 ### Added — Save Code Block Action Button
