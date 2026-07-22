@@ -703,52 +703,5 @@ fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::
     Ok(())
 }
 
-#[derive(Serialize)]
-pub struct CommandOutput {
-    pub stdout: String,
-    pub stderr: String,
-    pub exit_code: i32,
-    pub cwd: String,
-}
-
-/// Execute a shell command in a specified directory (or current working dir).
-/// On Windows, executes via powershell.exe -NoProfile -Command.
-#[tauri::command]
-pub fn run_shell_command(command: String, cwd: Option<String>) -> Result<CommandOutput, String> {
-    let working_dir = cwd
-        .filter(|dir| !dir.trim().is_empty() && std::path::Path::new(dir).is_dir())
-        .unwrap_or_else(|| {
-            std::env::current_dir()
-                .map(|p| p.to_string_lossy().into_owned())
-                .unwrap_or_else(|_| ".".to_string())
-        });
-
-    #[cfg(target_os = "windows")]
-    let mut cmd = {
-        let mut c = std::process::Command::new("cmd.exe");
-        c.args(&["/C", &command]);
-        c
-    };
-
-    #[cfg(not(target_os = "windows"))]
-    let mut cmd = {
-        let mut c = std::process::Command::new("sh");
-        c.args(&["-c", &command]);
-        c
-    };
-
-    cmd.current_dir(&working_dir);
-
-    let output = cmd.output().map_err(|e| format!("Failed to execute command: {}", e))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    let exit_code = output.status.code().unwrap_or(-1);
-
-    Ok(CommandOutput {
-        stdout,
-        stderr,
-        exit_code,
-        cwd: working_dir,
-    })
-}
+// (The old request/response `run_shell_command` lived here. Removed in v0.23.0
+//  in favor of the real-PTY backend in src/pty.rs — see spawn_terminal.)

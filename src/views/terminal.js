@@ -1,85 +1,102 @@
-// Integrated Terminal Drawer module (v0.25.0)
-// Provides a modern PowerShell terminal with command history, image/file paste & drag-and-drop support.
+// Integrated Terminal Drawer module (v0.23.0).
+//
+// Real PTY (ConPTY on Windows) backend wired to xterm.js. Replaces the old
+// request/response fake shell. The flow:
+//
+//   frontend xterm.js  ──onData(str)──►  invoke('write_terminal', {id, str})
+//        ▲                                        │
+//        └── write(UTF-8 decode of Channel) ◄─────┤
+//                ▲                                │
+//                └── Channel onmessage ──◄── pty.rs reader thread
+//
+// The terminal's `initTerminal({ cwdProvider, onToast })` export signature is
+// unchanged from the previous version so main.js needs no edits at the call
+// site. The pure helpers `readCssVar` and `xtermThemeFromApp` are exported for
+// unit testing.
 
-import { invoke } from '@tauri-apps/api/core';
+import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
+import '@xterm/xterm/css/xterm.css';
+import { invoke, Channel } from '@tauri-apps/api/core';
+
+// Read a CSS custom property from :root, returning `fallback` if unset or if
+// the computed value is empty. Stripped of surrounding whitespace.
+export function readCssVar(name, fallback = '') {
+  if (typeof window === 'undefined' || !window.getComputedStyle) return fallback;
+  const v = window.getComputedStyle(document.documentElement).getPropertyValue(name);
+  const trimmed = (v || '').trim();
+  return trimmed || fallback;
+}
+
+// Build an xterm.js theme object from the app's active theme CSS vars. xterm.js
+// expects hex strings (or `#rrggbb` / `rgba(...)`); we hand it the same colors
+// the rest of the app uses so the terminal matches the chosen theme. Falls
+// back to neutral colors if a var is missing.
+export function xtermThemeFromApp() {
+  return {
+    background: readCssVar('--bg', '#000000'),
+    foreground: readCssVar('--fg', '#ffffff'),
+    cursor: readCssVar('--fg', '#ffffff'),
+    cursorAccent: readCssVar('--bg', '#000000'),
+    selectionBackground: readCssVar('--surface-hover', 'rgba(255,255,255,0.2)'),
+    black: readCssVar('--fg', '#000000'),
+    red: readCssVar('--danger', '#ff0000'),
+    green: '#22c55e',
+    yellow: '#f59e0b',
+    blue: readCssVar('--accent', '#0000ff'),
+    magenta: '#c084fc',
+    cyan: '#06b6d4',
+    white: readCssVar('--fg', '#ffffff'),
+    brightBlack: readCssVar('--fg-muted', '#666666'),
+    brightRed: readCssVar('--danger', '#ff5555'),
+    brightGreen: '#4ade80',
+    brightYellow: '#fbbf24',
+    brightBlue: readCssVar('--accent', '#5555ff'),
+    brightMagenta: '#d8b4fe',
+    brightCyan: '#22d3ee',
+    brightWhite: readCssVar('--fg', '#ffffff'),
+  };
+}
+
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 export function initTerminal({ cwdProvider, onToast }) {
   const drawer = document.getElementById('terminal-drawer');
   const body = document.getElementById('terminal-body');
-  const historyEl = document.getElementById('terminal-history');
-  const input = document.getElementById('terminal-input');
-  const pwdEl = document.getElementById('terminal-pwd');
   const clearBtn = document.getElementById('terminal-clear-btn');
   const closeBtn = document.getElementById('terminal-close-btn');
   const tabsEl = document.getElementById('terminal-tabs');
   const newTabBtn = document.getElementById('terminal-new-tab');
+  const pwdEl = document.getElementById('terminal-pwd');
 
+  // One entry per open terminal tab. The xterm.js Terminal + the PTY id + the
+  // disposers for its event subscriptions are all kept here so we can fully
+  // tear down a tab on close.
   let tabs = [];
   let activeTabId = null;
   let tabIdCounter = 1;
 
-  function createTab(name) {
-    const id = `term-${tabIdCounter++}`;
-    const initialCwd = cwdProvider() || '.';
-    const tab = {
-      id,
-      name: name || `Terminal ${tabIdCounter - 1}`,
-      cwd: initialCwd,
-      historyHtml: '',
-      commandHistory: [],
-      historyIndex: -1,
-      isExecuting: false,
-    };
-    tabs.push(tab);
-    switchTab(id);
-    renderTabs();
-    return tab;
-  }
-
-  function switchTab(id) {
-    const active = getActiveTab();
-    if (active) {
-      active.historyHtml = historyEl ? historyEl.innerHTML : '';
-    }
-    activeTabId = id;
-    const nextActive = getActiveTab();
-    if (nextActive && historyEl) {
-      historyEl.innerHTML = nextActive.historyHtml;
-      updatePwdDisplay();
-      if (input) {
-        input.value = '';
-        input.focus();
-      }
-    }
-    renderTabs();
-  }
-
-  function closeTab(id, e) {
-    if (e) e.stopPropagation();
-    if (tabs.length <= 1) {
-      // Keep at least one tab open
-      const tab = tabs[0];
-      tab.historyHtml = '';
-      tab.commandHistory = [];
-      tab.historyIndex = -1;
-      if (historyEl) historyEl.innerHTML = '';
-      updatePwdDisplay();
-      renderTabs();
-      return;
-    }
-    const idx = tabs.findIndex((t) => t.id === id);
-    tabs = tabs.filter((t) => t.id !== id);
-    if (activeTabId === id) {
-      const nextTab = tabs[Math.max(0, idx - 1)];
-      activeTabId = nextTab.id;
-      if (historyEl) historyEl.innerHTML = nextTab.historyHtml;
-      updatePwdDisplay();
-    }
-    renderTabs();
-  }
-
   function getActiveTab() {
     return tabs.find((t) => t.id === activeTabId) || tabs[0];
+  }
+
+  function getWorkingDir() {
+    // The PTY owns cwd now; we expose cwdProvider() only as the initial cwd
+    // for new tabs. The PWD readout is best-effort: we render the initial cwd
+    // and don't try to track the live shell cwd (would require OSC-sequence
+    // parsing). Matches VS Code's "we show the launch dir" approximation.
+    return cwdProvider() || '.';
+  }
+
+  function updatePwdDisplay() {
+    if (pwdEl) pwdEl.textContent = `PS ${getWorkingDir()}`;
   }
 
   function renderTabs() {
@@ -96,31 +113,183 @@ export function initTerminal({ cwdProvider, onToast }) {
     });
   }
 
-  function getWorkingDir() {
-    const tab = getActiveTab();
-    return (tab && tab.cwd) || cwdProvider() || '.';
+  function makeMountEl() {
+    // Each tab gets its own <div> inside #terminal-body. xterm.js opens into
+    // this div; switching tabs just toggles display, leaving the Terminal
+    // instance (and its scrollback) alive.
+    const mountEl = document.createElement('div');
+    mountEl.className = 'terminal-mount';
+    if (body) body.appendChild(mountEl);
+    return mountEl;
   }
 
-  function updatePwdDisplay() {
-    const dir = getWorkingDir();
-    if (pwdEl) pwdEl.textContent = `PS ${dir}`;
+  async function createTab() {
+    const id = `term-${tabIdCounter++}`;
+    const mountEl = makeMountEl();
+
+    const term = new Terminal({
+      fontFamily: 'var(--mono-font, "Cascadia Code", Consolas, monospace)',
+      fontSize: 12.5,
+      cursorBlink: true,
+      allowProposedApi: true,
+      theme: xtermThemeFromApp(),
+      scrollback: 5000,
+    });
+    const fit = new FitAddon();
+    term.loadAddon(fit);
+    term.loadAddon(new WebLinksAddon());
+    term.open(mountEl);
+    // Fit must run after open() so cols/rows reflect real pixel sizes. Defer
+    // one frame so layout has settled.
+    requestAnimationFrame(() => { try { fit.fit(); } catch { /* noop */ } });
+
+    // Channel carries backend → frontend PTY events. The Tauri 2 Channel is
+    // passed to invoke() as a normal arg; the backend's spawn_terminal takes
+    // it and calls .send() from the reader thread. Both `new Channel()` and
+    // `invoke()` need __TAURI_INTERNALS__ to be registered; if not (e.g. the
+    // page is loaded in a plain browser during development), they throw. We
+    // catch here so the tab still registers + renders an error instead of
+    // silently failing.
+    let ptyId;
+    try {
+      const chan = new Channel();
+      chan.onmessage = (msg) => {
+        if (!msg) return;
+        if (msg.t === 'Data') term.write(msg.d);
+        else if (msg.t === 'Exit') {
+          // Render a clear "[process exited]" line so the user knows the PTY
+          // died. The tab stays open until they close it (VS Code behavior).
+          term.write('\r\n\x1b[90m[process exited]\x1b[0m\r\n');
+        }
+      };
+
+      // Race the spawn against a timeout so a missing backend (e.g. the page
+      // loaded outside Tauri, or the Rust command hung) doesn't strand the
+      // tab forever with no PTY wired up. On timeout we render an error line
+      // and leave ptyId undefined — the rest of the module is no-op-safe for
+      // that case (onDataDisp / onResizeDisp check ptyId !== undefined).
+      const spawn = invoke('spawn_terminal', {
+        onEvent: chan,
+        cwd: cwdProvider() || null,
+        cols: term.cols,
+        rows: term.rows,
+      });
+      const res = await Promise.race([
+        spawn,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('terminal backend did not respond (is the Tauri shell available?)')), 4000),
+        ),
+      ]);
+      ptyId = res.id;
+    } catch (err) {
+      term.write(`\x1b[31mFailed to start terminal: ${escapeHtml(String(err))}\x1b[0m\r\n`);
+    }
+
+    // Pipe keystrokes → PTY. onData fires on every key, including Ctrl+C
+    // (\x03), Enter (\r), arrows, etc. — xterm.js does the keyboard mapping.
+    const onDataDisp = term.onData((str) => {
+      if (ptyId === undefined) return;
+      invoke('write_terminal', { id: ptyId, data: str }).catch((e) =>
+        console.error('write_terminal:', e),
+      );
+    });
+    // Pipe viewport resize → PTY. fit() recomputes cols/rows from the parent
+    // size; onResize fires; we forward to the backend which resizes the ConPTY.
+    const onResizeDisp = term.onResize(({ cols, rows }) => {
+      if (ptyId === undefined) return;
+      invoke('resize_terminal', { id: ptyId, cols, rows }).catch(() => { /* best-effort */ });
+    });
+
+    const tab = {
+      id,
+      name: `Terminal ${tabIdCounter - 1}`,
+      ptyId,
+      term,
+      fit,
+      mountEl,
+      onDataDisp,
+      onResizeDisp,
+    };
+    tabs.push(tab);
+    switchTab(id);
+    term.focus();
+    return tab;
   }
 
-  // Init first tab
-  createTab('Terminal 1');
+  function switchTab(id) {
+    tabs.forEach((t) => {
+      if (t.mountEl) t.mountEl.style.display = t.id === id ? '' : 'none';
+    });
+    activeTabId = id;
+    const active = getActiveTab();
+    if (active) {
+      // fit() needs the mount visible to measure, and switching tabs unhides
+      // it on the line above — but layout hasn't flushed yet, so defer.
+      requestAnimationFrame(() => {
+        try { active.fit.fit(); } catch { /* noop */ }
+        active.term.focus();
+      });
+    }
+    renderTabs();
+    updatePwdDisplay();
+  }
+
+  function closeTab(id, e) {
+    if (e) e.stopPropagation();
+    const idx = tabs.findIndex((t) => t.id === id);
+    const tab = tabs[idx];
+    if (!tab) return;
+
+    // Kill the PTY (drop closes the ConPTY; the reader thread exits on EOF).
+    if (tab.ptyId !== undefined) {
+      invoke('kill_terminal', { id: tab.ptyId }).catch(() => { /* best-effort */ });
+    }
+    tab.onDataDisp.dispose();
+    tab.onResizeDisp.dispose();
+    try { tab.term.dispose(); } catch { /* noop */ }
+    tab.mountEl?.remove();
+
+    tabs = tabs.filter((t) => t.id !== id);
+    if (tabs.length === 0) {
+      // Recreate a fresh tab so the drawer is never empty (matches the
+      // previous version's behavior).
+      createTab();
+      return;
+    }
+    if (activeTabId === id) {
+      const next = tabs[Math.max(0, idx - 1)];
+      switchTab(next.id);
+    } else {
+      renderTabs();
+    }
+  }
+
+  // Initial tab — created lazily on first open() so we don't spawn a PTY for a
+  // drawer the user hasn't opened yet (saves one PowerShell process at startup).
+  let bootstrapped = false;
+  function bootstrapIfEmpty() {
+    if (bootstrapped) return;
+    bootstrapped = true;
+    createTab();
+  }
 
   function open() {
     if (!drawer) return;
     drawer.classList.remove('hidden');
+    bootstrapIfEmpty();
     updatePwdDisplay();
-    setTimeout(() => {
-      if (input) input.focus();
-    }, 50);
+    // Fit after the drawer is visible (one frame) so cols/rows are real.
+    requestAnimationFrame(() => {
+      const active = getActiveTab();
+      if (active) {
+        try { active.fit.fit(); } catch { /* noop */ }
+        active.term.focus();
+      }
+    });
   }
 
   function close() {
-    if (!drawer) return;
-    drawer.classList.add('hidden');
+    if (drawer) drawer.classList.add('hidden');
   }
 
   function toggle() {
@@ -130,149 +299,64 @@ export function initTerminal({ cwdProvider, onToast }) {
   }
 
   function clear() {
-    if (historyEl) historyEl.innerHTML = '';
-  }
-
-  function appendEntry(cmd, stdout, stderr, exitCode, cwd) {
-    if (!historyEl) return;
-    const entry = document.createElement('div');
-    entry.className = 'terminal-entry';
-
-    const cmdLine = document.createElement('div');
-    cmdLine.className = 'terminal-cmd-line';
-    cmdLine.innerHTML = `<span>PS ${escapeHtml(cwd || getWorkingDir())}&gt;</span> <span>${escapeHtml(cmd)}</span>`;
-    entry.appendChild(cmdLine);
-
-    if (stdout && stdout.trim()) {
-      const out = document.createElement('div');
-      out.className = 'terminal-output';
-      out.textContent = stdout;
-      entry.appendChild(out);
-    }
-    if (stderr && stderr.trim()) {
-      const err = document.createElement('div');
-      err.className = `terminal-output ${exitCode !== 0 ? 'error' : ''}`;
-      err.textContent = stderr;
-      entry.appendChild(err);
-    }
-
-    historyEl.appendChild(entry);
-    body.scrollTop = body.scrollHeight;
-  }
-
-    if (newTabBtn) {
-    newTabBtn.addEventListener('click', () => createTab());
-  }
-
-  async function execute(cmdStr) {
-    const trimmed = cmdStr.trim();
     const active = getActiveTab();
-    if (!trimmed || (active && active.isExecuting)) return;
-    if (active) active.isExecuting = true;
-
-    if (input) input.value = '';
-    if (active) {
-      active.commandHistory.push(trimmed);
-      active.historyIndex = active.commandHistory.length;
-    }
-
-    // Local clear command
-    if (trimmed.toLowerCase() === 'cls' || trimmed.toLowerCase() === 'clear') {
-      clear();
-      if (active) active.isExecuting = false;
-      return;
-    }
-
-    // Fast local cd command without launching subshell process
-    if (trimmed.toLowerCase().startsWith('cd') || trimmed.toLowerCase().startsWith('cd ') || trimmed.toLowerCase().startsWith('cd..')) {
-      let targetDir = trimmed.replace(/^cd\s*/i, '').trim().replace(/^['"]|['"]$/g, '');
-      const baseDir = getWorkingDir();
-      let resolved = baseDir;
-
-      if (!targetDir || targetDir === '.') {
-        resolved = baseDir;
-      } else if (targetDir === '..') {
-        const parts = baseDir.split(/[\\/]/).filter(Boolean);
-        if (parts.length > 1) {
-          parts.pop();
-          resolved = parts.join('\\');
-          if (baseDir.includes(':') && !resolved.includes(':')) resolved += '\\';
-        } else if (parts.length === 1 && parts[0].includes(':')) {
-          resolved = parts[0] + '\\';
-        }
-      } else if (/^[a-zA-Z]:[\\/]/.test(targetDir)) {
-        resolved = targetDir;
-      } else {
-        resolved = baseDir.replace(/[\\/]+$/, '') + '\\' + targetDir.replace(/^[\\/]+/, '');
-      }
-
-      if (active) active.cwd = resolved;
-      updatePwdDisplay();
-      appendEntry(trimmed, '', '', 0, resolved);
-      if (active) active.isExecuting = false;
-      return;
-    }
-
-    const runCwd = getWorkingDir();
-    try {
-      const res = await invoke('run_shell_command', {
-        command: trimmed,
-        cwd: runCwd,
-      });
-      appendEntry(trimmed, res.stdout, res.stderr, res.exit_code, res.cwd || runCwd);
-      if (res.cwd && active) {
-        active.cwd = res.cwd;
-        updatePwdDisplay();
-      }
-    } catch (err) {
-      appendEntry(trimmed, '', String(err), -1, runCwd);
-    } finally {
-      if (active) active.isExecuting = false;
-    }
+    if (active) active.term.clear();
   }
 
-  // Handle Drag & Drop of files/photos into terminal
+  // Shim for the old `execute(cmd)` API: writes the command + Enter to the
+  // active PTY. No longer called internally (keystrokes go straight through
+  // xterm.js's onData), but kept for any external caller that exists.
+  function execute(cmdStr) {
+    const active = getActiveTab();
+    if (!active || active.ptyId === undefined) return;
+    invoke('write_terminal', { id: active.ptyId, data: (cmdStr || '') + '\r' }).catch(() => {});
+  }
+
+  // Drag-and-drop: drop files into the terminal — the quoted path becomes part
+  // of the current shell input line (same UX as a real terminal).
   if (drawer) {
     drawer.addEventListener('dragover', (e) => {
       e.preventDefault();
       drawer.classList.add('dragover');
     });
-    drawer.addEventListener('dragleave', () => {
-      drawer.classList.remove('dragover');
-    });
+    drawer.addEventListener('dragleave', () => drawer.classList.remove('dragover'));
     drawer.addEventListener('drop', (e) => {
       e.preventDefault();
       drawer.classList.remove('dragover');
       const files = Array.from(e.dataTransfer?.files || []);
-      if (files.length > 0) {
-        const paths = files.map((f) => `"${f.path || f.name}"`).join(' ');
-        if (input) {
-          input.value += (input.value ? ' ' : '') + paths;
-          input.focus();
-        }
-      }
+      if (files.length === 0) return;
+      const active = getActiveTab();
+      if (!active || active.ptyId === undefined) return;
+      const paths = files.map((f) => `"${f.path || f.name}"`).join(' ');
+      // Write the path string directly into the PTY so the shell receives it
+      // as if the user had typed it at the prompt.
+      invoke('write_terminal', { id: active.ptyId, data: paths }).catch(() => {});
     });
   }
 
-  // Resizable Terminal Drawer height handler
+  // Resizable drawer — same as before. On mouseup we re-fit so the new height
+  // propagates to cols/rows and the PTY is resized accordingly.
   const resizeHandle = document.getElementById('terminal-resize-handle');
   if (resizeHandle && drawer) {
     let startY = 0;
     let startH = 0;
-
     const onMouseMove = (e) => {
       const deltaY = startY - e.clientY;
       const newH = Math.min(Math.max(startH + deltaY, 120), window.innerHeight * 0.8);
       drawer.style.height = `${newH}px`;
     };
-
     const onMouseUp = () => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+      // Re-fit the active terminal to its new container size, then forward
+      // the new cols/rows to the PTY (onResize handler does the invoke).
+      const active = getActiveTab();
+      if (active) {
+        try { active.fit.fit(); } catch { /* noop */ }
+      }
     };
-
     resizeHandle.addEventListener('mousedown', (e) => {
       startY = e.clientY;
       startH = drawer.getBoundingClientRect().height;
@@ -283,80 +367,41 @@ export function initTerminal({ cwdProvider, onToast }) {
     });
   }
 
-  // Handle Paste of images and file items
-  if (input) {
-    input.addEventListener('paste', async (e) => {
-      const clipboardData = e.clipboardData;
-      if (!clipboardData) return;
+  // Window resize → re-fit so the terminal recomputes cols/rows. Cheaper than
+  // debouncing for typical resize drags; xterm.js handles coalescing.
+  window.addEventListener('resize', () => {
+    const active = getActiveTab();
+    if (active && !drawer?.classList.contains('hidden')) {
+      try { active.fit.fit(); } catch { /* noop */ }
+    }
+  });
 
-      const items = Array.from(clipboardData.items || []);
-      const imageItem = items.find((it) => it.type.startsWith('image/'));
-
-      if (imageItem) {
-        e.preventDefault();
-        const file = imageItem.getAsFile();
-        if (file) {
-          try {
-            const buffer = await file.arrayBuffer();
-            const bytes = Array.from(new Uint8Array(buffer));
-            const filename = `terminal-pasted-${Date.now()}.png`;
-            const runCwd = getWorkingDir();
-            const relativePath = await invoke('save_image', {
-              dir: runCwd,
-              filename,
-              bytes,
-            });
-            const fullPastedPath = `"${runCwd}/${relativePath}"`;
-            input.value += (input.value ? ' ' : '') + fullPastedPath;
-            if (onToast) onToast(`Image pasted: ${filename}`);
-          } catch (err) {
-            if (onToast) onToast('Failed to paste image: ' + String(err));
-          }
-        }
-      }
-    });
-
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        execute(input.value);
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        const active = getActiveTab();
-        if (active && active.historyIndex > 0) {
-          active.historyIndex--;
-          input.value = active.commandHistory[active.historyIndex] || '';
-        }
-      } else if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        const active = getActiveTab();
-        if (active) {
-          if (active.historyIndex < active.commandHistory.length - 1) {
-            active.historyIndex++;
-            input.value = active.commandHistory[active.historyIndex] || '';
-          } else {
-            active.historyIndex = active.commandHistory.length;
-            input.value = '';
-          }
-        }
-      } else if (e.ctrlKey && e.key === 'l') {
-        e.preventDefault();
-        clear();
-      }
-    });
-  }
-
+  if (newTabBtn) newTabBtn.addEventListener('click', () => createTab());
   if (clearBtn) clearBtn.addEventListener('click', clear);
   if (closeBtn) closeBtn.addEventListener('click', close);
-  if (body) body.addEventListener('click', () => input && input.focus());
+  if (body) body.addEventListener('click', () => {
+    const active = getActiveTab();
+    if (active) active.term.focus();
+  });
 
-  return { open, close, toggle, clear, execute };
-}
-
-function escapeHtml(str) {
-  return String(str || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  // Public API. `destroyAll` is called from main.js on app close to prevent
+  // zombie PowerShell processes when the window is closed.
+  return {
+    open,
+    close,
+    toggle,
+    clear,
+    execute,
+    destroyAll() {
+      // Kill every live PTY. Called on app shutdown.
+      [...tabs].forEach((t) => closeTab(t.id));
+      bootstrapped = false;
+    },
+    // Apply a new xterm theme to every open terminal. Called by main.js when
+    // the user switches app theme.
+    setTheme() {
+      const theme = xtermThemeFromApp();
+      tabs.forEach((t) => { t.term.options.theme = theme; });
+    },
+  };
 }

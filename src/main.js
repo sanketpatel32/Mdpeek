@@ -1433,6 +1433,8 @@ function applyThemeImpl(next) {
   // Propagate theme to the active Excalidraw tab (if any) so the canvas
   // matches the app's light/dark mode.
   if (_activeExcalidraw) _activeExcalidraw.setTheme(next);
+  // Propagate theme to every open terminal so xterm.js recolors to match.
+  try { if (terminal?.setTheme) terminal.setTheme(); } catch (e) { console.error('terminal setTheme:', e); }
   closeThemeMenu();
 }
 
@@ -4275,6 +4277,10 @@ function doMinimizeToTray() {
   invoke('hide_to_tray').catch((e) => toast('Could not minimize: ' + fmtErr(e)));
 }
 function doQuitApp() {
+  // Kill any live terminal PTYs before quitting so we don't leave zombie
+  // PowerShell processes behind. Safe no-op if the terminal drawer was never
+  // opened.
+  try { if (terminal?.destroyAll) terminal.destroyAll(); } catch (e) { console.error('terminal destroy:', e); }
   invoke('quit_app').catch((e) => toast('Could not quit: ' + fmtErr(e)));
 }
 

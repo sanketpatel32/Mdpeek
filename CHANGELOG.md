@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-07-22
+
+### Changed — the terminal is now a real PTY (VS Code-style)
+
+The integrated terminal was completely rewritten. Previous versions (v0.25.0–v0.26.1) used a **fake, request/response shell**: each Enter spawned a fresh `cmd.exe /C "<cmd>"`, blocked to completion, and dumped all stdout+stderr as plain text into a `<div>`. That broke streaming output (`npm install`), ANSI colors, interactive commands (`node`, `python`), Ctrl+C, persistent `cd`/env/aliases, and the prompt said PowerShell while running cmd.exe.
+
+**v0.27.0 replaces the fake shell with a real pseudo-terminal**, the same architecture VS Code uses:
+
+- **Backend:** the [`portable-pty`](https://crates.io/crates/portable-pty) crate spawns a real **ConPTY** (Windows 10 1809+) running PowerShell. Output streams byte-by-byte over a typed Tauri 2 `Channel`. Keystrokes are written back via `invoke`. Four new commands: `spawn_terminal`, `write_terminal`, `kill_terminal`, `resize_terminal`. Lives in a new `src-tauri/src/pty.rs`.
+- **Frontend:** [`@xterm/xterm`](https://github.com/xtermjs/xterm.js) (the exact renderer VS Code's terminal uses) replaces the `<div>` + `<input>` combo. Keystrokes pipe straight to the PTY; PTY bytes pipe straight to xterm.js. ANSI escapes are parsed natively, so colors, cursor movement, and TUI apps all work.
+- **Shell:** prefers PowerShell 7 (`pwsh.exe`) when installed, falls back to Windows PowerShell 5.1 (`powershell.exe`). Launched with `-NoLogo`. The old behavior of running `cmd.exe` while labeling the prompt `PS >` is gone.
+- **Multi-tab:** preserved. Each tab is one independent PTY + one xterm.js instance. Switching tabs preserves scrollback (the Terminal instance is kept alive; only its mount div is hidden).
+- **Drag-and-drop:** preserved. Dropping a file onto the terminal writes its quoted path into the live shell input line (matching real terminal behavior — the path becomes part of the next command).
+- **Lifecycle:** closing a tab kills its PTY. Closing the drawer keeps PTYs running in the background (VS Code behavior). Quitting the app kills every live PTY to prevent zombie PowerShell processes.
+- **Theme sync:** xterm.js theme is derived from the app's CSS vars (`--bg`, `--fg`, `--accent`, `--danger`, …) and re-applied on every theme switch, so the terminal matches Dracula / Tokyo Night / Light / etc.
+- **Resize:** the drawer resize handle + window resize both trigger `fit()` → `onResize` → `resize_terminal`, propagating the new cols/rows to the ConPTY.
+
+### Removed
+- `run_shell_command` Rust command and its `CommandOutput` struct (the fake-shell backend). No remaining callers; no tests referenced it.
+
+### Tests
+- New `test/terminal.test.js` (7 tests) covering the pure helpers (`readCssVar`, `xtermThemeFromApp`) — the ANSI 16-color palette mapping, fallbacks, and trimming. Establishes the first Tauri IPC mock pattern in the suite (`vi.mock('@tauri-apps/api/core', …)`) for future modules that need to test `invoke`/`Channel` consumers.
+- All 299 tests pass (292 existing + 7 new).
+
+### Out of scope (deferred)
+- Shell picker UI (PowerShell / cmd / Git Bash dropdown) — PowerShell only for v0.27.0.
+- SSH / remote terminals.
+- In-terminal search (Ctrl+F) — needs the `@xterm/addon-search` addon.
+- Per-tab profile / icon customization.
+- Persistent terminal sessions across app restart.
+
 ## [0.26.1] - 2026-07-22
 
 ### Fixed — Instant Pure-JS `cd` / `cd..` Resolution (Subshell-Free)

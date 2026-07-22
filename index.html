@@ -297,13 +297,8 @@
           </div>
         </div>
         <div id="terminal-body" class="terminal-body" tabindex="0">
-          <div id="terminal-history" class="terminal-history"></div>
-          <div class="terminal-prompt-line">
-            <span id="terminal-prompt-prefix" class="terminal-prompt-prefix">PS &gt;</span>
-            <div class="terminal-input-wrap">
-              <input id="terminal-input" class="terminal-input" type="text" autocomplete="off" spellcheck="false" placeholder="Type PowerShell command..." />
-            </div>
-          </div>
+          <!-- xterm.js mounts a per-tab <div class="terminal-mount"> here at
+               runtime. The shell prints its own prompt; no static prompt UI. -->
         </div>
       </div>
     </div>

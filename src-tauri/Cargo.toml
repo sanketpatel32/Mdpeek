@@ -34,4 +34,7 @@ notify = "6"
 # Small footprint, no extra native deps on Windows (uses IShellDispatch via COM
 # which ships with the OS).
 trash = "5"
+# Real PTY for the integrated terminal (v0.23.0). On Windows uses ConPTY
+# (Win10 1809+); on Unix uses openpty. Cross-platform, wezterm-authored.
+portable-pty = "0.8"
 

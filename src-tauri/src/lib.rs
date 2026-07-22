@@ -1,4 +1,5 @@
 mod commands;
+mod pty;
 mod watcher;
 
 use serde::Serialize;
@@ -117,6 +118,7 @@ pub fn run() {
         .manage(WatcherState::default())
         .manage(initial)
         .manage(initial_url)
+        .manage(pty::TermState::default())
         .setup(|app| {
             // ---------- System tray ----------
             // Tray icon: left-click shows the window, right-click opens a menu
@@ -189,7 +191,10 @@ pub fn run() {
             commands::register_context_menu,
             commands::unregister_context_menu,
             commands::is_context_menu_registered,
-            commands::run_shell_command,
+            pty::spawn_terminal,
+            pty::write_terminal,
+            pty::kill_terminal,
+            pty::resize_terminal,
             watcher::watch_path,
             get_initial_file,
             get_initial_url,

@@ -27,10 +27,12 @@ Chromium), making it ~95% smaller than Electron-based viewers like MarkText
 
 ## ✨ Features
 
-### 💻 Integrated Modern PowerShell Terminal Drawer (v0.25.0)
-- **Built-in PowerShell Console (`Ctrl+\``)** — toggleable bottom shell panel powered by native Windows PowerShell process execution.
-- **Image & File Drag/Drop & Paste Support** — drag files or photos directly into the terminal or paste screenshots from the clipboard (`Ctrl+V`). Images are auto-saved to your workspace and inserted as quoted file paths into your CLI prompt.
-- **Command History & Directory Auto-Sync** — navigate past commands with `↑`/`↓`, clear screen with `Ctrl+L`, and automatically sync working directory (`cd`) when switching document tabs.
+### 💻 Integrated Terminal (real PTY, VS Code-style)
+- **Built-in PowerShell console (`Ctrl+\``)** — a toggleable bottom drawer backed by a **real pseudo-terminal** (Windows ConPTY) running PowerShell. The same architecture VS Code uses: streaming output, full ANSI colors, interactive commands (`node`, `python`, `vim`), Ctrl+C, persistent `cd`/env/aliases, and the prompt actually reflects the live shell.
+- **Multi-tab** — each tab is an independent PTY; switching preserves scrollback.
+- **xterm.js renderer** — the exact terminal renderer VS Code ships. Theme-synced with the active app theme.
+- **Drag-and-drop** — drop a file onto the terminal and its path is written into the live shell input.
+- **Resize** — drag the top edge of the drawer to resize; cols/rows propagate to the PTY.
 
 ### 📝 Markdown rendering & Editing
 - **GitHub-flavored Markdown** — headings, tables, task lists, strikethrough, footnotes
@@ -171,7 +173,7 @@ src/
 │   ├── fuzzy.js             fuzzy matcher for command palette + quick switcher + folder search
 │   └── persistence.js       localStorage session + recent-files wrapper
 ├── views/
-│   ├── terminal.js          integrated PowerShell terminal drawer with image paste & drag-drop
+│   ├── terminal.js          integrated terminal (xterm.js + real ConPTY backend, multi-tab, theme-synced)
 │   ├── viewer.js            view mode: render + table of contents
 │   ├── editor.js            edit mode: split textarea + live preview + syntax overlay
 │   ├── tabs.js              tab strip renderer (with pinned tabs)
@@ -190,7 +192,8 @@ src/
 src-tauri/
 ├── src/
 │   ├── lib.rs               app entry + single-instance + tray + updater + window events
-│   ├── commands.rs          IPC: open/save/run_shell_command/save-as-html/read_file/delete_path/rename_path
+│   ├── commands.rs          IPC: open/save/save-as-html/read_file/delete_path/rename_path
+│   ├── pty.rs               integrated terminal: ConPTY spawn/write/kill/resize (portable-pty)
 │   └── watcher.rs           file-change watcher (notify crate)
 └── capabilities/            Tauri permission scopes
 ```
