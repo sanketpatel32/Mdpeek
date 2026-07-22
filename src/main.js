@@ -11,7 +11,7 @@ import { showExcalidraw } from './views/excalidraw-viewer.js';
 import { showImage } from './views/image-viewer.js';
 import { initEditor } from './views/editor.js';
 import { initFindBar } from './views/find-bar.js';
-import { initCommandPalette, initQuickSwitcher } from './views/command-palette.js';
+import { initCommandPalette, initQuickSwitcher, initSnippetPicker } from './views/command-palette.js';
 import { initFileTree, setTreeRoot, setActivePath, refreshTree } from './views/file-tree.js';
 import { initCsvViewer } from './views/csv-viewer.js';
 import { initFolderSearch } from './views/folder-search.js';
@@ -564,7 +564,7 @@ async function renderActive() {
       el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
     if (el.present) el.present.classList.add('hidden');
-    if (el.share) el.share.classList.add('hidden');
+      if (el.share) el.share.classList.toggle('hidden', collab.getStatus().active);
       el.pdfDrawToolbar.classList.add('hidden');
       el.viewMode.classList.remove('hidden');
       el.toc.innerHTML = '';
@@ -757,6 +757,7 @@ const palette = initCommandPalette(() => {
     { id: 'theme', label: 'Cycle theme', keywords: 'theme color light dark cycle', run: cycleTheme },
     { id: 'settings', label: 'Open settings', keywords: 'settings preferences options', run: openSettings },
     { id: 'kanban', label: 'Open Kanban board', hint: 'Ctrl+Shift+K', keywords: 'kanban board tasks todo done progress', run: openKanban },
+    { id: 'snippet', label: 'Insert template / snippet', hint: 'Ctrl+Shift+S', keywords: 'snippet template callout table code meeting insert', run: () => snippetPicker.open() },
     { id: 'check-updates', label: 'Check for updates', keywords: 'update version check', run: () => checkForUpdates(false) },
     { id: 'quit', label: 'Quit mdpeek', keywords: 'quit exit close', run: doQuitApp },
   ];
@@ -766,7 +767,7 @@ const palette = initCommandPalette(() => {
   const hasDoc = !!doc;
   const collabActive = collab.getStatus().active;
   return cmds.filter((c) => {
-    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode') && !hasDoc) return false;
+    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet') && !hasDoc) return false;
     // 'end-collab' is only meaningful when a session is running.
     if (c.id === 'end-collab' && !collabActive) return false;
     // 'start-collab' is hidden once a session is active (use End instead).
@@ -774,6 +775,45 @@ const palette = initCommandPalette(() => {
     return true;
   });
 });
+
+// ---------- snippet picker (Ctrl+Shift+S) ----------
+const SNIPPET_ITEMS = [
+  { label: 'Note Callout', hint: '> [!NOTE]', text: '> [!NOTE]\n> Write your note here.\n\n' },
+  { label: 'Tip Callout', hint: '> [!TIP]', text: '> [!TIP]\n> Write your tip here.\n\n' },
+  { label: 'Warning Callout', hint: '> [!WARNING]', text: '> [!WARNING]\n> Write your warning here.\n\n' },
+  { label: 'Caution Callout', hint: '> [!CAUTION]', text: '> [!CAUTION]\n> Write your caution here.\n\n' },
+  { label: 'Important Callout', hint: '> [!IMPORTANT]', text: '> [!IMPORTANT]\n> Write your important detail here.\n\n' },
+  { label: 'Table (3x3)', hint: '| Header |', text: '| Header 1 | Header 2 | Header 3 |\n| --- | --- | --- |\n| Cell 1 | Cell 2 | Cell 3 |\n| Cell 4 | Cell 5 | Cell 6 |\n\n' },
+  { label: 'Task List', hint: '- [ ]', text: '- [ ] First task\n- [ ] Second task\n- [ ] Completed task\n\n' },
+  { label: 'Code Block (JS)', hint: '```js', text: '```javascript\nfunction example() {\n  console.log("Hello, world!");\n}\n```\n\n' },
+  { label: 'Code Block (Python)', hint: '```python', text: '```python\ndef example():\n    print("Hello, world!")\n```\n\n' },
+  { label: 'Math Block (KaTeX)', hint: '$$', text: '$$\nE = mc^2\n$$\n\n' },
+  { label: 'Meeting Notes Template', hint: '# Meeting', text: '# Meeting Notes\n**Date:** ' + new Date().toISOString().slice(0,10) + '\n**Attendees:** \n\n## Agenda\n1. \n\n## Action Items\n- [ ] \n\n' },
+];
+
+const snippetPicker = initSnippetPicker(
+  () => SNIPPET_ITEMS.map((s) => ({ label: s.label, hint: s.hint, keywords: s.label + ' ' + s.hint, text: s.text })),
+  (item) => {
+    const doc = store.active();
+    if (!doc) return;
+    if (doc.mode !== 'edit') {
+      doc.mode = 'edit';
+      renderActive().then(() => insertSnippetIntoEditor(doc, item.text));
+    } else {
+      insertSnippetIntoEditor(doc, item.text);
+    }
+  }
+);
+
+function insertSnippetIntoEditor(doc, textToInsert) {
+  if (doc.editor) {
+    const sel = doc.editor.getSelection();
+    doc.editor.replaceRange(sel.start, sel.end, textToInsert);
+  } else {
+    doc.content += '\n\n' + textToInsert;
+    renderActive();
+  }
+}
 
 // ---------- quick switcher (Ctrl+P) ----------
 // Fuzzy-opens from the recents list. Reads recents at open-time so it always
@@ -2728,11 +2768,33 @@ function updateEditorStatus() {
   const { words, chars, readMins } = wordCount(text);
   const savedState = doc && doc.dirty ? 'dirty' : 'saved';
   const savedLabel = doc && doc.dirty ? '· edited' : '· saved';
+
+  // Selection detection
+  let selText = '';
+  if (doc && doc.mode === 'edit' && doc.editor) {
+    const sel = doc.editor.getSelection();
+    if (sel && sel.start !== sel.end) {
+      selText = text.slice(sel.start, sel.end);
+    }
+  } else {
+    const windowSel = window.getSelection();
+    if (windowSel && !windowSel.isCollapsed) {
+      selText = windowSel.toString();
+    }
+  }
+
+  let selHtml = '';
+  if (selText.trim().length > 0) {
+    const selCounts = wordCount(selText);
+    selHtml = `<span class="status-sep" aria-hidden="true">·</span><span class="status-sel">Selected: ${fmtNum(selCounts.words)} w, ${fmtNum(selCounts.chars)} c</span>`;
+  }
+
   el.editorStatus.innerHTML =
     `<span>${fmtNum(words)} words</span>` +
     `<span class="status-sep" aria-hidden="true">·</span>` +
     `<span>${fmtNum(chars)} chars</span>` +
-    (readMins > 0
+    selHtml +
+    (readMins > 0 && !selHtml
       ? `<span class="status-sep" aria-hidden="true">·</span><span>~${readMins} min read</span>`
       : '') +
     `<span class="save-status" data-state="${savedState}" style="margin-left:auto">${savedLabel}</span>`;
@@ -2804,9 +2866,9 @@ function baseFontPx() {
 
 function applyZoom() {
   const px = (baseFontPx() * zoomLevel).toFixed(1) + 'px';
-  el.document.style.fontSize = px;
-  el.preview.style.fontSize = px;
-  // The editor textarea zooms too, so edit mode tracks the same scale as view.
+  document.documentElement.style.setProperty('--content-font-size', px);
+  if (el.document) el.document.style.fontSize = px;
+  if (el.preview) el.preview.style.fontSize = px;
   if (el.editor) el.editor.style.fontSize = px;
   if (el.gutter) el.gutter.style.fontSize = px;
   localStorage.setItem('mdpeek-zoom', String(zoomLevel));
@@ -2947,6 +3009,8 @@ el.update.addEventListener('click', () => {
   } else {
     checkForUpdates(false);
   }
+document.addEventListener('selectionchange', () => {
+  updateEditorStatus();
 });
 
 // ---------- events ----------
@@ -4032,6 +4096,13 @@ window.addEventListener('keydown', (e) => {
     toggleExplorer();
     return;
   }
+  // Ctrl+Shift+S → open Markdown snippet/template picker.
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'S' || e.key === 's')) {
+    e.preventDefault();
+    e.stopPropagation();
+    snippetPicker.open();
+    return;
+  }
   // Ctrl+Shift+K → toggle the global Kanban board. Also closes it (so the
   // user can hit the same shortcut to dismiss).
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'K' || e.key === 'k')) {
@@ -4078,6 +4149,7 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('wheel', (e) => {
   if (!(e.ctrlKey || e.metaKey)) return;
   e.preventDefault();
+  e.stopPropagation();
   if (e.deltaY < 0) zoomIn();
   else if (e.deltaY > 0) zoomOut();
 }, { passive: false, capture: true });

@@ -2243,9 +2243,11 @@ body.presenting #slideshow { display: flex; }
 .collab-status {
   display: inline-flex;
   align-items: center;
+  align-self: center;
   gap: 6px;
   height: 26px;
   padding: 0 10px 0 8px;
+  margin: 0 8px;
   font-size: 11.5px;
   font-weight: 500;
   border-radius: 999px;
