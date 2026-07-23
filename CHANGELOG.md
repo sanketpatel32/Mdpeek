@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.29.1] - 2026-07-23
+## [0.29.2] - 2026-07-23
 
 ### Changed
 - **Home Screen UI Redesign**: Overhauled home screen layout into a clean, modern desktop hub with balanced proportions, sleek action cards, and refined file indicators.

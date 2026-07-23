@@ -111,7 +111,7 @@ function renderWelcome() {
           <div class="welcome-brand-info">
             <div class="welcome-title-row">
               <h1 class="welcome-title">mdpeek</h1>
-              <span class="version-badge">v0.29.1</span>
+              <span class="version-badge">v0.29.2</span>
             </div>
             <p class="welcome-tagline">Featherlight file viewer & Markdown editor</p>
           </div>
