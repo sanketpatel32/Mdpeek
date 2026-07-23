@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.3] - 2026-07-23
+
+### Fixed
+- **Welcome screen overflow when expanding terminal drawer**: Resolved card content spilling outside card boundary when moving the terminal pane upwards or resizing short viewports. Added container scrolling, flex centering, card overflow containment, and responsive height adjustments.
+- **Open file icon updated**: Replaced the closed folder SVG icon on the "Open file" toolbar button and welcome action with an open folder icon (`folder-open`).
+
 ## [0.28.2] - 2026-07-22
 
 ### Fixed — the editor no longer forces horizontal scrolling (soft-wrap + wrap-aware gutter)
