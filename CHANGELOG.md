@@ -9,15 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.29.2] - 2026-07-23
 
-### Changed
-- **Home Screen UI Redesign**: Overhauled home screen layout into a clean, modern desktop hub with balanced proportions, sleek action cards, and refined file indicators.
+### Changed — Hallmark design overhaul & theme contrast accessibility
+
+- **Hallmark Design System Integration**: Redesigned the Home Screen welcome hub using anti-slop design principles (structural variety, restraint, high-signal typography, and clean 2-column layout with a 310px action sidebar and flexible recent files list).
+- **Streamlined Action Cards**: Replaced nested icon containers with unified action cards (`Open File`, `New Note`, `Today's Note`, `Open Folder`) featuring inline Lucide SVG icons and right-aligned `<kbd>` shortcut badges (`Ctrl+O`, `Ctrl+N`, `Ctrl+Shift+E`).
+- **Enhanced Theme Contrast & Readability**: Boosted `--fg-muted` text contrast across Solarized Light (`#657b83`), Solarized Dark (`#839496`), Dracula (`#8092c4`), Nord (`#7e8eab`), Tokyo Night (`#747ca8`), and Catppuccin (`#7f849c`) to ensure file paths, timestamps, and secondary text meet WCAG AA standards.
+- **Header Alignment & Radial Backdrops**: Aligned brand logo (42px, 10px radius), version badge (`v0.29.2`), and tagline while preserving theme-aware radial background glows on the Home View.
 
 ## [0.29.0] - 2026-07-23
 
-### Added
-- **Central Asset Storage (%LOCALAPPDATA%\mdpeek\assets\)**: Images pasted or dropped into Markdown documents or the terminal drawer now save to a single central app assets folder using SHA-256 deduplication and resolve seamlessly via native Tauri asset protocols (`file://`).
-- **Redesigned Welcome & Home Screen**: Visual refresh of the home screen hero with tag badges (`Markdown`, `PDF`, `Code`, `P2P`, `Kanban`), icon action containers, recent file count badges, and improved layout structure.
-- **Updated Action & Explorer Icons**: Standardized open file actions to use a `file-up` icon and file explorer toggles to use a `folder-open` icon.
+### Added — Centralized asset storage & icon standardization
+
+- **Central Asset Storage (`%LOCALAPPDATA%\mdpeek\assets\`)**: Pasted or dropped images in Markdown documents and the terminal drawer now save to a central app data directory using SHA-256 content hashes, preventing scattered `assets/` subfolders across project directories.
+- **Tauri Asset Protocol Resolution**: Updated the Markdown preview renderer (`src/lib/renderer.js`) to automatically resolve local image paths and `file://` URLs via Tauri's native `convertFileSrc` handler.
+- **Standardized Action & Explorer Icons**: Updated Open File buttons to use `file-up` icons and File Explorer toggles to use `folder-open` icons across the top toolbar, welcome screen, and file-tree sidebar.
 
 ## [0.28.3] - 2026-07-23
 
