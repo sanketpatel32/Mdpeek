@@ -1320,6 +1320,7 @@ mark.find-current {
    Two-column card on a soft surface. Left column: brand + primary actions +
    a condensed shortcut footer. Right column: recent files. Designed to fit
    without scrolling on standard windows; collapses to one column when narrow. */
+/* ---------- Welcome screen / Home hub ---------- */
 .welcome {
   display: flex;
   flex-direction: column;
@@ -1328,86 +1329,83 @@ mark.find-current {
   flex: 1;
   min-height: 0;
   width: 100%;
-  padding: clamp(16px, 3vw, 32px) clamp(16px, 3vw, 24px);
+  padding: clamp(20px, 4vw, 40px);
   text-align: left;
   color: var(--fg-secondary);
   overflow: auto;
-  background: radial-gradient(circle at 15% 15%, var(--accent-soft) 0%, transparent 40%),
-              radial-gradient(circle at 85% 85%, var(--surface-active) 0%, transparent 45%);
+  background: radial-gradient(circle at 50% 20%, var(--accent-soft) 0%, transparent 60%);
 }
 .welcome-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  grid-template-columns: 310px minmax(0, 1fr);
   gap: 32px;
   width: 100%;
-  max-width: min(800px, 94vw);
+  max-width: min(780px, 92vw);
   max-height: 100%;
   min-height: 0;
   margin: auto;
   overflow: hidden;
-  padding: clamp(24px, 3.5vw, 36px);
+  padding: 32px 36px;
   background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  animation: welcome-fade-up 400ms cubic-bezier(0.25, 1, 0.5, 1) both;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.25);
+  animation: welcome-fade-up 350ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
+
 .welcome-main {
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
 }
+
 .welcome-brand {
   display: flex;
-  flex-direction: row;
   align-items: center;
   gap: 14px;
   margin-bottom: 24px;
 }
 .welcome-logo {
-  width: 44px;
-  height: 44px;
-  border-radius: 11px;
-  margin: 0;
-  box-shadow: var(--shadow-md);
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   flex-shrink: 0;
+  margin: 0;
 }
-.welcome-brand-text {
+.welcome-brand-info {
   display: flex;
   flex-direction: column;
-  justify-content: center;
 }
-.welcome-title {
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  color: var(--fg);
-  margin: 0;
+.welcome-title-row {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.welcome-tagline {
-  font-size: 12.5px;
-  margin: 2px 0 0;
-  line-height: 1.4;
-  color: var(--fg-muted);
-}
-@keyframes welcome-fade-up {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+.welcome-title {
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--fg);
+  margin: 0;
+  line-height: 1.2;
 }
 .version-badge {
-  display: inline-block;
   font-size: 10px;
   font-weight: 600;
   color: var(--accent);
   background: var(--accent-soft);
-  padding: 1px 7px;
-  border-radius: 999px;
-  vertical-align: middle;
-  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  border-radius: 10px;
+  letter-spacing: 0.03em;
+  border: 1px solid var(--border-subtle);
+}
+.welcome-tagline {
+  font-size: 12px;
+  margin: 3px 0 0;
+  line-height: 1.4;
+  color: var(--fg-muted);
 }
 
 .welcome-actions {
@@ -1422,7 +1420,7 @@ mark.find-current {
   gap: 12px;
   padding: 10px 14px;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius);
+  border-radius: 9px;
   background: var(--surface-active);
   color: var(--fg);
   font: inherit;
@@ -1430,7 +1428,7 @@ mark.find-current {
   font-weight: 500;
   cursor: pointer;
   text-align: left;
-  transition: background-color 120ms var(--ease), border-color 120ms var(--ease), box-shadow 120ms var(--ease);
+  transition: all 140ms var(--ease);
 }
 .welcome-action > span {
   flex: 1;
@@ -1438,21 +1436,25 @@ mark.find-current {
 .welcome-action svg {
   color: var(--fg-muted);
   flex-shrink: 0;
-  transition: color 120ms var(--ease);
+  transition: color 140ms var(--ease);
 }
 .welcome-action:hover {
   background: var(--surface-hover);
   border-color: var(--border);
-  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 .welcome-action:hover svg {
   color: var(--fg);
+}
+.welcome-action:active {
+  transform: translateY(0);
 }
 .welcome-action.primary {
   background: var(--accent);
   border-color: var(--accent);
   color: #ffffff;
-  box-shadow: 0 4px 12px var(--accent-soft);
+  box-shadow: 0 4px 14px var(--accent-soft);
 }
 .welcome-action.primary svg {
   color: #ffffff;
@@ -1460,16 +1462,16 @@ mark.find-current {
 .welcome-action.primary:hover {
   background: var(--accent);
   filter: brightness(1.08);
-  box-shadow: 0 6px 16px var(--accent-soft);
+  box-shadow: 0 6px 18px var(--accent-soft);
 }
 .welcome-action kbd {
   margin-left: auto;
-  padding: 1.5px 6px;
+  padding: 2px 6px;
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 10px;
   background: var(--bg);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  border-radius: 5px;
   color: var(--fg-muted);
   font-weight: 400;
 }
@@ -1515,6 +1517,9 @@ mark.find-current {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  border-left: 1px solid var(--border-subtle);
+  padding-left: 28px;
+  margin-left: -4px;
 }
 .recent-files {
   width: 100%;
