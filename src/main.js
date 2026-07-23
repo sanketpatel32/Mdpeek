@@ -113,7 +113,7 @@ function renderWelcome() {
         <div class="welcome-brand">
           <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
           <div class="welcome-brand-text">
-            <h1 class="welcome-title">mdpeek <span class="version-badge">v0.28.3</span></h1>
+            <h1 class="welcome-title">mdpeek <span class="version-badge">v0.29.0</span></h1>
             <p class="welcome-tagline">A featherlight file viewer & editor.</p>
             <div class="welcome-tags">
               <span class="welcome-tag">Markdown</span>

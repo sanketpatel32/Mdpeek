@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-07-23
+
+### Added
+- **Central Asset Storage (%LOCALAPPDATA%\mdpeek\assets\)**: Images pasted or dropped into Markdown documents or the terminal drawer now save to a single central app assets folder using SHA-256 deduplication and resolve seamlessly via native Tauri asset protocols (`file://`).
+- **Redesigned Welcome & Home Screen**: Visual refresh of the home screen hero with tag badges (`Markdown`, `PDF`, `Code`, `P2P`, `Kanban`), icon action containers, recent file count badges, and improved layout structure.
+- **Updated Action & Explorer Icons**: Standardized open file actions to use a `file-up` icon and file explorer toggles to use a `folder-open` icon.
+
 ## [0.28.3] - 2026-07-23
 
 ### Fixed
