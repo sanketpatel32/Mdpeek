@@ -3464,7 +3464,7 @@ body.kanban-mode #kanban-view { display: flex; }
 
 /* ---------- Changelog panel ---------- */
 .changelog-body {
-  padding: 4px 12px 16px 4px;
+  padding: 8px 16px 24px 6px;
   font-size: 13px;
   line-height: 1.6;
   color: var(--fg-secondary);
@@ -3472,35 +3472,44 @@ body.kanban-mode #kanban-view { display: flex; }
 .changelog-body h1 {
   font-size: 18px;
   font-weight: 700;
-  margin: 0 0 16px;
+  letter-spacing: -0.02em;
+  margin: 0 0 20px;
   color: var(--fg);
-  padding-bottom: 8px;
-  border-bottom: 2px solid var(--accent-soft);
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
 }
 .changelog-body h2 {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 10px;
   font-size: 14px;
   font-weight: 600;
-  margin: 20px 0 10px;
-  padding: 8px 12px;
-  background: var(--surface);
-  border-left: 3px solid var(--accent);
-  border-radius: 4px;
+  letter-spacing: -0.01em;
+  margin: 28px 0 14px;
+  padding: 10px 14px;
+  background: var(--surface-active);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
   color: var(--fg);
+  box-shadow: var(--shadow-sm);
+}
+.changelog-body h2:first-of-type {
+  margin-top: 8px;
 }
 .changelog-body h3 {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  font-size: 10.5px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin: 12px 0 6px;
-  padding: 2px 8px;
+  letter-spacing: 0.05em;
+  margin: 14px 0 8px;
+  padding: 3px 10px;
   background: var(--accent-soft);
   color: var(--accent);
-  border-radius: 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
 }
 .changelog-body h4,
 .changelog-body h5,
@@ -3511,15 +3520,47 @@ body.kanban-mode #kanban-view { display: flex; }
   color: var(--fg);
 }
 .changelog-body p {
-  margin: 4px 0 8px;
+  margin: 6px 0 10px;
+  line-height: 1.55;
 }
-.changelog-body ul,
+.changelog-body ul {
+  margin: 8px 0 18px;
+  padding-left: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 .changelog-body ol {
-  margin: 6px 0 12px;
+  margin: 8px 0 18px;
   padding-left: 20px;
 }
 .changelog-body li {
-  margin: 4px 0;
+  position: relative;
+  margin: 0;
+  padding: 8px 12px 8px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--fg-secondary);
+  transition: background-color 120ms var(--ease), border-color 120ms var(--ease);
+}
+.changelog-body ul > li::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: 15px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.85;
+}
+.changelog-body li:hover {
+  background: var(--surface-hover);
+  border-color: var(--border);
 }
 .changelog-body li strong {
   color: var(--fg);
@@ -3535,7 +3576,7 @@ body.kanban-mode #kanban-view { display: flex; }
 }
 .changelog-body code {
   font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 11.5px;
+  font-size: 11px;
   background: var(--code-bg);
   color: var(--fg);
   padding: 2px 6px;
@@ -3544,11 +3585,11 @@ body.kanban-mode #kanban-view { display: flex; }
 }
 .changelog-body pre {
   background: var(--code-bg);
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-radius: var(--radius);
   overflow-x: auto;
   font-size: 11.5px;
-  margin: 8px 0;
+  margin: 10px 0;
   border: 1px solid var(--border-subtle);
 }
 .changelog-body pre code {
@@ -3559,7 +3600,7 @@ body.kanban-mode #kanban-view { display: flex; }
 .changelog-body hr {
   border: none;
   border-top: 1px dashed var(--border-subtle);
-  margin: 20px 0;
+  margin: 24px 0;
 }
 
 /* ---------- About panel ---------- */
