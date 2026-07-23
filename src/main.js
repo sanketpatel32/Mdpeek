@@ -77,20 +77,23 @@ function renderWelcome() {
   const recentsHtml = `
     <section class="recent-files" aria-label="Recent files">
       <div class="recent-header">
-        <span class="recent-title">Recent</span>
+        <div class="recent-header-title">
+          <span class="recent-title">Recent</span>
+          ${recents.length > 0 ? `<span class="recent-count">${recents.length}</span>` : ''}
+        </div>
         ${recents.length > 0 ? '<button class="recent-clear" data-action="clear-recents" type="button" title="Clear recent list">Clear</button>' : ''}
       </div>
       ${recents.length === 0 ? `
         <div class="recent-empty">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <div class="recent-empty-icon">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+          </div>
           <span>No recent files yet</span>
+          <p class="recent-empty-sub">Opened documents will appear here</p>
         </div>
       ` : `<div class="recent-list">${recents.map((r) => {
-        // Shrink the middle of long paths so the filename stays visible.
         const path = r.path || '';
         const showPath = path.length > 48 ? path.slice(0, 20) + '…' + path.slice(-24) : path;
-        // Per-file-type glyph so recents match tab icons (md/pdf/img/ex/txt)
-        // plus colored letter badges for code languages (JS/PY/RS/GO/...).
         const iconHtml = getIconForPath(path, 'recent-icon');
         const when = relativeTime(r.openedAt);
         return `<button class="recent-item" data-path="${escapeHtml(r.path)}" type="button" title="${escapeHtml(path)}">
@@ -109,40 +112,57 @@ function renderWelcome() {
       <div class="welcome-main">
         <div class="welcome-brand">
           <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-          <h1 class="welcome-title">mdpeek <span class="version-badge">v0.28.3</span></h1>
-          <p class="welcome-tagline">A lightweight Markdown viewer.</p>
+          <div class="welcome-brand-text">
+            <h1 class="welcome-title">mdpeek <span class="version-badge">v0.28.3</span></h1>
+            <p class="welcome-tagline">A featherlight file viewer & editor.</p>
+            <div class="welcome-tags">
+              <span class="welcome-tag">Markdown</span>
+              <span class="welcome-tag">PDF</span>
+              <span class="welcome-tag">Code</span>
+              <span class="welcome-tag">P2P</span>
+              <span class="welcome-tag">Kanban</span>
+            </div>
+          </div>
         </div>
 
         <div class="welcome-actions">
           <button class="welcome-action primary" data-action="open" type="button">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14l1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6A2 2 0 0 1 18.45 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v2"/></svg>
-            <span>Open file</span>
+            <div class="welcome-action-icon action-open">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3-3 3 3"/></svg>
+            </div>
+            <span class="welcome-action-text">Open file</span>
             <kbd>Ctrl+O</kbd>
           </button>
           <button class="welcome-action" data-action="new" type="button">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-            <span>New note</span>
+            <div class="welcome-action-icon action-new">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+            </div>
+            <span class="welcome-action-text">New note</span>
             <kbd>Ctrl+N</kbd>
           </button>
           <button class="welcome-action" data-action="daily" type="button">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            <span>Today's note</span>
+            <div class="welcome-action-icon action-daily">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+            <span class="welcome-action-text">Today's note</span>
           </button>
           <button class="welcome-action" data-action="open-folder" type="button">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-            <span>Open folder</span>
+            <div class="welcome-action-icon action-folder">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.69.9H18a2 2 0 0 1 2 2v2"/></svg>
+            </div>
+            <span class="welcome-action-text">Open folder</span>
             <kbd>Ctrl+Shift+E</kbd>
           </button>
         </div>
 
         <div class="welcome-footer" aria-hidden="true">
-          <kbd>Ctrl+E</kbd> edit/view
+          <span class="welcome-shortcut"><kbd>Ctrl+E</kbd> edit/view</span>
           <span class="dot">·</span>
-          <kbd>Ctrl+P</kbd> switch
+          <span class="welcome-shortcut"><kbd>Ctrl+P</kbd> switch</span>
           <span class="dot">·</span>
-          <kbd>F11</kbd> focus
+          <span class="welcome-shortcut"><kbd>F11</kbd> focus</span>
           <span class="dot">·</span>
-          <span class="welcome-drop">drop a file to open</span>
+          <span class="welcome-drop"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/></svg> drop file to open</span>
         </div>
       </div>
 
@@ -1231,18 +1251,13 @@ async function insertImageFromBlob(blob) {
   const short = String(hash).slice(0, 10);
   const filename = `img-${short}.${ext}`;
   let md;
-  if (doc.path) {
-    const dir = doc.path.replace(/[\\/][^\\/]+$/, '');
-    try {
-      const saved = await invoke('save_image', { dir, filename, bytes: Array.from(buf) });
-      md = `![](${saved})`;
-    } catch (e) {
-      toast('Could not save image: ' + fmtErr(e));
-      return false;
-    }
-  } else {
-    // No path yet — embed as a data URL so the image is at least visible.
-    // The user can save-as later; the bytes are already in the document.
+  try {
+    const savedPath = await invoke('save_image', { dir: 'global', filename, bytes: Array.from(buf) });
+    const normalized = savedPath.replace(/\\/g, '/');
+    const pathUrl = normalized.startsWith('/') ? `file://${normalized}` : `file:///${normalized}`;
+    md = `![](${encodeURI(pathUrl)})`;
+  } catch (e) {
+    // Fall back to inline data URL if disk write fails
     const b64 = bytesToBase64(buf);
     md = `![](data:${blob.type};base64,${b64})`;
   }

@@ -1,3 +1,4 @@
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { Marked } from 'marked';
 import DOMPurify from 'dompurify';
 // Import the curated "common" subset (~36 languages: js, ts, python, rust, go,
@@ -127,6 +128,22 @@ function buildMarked() {
       // Override heading to inject slug-based ids. The token carries `text`
       // (plain) and `tokens` (for inline rendering); we slugify the plain text
       // and render the tokens for the inner HTML.
+      image({ href, title, text }) {
+        let src = href || '';
+        if (src && !src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('data:')) {
+          if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
+            try {
+              const rawPath = decodeURI(src).replace(/^file:\/\/\/?/, '');
+              src = convertFileSrc(rawPath);
+            } catch (e) {
+              // fallback
+            }
+          }
+        }
+        const titleAttr = title ? ` title="${escapeAttr(title)}"` : '';
+        const altAttr = text ? ` alt="${escapeAttr(text)}"` : ' alt=""';
+        return `<img src="${escapeAttr(src)}"${altAttr}${titleAttr} />`;
+      },
       heading({ tokens, depth, text }) {
         const inner = this.parser.parseInline(tokens);
         const id = uniqueSlug(slugify(text));

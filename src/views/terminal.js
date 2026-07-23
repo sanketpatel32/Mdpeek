@@ -144,18 +144,10 @@ export function initTerminal({ cwdProvider, onToast }) {
       const timestamp = Date.now();
       const filename = `pasted_image_${timestamp}.${ext}`;
 
-      const baseDir = getWorkingDir() || '.';
-      let savedPath = '';
-      try {
-        const assetsDir = baseDir.endsWith('/') || baseDir.endsWith('\\') ? `${baseDir}assets` : `${baseDir}/assets`;
-        const resName = await invoke('save_image', { dir: assetsDir, filename, bytes });
-        savedPath = `${assetsDir}/${resName}`.replace(/\\/g, '/');
-      } catch {
-        const resName = await invoke('save_image', { dir: baseDir, filename, bytes });
-        savedPath = `${baseDir}/${resName}`.replace(/\\/g, '/');
-      }
+      const savedPath = await invoke('save_image', { dir: 'global', filename, bytes });
+      const normalizedPath = savedPath.replace(/\\/g, '/');
 
-      const pathArg = `"${savedPath}" `;
+      const pathArg = `"${normalizedPath}" `;
       await invoke('write_terminal', { id: active.ptyId, data: pathArg });
       if (onToast) onToast(`Pasted image path to terminal: ${filename}`);
     } catch (err) {

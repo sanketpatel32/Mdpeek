@@ -54,8 +54,9 @@ function renderEmpty() {
   _container.innerHTML = `
     <div class="tree-empty">
       <p style="margin: 0 0 10px 0;">No folder opened</p>
-      <button class="welcome-action primary" id="tree-open-btn" style="margin: 0; width: 100%; padding: 6px 12px; font-size: 12px; justify-content: center;" type="button">
-        Open folder...
+      <button class="welcome-action primary" id="tree-open-btn" style="margin: 0; width: 100%; padding: 6px 12px; font-size: 12px; justify-content: center; gap: 6px;" type="button">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.69.9H18a2 2 0 0 1 2 2v2"/></svg>
+        <span>Open folder...</span>
       </button>
     </div>
   `;

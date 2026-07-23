@@ -103,17 +103,45 @@ pub fn read_file(path: String) -> Result<String, String> {
 /// directory (the markdown file's `assets/` folder) and a filename; this
 /// creates the directory if needed, writes the bytes, and returns the relative
 /// path that should be inserted into the markdown (e.g. `assets/foo-abc.png`).
+fn get_global_assets_dir_path() -> Result<std::path::PathBuf, String> {
+    let mut path = if let Some(local_app_data) = std::env::var_os("LOCALAPPDATA") {
+        std::path::PathBuf::from(local_app_data)
+    } else if let Some(home) = std::env::var_os("HOME") {
+        std::path::PathBuf::from(home).join(".local").join("share")
+    } else {
+        std::env::temp_dir()
+    };
+    path.push("mdpeek");
+    path.push("assets");
+    if !path.exists() {
+        fs::create_dir_all(&path).map_err(|e| e.to_string())?;
+    }
+    Ok(path)
+}
+
+/// Write pasted/dropped image bytes to disk. If `dir` is empty or "global",
+/// uses the central global assets folder (%LOCALAPPDATA%\mdpeek\assets).
+/// Creates the directory if needed, writes the bytes, and returns the full path.
 #[tauri::command]
 pub fn save_image(dir: String, filename: String, bytes: Vec<u8>) -> Result<String, String> {
-    let dir_path = std::path::Path::new(&dir);
+    let dir_path = if dir.is_empty() || dir == "global" {
+        get_global_assets_dir_path()?
+    } else {
+        std::path::PathBuf::from(&dir)
+    };
     if !dir_path.exists() {
-        fs::create_dir_all(dir_path).map_err(|e| e.to_string())?;
+        fs::create_dir_all(&dir_path).map_err(|e| e.to_string())?;
     }
     let full = dir_path.join(&filename);
     fs::write(&full, &bytes).map_err(|e| e.to_string())?;
-    // Return the filename only — the markdown image path is relative to the
-    // doc's own directory, so `assets/<name>` is correct and portable.
-    Ok(filename)
+    Ok(full.to_string_lossy().to_string())
+}
+
+/// Get the global app assets directory path (%LOCALAPPDATA%\mdpeek\assets).
+#[tauri::command]
+pub fn get_global_assets_dir() -> Result<String, String> {
+    let path = get_global_assets_dir_path()?;
+    Ok(path.to_string_lossy().to_string())
 }
 
 /// Save an annotated image (the original image with strokes composited on

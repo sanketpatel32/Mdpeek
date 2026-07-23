@@ -180,6 +180,7 @@ pub fn run() {
             commands::save_file_as_html,
             commands::read_file,
             commands::save_image,
+            commands::get_global_assets_dir,
             commands::save_annotated_image,
             commands::pick_folder,
             commands::list_dir,

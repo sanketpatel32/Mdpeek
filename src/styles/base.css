@@ -1365,9 +1365,81 @@ mark.find-current {
 }
 .welcome-brand {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: flex-start;
-  margin-bottom: 20px;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.welcome-brand-text {
+  display: flex;
+  flex-direction: column;
+}
+.welcome-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+.welcome-tag {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-active);
+  color: var(--fg-muted);
+  border: 1px solid var(--border-subtle);
+  letter-spacing: 0.02em;
+}
+.welcome-action-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-active);
+  color: var(--fg-secondary);
+  transition: transform 120ms var(--ease), background-color 120ms var(--ease);
+}
+.welcome-action.primary .welcome-action-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+.recent-header-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.recent-count {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-active);
+  color: var(--fg-muted);
+}
+.recent-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--surface-active);
+  color: var(--fg-muted);
+  margin-bottom: 4px;
+}
+.recent-empty-sub {
+  font-size: 11px;
+  color: var(--fg-muted);
+  margin: 2px 0 0;
+  opacity: 0.8;
+}
+.welcome-footer .welcome-drop {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.85;
 }
 .welcome-logo {
   width: 52px;
