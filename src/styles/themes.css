@@ -11,11 +11,6 @@
   --surface-hover: #e9ebf1;
   --surface-active: #dfe2ea;
   
-  /* macOS Frosted Glass & Translucency */
-  --glass-bg: rgba(249, 249, 251, 0.78);
-  --glass-header: rgba(255, 255, 255, 0.75);
-  --glass-border: rgba(0, 0, 0, 0.08);
-  --glass-blur: blur(24px) saturate(190%);
 
   /* text — SF Pro inspired contrast */
   --fg: #1d1d1f;
@@ -73,13 +68,10 @@
   --surface-hover: #3a3a3c;
   --surface-active: #48484a;
 
-  --glass-bg: rgba(28, 28, 30, 0.78);
-  --glass-header: rgba(36, 36, 40, 0.75);
-  --glass-border: rgba(255, 255, 255, 0.12);
 
   --fg: #f5f5f7;
   --fg-secondary: #aeaeb2;
-  --fg-muted: #636366;
+  --fg-muted: #8e8e93;
 
   --border: #3a3a3c;
   --border-subtle: rgba(255, 255, 255, 0.08);
@@ -179,8 +171,8 @@
   --surface-active: #565b76;
 
   --fg: #f8f8f2;
-  --fg-secondary: #b9bac9;
-  --fg-muted: #8092c4;
+  --fg-secondary: #bfbecd;
+  --fg-muted: #8d98c2;
 
   --border: #44475a;
   --border-subtle: #383b4a;
@@ -215,7 +207,7 @@
 
   --fg: #eceff4;
   --fg-secondary: #d8dee9;
-  --fg-muted: #7e8eab;
+  --fg-muted: #8f9db5;
 
   --border: #434c5e;
   --border-subtle: #3b4252;
@@ -279,7 +271,7 @@
 
   --fg: #e6edf3;
   --fg-secondary: #9198a1;
-  --fg-muted: #6e7681;
+  --fg-muted: #8b949e;
 
   --border: #30363d;
   --border-subtle: #21262d;
@@ -314,7 +306,7 @@
 
   --fg: #c0caf5;
   --fg-secondary: #a9b1d6;
-  --fg-muted: #747ca8;
+  --fg-muted: #8992c7;
 
   --border: #414868;
   --border-subtle: #2f334d;
@@ -349,7 +341,7 @@
 
   --fg: #cdd6f4;
   --fg-secondary: #bac2de;
-  --fg-muted: #7f849c;
+  --fg-muted: #939ab7;
 
   --border: #45475a;
   --border-subtle: #313244;

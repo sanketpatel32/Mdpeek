@@ -111,7 +111,6 @@ function renderWelcome() {
           <div class="welcome-brand-info">
             <div class="welcome-title-row">
               <h1 class="welcome-title">mdpeek</h1>
-              <span class="version-badge">v0.29.2</span>
             </div>
             <p class="welcome-tagline">Featherlight file viewer & Markdown editor</p>
           </div>
@@ -184,11 +183,9 @@ const el = {
   zoomIn: document.getElementById('btn-zoom-in'),
   zoomOut: document.getElementById('btn-zoom-out'),
   zoomIndicator: document.getElementById('zoom-indicator'),
-  theme: document.getElementById('btn-theme'),
-  themeMenu: document.getElementById('theme-menu'),
+
   settings: document.getElementById('btn-settings'),
   settingsDialog: document.getElementById('settings-dialog'),
-  update: document.getElementById('btn-update'),
   terminal: document.getElementById('btn-terminal'),
   tabStrip: document.getElementById('tab-strip'),
   viewMode: document.getElementById('view-mode'),
@@ -1438,35 +1435,14 @@ function applyThemeImpl(next) {
     const link = document.getElementById(id);
     if (link) link.disabled = id !== want;
   }
-  // Mark the active item in the dropdown (drives the check mark).
-  document.querySelectorAll('.theme-item').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.theme === next);
-  });
-  const label = document
-    .querySelector(`.theme-item[data-theme="${next}"] .theme-name`)
-    ?.textContent.trim();
-  el.theme.title = label ? `Theme: ${label}` : 'Theme';
   // Propagate theme to the active Excalidraw tab (if any) so the canvas
   // matches the app's light/dark mode.
   if (_activeExcalidraw) _activeExcalidraw.setTheme(next);
   // Propagate theme to every open terminal so xterm.js recolors to match.
   try { if (terminal?.setTheme) terminal.setTheme(); } catch (e) { console.error('terminal setTheme:', e); }
-  closeThemeMenu();
-}
 
-// Dropdown open/close. Anchored under the palette button.
-function openThemeMenu() {
-  el.themeMenu.classList.remove('hidden');
-  el.theme.setAttribute('aria-expanded', 'true');
-}
-function closeThemeMenu() {
-  if (!el.themeMenu || el.themeMenu.classList.contains('hidden')) return;
-  el.themeMenu.classList.add('hidden');
-  el.theme.setAttribute('aria-expanded', 'false');
-}
-function toggleThemeMenu() {
-  if (el.themeMenu.classList.contains('hidden')) openThemeMenu();
-  else closeThemeMenu();
+  const themeSel = document.getElementById('settings-theme');
+  if (themeSel) themeSel.value = next;
 }
 
 // ---------- focus / zen mode (hide header + sidebar for distraction-free reading) ----------
@@ -3080,26 +3056,7 @@ function zoomReset() {
 let _pendingUpdate = null; // cached update object once detected
 
 function setUpdateStatus(state, versionLabel) {
-  const btn = el.update;
-  if (!btn) return;
-  btn.classList.remove('state-checking', 'state-latest', 'state-update', 'state-error');
-  if (state === 'checking') {
-    btn.classList.add('state-checking');
-    btn.title = 'Checking for updates…';
-  } else if (state === 'latest') {
-    btn.classList.add('state-latest');
-    btn.title = `You're on the latest version (v${versionLabel}). Click to check again.`;
-  } else if (state === 'update') {
-    btn.classList.add('state-update');
-    btn.title = `Update available (v${versionLabel}). Click to install.`;
-  } else if (state === 'error') {
-    btn.classList.add('state-error');
-    btn.title = 'Could not check for updates. Click to retry.';
-  }
-  if (versionLabel !== undefined) {
-    const label = btn.querySelector('.update-label');
-    if (label) label.textContent = `v${versionLabel}`;
-  }
+  // Update UI logic removed as part of moving version to Settings
 }
 
 async function applyUpdate(update) {
@@ -3136,15 +3093,7 @@ async function checkForUpdates(silent = false) {
   }
 }
 
-// Clicking the version button: if an update is pending, install it; otherwise
-// run a manual (non-silent) check.
-el.update.addEventListener('click', () => {
-  if (_pendingUpdate) {
-    applyUpdate(_pendingUpdate);
-  } else {
-    checkForUpdates(false);
-  }
-});
+// Version click logic removed
 document.addEventListener('selectionchange', () => {
   updateEditorStatus();
 });
@@ -3426,26 +3375,7 @@ el.zoomIn.addEventListener('click', zoomIn);
 el.zoomOut.addEventListener('click', zoomOut);
 // Clicking the % badge resets to 100% (same as Ctrl+0).
 if (el.zoomIndicator) el.zoomIndicator.addEventListener('click', zoomReset);
-// ---------- theme dropdown wiring ----------
-el.theme.addEventListener('click', (e) => {
-  e.stopPropagation();
-  toggleThemeMenu();
-});
-// Item clicks: pick the theme and close.
-el.themeMenu.addEventListener('click', (e) => {
-  const item = e.target.closest('.theme-item');
-  if (!item) return;
-  applyTheme(item.dataset.theme);
-});
-// Click outside / Esc closes the menu (same pattern as the tab context menu).
-document.addEventListener('click', (e) => {
-  if (!el.themeMenu.classList.contains('hidden') && !e.target.closest('.theme-menu-wrap')) {
-    closeThemeMenu();
-  }
-});
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeThemeMenu();
-});
+
 
 // ---------- settings dialog ----------
 // One place to tune every preference. Each control reads/writes a localStorage
@@ -4799,17 +4729,13 @@ applyFeatureFlags();
   }
 })();
 
-// Show the current version immediately (before the network check resolves) so
-// the button isn't blank during the first few seconds.
+// Set the version string in the settings About panel dynamically.
 getVersion()
   .then((v) => {
-    // Only set the label; keep the 'checking' dot until the check completes.
-    const label = el.update.querySelector('.update-label');
-    if (label) label.textContent = `v${v}`;
+    const aboutVersionEl = document.getElementById('about-version');
+    if (aboutVersionEl) aboutVersionEl.textContent = v;
   })
   .catch(() => {});
-
-setUpdateStatus('checking');
 
 // Check for updates in the background a few seconds after launch (silent: no
 // toast if up-to-date). Delayed so the network call doesn't contend with
