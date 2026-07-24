@@ -32,12 +32,15 @@ body {
   justify-content: flex-start;
   gap: 0;
   padding: 0 0 0 8px;
-  background: var(--bg-elevated);
+  background: var(--glass-header);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border-bottom: 1px solid var(--border-subtle);
   -webkit-user-select: none;
   user-select: none;
   position: relative;
   z-index: 20;
+  transition: background-color 200ms var(--ease-apple), border-color 200ms var(--ease-apple);
 }
 .header-spacer {
   flex: 1 1 auto;
@@ -705,14 +708,16 @@ main {
   padding-top: 12vh;
 }
 .palette-card {
-  width: 520px;
+  width: 540px;
   max-width: calc(100vw - 48px);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-popover);
   overflow: hidden;
-  animation: modal-in 180ms cubic-bezier(0.34, 1.4, 0.64, 1);
+  animation: modal-in 240ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 .palette-input {
   width: 100%;
@@ -1785,44 +1790,49 @@ mark.find-current {
   align-items: center;
   gap: 7px;
   max-width: 200px;
-  height: 30px;
-  margin: 0 1px;
-  padding: 0 4px 0 11px;
+  height: 32px;
+  margin: 0 2px;
+  padding: 0 6px 0 12px;
   background: transparent;
   color: var(--fg-secondary);
   border: 1px solid transparent;
   border-radius: var(--radius);
   font-size: 12.5px;
+  font-weight: 450;
   cursor: pointer;
   white-space: nowrap;
   -webkit-user-select: none;
   user-select: none;
   flex-shrink: 0;
-  transition: background-color 180ms var(--ease), color 180ms var(--ease),
-    border-color 180ms var(--ease), transform 180ms var(--ease);
+  transition: background-color 160ms var(--ease-apple), color 160ms var(--ease-apple),
+    border-color 160ms var(--ease-apple), transform 120ms var(--ease-apple), box-shadow 160ms var(--ease-apple);
 }
 .tab:hover {
   background: var(--surface-hover);
   color: var(--fg);
-  transform: translateY(-1px);
+  transform: translateY(-0.5px);
+}
+.tab:active {
+  transform: scale(0.97);
 }
 .tab.active {
-  background: var(--surface);
+  background: var(--bg-elevated);
   color: var(--fg);
-  border-color: var(--border-subtle);
-  font-weight: 500;
+  border-color: var(--glass-border);
+  font-weight: 550;
   box-shadow: var(--shadow-sm);
   position: relative;
 }
 .tab.active::after {
   content: '';
   position: absolute;
-  bottom: 0;
-  left: 12px;
-  right: 12px;
-  height: 2px;
+  bottom: 2px;
+  left: 14px;
+  right: 14px;
+  height: 2.5px;
   background: var(--accent);
   border-radius: 99px;
+  box-shadow: 0 1px 4px var(--accent-soft);
 }
 .tab.active:hover {
   transform: none;
@@ -2261,27 +2271,29 @@ body.presenting #slideshow { display: flex; }
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.35);
-  -webkit-backdrop-filter: blur(2px);
-  backdrop-filter: blur(2px);
-  animation: overlay-in 160ms var(--ease);
+  background: rgba(0, 0, 0, 0.45);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  animation: overlay-in 200ms var(--ease-apple);
 }
 .modal {
   width: 380px;
   max-width: calc(100vw - 48px);
   padding: 24px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  animation: modal-in 200ms cubic-bezier(0.34, 1.4, 0.64, 1);
+  box-shadow: var(--shadow-popover);
+  animation: modal-in 240ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes overlay-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 @keyframes modal-in {
-  from { opacity: 0; transform: scale(0.94) translateY(8px); }
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 .modal-title {

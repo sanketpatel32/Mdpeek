@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-07-24
+
+### Added & Changed — macOS Glassmorphism UI & Out-of-the-Box Penrose Branding
+
+- **macOS Translucent Glassmorphism (`backdrop-filter`)**: Upgraded the app header, command palette, modal overlays, popovers, and sidebars with authentic macOS translucency (`backdrop-filter: blur(24px) saturate(190%)`), hairline glass borders, and popover shadow depth (`--shadow-popover`).
+- **Apple Fluid Motion Curves**: Replaced legacy transition timing with native Apple spring easing curves (`cubic-bezier(0.16, 1, 0.3, 1)`), providing instant response and smooth deceleration on tabs, buttons, modals, and dropdown menus.
+- **Floating Pill Tab Bar**: Refined the header tab bar with floating glass pill tabs, subtle active shadows, and tactile micro-scale active click states (`transform: scale(0.97)`).
+- **Out-of-the-Box Penrose Origami Logo**: Replaced generic AI-style app icons with a bespoke, handcrafted Penrose Isometric Ribbon monogram (`M` + `P`) vector logo across all desktop executable formats (`.ico`, `.icns`, `.png`, StoreLogos).
+
 ## [0.29.2] - 2026-07-23
 
 ### Changed — Hallmark design overhaul & theme contrast accessibility
