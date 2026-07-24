@@ -2070,23 +2070,18 @@ mark.find-current {
   background: var(--sw-accent);
   box-shadow: 0 0 0 1.5px var(--sw-bg);
 }
-.theme-swatch[data-sw="light"]       { --sw-bg: #f9f9fb; --sw-accent: #0071e3; }
-.theme-swatch[data-sw="dark"]        { --sw-bg: #1c1c1e; --sw-accent: #0a84ff; }
-.theme-swatch[data-sw="solar-light"] { --sw-bg: #fdf6e3; --sw-accent: #268bd2; }
-.theme-swatch[data-sw="solar-dark"]  { --sw-bg: #002b36; --sw-accent: #268bd2; }
-.theme-swatch[data-sw="dracula"]     { --sw-bg: #282a36; --sw-accent: #bd93f9; }
-.theme-swatch[data-sw="nord"]        { --sw-bg: #2e3440; --sw-accent: #88c0d0; }
-.theme-swatch[data-sw="github"]      { --sw-bg: #f6f8fa; --sw-accent: #0969da; }
-.theme-swatch[data-sw="github-dark"] { --sw-bg: #0d1117; --sw-accent: #2f81f7; }
-.theme-swatch[data-sw="tokyo-night"] { --sw-bg: #1a1b26; --sw-accent: #7aa2f7; }
-.theme-swatch[data-sw="catppuccin"]  { --sw-bg: #1e1e2e; --sw-accent: #89b4fa; }
+.theme-swatch[data-sw="light"]       { --sw-bg: #ffffff; --sw-header: #f3f4f6; --sw-accent: #0969da; --sw-fg: #1f2328; }
+.theme-swatch[data-sw="dark"]        { --sw-bg: #0d1117; --sw-header: #161b22; --sw-accent: #2f81f7; --sw-fg: #e6edf3; }
+.theme-swatch[data-sw="solar-light"] { --sw-bg: #fdf6e3; --sw-header: #eee8d5; --sw-accent: #268bd2; --sw-fg: #657b83; }
+.theme-swatch[data-sw="solar-dark"]  { --sw-bg: #002b36; --sw-header: #073642; --sw-accent: #268bd2; --sw-fg: #839496; }
+.theme-swatch[data-sw="dracula"]     { --sw-bg: #282a36; --sw-header: #44475a; --sw-accent: #bd93f9; --sw-fg: #f8f8f2; }
+.theme-swatch[data-sw="nord"]        { --sw-bg: #2e3440; --sw-header: #3b4252; --sw-accent: #88c0d0; --sw-fg: #d8dee9; }
+.theme-swatch[data-sw="github"]      { --sw-bg: #ffffff; --sw-header: #f6f8fa; --sw-accent: #2563eb; --sw-fg: #111827; }
+.theme-swatch[data-sw="github-dark"] { --sw-bg: #0d1117; --sw-header: #21262d; --sw-accent: #58a6ff; --sw-fg: #c9d1d9; }
+.theme-swatch[data-sw="tokyo-night"] { --sw-bg: #1a1b26; --sw-header: #24283b; --sw-accent: #7aa2f7; --sw-fg: #c0caf5; }
+.theme-swatch[data-sw="catppuccin"]  { --sw-bg: #1e1e2e; --sw-header: #313244; --sw-accent: #cba6f7; --sw-fg: #cdd6f4; }
 
-/* ---------- Theme grid (Settings → Appearance, v0.32.0) ----------
-   Replaces the bare <select>. Each card shows a live swatch (colors set by
-   the .theme-swatch[data-sw] registry above so all 10 render correctly
-   regardless of the active theme) + the theme name. Clicking applies the
-   theme instantly via applyTheme(). The active card gets an accent ring + a
-   check badge. */
+/* ---------- Theme grid (Settings → Appearance) ---------- */
 .setting-row-block {
   flex-direction: column;
   align-items: stretch;
@@ -2094,16 +2089,16 @@ mark.find-current {
 }
 .theme-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
+  gap: 12px;
 }
 .theme-card {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 14px 10px 12px;
+  gap: 10px;
+  padding: 12px;
   background: var(--surface);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
@@ -2111,26 +2106,75 @@ mark.find-current {
   font: inherit;
   color: var(--fg-secondary);
   overflow: hidden;
+  transition: all 180ms ease;
 }
 .theme-card .theme-swatch {
-  width: 36px;
-  height: 36px;
+  width: 100%;
+  height: 54px;
+  border-radius: 6px;
+  border: 1px solid rgba(128, 128, 128, 0.2);
+  background: var(--sw-bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+.theme-swatch .swatch-header {
+  height: 14px;
+  background: var(--sw-header, var(--sw-bg));
+  border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+  position: relative;
+}
+.theme-swatch .swatch-header::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sw-accent);
+}
+.theme-swatch .swatch-body {
+  flex: 1;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.theme-swatch .swatch-line {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sw-fg, var(--sw-accent));
+  opacity: 0.7;
+}
+.theme-swatch .swatch-line.long {
+  width: 80%;
+  background: var(--sw-accent);
+}
+.theme-swatch .swatch-line.short {
+  width: 45%;
+  background: var(--sw-fg);
+  opacity: 0.5;
 }
 .theme-card .theme-name {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 500;
   text-align: center;
   line-height: 1.2;
 }
 .theme-card:hover {
-  border-color: var(--border);
+  border-color: var(--accent);
   background: var(--surface-hover);
   color: var(--fg);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 .theme-card.active {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent), var(--accent-soft) 0 0 0 4px;
+  box-shadow: 0 0 0 2px var(--accent), var(--accent-soft) 0 4px 12px;
   color: var(--fg);
+  font-weight: 600;
 }
 /* Check badge — top-right corner, only on active card. */
 .theme-card .theme-check {
@@ -2878,20 +2922,11 @@ body.presenting #slideshow { display: flex; }
    elevated layer. Scoped to .modal-wide so the small confirm dialogs keep
    their plain opaque look. Opaque fallback where blur isn't supported. */
 .modal-wide {
-  width: 640px;
+  width: 860px;
   max-width: calc(100vw - 48px);
-  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  box-shadow:
-    0 24px 64px rgba(0, 0, 0, 0.18),
-    0 8px 24px rgba(0, 0, 0, 0.10),
-    var(--shadow-lg);
-}
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .modal-wide {
-    background: var(--bg-elevated);
-  }
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28), var(--shadow-lg);
 }
 
 /* ---------- Global Kanban board (v0.22.2) ----------
@@ -3360,31 +3395,89 @@ body.kanban-mode #kanban-view { display: flex; }
 }
 
 
+/* Settings Header Bar: title on left, Reset to default and Close (✕) on right */
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.settings-header .modal-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--fg);
+}
+.settings-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.settings-header-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg-muted);
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all var(--dur-1) ease;
+}
+.settings-header-btn:hover {
+  background: var(--surface-hover);
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.settings-header-btn svg {
+  opacity: 0.8;
+}
+.settings-close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background-color var(--dur-1) ease, color var(--dur-1) ease;
+}
+.settings-close-btn:hover {
+  background: var(--surface-hover);
+  color: var(--fg);
+}
+
 /* Two-pane shell: category sidebar on the left, content on the right. */
 .settings-shell {
   display: grid;
-  grid-template-columns: 180px 1fr;
+  grid-template-columns: 210px 1fr;
   gap: 0;
   margin: 4px -4px 0;
 }
 
-/* Sidebar — vertical list of category buttons, like macOS System Settings.
-   v0.32.1: rounded pill active state + accent bar on the active category. */
+/* Sidebar — vertical list of category buttons, like macOS System Settings. */
 .settings-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 4px 8px 4px 4px;
-  /* Match .settings-content height so the sidebar doesn't collapse shorter. */
-  height: 420px;
-  max-height: calc(100vh - 240px);
+  gap: 3px;
+  padding: 4px 10px 4px 4px;
+  height: 520px;
+  max-height: calc(100vh - 180px);
 }
 .settings-cat {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  height: 36px;
+  height: 38px;
   padding: 0 12px;
   background: transparent;
   border: none;
@@ -3396,6 +3489,7 @@ body.kanban-mode #kanban-view { display: flex; }
   text-align: left;
   cursor: pointer;
   position: relative;
+  transition: background-color var(--dur-1) ease, color var(--dur-1) ease, transform 120ms ease;
 }
 .settings-cat:hover {
   background: var(--surface-hover);
@@ -3406,8 +3500,6 @@ body.kanban-mode #kanban-view { display: flex; }
   color: var(--accent);
   font-weight: 600;
 }
-/* The signature macOS sidebar accent: a 3px bar on the leading edge of the
-   active category. */
 .settings-cat.active::before {
   content: '';
   position: absolute;
@@ -3425,29 +3517,36 @@ body.kanban-mode #kanban-view { display: flex; }
 .settings-cat.active svg {
   opacity: 1;
 }
-/* v0.32.1: keyboard focus ring (was missing entirely). */
 .settings-cat:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 
-/* Content pane — holds one panel per category; only the active shows.
-   FIXED height so the modal doesn't resize when switching categories
-   (different panels have different content lengths; without a fixed height
-   the dialog jumps around on each click).
-   v0.32.1: dropped the harsh border-left divider (the frosted card + spacing
-   reads cleaner without it); the sidebar's own background now provides the
-   visual separation. Increased left padding for breathing room. */
+/* Content pane — holds one panel per category with smooth tab transition */
 .settings-content {
   padding: 4px 4px 4px 18px;
-  height: 420px;
-  max-height: calc(100vh - 240px);
+  height: 520px;
+  max-height: calc(100vh - 180px);
   overflow-y: auto;
 }
 
-/* Per-panel title — a small muted uppercase label that mirrors the active
-   category name. CSS-only (no HTML/JS): reads the data-cat attribute.
-   Improves orientation since the content area had no heading of its own. */
+.settings-panel {
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+.settings-panel:not(.hidden) {
+  animation: panel-fade-slide 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes panel-fade-slide {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .settings-panel::before {
   content: attr(data-cat);
   display: block;
@@ -3458,8 +3557,6 @@ body.kanban-mode #kanban-view { display: flex; }
   letter-spacing: 0.04em;
   color: var(--fg-muted);
 }
-/* The static-content panels (shortcuts/tips/changelog/about) already have
-   their own headings; skip the auto-title for them to avoid duplication. */
 .settings-panel[data-cat="shortcuts"]::before,
 .settings-panel[data-cat="tips"]::before,
 .settings-panel[data-cat="changelog"]::before,
@@ -3468,11 +3565,9 @@ body.kanban-mode #kanban-view { display: flex; }
 }
 
 .setting-card {
-  background: var(--bg-elevated);
+  background: var(--surface);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  /* v0.32.1: dropped box-shadow — redundant inside the frosted shell, and the
-     hairline border alone reads as a cleaner inset well. */
   overflow: hidden;
 }
 .setting-row {
@@ -3480,7 +3575,6 @@ body.kanban-mode #kanban-view { display: flex; }
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  /* v0.32.1: roomier padding (was 11px 14px — felt cramped). */
   padding: 14px 16px;
   transition: background-color var(--dur-1) var(--ease-out);
 }
@@ -3500,11 +3594,21 @@ body.kanban-mode #kanban-view { display: flex; }
   line-height: 1.3;
 }
 .setting-desc {
-  /* v0.32.1: back above the 12px floor (was 11.5px — half-pixel oddity). */
   font-size: 12px;
   color: var(--fg-muted);
   margin-top: 3px;
   line-height: 1.45;
+}
+
+.updates-in-about {
+  margin-top: 16px;
+}
+.updates-header-title {
+  padding: 12px 16px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--fg);
+  border-bottom: 1px solid var(--border-subtle);
 }
 /* Footer — v0.32.1: slightly recessed region so it reads as a distinct
    action bar rather than just "more padding below the content". */

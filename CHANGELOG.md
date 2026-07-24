@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.32.1] - 2026-07-24
+## [0.32.2] - 2026-07-24
+
+### Fixed & Improved — Settings dialog overhaul
+- **Eliminated opening lag**: Fixed 5-7s opening delay by removing heavy GPU compositing blur filters and converting context-menu registry checks to async background tasks.
+- **Opaque modal surface**: Made modal non-transparent with a crisp solid elevated background (`var(--bg-elevated)`).
+- **Embedded Updates inside About**: Moved Software Updates controls into the About tab and removed the standalone Updates tab.
+- **Expanded workspace layout**: Increased modal dimensions (width 860px, height 520px, sidebar 210px) to maximize usable screen area.
+- **Top header controls**: Added "Reset to default" button and a Close (✕) icon button on the top-right header; removed bottom "Done" footer bar.
+- **Redesigned Appearance page**: Replaced basic theme cards with rich mini app window previews for all 10 themes with hover elevation and active checkmarks.
+- **Default Notes Folder**: Auto-initializes daily notes to system `Documents/mdpeek-notes` with easy folder changing.
+- **Tab transition animations**: Added smooth `panel-fade-slide` animations when switching categories.
 
 ### Changed — Settings modal visual redesign (Calm Glass)
 

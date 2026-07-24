@@ -447,7 +447,18 @@
 
     <div id="settings-dialog" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <div class="modal modal-wide">
-        <h2 id="settings-title" class="modal-title">Settings</h2>
+        <div class="settings-header">
+          <h2 id="settings-title" class="modal-title">Settings</h2>
+          <div class="settings-header-actions">
+            <button id="settings-reset" class="settings-header-btn" type="button" title="Reset all settings to defaults">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              <span>Reset to default</span>
+            </button>
+            <button id="settings-close-btn" class="settings-close-btn" type="button" aria-label="Close settings">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
         <div class="settings-shell">
           <!-- Category sidebar -->
           <nav class="settings-sidebar" aria-label="Settings categories">
@@ -466,10 +477,6 @@
             <button class="settings-cat" data-cat="features" type="button">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               <span>Features</span>
-            </button>
-            <button class="settings-cat" data-cat="updates" type="button">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/><polyline points="21 4 21 10 15 10"/></svg>
-              <span>Updates</span>
             </button>
             <button class="settings-cat" data-cat="shortcuts" type="button">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"/></svg>
@@ -558,58 +565,114 @@
                     <div class="setting-label">Theme</div>
                     <div class="setting-desc">Color scheme for the whole app — click to apply instantly</div>
                   </div>
-                  <!-- Theme grid: each card sets its own swatch colors via the
-                       .theme-swatch[data-sw] registry in base.css, so all 10
-                       render correctly regardless of the active theme.
-                       The active card gets an accent ring (toggled by main.js). -->
                   <div id="theme-grid" class="theme-grid" role="radiogroup" aria-label="Theme">
                     <button class="theme-card" type="button" data-theme="light" role="radio" aria-checked="false">
-                      <span class="theme-swatch" data-sw="light" aria-hidden="true"></span>
+                      <div class="theme-swatch" data-sw="light" aria-hidden="true">
+                        <div class="swatch-header"></div>
+                        <div class="swatch-body">
+                          <div class="swatch-line long"></div>
+                          <div class="swatch-line short"></div>
+                        </div>
+                      </div>
                       <span class="theme-name">Light</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </button>
                     <button class="theme-card" type="button" data-theme="dark" role="radio" aria-checked="false">
-                      <span class="theme-swatch" data-sw="dark" aria-hidden="true"></span>
+                      <div class="theme-swatch" data-sw="dark" aria-hidden="true">
+                        <div class="swatch-header"></div>
+                        <div class="swatch-body">
+                          <div class="swatch-line long"></div>
+                          <div class="swatch-line short"></div>
+                        </div>
+                      </div>
                       <span class="theme-name">Dark</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </button>
                     <button class="theme-card" type="button" data-theme="solar-light" role="radio" aria-checked="false">
-                      <span class="theme-swatch" data-sw="solar-light" aria-hidden="true"></span>
+                      <div class="theme-swatch" data-sw="solar-light" aria-hidden="true">
+                        <div class="swatch-header"></div>
+                        <div class="swatch-body">
+                          <div class="swatch-line long"></div>
+                          <div class="swatch-line short"></div>
+                        </div>
+                      </div>
                       <span class="theme-name">Solarized Light</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </button>
                     <button class="theme-card" type="button" data-theme="solar-dark" role="radio" aria-checked="false">
-                      <span class="theme-swatch" data-sw="solar-dark" aria-hidden="true"></span>
+                      <div class="theme-swatch" data-sw="solar-dark" aria-hidden="true">
+                        <div class="swatch-header"></div>
+                        <div class="swatch-body">
+                          <div class="swatch-line long"></div>
+                          <div class="swatch-line short"></div>
+                        </div>
+                      </div>
                       <span class="theme-name">Solarized Dark</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </button>
                     <button class="theme-card" type="button" data-theme="dracula" role="radio" aria-checked="false">
-                      <span class="theme-swatch" data-sw="dracula" aria-hidden="true"></span>
+                      <div class="theme-swatch" data-sw="dracula" aria-hidden="true">
+                        <div class="swatch-header"></div>
+                        <div class="swatch-body">
+                          <div class="swatch-line long"></div>
+                          <div class="swatch-line short"></div>
+                        </div>
+                      </div>
                       <span class="theme-name">Dracula</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </button>
                     <button class="theme-card" type="button" data-theme="nord" role="radio" aria-checked="false">
-                      <span class="theme-swatch" data-sw="nord" aria-hidden="true"></span>
+                      <div class="theme-swatch" data-sw="nord" aria-hidden="true">
+                        <div class="swatch-header"></div>
+                        <div class="swatch-body">
+                          <div class="swatch-line long"></div>
+                          <div class="swatch-line short"></div>
+                        </div>
+                      </div>
                       <span class="theme-name">Nord</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </button>
                     <button class="theme-card" type="button" data-theme="github" role="radio" aria-checked="false">
-                      <span class="theme-swatch" data-sw="github" aria-hidden="true"></span>
+                      <div class="theme-swatch" data-sw="github" aria-hidden="true">
+                        <div class="swatch-header"></div>
+                        <div class="swatch-body">
+                          <div class="swatch-line long"></div>
+                          <div class="swatch-line short"></div>
+                        </div>
+                      </div>
                       <span class="theme-name">GitHub</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </button>
                     <button class="theme-card" type="button" data-theme="github-dark" role="radio" aria-checked="false">
-                      <span class="theme-swatch" data-sw="github-dark" aria-hidden="true"></span>
+                      <div class="theme-swatch" data-sw="github-dark" aria-hidden="true">
+                        <div class="swatch-header"></div>
+                        <div class="swatch-body">
+                          <div class="swatch-line long"></div>
+                          <div class="swatch-line short"></div>
+                        </div>
+                      </div>
                       <span class="theme-name">GitHub Dark</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </button>
                     <button class="theme-card" type="button" data-theme="tokyo-night" role="radio" aria-checked="false">
-                      <span class="theme-swatch" data-sw="tokyo-night" aria-hidden="true"></span>
+                      <div class="theme-swatch" data-sw="tokyo-night" aria-hidden="true">
+                        <div class="swatch-header"></div>
+                        <div class="swatch-body">
+                          <div class="swatch-line long"></div>
+                          <div class="swatch-line short"></div>
+                        </div>
+                      </div>
                       <span class="theme-name">Tokyo Night</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </button>
                     <button class="theme-card" type="button" data-theme="catppuccin" role="radio" aria-checked="false">
-                      <span class="theme-swatch" data-sw="catppuccin" aria-hidden="true"></span>
+                      <div class="theme-swatch" data-sw="catppuccin" aria-hidden="true">
+                        <div class="swatch-header"></div>
+                        <div class="swatch-body">
+                          <div class="swatch-line long"></div>
+                          <div class="swatch-line short"></div>
+                        </div>
+                      </div>
                       <span class="theme-name">Catppuccin</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </button>
@@ -769,46 +832,6 @@
               </div>
             </div>
 
-            <!-- Updates -->
-            <div class="settings-panel hidden" data-cat="updates">
-              <div class="setting-card">
-                <div class="setting-row">
-                  <div class="setting-text">
-                    <div class="setting-label">Current version</div>
-                    <div class="setting-desc">The build of mdpeek you're running</div>
-                  </div>
-                  <div class="updates-version">
-                    <span id="updates-current">v—</span>
-                    <span id="updates-badge" class="updates-badge state-idle" aria-live="polite">Unknown</span>
-                  </div>
-                </div>
-                <div class="setting-row">
-                  <div class="setting-text">
-                    <div class="setting-label">Check for updates</div>
-                    <div class="setting-desc">Look for a newer release on GitHub</div>
-                  </div>
-                  <button id="updates-check-btn" class="modal-btn" type="button">Check now</button>
-                </div>
-                <div class="setting-row" id="updates-install-row" hidden>
-                  <div class="setting-text">
-                    <div class="setting-label">A new version is available</div>
-                    <div class="setting-desc" id="updates-release-notes">—</div>
-                  </div>
-                  <button id="updates-install-btn" class="modal-btn modal-btn-primary" type="button" data-ripple>Download &amp; restart</button>
-                </div>
-                <div class="setting-row">
-                  <div class="setting-text">
-                    <div class="setting-label">Check automatically</div>
-                    <div class="setting-desc">Look for updates when the app starts</div>
-                  </div>
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="settings-auto-update" />
-                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
-                  </label>
-                </div>
-              </div>
-            </div>
-
             <!-- Shortcuts -->
             <div class="settings-panel hidden" data-cat="shortcuts">
               <div class="help-section">
@@ -877,21 +900,17 @@
               </div>
             </div>
 
-            <!-- Changelog (populated at open time from CHANGELOG.md?raw).
-                 NOTE: do NOT add .markdown-body here — that class sets
-                 width:0 (designed for the flex-driven document pane) which
-                 collapses the content inside the settings panel. The
-                 .changelog-body class below covers all element styling. -->
+            <!-- Changelog -->
             <div class="settings-panel hidden" data-cat="changelog">
               <div id="changelog-content" class="changelog-body"></div>
             </div>
 
-            <!-- About -->
+            <!-- About (with Updates) -->
             <div class="settings-panel hidden" data-cat="about">
               <div class="about-card">
                 <img src="/icon.png" alt="mdpeek" class="about-logo" />
                 <h3 class="about-name">mdpeek</h3>
-                <div class="about-version">Version <span id="about-version">0.31.3</span></div>
+                <div class="about-version">Version <span id="about-version">0.32.2</span></div>
                 <p class="about-tagline">A lightweight Markdown viewer &amp; editor for Windows.</p>
                 <div class="about-links">
                   <button class="about-link primary" data-href="https://github.com/sanketpatel32/Mdpeek" type="button">
@@ -905,12 +924,47 @@
                 </div>
                 <p class="about-footer">Built with Tauri 2, marked, highlight.js, and pdf.js. Open source under the MIT License.</p>
               </div>
+
+              <!-- Software Updates section in About -->
+              <div class="setting-card updates-in-about">
+                <div class="updates-header-title">Software Updates</div>
+                <div class="setting-row">
+                  <div class="setting-text">
+                    <div class="setting-label">Current version</div>
+                    <div class="setting-desc">The build of mdpeek you're running</div>
+                  </div>
+                  <div class="updates-version">
+                    <span id="updates-current">v—</span>
+                    <span id="updates-badge" class="updates-badge state-idle" aria-live="polite">Unknown</span>
+                  </div>
+                </div>
+                <div class="setting-row">
+                  <div class="setting-text">
+                    <div class="setting-label">Check for updates</div>
+                    <div class="setting-desc">Look for a newer release on GitHub</div>
+                  </div>
+                  <button id="updates-check-btn" class="modal-btn" type="button">Check now</button>
+                </div>
+                <div class="setting-row" id="updates-install-row" hidden>
+                  <div class="setting-text">
+                    <div class="setting-label">A new version is available</div>
+                    <div class="setting-desc" id="updates-release-notes">—</div>
+                  </div>
+                  <button id="updates-install-btn" class="modal-btn modal-btn-primary" type="button" data-ripple>Download &amp; restart</button>
+                </div>
+                <div class="setting-row">
+                  <div class="setting-text">
+                    <div class="setting-label">Check automatically</div>
+                    <div class="setting-desc">Look for updates when the app starts</div>
+                  </div>
+                  <label class="setting-toggle">
+                    <input type="checkbox" id="settings-auto-update" />
+                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-        <div class="modal-actions settings-footer">
-          <button id="settings-reset" class="modal-btn" type="button">Reset to defaults</button>
-          <button id="settings-done" class="modal-btn modal-btn-primary" type="button">Done</button>
         </div>
       </div>
     </div>

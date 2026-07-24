@@ -73,8 +73,7 @@ describe('v0.32.0 Settings — theme grid + updates panel', () => {
     }
   });
 
-  it('adds an Updates settings category + panel with check/install controls', () => {
-    expect(INDEX).toMatch(/data-cat="updates"/);
+  it('adds an Updates section in About panel with check/install controls', () => {
     expect(INDEX).toMatch(/id="updates-check-btn"/);
     expect(INDEX).toMatch(/id="updates-install-btn"/);
     expect(INDEX).toMatch(/id="updates-current"/);

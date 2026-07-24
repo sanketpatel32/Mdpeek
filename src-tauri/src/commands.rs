@@ -486,22 +486,35 @@ pub fn unregister_context_menu() -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn is_context_menu_registered() -> bool {
+pub async fn is_context_menu_registered() -> bool {
     #[cfg(target_os = "windows")]
     {
-        let output = std::process::Command::new("reg")
-            .args(&["query", r"HKCU\Software\Classes\*\shell\mdpeek"])
-            .output();
-        
-        match output {
-            Ok(out) => out.status.success(),
-            Err(_) => false,
-        }
+        tauri::async_runtime::spawn_blocking(|| {
+            let output = std::process::Command::new("reg")
+                .args(&["query", r"HKCU\Software\Classes\*\shell\mdpeek"])
+                .output();
+            
+            match output {
+                Ok(out) => out.status.success(),
+                Err(_) => false,
+            }
+        }).await.unwrap_or(false)
     }
     #[cfg(not(target_os = "windows"))]
     {
         false
     }
+}
+
+#[tauri::command]
+pub fn get_default_notes_dir() -> String {
+    let home = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")).unwrap_or_default();
+    if !home.is_empty() {
+        let p = std::path::Path::new(&home).join("Documents").join("mdpeek-notes");
+        let _ = std::fs::create_dir_all(&p);
+        return p.display().to_string();
+    }
+    "mdpeek-notes".to_string()
 }
 
 #[cfg(target_os = "windows")]

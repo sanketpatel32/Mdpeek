@@ -189,6 +189,7 @@ pub fn run() {
             commands::register_context_menu,
             commands::unregister_context_menu,
             commands::is_context_menu_registered,
+            commands::get_default_notes_dir,
             pty::spawn_terminal,
             pty::write_terminal,
             pty::kill_terminal,

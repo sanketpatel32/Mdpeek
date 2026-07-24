@@ -2339,24 +2339,12 @@ function teardownCollabIfActive() {
 async function openDailyNote() {
   let dir = localStorage.getItem('mdpeek-notes-dir') || '';
   if (!dir) {
-    // First run: explain what's happening before popping the OS folder
-    // picker. Without context, "pick a folder" reads as a confusing non-
-    // sequitur and users cancel without knowing why they were asked.
-    const choice = await confirmDialog({
-      title: 'Pick a notes folder',
-      text: 'Daily notes are saved as YYYY-MM-DD.md inside a folder you choose. Pick where mdpeek should keep them — you can change this later in Settings.',
-      buttons: [
-        { id: 'cancel', label: 'Cancel', kind: 'secondary' },
-        { id: 'pick', label: 'Choose folder', kind: 'primary' },
-      ],
-    });
-    if (choice !== 'pick') return;
     try {
-      dir = await invoke('pick_folder');
+      dir = await invoke('get_default_notes_dir');
       localStorage.setItem('mdpeek-notes-dir', dir);
       toast('Notes folder set: ' + basename(dir));
     } catch (e) {
-      if (e !== 'cancelled') toast('Could not pick folder: ' + fmtErr(e));
+      toast('Could not set notes folder');
       return;
     }
   }
@@ -3580,13 +3568,25 @@ function syncSettingsControls() {
   const autosaveCb = document.getElementById('settings-autosave');
   if (autosaveCb) autosaveCb.checked = localStorage.getItem('mdpeek-autosave') !== '0';
 
-  // Notes folder display — show the configured path (or "Not set") so users
-  // can see where daily notes will land without opening a dialog.
+  // Notes folder display — show configured path or auto-initialize with system default.
   const notesPath = document.getElementById('settings-notes-path');
   if (notesPath) {
-    const dir = localStorage.getItem('mdpeek-notes-dir');
-    notesPath.textContent = dir || 'Not set';
-    notesPath.classList.toggle('unset', !dir);
+    let dir = localStorage.getItem('mdpeek-notes-dir');
+    if (!dir) {
+      invoke('get_default_notes_dir').then((defaultDir) => {
+        if (defaultDir && !localStorage.getItem('mdpeek-notes-dir')) {
+          localStorage.setItem('mdpeek-notes-dir', defaultDir);
+          notesPath.textContent = defaultDir;
+          notesPath.classList.remove('unset');
+        }
+      }).catch(() => {
+        notesPath.textContent = 'Not set';
+        notesPath.classList.add('unset');
+      });
+    } else {
+      notesPath.textContent = dir;
+      notesPath.classList.remove('unset');
+    }
   }
 
   // Feature flags synchronization
@@ -3637,16 +3637,21 @@ function setSegActive(setting, value) {
 }
 
 el.settings.addEventListener('click', () => openSettings());
-document.getElementById('settings-done').addEventListener('click', closeSettings);
-document.getElementById('settings-reset').addEventListener('click', () => {
-  for (const k of SETTING_KEYS) localStorage.removeItem(k);
-  // Apply defaults live.
-  applyTheme('light');
-  if (find) find.setCaseSensitive(false);
-  applyReadingComfort();
-  applyLineNumbers();
-  syncSettingsControls();
-});
+const closeBtn = document.getElementById('settings-close-btn');
+if (closeBtn) closeBtn.addEventListener('click', closeSettings);
+const resetBtn = document.getElementById('settings-reset');
+if (resetBtn) {
+  resetBtn.addEventListener('click', () => {
+    for (const k of SETTING_KEYS) localStorage.removeItem(k);
+    // Apply defaults live.
+    applyTheme('light');
+    if (find) find.setCaseSensitive(false);
+    applyReadingComfort();
+    applyLineNumbers();
+    syncSettingsControls();
+    toast('Settings reset to defaults');
+  });
+}
 
 // Click outside the card closes the dialog.
 el.settingsDialog.addEventListener('click', (e) => {
