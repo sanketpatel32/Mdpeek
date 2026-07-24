@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.1] - 2026-07-24
+
+### Changed — Settings modal visual redesign (Calm Glass)
+
+Visual-only refresh of the Settings dialog to match the v0.32.0 aesthetic.
+**No behavior changes** — Reset scope, open/close behavior, and category
+memory are all unchanged.
+
+- **Frosted glass dialog card**: `.modal-wide` now uses `backdrop-filter:
+  blur(40px) saturate(180%)` with a translucent elevated surface (heavier
+  blur than the topbar, since the dialog floats above content). Opaque
+  `@supports` fallback. Scoped to Settings only — small confirm dialogs keep
+  their plain look.
+- **Header bar**: the "Settings" title is now 19px with a hairline divider
+  separating it from the two-pane shell.
+- **Sidebar (macOS System Settings feel)**: wider (180px), active category
+  gets a 3px accent bar on its leading edge (the signature macOS sidebar
+  accent) plus the filled accent-soft pill. Added `:focus-visible` ring
+  (was missing entirely).
+- **Content pane**: dropped the harsh `border-left` divider (the frosted card
+  + spacing read cleaner without it). Added a **per-panel title** — a small
+  muted capitalized label mirroring the active category (`::before` +
+  `attr(data-cat)`, CSS-only). Softened `.setting-card` (removed the
+  redundant box-shadow; the hairline border alone reads as a cleaner well).
+- **Roomier rows**: `.setting-row` padding `11px 14px` → `14px 16px`; gap
+  16px → 18px. `.setting-desc` font-size 11.5px → 12px (back above the 12px
+  floor; was a half-pixel oddity).
+- **Form controls**: `.setting-select` focus is now `:focus-visible` with an
+  `accent-soft` ring (was a plain `:focus` border change that fired on mouse
+  click). Added `:focus-visible` ring to `.seg-btn` (was missing).
+  `.toggle-thumb` shadow swapped to `var(--shadow-sm)` (was hardcoded rgba).
+- **Footer**: slightly recessed background so it reads as a distinct action
+  bar rather than trailing padding.
+- **Panel-switch animation**: switching categories now fades+slides the new
+  panel in (`settings-panel-in`, 180ms ease-out) instead of an instant snap —
+  matching the motion language everywhere else. Respects reduced-motion.
+
 ## [0.32.0] - 2026-07-24
 
 ### Changed — "Calm Glass" UI Overhaul (macOS/Linear-inspired)

@@ -89,6 +89,19 @@
   animation: welcome-fade-up var(--dur-4) var(--ease-out);
 }
 
+/* --- Settings panel switch (v0.32.1) ---
+   When a category is clicked, the old panel gets `.hidden` added and the new
+   one has it removed. This animation plays on the newly-shown panel so the
+   switch feels like a gentle fade+rise instead of an instant snap — matching
+   the motion language everywhere else. Reduced-motion clamps it (§7). */
+.settings-panel:not(.hidden) {
+  animation: settings-panel-in var(--dur-2) var(--ease-out);
+}
+@keyframes settings-panel-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* ======================================================================
    2. TACTILE BUTTONS — unified press + hover
    ======================================================================

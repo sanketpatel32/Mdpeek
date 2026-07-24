@@ -2476,6 +2476,15 @@ body.presenting #slideshow { display: flex; }
   font-weight: 600;
   color: var(--fg);
 }
+/* v0.32.1: the Settings dialog title is a header bar — bigger type, more
+   bottom margin, and a hairline divider separating it from the two-pane shell.
+   Scoped to .modal-wide so small confirm dialogs keep their compact title. */
+.modal-wide .modal-title {
+  margin: 0 0 16px;
+  padding-bottom: 14px;
+  font-size: 19px;
+  border-bottom: 1px solid var(--border-subtle);
+}
 .modal-text {
   margin: 0 0 16px;
   font-size: 13px;
@@ -2863,10 +2872,26 @@ body.presenting #slideshow { display: flex; }
 }
 
 /* ---------- Settings dialog ---------- */
-/* Wider variant of .modal to fit the sidebar + content two-pane layout. */
+/* Wider variant of .modal to fit the sidebar + content two-pane layout.
+   v0.32.1: frosted "calm glass" card — heavier blur than the topbar (40px)
+   because the dialog floats above content and wants to feel like a distinct
+   elevated layer. Scoped to .modal-wide so the small confirm dialogs keep
+   their plain opaque look. Opaque fallback where blur isn't supported. */
 .modal-wide {
   width: 640px;
   max-width: calc(100vw - 48px);
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.18),
+    0 8px 24px rgba(0, 0, 0, 0.10),
+    var(--shadow-lg);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .modal-wide {
+    background: var(--bg-elevated);
+  }
 }
 
 /* ---------- Global Kanban board (v0.22.2) ----------
@@ -3338,26 +3363,26 @@ body.kanban-mode #kanban-view { display: flex; }
 /* Two-pane shell: category sidebar on the left, content on the right. */
 .settings-shell {
   display: grid;
-  grid-template-columns: 168px 1fr;
+  grid-template-columns: 180px 1fr;
   gap: 0;
   margin: 4px -4px 0;
 }
 
-/* Sidebar — vertical list of category buttons, like macOS System Settings. */
+/* Sidebar — vertical list of category buttons, like macOS System Settings.
+   v0.32.1: rounded pill active state + accent bar on the active category. */
 .settings-sidebar {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 4px 6px;
-  /* Match .settings-content height so the border-left on content stretches
-     the full panel and the sidebar doesn't collapse shorter than content. */
+  padding: 4px 8px 4px 4px;
+  /* Match .settings-content height so the sidebar doesn't collapse shorter. */
   height: 420px;
   max-height: calc(100vh - 240px);
 }
 .settings-cat {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   width: 100%;
   height: 36px;
   padding: 0 12px;
@@ -3370,50 +3395,94 @@ body.kanban-mode #kanban-view { display: flex; }
   font-weight: 500;
   text-align: left;
   cursor: pointer;
-  transition: background-color 150ms var(--ease), color 150ms var(--ease), transform 100ms var(--ease);
+  position: relative;
 }
 .settings-cat:hover {
   background: var(--surface-hover);
   color: var(--fg);
-}
-.settings-cat:active {
-  transform: scale(0.97);
 }
 .settings-cat.active {
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 600;
 }
+/* The signature macOS sidebar accent: a 3px bar on the leading edge of the
+   active category. */
+.settings-cat.active::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+}
 .settings-cat svg {
   flex-shrink: 0;
+  opacity: 0.9;
+}
+.settings-cat.active svg {
+  opacity: 1;
+}
+/* v0.32.1: keyboard focus ring (was missing entirely). */
+.settings-cat:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 /* Content pane — holds one panel per category; only the active shows.
    FIXED height so the modal doesn't resize when switching categories
    (different panels have different content lengths; without a fixed height
-   the dialog jumps around on each click). */
+   the dialog jumps around on each click).
+   v0.32.1: dropped the harsh border-left divider (the frosted card + spacing
+   reads cleaner without it); the sidebar's own background now provides the
+   visual separation. Increased left padding for breathing room. */
 .settings-content {
-  padding: 4px 4px 4px 14px;
-  border-left: 1px solid var(--border-subtle);
+  padding: 4px 4px 4px 18px;
   height: 420px;
   max-height: calc(100vh - 240px);
   overflow-y: auto;
+}
+
+/* Per-panel title — a small muted uppercase label that mirrors the active
+   category name. CSS-only (no HTML/JS): reads the data-cat attribute.
+   Improves orientation since the content area had no heading of its own. */
+.settings-panel::before {
+  content: attr(data-cat);
+  display: block;
+  margin: 2px 2px 12px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: capitalize;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+}
+/* The static-content panels (shortcuts/tips/changelog/about) already have
+   their own headings; skip the auto-title for them to avoid duplication. */
+.settings-panel[data-cat="shortcuts"]::before,
+.settings-panel[data-cat="tips"]::before,
+.settings-panel[data-cat="changelog"]::before,
+.settings-panel[data-cat="about"]::before {
+  content: none;
 }
 
 .setting-card {
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  /* v0.32.1: dropped box-shadow — redundant inside the frosted shell, and the
+     hairline border alone reads as a cleaner inset well. */
   overflow: hidden;
 }
 .setting-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 11px 14px;
-  transition: background-color 100ms var(--ease);
+  gap: 18px;
+  /* v0.32.1: roomier padding (was 11px 14px — felt cramped). */
+  padding: 14px 16px;
+  transition: background-color var(--dur-1) var(--ease-out);
 }
 .setting-row + .setting-row {
   border-top: 1px solid var(--border-subtle);
@@ -3431,16 +3500,20 @@ body.kanban-mode #kanban-view { display: flex; }
   line-height: 1.3;
 }
 .setting-desc {
-  font-size: 11.5px;
+  /* v0.32.1: back above the 12px floor (was 11.5px — half-pixel oddity). */
+  font-size: 12px;
   color: var(--fg-muted);
-  margin-top: 2px;
-  line-height: 1.4;
+  margin-top: 3px;
+  line-height: 1.45;
 }
-/* Sticky footer with a hairline separator. */
+/* Footer — v0.32.1: slightly recessed region so it reads as a distinct
+   action bar rather than just "more padding below the content". */
 .settings-footer {
   border-top: 1px solid var(--border-subtle);
-  padding-top: 16px;
+  padding: 14px 4px 0;
   margin-top: 16px;
+  background: color-mix(in srgb, var(--surface) 50%, transparent);
+  border-radius: 0 0 calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px);
 }
 #settings-reset {
   color: var(--fg-muted);
@@ -3516,8 +3589,18 @@ body.kanban-mode #kanban-view { display: flex; }
   color: var(--accent);
   box-shadow: var(--shadow-sm);
 }
+/* v0.32.1: keyboard focus ring (was missing). */
+.seg-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
-/* Themed select dropdown. */
+/* Themed select dropdown.
+   v0.32.1: focus is now focus-visible with an accent-soft ring instead of a
+   plain border change that fired on mouse click too. (The chevron stays a
+   fixed gray — background-image can't read `color`/`currentColor`, so a
+   hardcoded value is the only thing that renders reliably across themes.)
+   The value below matches --fg-muted and reads well on all theme bgs. */
 .setting-select {
   height: 30px;
   min-width: 150px;
@@ -3535,10 +3618,11 @@ body.kanban-mode #kanban-view { display: flex; }
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none' stroke='%2386868b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='1 1 5 5 9 1'/></svg>");
   background-repeat: no-repeat;
   background-position: right 9px center;
-  transition: border-color 120ms var(--ease);
+  transition: border-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
 }
-.setting-select:focus {
+.setting-select:focus-visible {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 /* Folder-picker row (used by the notes-folder setting). */
@@ -3900,8 +3984,9 @@ body.kanban-mode #kanban-view { display: flex; }
   height: 20px;
   background: #ffffff;
   border-radius: 50%;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-  transition: transform 180ms var(--ease);
+  /* v0.32.1: token-driven shadow (was a hardcoded rgba). */
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--dur-2) var(--ease-spring);
 }
 .setting-toggle input:checked + .toggle-track {
   background: var(--accent);
