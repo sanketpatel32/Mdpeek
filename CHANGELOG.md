@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-07-24
+
+### Added & Changed — Rich Micro-Motion Engine & Responsive Theme UI Polish
+
+- **Spring-Physics Micro-Motion Engine**: Integrated tactile spring animations (`cubic-bezier(0.16, 1, 0.3, 1)`) across all tabs, buttons, modals, and interactive controls, introducing responsive hover lifts (`translateY(-1.5px)`), active press scales (`scale(0.95)`), and animated tab appearance keyframes.
+- **Glowing Accent Tab Indicators**: Enhanced active tabs with floating card depth (`shadow-md`), animated gradient glow lines (`linear-gradient`), and rotating micro-close (`×`) button transitions.
+- **Universal Theme Fidelity**: Validated and polished solid elevated surfaces, glow accents, and WCAG AA contrast across all 8 themes (**Light, Dark, Solarized Light, Solarized Dark, Nord, Dracula, Tokyo Night, Catppuccin**).
+
 ## [0.30.0] - 2026-07-24
 
 ### Added & Changed — macOS Glassmorphism UI & Out-of-the-Box Penrose Branding
