@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.1] - 2026-07-24
+
+### Fixed — Post-Installation Startup & Tray Icon Rust Panic Safeguards
+
+- **Safe Tray Icon Initialization (`lib.rs`)**: Replaced panicking `.unwrap()` on `default_window_icon()` with safe pattern matching (`if let Some(icon)`), preventing instant startup crashes on cold launch or post-installation NSIS setup runs.
+- **PTY Mutex Lock Safety (`pty.rs`)**: Replaced direct `.unwrap()` locks on terminal PTY state with `.unwrap_or_else(|e| e.into_inner())` to prevent thread panics from corrupting app state.
+- **Promise Rejection Safeguards (`main.js`)**: Added `.catch()` error bounds to `getVersion()` and session initialization promises to ensure corrupted local state or IPC latency never causes a blank window.
+
 ## [0.31.0] - 2026-07-24
 
 ### Added & Changed — Rich Micro-Motion Engine & Responsive Theme UI Polish

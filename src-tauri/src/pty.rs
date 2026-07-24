@@ -203,7 +203,7 @@ pub fn spawn_terminal(
         writer,
         _child: child,
     };
-    state.0.lock().unwrap().insert(id, entry);
+    state.0.lock().unwrap_or_else(|e| e.into_inner()).insert(id, entry);
     eprintln!("[pty] spawn_terminal: returning id={id}");
 
     Ok(SpawnResult { id })
@@ -216,7 +216,7 @@ pub fn write_terminal(
     id: u32,
     data: String,
 ) -> Result<(), String> {
-    let mut map = state.0.lock().unwrap();
+    let mut map = state.0.lock().unwrap_or_else(|e| e.into_inner());
     let entry = map.get_mut(&id).ok_or_else(|| format!("no terminal with id {id}"))?;
     entry
         .writer
@@ -230,7 +230,7 @@ pub fn write_terminal(
 /// and causes the reader thread to hit EOF.
 #[tauri::command]
 pub fn kill_terminal(state: tauri::State<'_, TermState>, id: u32) -> Result<(), String> {
-    if let Some(mut entry) = state.0.lock().unwrap().remove(&id) {
+    if let Some(mut entry) = state.0.lock().unwrap_or_else(|e| e.into_inner()).remove(&id) {
         let _ = entry._child.kill();
     }
     Ok(())
@@ -244,7 +244,7 @@ pub fn resize_terminal(
     cols: u16,
     rows: u16,
 ) -> Result<(), String> {
-    let map = state.0.lock().unwrap();
+    let map = state.0.lock().unwrap_or_else(|e| e.into_inner());
     let entry = map.get(&id).ok_or_else(|| format!("no terminal with id {id}"))?;
     entry
         .master

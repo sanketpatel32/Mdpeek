@@ -120,54 +120,51 @@ pub fn run() {
         .manage(initial_url)
         .manage(pty::TermState::default())
         .setup(|app| {
-            // ---------- System tray ----------
-            // Tray icon: left-click shows the window, right-click opens a menu
-            // with Show / Quit. The icon reuses the app icon.
-            let show_item = MenuItem::with_id(app, "show", "Show mdpeek", true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit mdpeek", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
-
-            let _tray = TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
-                .tooltip("mdpeek")
-                .menu(&menu)
-                .show_menu_on_left_click(false)
-                .on_menu_event(|app, event| match event.id.as_ref() {
-                    "show" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
+            // Safely build system tray only if a window icon is available
+            if let Some(icon) = app.default_window_icon() {
+                if let (Ok(show_item), Ok(quit_item)) = (
+                    MenuItem::with_id(app, "show", "Show mdpeek", true, None::<&str>),
+                    MenuItem::with_id(app, "quit", "Quit mdpeek", true, None::<&str>),
+                ) {
+                    if let Ok(menu) = Menu::with_items(app, &[&show_item, &quit_item]) {
+                        let _ = TrayIconBuilder::new()
+                            .icon(icon.clone())
+                            .tooltip("mdpeek")
+                            .menu(&menu)
+                            .show_menu_on_left_click(false)
+                            .on_menu_event(|app, event| match event.id.as_ref() {
+                                "show" => {
+                                    if let Some(window) = app.get_webview_window("main") {
+                                        let _ = window.show();
+                                        let _ = window.set_focus();
+                                    }
+                                }
+                                "quit" => {
+                                    app.exit(0);
+                                }
+                                _ => {}
+                            })
+                            .on_tray_icon_event(|tray, event| {
+                                if let TrayIconEvent::Click {
+                                    button: MouseButton::Left,
+                                    button_state: MouseButtonState::Up,
+                                    ..
+                                } = event
+                                {
+                                    let app = tray.app_handle();
+                                    if let Some(window) = app.get_webview_window("main") {
+                                        let _ = window.show();
+                                        let _ = window.set_focus();
+                                    }
+                                }
+                            })
+                            .build(app);
                     }
-                    "quit" => {
-                        app.exit(0);
-                    }
-                    _ => {}
-                })
-                .on_tray_icon_event(|tray, event| {
-                    // Double-click (or single-click-release) on the tray icon
-                    // shows + focuses the window.
-                    if let TrayIconEvent::Click {
-                        button: MouseButton::Left,
-                        button_state: MouseButtonState::Up,
-                        ..
-                    } = event
-                    {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
-                    }
-                })
-                .build(app)?;
-
+                }
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Intercept the close button. Instead of exiting, emit an event to
-            // the frontend, which decides (based on the user's preference)
-            // whether to minimize to tray or actually quit.
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let _ = window.emit("close-requested", ());
                 api.prevent_close();
@@ -248,4 +245,3 @@ fn get_initial_url(state: tauri::State<PendingUrl>) -> Result<Option<String>, St
     let mut guard = state.0.lock().map_err(|e| e.to_string())?;
     Ok(guard.take())
 }
-
