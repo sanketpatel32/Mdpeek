@@ -28,7 +28,7 @@ body {
   height: var(--header-h);
   flex: 0 0 var(--header-h);
   display: flex;
-  align-items: stretch;
+  align-items: center;
   justify-content: flex-start;
   gap: 0;
   padding: 0 0 0 8px;
@@ -52,6 +52,7 @@ body {
 .window-controls {
   display: flex;
   align-items: stretch;
+  align-self: stretch;
   margin-left: 6px;
 }
 .window-btn {
@@ -106,44 +107,6 @@ body.focus-mode #file-tree {
   padding-right: 4px;
 }
 
-.tool-group {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  padding: 3px;
-  background: var(--surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius);
-}
-
-.tool-separator {
-  width: 1px;
-  height: 16px;
-  background: var(--border-subtle);
-  margin: 0 1px;
-}
-
-/* Zoom widget — the − / % / + cluster reads as one cohesive unit */
-.tool-group.zoom-widget {
-  background: var(--surface);
-  border: 1px solid var(--border-subtle);
-  gap: 0;
-  padding: 2px;
-}
-.tool-group.zoom-widget .tool-btn.icon-only {
-  width: 26px;
-  height: 26px;
-  border-radius: calc(var(--radius) - 3px);
-}
-.tool-group.zoom-widget .tool-btn.icon-only svg {
-  width: 14px;
-  height: 14px;
-}
-.tool-group.zoom-widget .zoom-indicator {
-  min-width: 34px;
-  height: 26px;
-  border-radius: calc(var(--radius) - 3px);
-}
 
 .tool-btn {
   display: inline-flex;
@@ -203,87 +166,6 @@ body.focus-mode #file-tree {
   flex: 0 0 auto;
 }
 
-/* Zoom percentage badge — sits between the zoom-out / zoom-in buttons.
-   Dimmed at 100% (default), brightens once the user zooms in or out.
-   Click resets to 100% (same as Ctrl+0). */
-.zoom-indicator {
-  flex: 0 0 auto;
-  min-width: 38px;
-  height: 24px;
-  padding: 0 6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  color: var(--fg-muted);
-  cursor: pointer;
-  border-radius: 6px;
-  user-select: none;
-  transition: background 120ms ease, color 120ms ease;
-}
-.zoom-indicator:hover {
-  background: var(--surface-hover, rgba(0, 0, 0, 0.05));
-  color: var(--fg);
-}
-.zoom-indicator.active {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-/* Version / update status button — shows current version with a status dot. */
-.update-btn {
-  height: 26px;
-  padding: 0 10px 0 8px;
-  gap: 6px;
-  font-size: 11.5px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  color: var(--fg-muted);
-  border: 1px solid var(--border-subtle);
-  border-radius: 999px;
-}
-.update-btn:hover {
-  color: var(--fg);
-  border-color: var(--border);
-}
-.update-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: var(--fg-muted);
-  transition: background-color 200ms var(--ease);
-}
-.update-btn.state-checking .update-dot {
-  background: var(--fg-muted);
-  animation: dot-pulse 1.2s ease-in-out infinite;
-}
-.update-btn.state-latest .update-dot {
-  background: #34c759; /* macOS system green */
-}
-.update-btn.state-update .update-dot {
-  background: var(--accent);
-  animation: dot-pulse 1.5s ease-in-out infinite;
-}
-.update-btn.state-update {
-  color: var(--accent);
-  border-color: var(--accent-soft);
-}
-.update-btn.state-error .update-dot {
-  background: var(--danger);
-}
-@keyframes dot-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(0.8); }
-}
-.tool-separator {
-  width: 1px;
-  height: 20px;
-  background: var(--border);
-  margin: 0 4px;
-}
 
 /* ---------- Workspace container ---------- */
 .workspace-container {
