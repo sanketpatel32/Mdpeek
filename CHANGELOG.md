@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.2] - 2026-07-24
+
+### Fixed — Restored Missing Toolbar Action Buttons & Prevented Blank Window Render Failure
+
+- **Restored Complete Header Toolbar (`index.html`)**: Rebuilt all required tool buttons (`btn-open`, `btn-save`, `btn-mode`, `btn-draw`, `btn-sidebar`, `btn-explorer`, `btn-export`, `btn-export-pdf`, `btn-present`, `btn-share`, `btn-daily`, `btn-kanban`, `btn-terminal`, `btn-zoom-in`, `btn-zoom-out`), restoring full feature accessibility.
+- **Defensive DOM Binding Safeguards (`main.js`)**: Added safe optional chaining (`el.save?.classList`, `syncToolbarForDoc`) to prevent `TypeError` exceptions from crashing `renderActive()`, ensuring the welcome screen and active documents render reliably on launch.
+
 ## [0.31.1] - 2026-07-24
 
 ### Fixed — Post-Installation Startup & Tray Icon Rust Panic Safeguards

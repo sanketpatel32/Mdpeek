@@ -398,7 +398,7 @@ function syncToolbarForDoc(doc) {
   // the welcome screen and for read-only viewers (PDF / image / csv /
   // excalidraw) — there's nothing to write back to disk for those.
   const editable = !!doc && !doc.pdf && !doc.image && !doc.csv && !doc.excalidraw;
-  el.save.classList.toggle('hidden', !editable);
+  if (el.save) el.save.classList.toggle('hidden', !editable);
 }
 
 async function renderActive() {
