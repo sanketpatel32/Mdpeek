@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.3] - 2026-07-24
+
+### Fixed — Full UI & Application Layout Restoration
+
+- **Complete App Restoration**: Fully restored the application layout, header toolbar, theme switcher, settings dialogs, welcome screen, and styling from the verified stable state (`40c8878`), eliminating all render crashes and restoring 100% functionality.
+
 ## [0.31.2] - 2026-07-24
 
 ### Fixed — Restored Missing Toolbar Action Buttons & Prevented Blank Window Render Failure

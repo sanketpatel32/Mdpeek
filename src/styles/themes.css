@@ -4,24 +4,23 @@
    gives the surface warmth instead of clinical flatness.
    macOS premium feel: softer surfaces, layered shadows, taller header. */
 :root {
-  /* surfaces — warm-tinted neutrals with macOS translucency support */
+  /* surfaces — warm-tinted neutrals, not clinical white */
   --bg: #f9f9fb;
   --bg-elevated: #ffffff;
   --surface: #f2f3f7;
   --surface-hover: #e9ebf1;
   --surface-active: #dfe2ea;
-  
 
-  /* text — SF Pro inspired contrast */
+  /* text */
   --fg: #1d1d1f;
   --fg-secondary: #515154;
   --fg-muted: #86868b;
 
-  /* lines — hairline borders */
+  /* lines — softer, more natural */
   --border: #d2d4dc;
-  --border-subtle: rgba(0, 0, 0, 0.07);
+  --border-subtle: #e5e6ec;
 
-  /* accents — macOS system blue & danger */
+  /* accents — macOS system blue */
   --accent: #0071e3;
   --accent-hover: #0060c0;
   --accent-soft: rgba(0, 113, 227, 0.09);
@@ -31,27 +30,24 @@
   --code-bg: #f2f3f7;
   --code-border: #e5e6ec;
 
-  /* effects — macOS layered, soft depth shadows */
+  /* effects — macOS-style layered, soft shadows */
   --shadow-sm: 0 1px 3px rgba(29, 29, 31, 0.05), 0 1px 2px rgba(29, 29, 31, 0.03);
   --shadow-md: 0 4px 12px rgba(29, 29, 31, 0.08), 0 1px 3px rgba(29, 29, 31, 0.04);
   --shadow-lg: 0 12px 32px rgba(29, 29, 31, 0.12), 0 4px 12px rgba(29, 29, 31, 0.06);
-  --shadow-macos: 0 12px 36px -4px rgba(0, 0, 0, 0.14), 0 4px 16px -2px rgba(0, 0, 0, 0.08);
-  --shadow-popover: 0 24px 48px -6px rgba(0, 0, 0, 0.18), 0 8px 24px -4px rgba(0, 0, 0, 0.1);
 
-  /* shape — Apple HIG smooth squircle radii */
-  --radius-sm: 6px;
-  --radius: 9px;
-  --radius-lg: 14px;
+  /* shape — larger radii for friendlier corners */
+  --radius-sm: 5px;
+  --radius: 8px;
+  --radius-lg: 12px;
 
   --header-h: 52px;
-  
-  /* macOS Apple Spring & Fluid Motion Curves */
-  --transition: 200ms cubic-bezier(0.16, 1, 0.3, 1);
-  --ease: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-apple: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.15);
+  /* ease-out-quart: decelerating curve for natural state transitions */
+  --transition: 150ms cubic-bezier(0.25, 1, 0.5, 1);
+  /* Shared easing token for UI animations (tabs, buttons, sidebar). */
+  --ease: cubic-bezier(0.25, 1, 0.5, 1);
 
-  /* GFM alert-callout colors */
+  /* GFM alert-callout colors (overridden per dark theme below). Light themes
+     use GitHub's palette; dark themes brighten/desaturate for readability. */
   --alert-note: #0969da;        --alert-note-bg: rgba(9, 105, 218, 0.08);
   --alert-tip: #1a7f37;         --alert-tip-bg: rgba(26, 127, 55, 0.08);
   --alert-important: #8250df;   --alert-important-bg: rgba(130, 80, 223, 0.08);
@@ -60,7 +56,7 @@
 }
 
 /* Design tokens — Dark
-   macOS dark-mode inspired: obsidian glass, elevated surfaces, glowing borders. */
+   macOS dark-mode inspired: true neutrals, elevated surfaces, soft borders. */
 :root[data-theme="dark"] {
   --bg: #1c1c1e;
   --bg-elevated: #2c2c2e;
@@ -68,17 +64,16 @@
   --surface-hover: #3a3a3c;
   --surface-active: #48484a;
 
-
   --fg: #f5f5f7;
   --fg-secondary: #aeaeb2;
-  --fg-muted: #8e8e93;
+  --fg-muted: #636366;
 
   --border: #3a3a3c;
-  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-subtle: #2c2c2e;
 
   --accent: #0a84ff;
   --accent-hover: #409cff;
-  --accent-soft: rgba(10, 132, 255, 0.18);
+  --accent-soft: rgba(10, 132, 255, 0.15);
   --danger: #ff453a;
 
   --code-bg: #2c2c2e;
@@ -87,8 +82,6 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
-  --shadow-macos: 0 16px 40px -4px rgba(0, 0, 0, 0.55), 0 4px 16px -2px rgba(0, 0, 0, 0.35);
-  --shadow-popover: 0 28px 56px -6px rgba(0, 0, 0, 0.65), 0 10px 28px -4px rgba(0, 0, 0, 0.45);
 
   --alert-note: #4493f8;        --alert-note-bg: rgba(68, 147, 248, 0.12);
   --alert-tip: #3fb950;         --alert-tip-bg: rgba(63, 185, 80, 0.12);
@@ -171,8 +164,8 @@
   --surface-active: #565b76;
 
   --fg: #f8f8f2;
-  --fg-secondary: #bfbecd;
-  --fg-muted: #8d98c2;
+  --fg-secondary: #b9bac9;
+  --fg-muted: #8092c4;
 
   --border: #44475a;
   --border-subtle: #383b4a;
@@ -207,7 +200,7 @@
 
   --fg: #eceff4;
   --fg-secondary: #d8dee9;
-  --fg-muted: #8f9db5;
+  --fg-muted: #7e8eab;
 
   --border: #434c5e;
   --border-subtle: #3b4252;
@@ -271,7 +264,7 @@
 
   --fg: #e6edf3;
   --fg-secondary: #9198a1;
-  --fg-muted: #8b949e;
+  --fg-muted: #6e7681;
 
   --border: #30363d;
   --border-subtle: #21262d;
@@ -306,7 +299,7 @@
 
   --fg: #c0caf5;
   --fg-secondary: #a9b1d6;
-  --fg-muted: #8992c7;
+  --fg-muted: #747ca8;
 
   --border: #414868;
   --border-subtle: #2f334d;
@@ -341,7 +334,7 @@
 
   --fg: #cdd6f4;
   --fg-secondary: #bac2de;
-  --fg-muted: #939ab7;
+  --fg-muted: #7f849c;
 
   --border: #45475a;
   --border-subtle: #313244;

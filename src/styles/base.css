@@ -28,17 +28,16 @@ body {
   height: var(--header-h);
   flex: 0 0 var(--header-h);
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: flex-start;
   gap: 0;
   padding: 0 0 0 8px;
-  background: var(--surface);
+  background: var(--bg-elevated);
   border-bottom: 1px solid var(--border-subtle);
   -webkit-user-select: none;
   user-select: none;
   position: relative;
   z-index: 20;
-  transition: background-color 200ms var(--ease-apple), border-color 200ms var(--ease-apple);
 }
 .header-spacer {
   flex: 1 1 auto;
@@ -52,7 +51,6 @@ body {
 .window-controls {
   display: flex;
   align-items: stretch;
-  align-self: stretch;
   margin-left: 6px;
 }
 .window-btn {
@@ -107,6 +105,44 @@ body.focus-mode #file-tree {
   padding-right: 4px;
 }
 
+.tool-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+}
+
+.tool-separator {
+  width: 1px;
+  height: 16px;
+  background: var(--border-subtle);
+  margin: 0 1px;
+}
+
+/* Zoom widget — the − / % / + cluster reads as one cohesive unit */
+.tool-group.zoom-widget {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  gap: 0;
+  padding: 2px;
+}
+.tool-group.zoom-widget .tool-btn.icon-only {
+  width: 26px;
+  height: 26px;
+  border-radius: calc(var(--radius) - 3px);
+}
+.tool-group.zoom-widget .tool-btn.icon-only svg {
+  width: 14px;
+  height: 14px;
+}
+.tool-group.zoom-widget .zoom-indicator {
+  min-width: 34px;
+  height: 26px;
+  border-radius: calc(var(--radius) - 3px);
+}
 
 .tool-btn {
   display: inline-flex;
@@ -166,6 +202,87 @@ body.focus-mode #file-tree {
   flex: 0 0 auto;
 }
 
+/* Zoom percentage badge — sits between the zoom-out / zoom-in buttons.
+   Dimmed at 100% (default), brightens once the user zooms in or out.
+   Click resets to 100% (same as Ctrl+0). */
+.zoom-indicator {
+  flex: 0 0 auto;
+  min-width: 38px;
+  height: 24px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  user-select: none;
+  transition: background 120ms ease, color 120ms ease;
+}
+.zoom-indicator:hover {
+  background: var(--surface-hover, rgba(0, 0, 0, 0.05));
+  color: var(--fg);
+}
+.zoom-indicator.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Version / update status button — shows current version with a status dot. */
+.update-btn {
+  height: 26px;
+  padding: 0 10px 0 8px;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+}
+.update-btn:hover {
+  color: var(--fg);
+  border-color: var(--border);
+}
+.update-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--fg-muted);
+  transition: background-color 200ms var(--ease);
+}
+.update-btn.state-checking .update-dot {
+  background: var(--fg-muted);
+  animation: dot-pulse 1.2s ease-in-out infinite;
+}
+.update-btn.state-latest .update-dot {
+  background: #34c759; /* macOS system green */
+}
+.update-btn.state-update .update-dot {
+  background: var(--accent);
+  animation: dot-pulse 1.5s ease-in-out infinite;
+}
+.update-btn.state-update {
+  color: var(--accent);
+  border-color: var(--accent-soft);
+}
+.update-btn.state-error .update-dot {
+  background: var(--danger);
+}
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+.tool-separator {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 4px;
+}
 
 /* ---------- Workspace container ---------- */
 .workspace-container {
@@ -588,14 +705,14 @@ main {
   padding-top: 12vh;
 }
 .palette-card {
-  width: 540px;
+  width: 520px;
   max-width: calc(100vw - 48px);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-popover);
+  box-shadow: var(--shadow-lg);
   overflow: hidden;
-  animation: modal-in 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  animation: modal-in 180ms cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 .palette-input {
   width: 100%;
@@ -1119,6 +1236,8 @@ mark.find-current {
   position: fixed;
   inset: 0;
   background: var(--accent-soft);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1666,49 +1785,44 @@ mark.find-current {
   align-items: center;
   gap: 7px;
   max-width: 200px;
-  height: 32px;
-  margin: 0 2px;
-  padding: 0 6px 0 12px;
+  height: 30px;
+  margin: 0 1px;
+  padding: 0 4px 0 11px;
   background: transparent;
   color: var(--fg-secondary);
   border: 1px solid transparent;
   border-radius: var(--radius);
   font-size: 12.5px;
-  font-weight: 450;
   cursor: pointer;
   white-space: nowrap;
   -webkit-user-select: none;
   user-select: none;
   flex-shrink: 0;
-  transition: background-color 160ms var(--ease-apple), color 160ms var(--ease-apple),
-    border-color 160ms var(--ease-apple), transform 120ms var(--ease-apple), box-shadow 160ms var(--ease-apple);
+  transition: background-color 180ms var(--ease), color 180ms var(--ease),
+    border-color 180ms var(--ease), transform 180ms var(--ease);
 }
 .tab:hover {
   background: var(--surface-hover);
   color: var(--fg);
-  transform: translateY(-0.5px);
-}
-.tab:active {
-  transform: scale(0.97);
+  transform: translateY(-1px);
 }
 .tab.active {
-  background: var(--bg-elevated);
+  background: var(--surface);
   color: var(--fg);
   border-color: var(--border-subtle);
-  font-weight: 550;
+  font-weight: 500;
   box-shadow: var(--shadow-sm);
   position: relative;
 }
 .tab.active::after {
   content: '';
   position: absolute;
-  bottom: 2px;
-  left: 14px;
-  right: 14px;
-  height: 2.5px;
+  bottom: 0;
+  left: 12px;
+  right: 12px;
+  height: 2px;
   background: var(--accent);
   border-radius: 99px;
-  box-shadow: 0 1px 4px var(--accent-soft);
 }
 .tab.active:hover {
   transform: none;
@@ -2147,8 +2261,10 @@ body.presenting #slideshow { display: flex; }
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.45);
-  animation: overlay-in 200ms var(--ease-apple);
+  background: rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  animation: overlay-in 160ms var(--ease);
 }
 .modal {
   width: 380px;
@@ -2157,15 +2273,15 @@ body.presenting #slideshow { display: flex; }
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-popover);
-  animation: modal-in 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: var(--shadow-lg);
+  animation: modal-in 200ms cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 @keyframes overlay-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 @keyframes modal-in {
-  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  from { opacity: 0; transform: scale(0.94) translateY(8px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 .modal-title {
@@ -2585,6 +2701,7 @@ body.presenting #slideshow { display: flex; }
   flex-direction: column;
   background: var(--bg);
   animation: kanban-fade-in 200ms var(--ease);
+  backdrop-filter: blur(16px);
 }
 body.kanban-mode #kanban-view { display: flex; }
 
@@ -3626,6 +3743,7 @@ body.kanban-mode #kanban-view { display: flex; }
   flex-direction: column;
   z-index: 45;
   font-family: var(--mono-font, "Cascadia Code", "Fira Code", Consolas, monospace);
+  backdrop-filter: blur(12px);
   transition: opacity 180ms var(--ease);
 }
 .terminal-resize-handle {
