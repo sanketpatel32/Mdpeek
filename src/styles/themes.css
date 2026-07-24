@@ -1,9 +1,55 @@
-/* Design tokens — Light (default)
+/* Design tokens — static (theme-independent).
+   These never change with the active theme: shape radii, header height,
+   the motion/easing system, and the default (GitHub) GFM alert palette that
+   themes may override. Kept on bare :root so they always apply. */
+:root {
+  /* shape — larger radii for friendlier corners */
+  --radius-sm: 5px;
+  --radius: 8px;
+  --radius-lg: 12px;
+
+  --header-h: 52px;
+
+  /* ---- Motion system (v0.32.0) -------------------------------------------
+     Four durations and three easings cover every interaction. Picked to feel
+     "macOS/Linear": spring overshoot for tactile elements (buttons, tabs),
+     decelerate for things entering the viewport (panels, menus), accelerate
+     for things leaving. */
+  --dur-1: 120ms;  /* micro: press, hover tint              */
+  --dur-2: 180ms;  /* standard: tabs, icon swaps, sidebar   */
+  --dur-3: 240ms;  /* deliberate: panel slides, card lifts  */
+  --dur-4: 360ms;  /* showcase: toast land, modal settle    */
+  --ease:        cubic-bezier(0.25, 1, 0.5, 1);   /* legacy alias (decelerate) */
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);   /* decelerate — enters       */
+  --ease-in:     cubic-bezier(0.7, 0, 0.84, 0);   /* accelerate — exits        */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* overshoot — tactile     */
+  --transition: 150ms var(--ease);                /* legacy alias              */
+
+  /* Default GFM alert-callout colors (GitHub light). Each theme below may
+     override these; themes that don't (e.g. solar-light, github) inherit the
+     GitHub palette, which is correct for them. */
+  --alert-note: #0969da;        --alert-note-bg: rgba(9, 105, 218, 0.08);
+  --alert-tip: #1a7f37;         --alert-tip-bg: rgba(26, 127, 55, 0.08);
+  --alert-important: #8250df;   --alert-important-bg: rgba(130, 80, 223, 0.08);
+  --alert-warning: #9a6700;     --alert-warning-bg: rgba(154, 103, 0, 0.1);
+  --alert-caution: #cf222e;     --alert-caution-bg: rgba(207, 34, 46, 0.08);
+
+  /* Kanban column accents — default (cool spectrum). Themes override to match
+     their palette so Nord kanban looks Nord, not Tailwind. */
+  --kanban-todo:  #3b82f6;
+  --kanban-doing: #f59e0b;
+  --kanban-done:  #22c55e;
+}
+
+/* ---- Light (default) -------------------------------------------------------
    Neutrals tinted slightly toward the blue accent (chroma ~0.005–0.01) per the
    design law: never use pure #fff or #000. The tint is barely perceptible but
    gives the surface warmth instead of clinical flatness.
-   macOS premium feel: softer surfaces, layered shadows, taller header. */
-:root {
+   macOS premium feel: softer surfaces, layered shadows, taller header.
+   NOTE: also mirrored on bare :root above the [data-theme] cascade so the
+   default (no attribute set) and the explicit light theme stay in sync. */
+:root,
+:root[data-theme="light"] {
   /* surfaces — warm-tinted neutrals, not clinical white */
   --bg: #f9f9fb;
   --bg-elevated: #ffffff;
@@ -25,6 +71,7 @@
   --accent-hover: #0060c0;
   --accent-soft: rgba(0, 113, 227, 0.09);
   --danger: #ff3b30;
+  --success: #34c759;
 
   /* code */
   --code-bg: #f2f3f7;
@@ -35,24 +82,10 @@
   --shadow-md: 0 4px 12px rgba(29, 29, 31, 0.08), 0 1px 3px rgba(29, 29, 31, 0.04);
   --shadow-lg: 0 12px 32px rgba(29, 29, 31, 0.12), 0 4px 12px rgba(29, 29, 31, 0.06);
 
-  /* shape — larger radii for friendlier corners */
-  --radius-sm: 5px;
-  --radius: 8px;
-  --radius-lg: 12px;
-
-  --header-h: 52px;
-  /* ease-out-quart: decelerating curve for natural state transitions */
-  --transition: 150ms cubic-bezier(0.25, 1, 0.5, 1);
-  /* Shared easing token for UI animations (tabs, buttons, sidebar). */
-  --ease: cubic-bezier(0.25, 1, 0.5, 1);
-
-  /* GFM alert-callout colors (overridden per dark theme below). Light themes
-     use GitHub's palette; dark themes brighten/desaturate for readability. */
-  --alert-note: #0969da;        --alert-note-bg: rgba(9, 105, 218, 0.08);
-  --alert-tip: #1a7f37;         --alert-tip-bg: rgba(26, 127, 55, 0.08);
-  --alert-important: #8250df;   --alert-important-bg: rgba(130, 80, 223, 0.08);
-  --alert-warning: #9a6700;     --alert-warning-bg: rgba(154, 103, 0, 0.1);
-  --alert-caution: #cf222e;     --alert-caution-bg: rgba(207, 34, 46, 0.08);
+  /* theme swatch — drives the live preview in the Appearance grid.
+     Uses the theme's own bg + accent so the swatch always matches reality. */
+  --sw-bg: #f9f9fb;
+  --sw-accent: #0071e3;
 }
 
 /* Design tokens — Dark
@@ -75,6 +108,7 @@
   --accent-hover: #409cff;
   --accent-soft: rgba(10, 132, 255, 0.15);
   --danger: #ff453a;
+  --success: #30d158;
 
   --code-bg: #2c2c2e;
   --code-border: #3a3a3c;
@@ -82,6 +116,9 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+
+  --sw-bg: #1c1c1e;
+  --sw-accent: #0a84ff;
 
   --alert-note: #4493f8;        --alert-note-bg: rgba(68, 147, 248, 0.12);
   --alert-tip: #3fb950;         --alert-tip-bg: rgba(63, 185, 80, 0.12);
@@ -110,6 +147,7 @@
   --accent-hover: #1e6fa7;
   --accent-soft: rgba(38, 139, 210, 0.12);
   --danger: #dc322f;
+  --success: #859900;
 
   --code-bg: #eee8d5;
   --code-border: #ddd6c1;
@@ -117,6 +155,21 @@
   --shadow-sm: 0 1px 3px rgba(101, 123, 131, 0.08);
   --shadow-md: 0 4px 12px rgba(101, 123, 131, 0.1);
   --shadow-lg: 0 12px 32px rgba(101, 123, 131, 0.14);
+
+  --sw-bg: #fdf6e3;
+  --sw-accent: #268bd2;
+
+  /* GFM alerts — Solarized's own accent set (was missing: fell back to GitHub
+     blue, which clashed with the cream paper). */
+  --alert-note: #268bd2;        --alert-note-bg: rgba(38, 139, 210, 0.1);
+  --alert-tip: #859900;         --alert-tip-bg: rgba(133, 153, 0, 0.1);
+  --alert-important: #6c71c4;   --alert-important-bg: rgba(108, 113, 196, 0.1);
+  --alert-warning: #b58900;     --alert-warning-bg: rgba(181, 137, 0, 0.12);
+  --alert-caution: #dc322f;     --alert-caution-bg: rgba(220, 50, 47, 0.1);
+
+  --kanban-todo:  #268bd2;
+  --kanban-doing: #b58900;
+  --kanban-done:  #859900;
 }
 
 /* ---- Solarized Dark ----
@@ -139,6 +192,7 @@
   --accent-hover: #4099d7;
   --accent-soft: rgba(38, 139, 210, 0.18);
   --danger: #dc322f;
+  --success: #859900;
 
   --code-bg: #073642;
   --code-border: #0e4654;
@@ -147,11 +201,18 @@
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
 
+  --sw-bg: #002b36;
+  --sw-accent: #268bd2;
+
   --alert-note: #268bd2;        --alert-note-bg: rgba(38, 139, 210, 0.15);
   --alert-tip: #859900;         --alert-tip-bg: rgba(133, 153, 0, 0.15);
   --alert-important: #6c71c4;   --alert-important-bg: rgba(108, 113, 196, 0.15);
   --alert-warning: #b58900;     --alert-warning-bg: rgba(181, 137, 0, 0.15);
   --alert-caution: #dc322f;     --alert-caution-bg: rgba(220, 50, 47, 0.15);
+
+  --kanban-todo:  #268bd2;
+  --kanban-doing: #b58900;
+  --kanban-done:  #859900;
 }
 
 /* ---- Dracula ----
@@ -174,6 +235,7 @@
   --accent-hover: #caa6ff;
   --accent-soft: rgba(189, 147, 249, 0.15);
   --danger: #ff5555;
+  --success: #50fa7b;
 
   --code-bg: #21222c;
   --code-border: #44475a;
@@ -182,11 +244,18 @@
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
 
+  --sw-bg: #282a36;
+  --sw-accent: #bd93f9;
+
   --alert-note: #8be9fd;        --alert-note-bg: rgba(139, 233, 253, 0.1);
   --alert-tip: #50fa7b;         --alert-tip-bg: rgba(80, 250, 123, 0.1);
   --alert-important: #ff79c6;   --alert-important-bg: rgba(255, 121, 198, 0.1);
   --alert-warning: #f1fa8c;     --alert-warning-bg: rgba(241, 250, 140, 0.1);
   --alert-caution: #ff5555;     --alert-caution-bg: rgba(255, 85, 85, 0.12);
+
+  --kanban-todo:  #bd93f9;
+  --kanban-doing: #ffb86c;
+  --kanban-done:  #50fa7b;
 }
 
 /* ---- Nord ----
@@ -209,6 +278,7 @@
   --accent-hover: #9bcbd8;
   --accent-soft: rgba(136, 192, 208, 0.15);
   --danger: #bf616a;
+  --success: #a3be8c;
 
   --code-bg: #2e3440;
   --code-border: #434c5e;
@@ -217,11 +287,18 @@
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
 
+  --sw-bg: #2e3440;
+  --sw-accent: #88c0d0;
+
   --alert-note: #81a1c1;        --alert-note-bg: rgba(129, 161, 193, 0.12);
   --alert-tip: #a3be8c;         --alert-tip-bg: rgba(163, 190, 140, 0.12);
   --alert-important: #b48ead;   --alert-important-bg: rgba(180, 142, 173, 0.12);
   --alert-warning: #ebcb8b;     --alert-warning-bg: rgba(235, 203, 139, 0.12);
   --alert-caution: #bf616a;     --alert-caution-bg: rgba(191, 97, 106, 0.15);
+
+  --kanban-todo:  #81a1c1;
+  --kanban-doing: #ebcb8b;
+  --kanban-done:  #a3be8c;
 }
 
 /* ---- GitHub (light) ----
@@ -244,6 +321,7 @@
   --accent-hover: #0860ca;
   --accent-soft: rgba(9, 105, 218, 0.08);
   --danger: #cf222e;
+  --success: #1a7f37;
 
   --code-bg: #f6f8fa;
   --code-border: #d0d7de;
@@ -251,6 +329,21 @@
   --shadow-sm: 0 1px 0 rgba(31, 35, 40, 0.04);
   --shadow-md: 0 3px 6px rgba(140, 149, 159, 0.15);
   --shadow-lg: 0 8px 24px rgba(140, 149, 159, 0.2);
+
+  --sw-bg: #f6f8fa;
+  --sw-accent: #0969da;
+
+  /* GFM alerts — GitHub's own palette (was missing; now matches the GitHub
+     look users expect from this theme). */
+  --alert-note: #0969da;        --alert-note-bg: rgba(9, 105, 218, 0.08);
+  --alert-tip: #1a7f37;         --alert-tip-bg: rgba(26, 127, 55, 0.08);
+  --alert-important: #8250df;   --alert-important-bg: rgba(130, 80, 223, 0.08);
+  --alert-warning: #9a6700;     --alert-warning-bg: rgba(154, 103, 0, 0.1);
+  --alert-caution: #cf222e;     --alert-caution-bg: rgba(207, 34, 46, 0.08);
+
+  --kanban-todo:  #0969da;
+  --kanban-doing: #9a6700;
+  --kanban-done:  #1a7f37;
 }
 
 /* ---- GitHub Dark ----
@@ -273,6 +366,7 @@
   --accent-hover: #4493f8;
   --accent-soft: rgba(47, 129, 247, 0.15);
   --danger: #f85149;
+  --success: #3fb950;
 
   --code-bg: #0d1117;
   --code-border: #30363d;
@@ -281,11 +375,18 @@
   --shadow-md: 0 8px 24px rgba(1, 4, 9, 0.85);
   --shadow-lg: 0 16px 32px rgba(1, 4, 9, 0.9);
 
+  --sw-bg: #0d1117;
+  --sw-accent: #2f81f7;
+
   --alert-note: #4493f8;        --alert-note-bg: rgba(68, 147, 248, 0.12);
   --alert-tip: #3fb950;         --alert-tip-bg: rgba(63, 185, 80, 0.12);
   --alert-important: #a371f7;   --alert-important-bg: rgba(163, 113, 247, 0.12);
   --alert-warning: #d29922;     --alert-warning-bg: rgba(210, 153, 34, 0.12);
   --alert-caution: #f85149;     --alert-caution-bg: rgba(248, 81, 73, 0.12);
+
+  --kanban-todo:  #2f81f7;
+  --kanban-doing: #d29922;
+  --kanban-done:  #3fb950;
 }
 
 /* ---- Tokyo Night ----
@@ -308,6 +409,7 @@
   --accent-hover: #89b4fa;
   --accent-soft: rgba(122, 162, 247, 0.15);
   --danger: #f7768e;
+  --success: #9ece6a;
 
   --code-bg: #16161e;
   --code-border: #414868;
@@ -316,11 +418,18 @@
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
 
+  --sw-bg: #1a1b26;
+  --sw-accent: #7aa2f7;
+
   --alert-note: #7aa2f7;        --alert-note-bg: rgba(122, 162, 247, 0.12);
   --alert-tip: #9ece6a;         --alert-tip-bg: rgba(158, 206, 106, 0.12);
   --alert-important: #bb9af7;   --alert-important-bg: rgba(187, 154, 247, 0.12);
   --alert-warning: #e0af68;     --alert-warning-bg: rgba(224, 175, 104, 0.12);
   --alert-caution: #f7768e;     --alert-caution-bg: rgba(247, 118, 142, 0.14);
+
+  --kanban-todo:  #7aa2f7;
+  --kanban-doing: #e0af68;
+  --kanban-done:  #9ece6a;
 }
 
 /* ---- Catppuccin Mocha ----
@@ -343,6 +452,7 @@
   --accent-hover: #b4befe;
   --accent-soft: rgba(137, 180, 250, 0.15);
   --danger: #f38ba8;
+  --success: #a6e3a1;
 
   --code-bg: #181825;
   --code-border: #45475a;
@@ -351,11 +461,18 @@
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
 
+  --sw-bg: #1e1e2e;
+  --sw-accent: #89b4fa;
+
   --alert-note: #89b4fa;        --alert-note-bg: rgba(137, 180, 250, 0.1);
   --alert-tip: #a6e3a1;         --alert-tip-bg: rgba(166, 227, 161, 0.1);
   --alert-important: #cba6f7;   --alert-important-bg: rgba(203, 166, 247, 0.1);
   --alert-warning: #f9e2af;     --alert-warning-bg: rgba(249, 226, 175, 0.1);
   --alert-caution: #f38ba8;     --alert-caution-bg: rgba(243, 139, 168, 0.12);
+
+  --kanban-todo:  #89b4fa;
+  --kanban-doing: #f9e2af;
+  --kanban-done:  #a6e3a1;
 }
 
 /* Smooth theme switch — scoped to UI chrome only (NOT markdown content,

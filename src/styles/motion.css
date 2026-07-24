@@ -1,0 +1,241 @@
+/* motion.css — the unified animation system (v0.32.0)
+   ─────────────────────────────────────────────────────────────────────────
+   Goals:
+   1. Every overlay enters AND leaves gracefully (modals, menus, toasts).
+   2. Every clickable chrome element feels tactile (spring press, soft hover).
+   3. Lifted cards hover up with a shadow grow.
+   4. Ripples on filled buttons (the macOS/Material "press" cue).
+   5. Sidebars glide, don't snap.
+   6. Respects prefers-reduced-motion.
+
+   Tokens (--dur-1..4, --ease-out/in/spring) live in themes.css :root.
+   Loaded AFTER base.css so these rules win on equal specificity. */
+
+/* ======================================================================
+   1. OVERLAY ENTER / EXIT
+   ======================================================================
+   base.css defines `.hidden { display:none !important }`, which kills any
+   exit transition. The JS helper in motion.js handles the lifecycle: on
+   close it removes .hidden, adds .is-leaving, waits for animationend, then
+   re-adds .hidden. We just provide matching enter + leave keyframes here.
+
+   Reuses the existing enter keyframes from base.css (overlay-in, modal-in,
+   ctx-in, find-in, toast-in, welcome-fade-up) and adds the *-out companions. */
+
+/* --- overlay backdrops (modal-overlay, palette-overlay) --- */
+.modal-overlay,
+.palette-overlay {
+  animation: overlay-in var(--dur-2) var(--ease-out);
+}
+.modal-overlay.is-leaving,
+.palette-overlay.is-leaving {
+  animation: overlay-out var(--dur-1) var(--ease-in) forwards;
+}
+@keyframes overlay-out {
+  to { opacity: 0; }
+}
+
+/* --- centered cards (modal, palette-card) --- */
+.modal,
+.palette-card {
+  animation: modal-in var(--dur-3) var(--ease-spring);
+}
+.modal.is-leaving,
+.palette-card.is-leaving {
+  animation: modal-out var(--dur-2) var(--ease-in) forwards;
+}
+@keyframes modal-out {
+  to { opacity: 0; transform: translateY(8px) scale(0.96); }
+}
+
+/* --- context menus + theme menu + more-menu --- */
+.ctx-menu {
+  animation: ctx-in var(--dur-1) var(--ease-spring);
+  transform-origin: top right;
+}
+.ctx-menu.is-leaving {
+  animation: ctx-out calc(var(--dur-1) * 0.9) var(--ease-in) forwards;
+}
+@keyframes ctx-out {
+  to { opacity: 0; transform: scale(0.94) translateY(-2px); }
+}
+
+/* --- find bar + folder-search (top-docked overlays) --- */
+.find-overlay,
+.folder-search-overlay {
+  animation: find-in var(--dur-2) var(--ease-out);
+}
+.find-overlay.is-leaving,
+.folder-search-overlay.is-leaving {
+  animation: find-out var(--dur-1) var(--ease-in) forwards;
+}
+@keyframes find-out {
+  to { opacity: 0; transform: translateY(-6px); }
+}
+
+/* --- toasts --- */
+.toast {
+  animation: toast-in var(--dur-4) var(--ease-spring);
+}
+.toast.is-leaving {
+  animation: toast-out var(--dur-2) var(--ease-in) forwards;
+}
+@keyframes toast-out {
+  to { opacity: 0; transform: translateY(8px) scale(0.96); }
+}
+
+/* --- welcome card (initial entrance) --- */
+.welcome-card {
+  animation: welcome-fade-up var(--dur-4) var(--ease-out);
+}
+
+/* ======================================================================
+   2. TACTILE BUTTONS — unified press + hover
+   ======================================================================
+   Replaces the dozen bespoke `transition: 120ms ease` / `:active{scale(.95)}`
+   declarations scattered through base.css. One rule, one feel. */
+
+.tool-btn,
+.modal-btn,
+.seg-btn,
+.settings-cat,
+.tab-new,
+.welcome-action,
+.kanban-card,
+.kanban-add-btn,
+.fmt-btn,
+.about-link,
+.theme-card,
+.file-tree-action-btn,
+.terminal-action-btn,
+.collab-status,
+.slide-arrow,
+.ctx-item,
+.btn-more {
+  transition:
+    transform var(--dur-1) var(--ease-spring),
+    background-color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-2) var(--ease-out),
+    opacity var(--dur-1) var(--ease-out);
+}
+
+.tool-btn:active,
+.modal-btn:active,
+.seg-btn:active,
+.settings-cat:active,
+.tab-new:active,
+.welcome-action:active,
+.kanban-card:active,
+.kanban-add-btn:active,
+.fmt-btn:active,
+.about-link:active,
+.theme-card:active,
+.btn-more:active {
+  transform: scale(0.96);
+}
+
+/* ======================================================================
+   3. HOVER LIFTS — cards rise + shadow grows
+   ====================================================================== */
+
+.kanban-card:hover,
+.welcome-action:hover,
+.about-link:hover,
+.theme-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ======================================================================
+   4. RIPPLE — on filled/primary buttons only (tasteful)
+   ======================================================================
+   motion.js attaches a pointerdown listener to [data-ripple] elements and
+   injects a <span class="ripple-wave"> at the click point. */
+
+[data-ripple] {
+  position: relative;
+  overflow: hidden;
+}
+.ripple-wave {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  transform: scale(0);
+  background: currentColor;
+  opacity: 0.25;
+  animation: ripple-grow var(--dur-3) var(--ease-out);
+}
+@keyframes ripple-grow {
+  to {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+/* ======================================================================
+   5. SIDEBAR GLIDE — file tree opens/closes with a width+opacity sweep
+   ======================================================================
+   base.css toggles `.hidden` on #file-tree (snap). motion.js swaps that for
+   an `.is-collapsed` class so the transition can run. The widths must match
+   the layout values in base.css (.file-tree = 260px). */
+
+.file-tree.is-animating {
+  transition:
+    width var(--dur-3) var(--ease-out),
+    min-width var(--dur-3) var(--ease-out),
+    flex-basis var(--dur-3) var(--ease-out),
+    opacity var(--dur-2) var(--ease-out),
+    transform var(--dur-3) var(--ease-out),
+    margin var(--dur-3) var(--ease-out),
+    padding var(--dur-3) var(--ease-out);
+  overflow: hidden;
+}
+
+/* ======================================================================
+   6. TAB INDICATOR TRAVEL
+   ======================================================================
+   The active-tab underline lives in .tab-strip as a single absolutely-
+   positioned bar (.tab-indicator) that JS measures + positions. It
+   transitions left/width so it slides between tabs instead of popping. */
+
+.tab-indicator {
+  position: absolute;
+  bottom: 4px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  transition:
+    left var(--dur-3) var(--ease-spring),
+    width var(--dur-3) var(--ease-spring),
+    opacity var(--dur-1) var(--ease-out);
+  pointer-events: none;
+  z-index: 2;
+}
+.tab-indicator.is-hidden {
+  opacity: 0;
+}
+
+/* ======================================================================
+   7. REDUCED MOTION — accessibility
+   ====================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* The press/hover transforms feel jarring when instant; neutralize them. */
+  .tool-btn:active,
+  .modal-btn:active,
+  .kanban-card:hover,
+  .welcome-action:hover,
+  .theme-card:hover {
+    transform: none;
+  }
+}

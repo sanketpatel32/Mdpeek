@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-07-24
+
+### Changed — "Calm Glass" UI Overhaul (macOS/Linear-inspired)
+
+A full visual modernization: frosted translucent chrome, soft pill tabs with a
+traveling active indicator, a unified motion system, and a de-cluttered topbar.
+The app no longer "looks like it's from the 2000s."
+
+- **Frosted glass topbar + sidebar**: `backdrop-filter: blur(20px) saturate(180%)`
+  with a translucent elevated surface, hairline bottom border, and an opaque
+  `@supports` fallback. Content subtly bleeds through the top chrome — the
+  signature macOS/Linear look.
+- **Topbar redesign**: replaced the dense 16-button wall with a calm layout —
+  soft pill tabs on the left, a **command-K search pill** center piece, a
+  3-button view group, a **"More" overflow menu** (document/export/tools
+  actions grouped), zoom widget, and a single settings gear. Window controls
+  refined (right side, Windows convention, softer hover).
+- **Soft pill tabs + traveling indicator**: tabs are now rounded-full pills
+  with an `--accent-soft` filled active state. The active-tab underline is a
+  single bar that slides between tabs (spring easing) instead of per-tab static bars.
+- **macOS-style micro-animations (new `motion.css` + `motion.js`)**: a unified
+  motion system — four durations (`--dur-1..4`) + three easings
+  (`--ease-out/in/spring`). Every overlay now enters AND exits gracefully
+  (modals, menus, toasts, find bar) instead of snapping out. Unified tactile
+  button presses, hover lifts, ripple-on-press for filled buttons, sidebar
+  glide, and full `prefers-reduced-motion` respect.
+
+### Changed — Theme & Update relocated to Settings
+
+- **Theme picker → Settings → Appearance**: replaced the bare `<select>` with a
+  **visual theme grid** — 10 live swatch cards, click-to-apply, accent ring +
+  check badge on the active theme. The topbar theme button + dropdown are removed.
+  `cycleTheme()` remains in the command palette (Ctrl+Shift+P).
+- **Updates → Settings → Updates (new panel)**: shows current version, status
+  badge, "Check now" + "Download & restart" buttons, and a new **auto-check
+  toggle** (gates the startup silent check, default on). The topbar version
+  button is removed; a subtle pulse dot on the Settings gear signals a pending update.
+
+### Fixed — Broken themes
+
+- **Solarized Light & GitHub**: were missing all 10 `--alert-*` variables, so
+  GFM callouts (`> [!NOTE]`, `> [!TIP]`, `> [!WARNING]`, …) fell back to the
+  wrong colors. Now each defines its own alert palette (Solarized accents /
+  GitHub's palette).
+- **`light` theme symmetrized**: now has a real `:root[data-theme="light"]`
+  rule (was only on bare `:root` — asymmetric and fragile).
+- **~20 hardcoded colors removed**: `#34c759`, `#22c55e`, `#ef4444`, `#3b82f6`,
+  `#f59e0b` (update dot, shared-tab dot, kanban column accents, kanban
+  progress bar, kanban checkbox, kanban danger hovers, save-error) now use
+  theme tokens. Added a **`--success`** token to all 10 themes + per-theme
+  **`--kanban-todo/doing/done`** accents (so Nord kanban looks Nord, not Tailwind).
+
+### Added — Lucide icon system
+
+- **`lucide` dependency**: introduced a real, tree-shaken icon library for
+  consistency. New `src/lib/icons.js` registry centralizes every UI icon;
+  HTML uses `<span data-icon="…">` placeholders swapped at boot. ~22 icons,
+  ~15–25 KB bundle impact (well under the 25 MB budget).
+
+### Tests
+
+- Added `test/v032-ui.test.js` (31 tests): topbar structure, Settings theme
+  grid + updates panel, themes.css token fixes, motion.css system, icons.js
+  registry + rendering, motion.js helpers. Full suite: **331 passing**.
+
 ## [0.31.3] - 2026-07-24
 
 ### Fixed — Full UI & Application Layout Restoration

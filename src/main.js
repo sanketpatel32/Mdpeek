@@ -17,6 +17,8 @@ import { initCsvViewer } from './views/csv-viewer.js';
 import { initFolderSearch } from './views/folder-search.js';
 import { initTerminal } from './views/terminal.js';
 import { renderTabs } from './views/tabs.js';
+import { renderIcons } from './lib/icons.js';
+import { wireRipples, positionTabIndicator } from './lib/motion.js';
 import { DocumentStore, isPdfPath, isImagePath, isExcalidrawPath, langFromPath, langForEdit } from './lib/documents.js';
 import { renderMarkdown, renderCode, renderCsv, parseCsv, prepareCodeLang } from './lib/renderer.js';
 import { saveSession, loadSession, loadRecents, addRecent, removeRecent, saveRecents } from './lib/persistence.js';
@@ -184,11 +186,21 @@ const el = {
   zoomIn: document.getElementById('btn-zoom-in'),
   zoomOut: document.getElementById('btn-zoom-out'),
   zoomIndicator: document.getElementById('zoom-indicator'),
-  theme: document.getElementById('btn-theme'),
-  themeMenu: document.getElementById('theme-menu'),
+  // v0.32.0: theme + update moved into Settings; topbar buttons removed.
+  // Theme grid lives in Settings → Appearance; Updates panel in Settings → Updates.
+  themeGrid: document.getElementById('theme-grid'),
   settings: document.getElementById('btn-settings'),
   settingsDialog: document.getElementById('settings-dialog'),
-  update: document.getElementById('btn-update'),
+  updatesCurrent: document.getElementById('updates-current'),
+  updatesBadge: document.getElementById('updates-badge'),
+  updatesCheckBtn: document.getElementById('updates-check-btn'),
+  updatesInstallRow: document.getElementById('updates-install-row'),
+  updatesInstallBtn: document.getElementById('updates-install-btn'),
+  updatesReleaseNotes: document.getElementById('updates-release-notes'),
+  settingsAutoUpdate: document.getElementById('settings-auto-update'),
+  moreBtn: document.getElementById('btn-more'),
+  moreMenu: document.getElementById('more-menu'),
+  cmdK: document.getElementById('btn-command-k'),
   terminal: document.getElementById('btn-terminal'),
   tabStrip: document.getElementById('tab-strip'),
   viewMode: document.getElementById('view-mode'),
@@ -233,6 +245,15 @@ const el = {
   kanbanBoard: document.getElementById('kanban-board'),
   kanbanDoneBtn: document.getElementById('kanban-done-btn'),
 };
+
+// v0.32.0: render lucide icons + wire ripples as early as possible. Called
+// here (right after the element cache) so it runs before any Tauri-touching
+// code that could abort module execution in the browser dev environment.
+// bootMotion() is a hoisted function declaration defined further down; it
+// also no-ops gracefully if elements aren't present yet (idempotent, called
+// again after full init via DOMContentLoaded below).
+bootMotion();
+document.addEventListener('DOMContentLoaded', bootMotion, { once: true });
 
 // Split pane drag-to-resize handler for Edit Mode
 (() => {
@@ -467,6 +488,7 @@ async function renderActive() {
 
   const doc = store.active();
   renderTabs(store);
+  positionTabIndicator({ strip: el.tabStrip, indicator: el.tabStrip?.querySelector('.tab-indicator') });
   syncSidebarVisibility();
   // Hide toolbar buttons that don't apply to the current doc (e.g. Save on
   // the welcome screen or a read-only PDF/image/csv tab). Per-branch toggles
@@ -1438,35 +1460,18 @@ function applyThemeImpl(next) {
     const link = document.getElementById(id);
     if (link) link.disabled = id !== want;
   }
-  // Mark the active item in the dropdown (drives the check mark).
-  document.querySelectorAll('.theme-item').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.theme === next);
+  // Mark the active card in the Settings theme grid (drives the accent ring
+  // + check badge). v0.32.0: the topbar theme dropdown is gone.
+  document.querySelectorAll('.theme-card').forEach((btn) => {
+    const isActive = btn.dataset.theme === next;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-checked', isActive ? 'true' : 'false');
   });
-  const label = document
-    .querySelector(`.theme-item[data-theme="${next}"] .theme-name`)
-    ?.textContent.trim();
-  el.theme.title = label ? `Theme: ${label}` : 'Theme';
   // Propagate theme to the active Excalidraw tab (if any) so the canvas
   // matches the app's light/dark mode.
   if (_activeExcalidraw) _activeExcalidraw.setTheme(next);
   // Propagate theme to every open terminal so xterm.js recolors to match.
   try { if (terminal?.setTheme) terminal.setTheme(); } catch (e) { console.error('terminal setTheme:', e); }
-  closeThemeMenu();
-}
-
-// Dropdown open/close. Anchored under the palette button.
-function openThemeMenu() {
-  el.themeMenu.classList.remove('hidden');
-  el.theme.setAttribute('aria-expanded', 'true');
-}
-function closeThemeMenu() {
-  if (!el.themeMenu || el.themeMenu.classList.contains('hidden')) return;
-  el.themeMenu.classList.add('hidden');
-  el.theme.setAttribute('aria-expanded', 'false');
-}
-function toggleThemeMenu() {
-  if (el.themeMenu.classList.contains('hidden')) openThemeMenu();
-  else closeThemeMenu();
 }
 
 // ---------- focus / zen mode (hide header + sidebar for distraction-free reading) ----------
@@ -1692,6 +1697,7 @@ function updateCollabStatus(status) {
       doc.shared = false;
       doc.dirty = true; // unsaved local copy now
       renderTabs(store);
+      positionTabIndicator({ strip: el.tabStrip, indicator: el.tabStrip?.querySelector('.tab-indicator') });
     }
     _collabDocId = null;
     try { collab.unbindEditor(); } catch { /* already unbound */ }
@@ -2086,6 +2092,7 @@ async function endCollabSession() {
     // might want to keep the collaborator's edits locally).
     if (doc.path === null) doc.dirty = true;
     renderTabs(store);
+    positionTabIndicator({ strip: el.tabStrip, indicator: el.tabStrip?.querySelector('.tab-indicator') });
   }
   _collabDocId = null;
   // Hide the status pill immediately (the collab.on callback will also do
@@ -3073,32 +3080,44 @@ function zoomReset() {
   applyZoom();
 }
 
-// ---------- auto-update (perMachine install: UAC will prompt when applying) ----------
-// The version button shows: a dot (green = latest, amber = update available,
-// grey = checking/error) + the current version label. Click runs a manual check.
+// ---------- auto-update (v0.32.0: moved into Settings → Updates) ----------
+// The old topbar version button is gone. Status now drives:
+//   • the Updates settings panel (badge text + install-row visibility)
+//   • a body[data-update="update"] attribute that shows a pulse dot on the
+//     Settings gear, so users still get notified without the dedicated button.
 
 let _pendingUpdate = null; // cached update object once detected
 
 function setUpdateStatus(state, versionLabel) {
-  const btn = el.update;
-  if (!btn) return;
-  btn.classList.remove('state-checking', 'state-latest', 'state-update', 'state-error');
-  if (state === 'checking') {
-    btn.classList.add('state-checking');
-    btn.title = 'Checking for updates…';
-  } else if (state === 'latest') {
-    btn.classList.add('state-latest');
-    btn.title = `You're on the latest version (v${versionLabel}). Click to check again.`;
-  } else if (state === 'update') {
-    btn.classList.add('state-update');
-    btn.title = `Update available (v${versionLabel}). Click to install.`;
-  } else if (state === 'error') {
-    btn.classList.add('state-error');
-    btn.title = 'Could not check for updates. Click to retry.';
+  // Drive the body attribute (gear pulse dot) in every state.
+  if (state === 'update') document.body.dataset.update = 'update';
+  else delete document.body.dataset.update;
+
+  // Drive the Settings → Updates panel badge + version label. The panel may
+  // not exist yet (e.g. during early init or in jsdom tests), so null-check.
+  const badge = el.updatesBadge;
+  if (badge) {
+    badge.classList.remove('state-idle', 'state-checking', 'state-latest', 'state-update', 'state-error');
+    const map = {
+      checking: ['state-checking', 'Checking…'],
+      latest: ['state-latest', 'Up to date'],
+      update: ['state-update', 'Update available'],
+      error: ['state-error', 'Check failed'],
+    };
+    const [cls, txt] = map[state] || ['state-idle', 'Unknown'];
+    badge.classList.add(cls);
+    badge.textContent = txt;
   }
-  if (versionLabel !== undefined) {
-    const label = btn.querySelector('.update-label');
-    if (label) label.textContent = `v${versionLabel}`;
+  if (versionLabel !== undefined && el.updatesCurrent) {
+    el.updatesCurrent.textContent = `v${versionLabel}`;
+  }
+  // Show/hide the "Download & restart" row based on whether an update is pending.
+  if (el.updatesInstallRow) {
+    const has = state === 'update' && _pendingUpdate;
+    el.updatesInstallRow.hidden = !has;
+    if (has && _pendingUpdate && el.updatesReleaseNotes) {
+      el.updatesReleaseNotes.textContent = `v${_pendingUpdate.version} is ready to install.`;
+    }
   }
 }
 
@@ -3136,15 +3155,17 @@ async function checkForUpdates(silent = false) {
   }
 }
 
-// Clicking the version button: if an update is pending, install it; otherwise
-// run a manual (non-silent) check.
-el.update.addEventListener('click', () => {
-  if (_pendingUpdate) {
-    applyUpdate(_pendingUpdate);
-  } else {
-    checkForUpdates(false);
-  }
-});
+// Updates panel wiring (Settings → Updates, v0.32.0).
+// "Check now" runs a manual (non-silent) check; "Download & restart" installs
+// a pending update. Replaces the old topbar version-button click handler.
+if (el.updatesCheckBtn) {
+  el.updatesCheckBtn.addEventListener('click', () => checkForUpdates(false));
+}
+if (el.updatesInstallBtn) {
+  el.updatesInstallBtn.addEventListener('click', () => {
+    if (_pendingUpdate) applyUpdate(_pendingUpdate);
+  });
+}
 document.addEventListener('selectionchange', () => {
   updateEditorStatus();
 });
@@ -3426,26 +3447,61 @@ el.zoomIn.addEventListener('click', zoomIn);
 el.zoomOut.addEventListener('click', zoomOut);
 // Clicking the % badge resets to 100% (same as Ctrl+0).
 if (el.zoomIndicator) el.zoomIndicator.addEventListener('click', zoomReset);
-// ---------- theme dropdown wiring ----------
-el.theme.addEventListener('click', (e) => {
-  e.stopPropagation();
-  toggleThemeMenu();
-});
-// Item clicks: pick the theme and close.
-el.themeMenu.addEventListener('click', (e) => {
-  const item = e.target.closest('.theme-item');
-  if (!item) return;
-  applyTheme(item.dataset.theme);
-});
-// Click outside / Esc closes the menu (same pattern as the tab context menu).
+// ---------- theme grid wiring (Settings → Appearance, v0.32.0) ----------
+// The topbar theme dropdown is gone; themes are picked from the grid.
+if (el.themeGrid) {
+  el.themeGrid.addEventListener('click', (e) => {
+    const card = e.target.closest('.theme-card');
+    if (!card) return;
+    applyTheme(card.dataset.theme);
+  });
+}
+
+// ---------- more-menu wiring (topbar overflow, v0.32.0) ----------
+// Opens a ctx-menu of document/export/tools actions. Items keep their original
+// IDs, so the existing per-button handlers (bound elsewhere) still fire.
+function openMoreMenu() {
+  if (!el.moreMenu) return;
+  el.moreMenu.classList.remove('hidden');
+  el.moreBtn?.setAttribute('aria-expanded', 'true');
+}
+function closeMoreMenu() {
+  if (!el.moreMenu || el.moreMenu.classList.contains('hidden')) return;
+  el.moreMenu.classList.add('hidden');
+  el.moreBtn?.setAttribute('aria-expanded', 'false');
+}
+if (el.moreBtn) {
+  el.moreBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (el.moreMenu.classList.contains('hidden')) openMoreMenu();
+    else closeMoreMenu();
+  });
+}
+// Click outside / Esc closes the more-menu. Items close the menu on click too
+// (so the action doesn't leave the menu dangling behind a dialog/overlay).
 document.addEventListener('click', (e) => {
-  if (!el.themeMenu.classList.contains('hidden') && !e.target.closest('.theme-menu-wrap')) {
-    closeThemeMenu();
+  if (el.moreMenu && !el.moreMenu.classList.contains('hidden') && !e.target.closest('.more-menu-wrap')) {
+    closeMoreMenu();
   }
 });
+if (el.moreMenu) {
+  el.moreMenu.addEventListener('click', (e) => {
+    if (e.target.closest('.ctx-item')) closeMoreMenu();
+  });
+}
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeThemeMenu();
+  if (e.key === 'Escape') closeMoreMenu();
 });
+
+// ---------- command-K pill wiring (v0.32.0) ----------
+// Opens the command palette (same as Ctrl+Shift+P). The pill is the calm
+// centerpiece of the new topbar. The `palette` object is created by
+// initCommandPalette() above and exposes .open().
+if (el.cmdK) {
+  el.cmdK.addEventListener('click', () => {
+    palette.open();
+  });
+}
 
 // ---------- settings dialog ----------
 // One place to tune every preference. Each control reads/writes a localStorage
@@ -3485,8 +3541,20 @@ function syncSettingsControls() {
   const modePref = localStorage.getItem('mdpeek-new-tab-mode') || 'view';
   setSegActive('new-tab-mode', modePref);
 
-  const themeSel = document.getElementById('settings-theme');
-  if (themeSel) themeSel.value = localStorage.getItem('mdpeek-theme') || 'light';
+  // v0.32.0: theme is now a visual grid (no <select>). Sync the active card
+  // ring + aria-checked from the stored theme. applyThemeImpl also does this,
+  // but the grid must be correct when Settings opens even if the theme was
+  // last applied before this code path existed.
+  const currentTheme = localStorage.getItem('mdpeek-theme') || 'light';
+  document.querySelectorAll('.theme-card').forEach((card) => {
+    const isActive = card.dataset.theme === currentTheme;
+    card.classList.toggle('active', isActive);
+    card.setAttribute('aria-checked', isActive ? 'true' : 'false');
+  });
+
+  // Auto-update toggle (Settings → Updates). Default on (null/anything but '0').
+  const autoUpdCb = document.getElementById('settings-auto-update');
+  if (autoUpdCb) autoUpdCb.checked = localStorage.getItem('mdpeek-auto-update') !== '0';
 
   const closeSel = document.getElementById('settings-close-action');
   if (closeSel) closeSel.value = localStorage.getItem('mdpeek-close-action') || 'ask';
@@ -3642,10 +3710,18 @@ document.getElementById('settings-new-tab-format').addEventListener('change', (e
   localStorage.setItem('mdpeek-new-tab-format', e.target.value);
 });
 
-// Theme select — reuses the live applyTheme().
-document.getElementById('settings-theme').addEventListener('change', (e) => {
-  applyTheme(e.target.value);
-});
+// Theme is now chosen via the Appearance grid (wired above via delegation on
+// #theme-grid). The old <select id="settings-theme"> was removed in v0.32.0.
+
+// Auto-update toggle (Settings → Updates, v0.32.0). Persists the pref that
+// gates the startup silent check. Default on.
+const _autoUpdCb = document.getElementById('settings-auto-update');
+if (_autoUpdCb) {
+  _autoUpdCb.addEventListener('change', (e) => {
+    if (e.target.checked) localStorage.removeItem('mdpeek-auto-update');
+    else localStorage.setItem('mdpeek-auto-update', '0');
+  });
+}
 
 // Close-action select.
 document.getElementById('settings-close-action').addEventListener('change', (e) => {
@@ -4685,6 +4761,19 @@ window.addEventListener('hljs-language-registered', () => {
 const savedTheme = localStorage.getItem('mdpeek-theme');
 applyTheme(savedTheme && HLJS_FOR_THEME[savedTheme] ? savedTheme : DEFAULT_THEME);
 
+// v0.32.0: render lucide icons + wire ripples. The function declaration
+// hoists, so it can be called early (right after the `el` cache, before any
+// Tauri code that might abort module execution in browser dev). Idempotent.
+function bootMotion() {
+  try { renderIcons(document.body); } catch (e) { console.error('[mdpeek] renderIcons:', e); }
+  try { wireRipples(document.body); } catch (e) { console.error('[mdpeek] wireRipples:', e); }
+  positionTabIndicator({ strip: el.tabStrip, indicator: el.tabStrip?.querySelector('.tab-indicator') });
+}
+// Keep the tab indicator aligned on resize (pill widths shift with the window).
+window.addEventListener('resize', () => {
+  positionTabIndicator({ strip: el.tabStrip, indicator: el.tabStrip?.querySelector('.tab-indicator') });
+});
+
 // Restore sidebar state (default visible).
 if (localStorage.getItem('mdpeek-sidebar') === 'hidden') {
   el.toc.classList.add('collapsed');
@@ -4813,5 +4902,18 @@ setUpdateStatus('checking');
 
 // Check for updates in the background a few seconds after launch (silent: no
 // toast if up-to-date). Delayed so the network call doesn't contend with
-// initial render + session restore.
-setTimeout(() => checkForUpdates(true), UPDATE_CHECK_DELAY_MS);
+// initial render + session restore. v0.32.0: gated by the auto-update pref
+// (default on) — users can opt out from Settings → Updates.
+setTimeout(() => {
+  const auto = localStorage.getItem('mdpeek-auto-update');
+  if (auto === '0') return; // explicitly opted out
+  checkForUpdates(true);
+}, UPDATE_CHECK_DELAY_MS);
+
+// Show the current version in the Updates panel + initial idle badge.
+// (getVersion is async + Tauri-only; no-op gracefully in the browser/jsdom.)
+if (typeof getVersion === 'function') {
+  getVersion().then((v) => {
+    if (el.updatesCurrent) el.updatesCurrent.textContent = `v${v}`;
+  }).catch(() => { /* ignore — panel just shows 'v—' */ });
+}

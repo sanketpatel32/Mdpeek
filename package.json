@@ -1,7 +1,7 @@
 {
   "name": "mdpeek",
   "private": true,
-  "version": "0.31.3",
+  "version": "0.32.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -33,6 +33,7 @@
     "dompurify": "^3.4.11",
     "highlight.js": "^11.11.1",
     "katex": "^0.17.0",
+    "lucide": "^1.26.0",
     "marked": "^18.0.5",
     "marked-footnote": "^1.4.0",
     "marked-katex-extension": "^5.1.10",

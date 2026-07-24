@@ -22,22 +22,31 @@ body {
 }
 
 /* ---------- App header ----------
-   macOS feel: slightly translucent surface, hairline bottom border (no heavy
-   shadow), generous padding. */
+   v0.32.0 "calm glass": frosted translucent surface (backdrop-blur), hairline
+   bottom border, generous spacing. The translucency lets content subtly bleed
+   through the top chrome — the signature macOS/Linear look. Opaque fallback
+   where backdrop-filter isn't supported. */
 .app-header {
   height: var(--header-h);
   flex: 0 0 var(--header-h);
   display: flex;
   align-items: stretch;
   justify-content: flex-start;
-  gap: 0;
+  gap: 8px;
   padding: 0 0 0 8px;
-  background: var(--bg-elevated);
+  background: color-mix(in srgb, var(--bg-elevated) 82%, transparent);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid var(--border-subtle);
   -webkit-user-select: none;
   user-select: none;
   position: relative;
   z-index: 20;
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .app-header {
+    background: var(--bg-elevated);
+  }
 }
 .header-spacer {
   flex: 1 1 auto;
@@ -158,8 +167,6 @@ body.focus-mode #file-tree {
   font-size: 12.5px;
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color 120ms var(--ease), color 120ms var(--ease),
-    transform 100ms var(--ease);
 }
 .tool-btn:hover {
   background: var(--surface-hover);
@@ -168,7 +175,6 @@ body.focus-mode #file-tree {
 .tool-btn:active {
   background: var(--accent-soft);
   color: var(--accent);
-  transform: scale(0.95);
 }
 .tool-btn.active {
   background: var(--accent-soft);
@@ -177,11 +183,13 @@ body.focus-mode #file-tree {
 }
 .tool-btn.icon-only {
   padding: 0;
-  width: 28px;
+  width: 30px;
   justify-content: center;
 }
-.tool-btn svg {
+.tool-btn svg,
+.tool-btn .icon-host svg {
   flex: 0 0 auto;
+  display: block;
 }
 .tool-btn:disabled,
 .tool-btn[disabled] {
@@ -192,14 +200,6 @@ body.focus-mode #file-tree {
 .tool-btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
-}
-.tool-btn.icon-only {
-  padding: 0;
-  width: 32px;
-  justify-content: center;
-}
-.tool-btn svg {
-  flex: 0 0 auto;
 }
 
 /* Zoom percentage badge — sits between the zoom-out / zoom-in buttons.
@@ -260,7 +260,7 @@ body.focus-mode #file-tree {
   animation: dot-pulse 1.2s ease-in-out infinite;
 }
 .update-btn.state-latest .update-dot {
-  background: #34c759; /* macOS system green */
+  background: var(--success);
 }
 .update-btn.state-update .update-dot {
   background: var(--accent);
@@ -629,7 +629,7 @@ main {
   opacity: 1;
 }
 .editor-status .save-status[data-state="error"] {
-  color: #d04a4a;
+  color: var(--danger);
   opacity: 1;
 }
 .pane-header {
@@ -1776,6 +1776,8 @@ mark.find-current {
   flex: 1 1 auto;
   /* Mouse-wheel horizontal scroll: translate vertical wheel to horizontal. */
   scroll-behavior: smooth;
+  /* The traveling active-tab indicator (motion.css) anchors here. */
+  position: relative;
 }
 .tab-strip::-webkit-scrollbar {
   height: 0;
@@ -1786,46 +1788,35 @@ mark.find-current {
   gap: 7px;
   max-width: 200px;
   height: 30px;
-  margin: 0 1px;
+  margin: 0 2px;
   padding: 0 4px 0 11px;
   background: transparent;
   color: var(--fg-secondary);
   border: 1px solid transparent;
-  border-radius: var(--radius);
+  border-radius: 999px; /* soft pill */
   font-size: 12.5px;
   cursor: pointer;
   white-space: nowrap;
   -webkit-user-select: none;
   user-select: none;
   flex-shrink: 0;
-  transition: background-color 180ms var(--ease), color 180ms var(--ease),
-    border-color 180ms var(--ease), transform 180ms var(--ease);
 }
 .tab:hover {
   background: var(--surface-hover);
   color: var(--fg);
-  transform: translateY(-1px);
 }
 .tab.active {
-  background: var(--surface);
-  color: var(--fg);
-  border-color: var(--border-subtle);
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
   font-weight: 500;
-  box-shadow: var(--shadow-sm);
   position: relative;
 }
-.tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 12px;
-  right: 12px;
-  height: 2px;
-  background: var(--accent);
-  border-radius: 99px;
-}
+/* The active-tab underline is now a SINGLE traveling bar (.tab-indicator,
+   defined in motion.css) that JS slides between tabs. The old per-tab
+   ::after bar is gone. */
 .tab.active:hover {
-  transform: none;
+  background: color-mix(in srgb, var(--accent-soft) 70%, var(--surface-hover));
 }
 .tab:focus-visible {
   outline: 2px solid var(--accent);
@@ -1847,7 +1838,7 @@ mark.find-current {
 /* Shared/collab tabs get a green dot + a subtle "(shared)" suffix on the
    title to make the live-collab state visible at a glance. */
 .tab.shared .tab-dot {
-  color: #22c55e;
+  color: var(--success);
 }
 .tab.shared .tab-title::after {
   content: " · shared";
@@ -2079,16 +2070,211 @@ mark.find-current {
   background: var(--sw-accent);
   box-shadow: 0 0 0 1.5px var(--sw-bg);
 }
-.theme-swatch[data-sw="light"]       { --sw-bg: #ffffff; --sw-accent: #0071e3; }
+.theme-swatch[data-sw="light"]       { --sw-bg: #f9f9fb; --sw-accent: #0071e3; }
 .theme-swatch[data-sw="dark"]        { --sw-bg: #1c1c1e; --sw-accent: #0a84ff; }
 .theme-swatch[data-sw="solar-light"] { --sw-bg: #fdf6e3; --sw-accent: #268bd2; }
 .theme-swatch[data-sw="solar-dark"]  { --sw-bg: #002b36; --sw-accent: #268bd2; }
 .theme-swatch[data-sw="dracula"]     { --sw-bg: #282a36; --sw-accent: #bd93f9; }
 .theme-swatch[data-sw="nord"]        { --sw-bg: #2e3440; --sw-accent: #88c0d0; }
-.theme-swatch[data-sw="github"]      { --sw-bg: #ffffff; --sw-accent: #0969da; }
+.theme-swatch[data-sw="github"]      { --sw-bg: #f6f8fa; --sw-accent: #0969da; }
 .theme-swatch[data-sw="github-dark"] { --sw-bg: #0d1117; --sw-accent: #2f81f7; }
 .theme-swatch[data-sw="tokyo-night"] { --sw-bg: #1a1b26; --sw-accent: #7aa2f7; }
 .theme-swatch[data-sw="catppuccin"]  { --sw-bg: #1e1e2e; --sw-accent: #89b4fa; }
+
+/* ---------- Theme grid (Settings → Appearance, v0.32.0) ----------
+   Replaces the bare <select>. Each card shows a live swatch (colors set by
+   the .theme-swatch[data-sw] registry above so all 10 render correctly
+   regardless of the active theme) + the theme name. Clicking applies the
+   theme instantly via applyTheme(). The active card gets an accent ring + a
+   check badge. */
+.setting-row-block {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 10px;
+}
+.theme-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  font: inherit;
+  color: var(--fg-secondary);
+  overflow: hidden;
+}
+.theme-card .theme-swatch {
+  width: 36px;
+  height: 36px;
+}
+.theme-card .theme-name {
+  font-size: 11.5px;
+  font-weight: 500;
+  text-align: center;
+  line-height: 1.2;
+}
+.theme-card:hover {
+  border-color: var(--border);
+  background: var(--surface-hover);
+  color: var(--fg);
+}
+.theme-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), var(--accent-soft) 0 0 0 4px;
+  color: var(--fg);
+}
+/* Check badge — top-right corner, only on active card. */
+.theme-card .theme-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 16px;
+  height: 16px;
+  padding: 2px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity var(--dur-2) var(--ease-spring), transform var(--dur-2) var(--ease-spring);
+}
+.theme-card.active .theme-check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ---------- More menu (topbar overflow, v0.32.0) ---------- */
+.more-menu-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.more-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 240px;
+  padding: 6px;
+  z-index: 1000;
+}
+.ctx-group-label {
+  padding: 8px 10px 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-muted);
+  user-select: none;
+}
+.ctx-item .ctx-ico {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  color: var(--fg-muted);
+}
+.ctx-item .ctx-ico svg { display: block; }
+.ctx-item .ctx-label { flex: 1 1 auto; }
+.ctx-item.hidden { display: none; }
+
+/* ---------- Command-K pill (topbar center, v0.32.0) ----------
+   A faux search input styled as a pill. Clicking opens the command palette.
+   Fills the dead center space and is the Linear/macOS signature affordance. */
+.cmd-k-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  min-width: 180px;
+  max-width: 280px;
+  flex: 0 1 240px;
+  padding: 0 8px 0 10px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+}
+.cmd-k-pill:hover {
+  background: var(--surface-hover);
+  border-color: var(--border);
+  color: var(--fg-secondary);
+}
+.cmd-k-pill:active {
+  transform: scale(0.98);
+}
+.cmd-k-pill .cmd-k-search { display: inline-flex; color: var(--fg-muted); }
+.cmd-k-pill .cmd-k-search svg { display: block; }
+.cmd-k-pill .cmd-k-text {
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.cmd-k-pill .cmd-k-kbd {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  font-family: inherit;
+}
+
+/* ---------- Updates panel (Settings → Updates, v0.32.0) ---------- */
+.updates-version {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.updates-version #updates-current {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--fg);
+}
+.updates-badge {
+  padding: 2px 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  color: var(--fg-muted);
+  background: var(--surface);
+}
+.updates-badge.state-checking { color: var(--fg-secondary); }
+.updates-badge.state-latest { color: var(--success); border-color: color-mix(in srgb, var(--success) 40%, transparent); }
+.updates-badge.state-update { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.updates-badge.state-error { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+
+/* Pending-update indicator on the Settings gear (replaces the old topbar
+   update button). A small accent dot in the corner. */
+#btn-settings {
+  position: relative;
+}
+body[data-update="update"] #btn-settings::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg-elevated);
+  animation: dot-pulse 1.5s ease-in-out infinite;
+}
 
 /* ---------- Close / modal dialog ---------- */
 /* ---------- Presentation mode (v0.20.0) ----------
@@ -2755,7 +2941,7 @@ body.kanban-mode #kanban-view { display: flex; }
 
 .kanban-progress-bar {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent), #22c55e);
+  background: linear-gradient(90deg, var(--accent), var(--success));
   border-radius: 999px;
   transition: width 240ms var(--ease);
 }
@@ -2814,9 +3000,9 @@ body.kanban-mode #kanban-view { display: flex; }
 }
 
 .kanban-toolbar .tool-btn.danger-btn-hover:hover {
-  background: rgba(239, 68, 68, 0.12);
-  color: #ef4444;
-  border-color: rgba(239, 68, 68, 0.3);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
 }
 
 .kanban-toolbar .tool-btn.primary-btn {
@@ -2862,9 +3048,9 @@ body.kanban-mode #kanban-view { display: flex; }
   transition: background-color 140ms var(--ease);
 }
 
-.kanban-column[data-status="todo"]::before { background: #3b82f6; }
-.kanban-column[data-status="progress"]::before { background: #f59e0b; }
-.kanban-column[data-status="done"]::before { background: #22c55e; }
+.kanban-column[data-status="todo"]::before { background: var(--kanban-todo); }
+.kanban-column[data-status="progress"]::before { background: var(--kanban-doing); }
+.kanban-column[data-status="done"]::before { background: var(--kanban-done); }
 
 .kanban-column.kanban-column-drop {
   background: var(--surface-hover);
@@ -2897,9 +3083,9 @@ body.kanban-mode #kanban-view { display: flex; }
   border-radius: 50%;
 }
 
-.kanban-column[data-status="todo"]    .kanban-column-dot { background: #3b82f6; box-shadow: 0 0 8px rgba(59, 130, 246, 0.5); }
-.kanban-column[data-status="progress"] .kanban-column-dot { background: #f59e0b; box-shadow: 0 0 8px rgba(245, 158, 11, 0.5); }
-.kanban-column[data-status="done"]    .kanban-column-dot { background: #22c55e; box-shadow: 0 0 8px rgba(34, 197, 94, 0.5); }
+.kanban-column[data-status="todo"]    .kanban-column-dot { background: var(--kanban-todo); box-shadow: 0 0 8px color-mix(in srgb, var(--kanban-todo) 50%, transparent); }
+.kanban-column[data-status="progress"] .kanban-column-dot { background: var(--kanban-doing); box-shadow: 0 0 8px color-mix(in srgb, var(--kanban-doing) 50%, transparent); }
+.kanban-column[data-status="done"]    .kanban-column-dot { background: var(--kanban-done); box-shadow: 0 0 8px color-mix(in srgb, var(--kanban-done) 50%, transparent); }
 
 .kanban-column-count {
   background: var(--bg);
@@ -3004,8 +3190,8 @@ body.kanban-mode #kanban-view { display: flex; }
 }
 
 .kanban-card-checkbox.checked {
-  background: #22c55e;
-  border-color: #22c55e;
+  background: var(--success);
+  border-color: var(--success);
 }
 
 .kanban-card-body {
@@ -3078,8 +3264,8 @@ body.kanban-mode #kanban-view { display: flex; }
 }
 
 .kanban-card-delete:hover {
-  background: rgba(239, 68, 68, 0.12);
-  color: #ef4444;
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
 }
 
 .kanban-column-footer {
