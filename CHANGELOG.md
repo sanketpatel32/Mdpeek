@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-07-25
+
+### Added — Workspace hub: Board · Calendar · Tasks · Review (+ Pomodoro)
+
+The Kanban board is now a unified **Workspace** with four tabs sharing one
+toolbar. Open it the same way as before (Kanban button / Ctrl+Shift+K /
+command palette) — it lands on Board by default and remembers the last tab.
+
+- **Pomodoro timer** — a header pill (mirrors the collab-status pill) shows a
+  live countdown across the whole app. 25/5/15 phases, long break every 4,
+  persists across restarts (never auto-resumes running — you tap ▶ to resume).
+  The single `setInterval` is cleared on quit. Started via the pill, the
+  palette ("Start Pomodoro"), or the Board.
+- **Calendar** — a month grid of your daily notes (`YYYY-MM-DD.md` in your
+  notes folder). Days with notes get an accent dot + word count; click a day
+  to open or create that note. Prev/next/Today navigation; remembers the last
+  viewed month.
+- **Tasks inbox** — a unified list merging your Kanban cards (todo/doing)
+  with `- [ ]` / `- [x]` checkboxes scanned from every note in your folder
+  (via the existing `search_in_folder` Rust command, filtered to real GFM
+  task syntax). Sort by newest/source/due/status; filter via the shared
+  search box; click a note-task to jump to its source; toggle its checkbox
+  to write `- [x]` back to the file.
+- **Review (spaced repetition)** — an SM-2 flashcard queue. Scans your notes
+  for three card syntaxes (auto-detected): single-line `Q :: A`, callout
+  `> [!qa] Q / > A`, and question-like headings + next paragraph. One card
+  at a time with a 3D flip reveal; rate Again/Hard/Good/Easy to schedule.
+  Scheduling state persists per-card (`mdpeek-srs-cards`); card text is
+  re-parsed from notes each session.
+- **4 new feature flags** in Settings → Features (Pomodoro / Calendar / Tasks
+  / Review); turning one off hides its tab.
+- **4 new command-palette entries** (Open Calendar / Tasks / Review / Start
+  Pomodoro).
+
+### Architecture
+
+- **5 new pure, unit-tested modules** under `src/lib/`: `dates.js` (calendar
+  grid + stamp math), `srs.js` (SM-2 algorithm), `flashcards.js` (3-syntax
+  parser), `pomodoro.js` (timer state machine), `tasks.js` (kanban+note
+  merger). All DOM-free, fully tested.
+- **No new dependencies** (no dayjs, no Anki lib — all hand-rolled). No Rust
+  changes (reuses `search_in_folder` + `list_dir` + `read_file` + `save_file`).
+- Kanban task shape extended with optional fields (`dueDate`, `pomoCount`,
+  `source`) — backward compatible; old data loads fine.
+
+### Fixed
+
+- Removed two duplicate function declarations (`basename`, `escapeHtml`) in
+  `main.js` that were SyntaxErrors preventing the module from loading in the
+  browser dev environment.
+
+### Tests
+
+- Added `test/workspace.test.js` (43 tests): calendar math, SM-2 scheduling,
+  flashcard parser (all 3 syntaxes + code-block skipping), Pomodoro state
+  machine, task merger/filter/sort. Full suite: **374 passing**.
+
 ## [0.32.2] - 2026-07-24
 
 ### Fixed & Improved — Settings dialog overhaul

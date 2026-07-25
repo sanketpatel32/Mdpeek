@@ -19,6 +19,20 @@ import { initTerminal } from './views/terminal.js';
 import { renderTabs } from './views/tabs.js';
 import { renderIcons } from './lib/icons.js';
 import { wireRipples, positionTabIndicator } from './lib/motion.js';
+import {
+  dateStamp, todayStamp, parseStamp, isDailyNoteName, monthLabel,
+  calendarGrid, isToday, countWords,
+} from './lib/dates.js';
+import { newCard, review as srsReview, isDue, daysUntilDue } from './lib/srs.js';
+import { parseFlashcards } from './lib/flashcards.js';
+import {
+  loadState as pomoLoad, saveState as pomoSave, clearState as pomoClear,
+  start as pomoStart, pause as pomoPause, tick as pomoTick, skipPhase as pomoSkip,
+  reset as pomoReset, formatTime as pomoFormat, phaseLabel as pomoPhaseLabel,
+} from './lib/pomodoro.js';
+import {
+  normalizeNoteTasks, normalizeKanbanTasks, mergeTasks, filterTasks, sortTasks, taskStats,
+} from './lib/tasks.js';
 import { DocumentStore, isPdfPath, isImagePath, isExcalidrawPath, langFromPath, langForEdit } from './lib/documents.js';
 import { renderMarkdown, renderCode, renderCsv, parseCsv, prepareCodeLang } from './lib/renderer.js';
 import { saveSession, loadSession, loadRecents, addRecent, removeRecent, saveRecents } from './lib/persistence.js';
@@ -244,6 +258,28 @@ const el = {
   kanbanView: document.getElementById('kanban-view'),
   kanbanBoard: document.getElementById('kanban-board'),
   kanbanDoneBtn: document.getElementById('kanban-done-btn'),
+  // Workspace hub (v0.33.0)
+  workspaceTabs: document.querySelector('.workspace-tabs'),
+  workspaceRefresh: document.getElementById('workspace-refresh-btn'),
+  // Calendar
+  calPrev: document.getElementById('cal-prev'),
+  calNext: document.getElementById('cal-next'),
+  calToday: document.getElementById('cal-today'),
+  calLabel: document.getElementById('cal-label'),
+  calGrid: document.getElementById('calendar-grid'),
+  calFoot: document.getElementById('cal-foot'),
+  // Tasks
+  tasksSort: document.getElementById('tasks-sort'),
+  tasksSummary: document.getElementById('tasks-summary'),
+  tasksList: document.getElementById('tasks-list'),
+  // Review
+  reviewSummary: document.getElementById('review-summary'),
+  reviewStage: document.getElementById('review-stage'),
+  // Pomodoro
+  pomoStatus: document.getElementById('pomo-status'),
+  pomoDot: document.getElementById('pomo-dot'),
+  pomoTime: document.getElementById('pomo-time'),
+  pomoToggle: document.getElementById('pomo-toggle'),
 };
 
 // v0.32.0: render lucide icons + wire ripples as early as possible. Called
@@ -840,7 +876,11 @@ const palette = initCommandPalette(() => {
     { id: 'zoom-reset', label: 'Reset zoom', hint: 'Ctrl+0', keywords: 'zoom reset 100', run: zoomReset },
     { id: 'theme', label: 'Cycle theme', keywords: 'theme color light dark cycle', run: cycleTheme },
     { id: 'settings', label: 'Open settings', keywords: 'settings preferences options', run: openSettings },
-    { id: 'kanban', label: 'Open Kanban board', hint: 'Ctrl+Shift+K', keywords: 'kanban board tasks todo done progress', run: openKanban },
+    { id: 'kanban', label: 'Open Kanban board', hint: 'Ctrl+Shift+K', keywords: 'kanban board tasks todo done progress workspace', run: openKanban },
+    { id: 'ws-calendar', label: 'Open Calendar', keywords: 'calendar month daily notes journal date', run: () => { openKanban(); setWorkspaceMode('calendar'); } },
+    { id: 'ws-tasks', label: 'Open Tasks inbox', keywords: 'tasks inbox checklist todo scan notes checkboxes', run: () => { openKanban(); setWorkspaceMode('tasks'); } },
+    { id: 'ws-review', label: 'Review flashcards', keywords: 'review flashcards spaced repetition srs study cards qa', run: () => { openKanban(); setWorkspaceMode('review'); } },
+    { id: 'pomo-start', label: 'Start Pomodoro', keywords: 'pomodoro timer focus 25 minute', run: pomoToggleRun },
     { id: 'terminal', label: 'Toggle terminal', hint: 'Ctrl+`', keywords: 'terminal powershell shell cmd console cli', run: () => terminal.toggle() },
     { id: 'snippet', label: 'Insert template / snippet', hint: 'Ctrl+Shift+S', keywords: 'snippet template callout table code meeting insert', run: () => snippetPicker.open() },
     { id: 'check-updates', label: 'Check for updates', keywords: 'update version check', run: () => checkForUpdates(false) },
@@ -2063,6 +2103,10 @@ function clearDoneKanbanTasks() {
 
 function openKanban() {
   if (!el.kanbanView) return;
+  // v0.33.0: the Kanban surface is now the Workspace hub. Default to the last
+  // mode (or Board) so reopen feels stable.
+  const saved = localStorage.getItem('mdpeek-workspace-mode');
+  setWorkspaceMode(VALID_MODES.includes(saved) ? saved : 'board', { skipRender: true });
   renderKanban();
   document.body.classList.add('kanban-mode');
   // Focus the To-Do column's add input so the user can immediately type.
@@ -2072,7 +2116,430 @@ function openKanban() {
 
 function closeKanban() {
   document.body.classList.remove('kanban-mode');
+  // Remove any per-mode body class too.
+  VALID_MODES.forEach((m) => document.body.classList.remove(`ws-mode-${m}`));
 }
+
+// =====================================================================
+// WORKSPACE HUB (v0.33.0) — Board · Calendar · Tasks · Review
+// =====================================================================
+
+const VALID_MODES = ['board', 'calendar', 'tasks', 'review'];
+// Per-mode, hide toolbar controls that don't apply.
+const MODE_ONLY = {
+  board:   ['#kanban-clear-done-btn', '#kanban-progress-bar-wrap', '#kanban-stats'],
+  tasks:   ['#kanban-search-input', '.workspace-tabs + *', '#workspace-refresh-btn'],
+  calendar: [],
+  review:  ['#workspace-refresh-btn'],
+};
+
+let _wsMode = 'board';
+
+function featureOn(name) {
+  return localStorage.getItem(`mdpeek-feature-${name}`) !== '0';
+}
+
+/** Switch the active Workspace tab. Renders the target panel if needed. */
+function setWorkspaceMode(mode, opts = {}) {
+  if (!VALID_MODES.includes(mode)) mode = 'board';
+  _wsMode = mode;
+  localStorage.setItem('mdpeek-workspace-mode', mode);
+
+  // Tabs
+  document.querySelectorAll('.workspace-tab').forEach((t) => {
+    const on = t.dataset.mode === mode;
+    t.classList.toggle('active', on);
+    t.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  // Panels
+  document.querySelectorAll('.workspace-panel').forEach((p) => {
+    p.classList.toggle('active', p.dataset.mode === mode);
+  });
+  // Per-mode body class (drives toolbar visibility + hides disabled tabs)
+  VALID_MODES.forEach((m) => document.body.classList.remove(`ws-mode-${m}`));
+  document.body.classList.add(`ws-mode-${mode}`);
+
+  // Hide tabs whose feature flag is off.
+  document.querySelectorAll('.workspace-tab').forEach((t) => {
+    const m = t.dataset.mode;
+    const flagMap = { board: 'kanban', calendar: 'calendar', tasks: 'tasks', review: 'review' };
+    t.style.display = featureOn(flagMap[m]) ? '' : 'none';
+  });
+
+  // Toolbar button visibility per mode.
+  const showRefresh = (mode === 'tasks' || mode === 'review');
+  if (el.workspaceRefresh) el.workspaceRefresh.classList.toggle('hidden', !showRefresh);
+  const showClearDone = mode === 'board';
+  const clearBtn = document.getElementById('kanban-clear-done-btn');
+  if (clearBtn) clearBtn.classList.toggle('hidden', !showClearDone);
+  const showProgress = mode === 'board';
+  const prog = document.getElementById('kanban-progress-bar-wrap');
+  const stats = document.getElementById('kanban-stats');
+  if (prog) prog.style.visibility = showProgress ? '' : 'hidden';
+  if (stats) stats.style.visibility = showProgress ? '' : 'hidden';
+
+  if (opts.skipRender) return;
+  if (mode === 'calendar') renderCalendar();
+  else if (mode === 'tasks') renderTasks();
+  else if (mode === 'review') renderReview();
+}
+
+// ---------- Calendar ----------
+let _calYear = new Date().getFullYear();
+let _calMonth = new Date().getMonth();
+let _calCacheKey = null; // memoize the dir listing per month
+let _calCache = null;
+
+async function renderCalendar() {
+  if (!el.calGrid) return;
+  const notesDir = localStorage.getItem('mdpeek-notes-dir');
+  el.calLabel.textContent = monthLabel(_calYear, _calMonth);
+  // Build the grid skeleton first (so the UI feels instant).
+  const cells = calendarGrid(_calYear, _calMonth, 1);
+  const dows = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']; // Mon-start
+  let html = dows.map((d) => `<div class="cal-dow">${d}</div>`).join('');
+  for (const c of cells) {
+    const todayCls = isToday(c.stamp) ? ' cal-day-today' : '';
+    const outCls = c.inMonth ? '' : ' cal-day-out';
+    html += `<div class="cal-day${todayCls}${outCls}" data-stamp="${c.stamp}" role="button" tabindex="0">`
+      + `<span class="cal-day-num">${c.date.getDate()}</span>`
+      + `</div>`;
+  }
+  el.calGrid.innerHTML = html;
+  el.calFoot.textContent = notesDir ? '' : 'Set a notes folder in Settings → General to see your daily notes.';
+
+  // Lazily load daily-note metadata for this month + mark cells.
+  if (notesDir) {
+    try {
+      const map = await loadDailyNotesForMonth(_calYear, _calMonth, notesDir);
+      for (const c of cells) {
+        const meta = map.get(c.stamp);
+        const cellEl = el.calGrid.querySelector(`.cal-day[data-stamp="${c.stamp}"]`);
+        if (meta && cellEl) {
+          const dot = document.createElement('span');
+          dot.className = 'cal-day-dot';
+          cellEl.appendChild(dot);
+          if (meta.words > 0) {
+            const w = document.createElement('span');
+            w.className = 'cal-day-words';
+            w.textContent = `${meta.words}w`;
+            cellEl.appendChild(w);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('calendar scan:', e);
+    }
+  }
+}
+
+async function loadDailyNotesForMonth(year, month0, notesDir) {
+  const key = `${year}-${month0}`;
+  if (_calCacheKey === key && _calCache) return _calCache;
+  const map = new Map();
+  try {
+    const entries = await invoke('list_dir', { path: notesDir });
+    for (const e of entries || []) {
+      if (e.is_dir) continue;
+      if (!isDailyNoteName(e.name)) continue;
+      const stamp = e.name.replace(/\.md$/, '');
+      // Cheap word count: read only if it's in the visible month window.
+      const d = parseStamp(stamp);
+      if (!d) continue;
+      let words = 0;
+      try {
+        const content = await invoke('read_file', { path: e.path });
+        words = countWords(content);
+      } catch { /* ignore unreadable */ }
+      map.set(stamp, { path: e.path, words });
+    }
+  } catch { /* notes dir unreadable */ }
+  _calCacheKey = key;
+  _calCache = map;
+  return map;
+}
+
+async function openDailyNoteAt(stamp) {
+  if (!stamp) return;
+  const notesDir = localStorage.getItem('mdpeek-notes-dir');
+  if (!notesDir) { toast('Set a notes folder in Settings → General first.'); return; }
+  const d = parseStamp(stamp);
+  if (!d) return;
+  const sep = /[\\/]/.test(notesDir) && !notesDir.endsWith('/') && !notesDir.endsWith('\\') ? '\\' : '';
+  const path = `${notesDir}${sep}${stamp}.md`;
+  try {
+    await invoke('read_file', { path });
+    openPath(path);
+  } catch {
+    // Create it (mirror openDailyNote's create flow).
+    const pretty = d.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const starter = `# ${stamp}\n\n*${pretty}*\n\n## \n\n`;
+    try { await invoke('save_file', { path, content: starter }); } catch (e) { toast('Could not create note: ' + fmtErr(e)); return; }
+    openPath(path, starter);
+  }
+  closeKanban();
+}
+
+// ---------- Tasks inbox ----------
+let _tasksNoteScan = null; // cached note-checkbox scan; null = needs refresh
+
+async function renderTasks() {
+  if (!el.tasksList) return;
+  el.tasksList.innerHTML = '<div class="tasks-empty">Scanning your notes…</div>';
+  if (el.tasksSummary) el.tasksSummary.textContent = '—';
+  try {
+    const kanbanOnly = normalizeKanbanTasks(_kanbanTasks);
+    let noteTasks = [];
+    const notesDir = localStorage.getItem('mdpeek-notes-dir');
+    if (notesDir && _tasksNoteScan === null) {
+      // Scan open + done checkboxes.
+      const [openHits, doneHits] = await Promise.all([
+        invoke('search_in_folder', { root: notesDir, query: '- [ ]', caseSensitive: false, maxResults: 1000 }).catch(() => ({ results: [] })),
+        invoke('search_in_folder', { root: notesDir, query: '- [x]', caseSensitive: false, maxResults: 500 }).catch(() => ({ results: [] })),
+      ]);
+      const hits = [...((openHits && openHits.results) || []), ...((doneHits && doneHits.results) || [])];
+      _tasksNoteScan = normalizeNoteTasks(hits);
+    }
+    noteTasks = _tasksNoteScan || [];
+    const merged = sortTasks(
+      filterTasks(mergeTasks(kanbanOnly, noteTasks), _kanbanFilter),
+      el.tasksSort ? el.tasksSort.value : 'created'
+    );
+    const stats = taskStats(merged);
+    if (el.tasksSummary) el.tasksSummary.textContent = `${stats.open} open · ${stats.done} done · ${merged.length} total`;
+    if (merged.length === 0) {
+      el.tasksList.innerHTML = '<div class="tasks-empty">No tasks. Add Kanban cards or write `- [ ]` items in your notes.</div>';
+      return;
+    }
+    el.tasksList.innerHTML = merged.map(taskRowHtml).join('');
+  } catch (e) {
+    console.error('tasks render:', e);
+    el.tasksList.innerHTML = `<div class="tasks-empty">Could not load tasks: ${fmtErr(e)}</div>`;
+  }
+}
+
+function taskRowHtml(t) {
+  const check = `<span class="task-check${t.done ? ' checked' : ''}" data-id="${t.id}"></span>`;
+  let badges = '';
+  if (t.kind === 'kanban') {
+    badges += `<span class="task-badge task-badge-kanban">Kanban</span>`;
+    if (t.column === 'todo') badges += `<span class="task-badge task-badge-todo">To do</span>`;
+    else if (t.column === 'progress') badges += `<span class="task-badge task-badge-progress">Doing</span>`;
+  } else {
+    badges += `<span class="task-badge task-badge-note">Note</span>`;
+  }
+  const meta = `<div class="task-meta">${badges}${
+    t.source && t.source.path ? `<span class="task-src">${basename(t.source.path)}:${t.source.line}</span>` : ''
+  }</div>`;
+  return `<div class="task-row${t.done ? ' done' : ''}" data-id="${t.id}">${check}<div class="task-body"><div class="task-text">${escapeHtml(t.text)}</div>${meta}</div></div>`;
+}
+
+async function toggleNoteCheckbox(path, line, currentDone) {
+  // Read file, flip the matching task line, write back. Round-trip via existing commands.
+  try {
+    const content = await invoke('read_file', { path });
+    const lines = content.split('\n');
+    const idx = line - 1;
+    if (idx < 0 || idx >= lines.length) return false;
+    const ln = lines[idx];
+    const doneRe = /^(\s*[-*+]\s+)\[[xX]\](\s+.*)$/;
+    const openRe = /^(\s*[-*+]\s+)\[ \](\s+.*)$/;
+    if (currentDone && doneRe.test(ln)) {
+      lines[idx] = ln.replace(doneRe, '$1[ ]$2');
+    } else if (!currentDone && openRe.test(ln)) {
+      lines[idx] = ln.replace(openRe, '$1[x]$2');
+    } else {
+      return false; // line changed under us
+    }
+    await invoke('save_file', { path, content: lines.join('\n') });
+    return true;
+  } catch (e) {
+    console.error('toggle checkbox:', e);
+    return false;
+  }
+}
+
+// ---------- Review / spaced repetition ----------
+const SRS_KEY = 'mdpeek-srs-cards';
+let _reviewCards = [];     // all parsed cards for this session
+let _reviewQueue = [];     // due cards, in review order
+let _reviewIndex = 0;
+let _reviewRevealed = false;
+let _reviewScan = null;    // cached {cards, at}
+
+function loadSrsState() {
+  try { return JSON.parse(localStorage.getItem(SRS_KEY) || '{}'); } catch { return {}; }
+}
+function saveSrsState(s) {
+  try { localStorage.setItem(SRS_KEY, JSON.stringify(s)); } catch { /* ignore */ }
+}
+
+async function scanFlashcards() {
+  if (_reviewScan) return _reviewScan;
+  const notesDir = localStorage.getItem('mdpeek-notes-dir');
+  const cards = [];
+  if (notesDir) {
+    // Use search_in_folder to find notes containing ":: " or "[!qa]", then parse each.
+    // Cheaper: walk via search for "::" then parse those files.
+    try {
+      const res = await invoke('search_in_folder', { root: notesDir, query: '::', caseSensitive: false, maxResults: 2000 });
+      const files = new Set((res.results || []).map((r) => r.path));
+      // Also scan for callout QA + heading-Q headings.
+      const res2 = await invoke('search_in_folder', { root: notesDir, query: '[!qa]', caseSensitive: false, maxResults: 500 }).catch(() => ({ results: [] }));
+      (res2.results || []).forEach((r) => files.add(r.path));
+      for (const path of files) {
+        try {
+          const text = await invoke('read_file', { path });
+          const parsed = parseFlashcards(text, path);
+          for (const c of parsed) cards.push({ ...c, path });
+        } catch { /* skip unreadable */ }
+      }
+    } catch (e) { console.error('flashcard scan:', e); }
+  }
+  _reviewScan = { cards, at: Date.now() };
+  return _reviewScan;
+}
+
+async function renderReview() {
+  if (!el.reviewStage) return;
+  el.reviewStage.innerHTML = '<div class="review-done"><p>Scanning notes for flashcards…</p></div>';
+  if (el.reviewSummary) el.reviewSummary.textContent = '—';
+  try {
+    const { cards } = await scanFlashcards();
+    _reviewCards = cards;
+    const state = loadSrsState();
+    // Build the due queue: cards with no state (new) OR state.due <= today.
+    _reviewQueue = cards.filter((c) => {
+      const s = state[c.key];
+      return !s || isDue(s);
+    });
+    _reviewIndex = 0;
+    _reviewRevealed = false;
+    const dueCount = _reviewQueue.length;
+    const total = cards.length;
+    if (el.reviewSummary) el.reviewSummary.textContent = dueCount === 0
+      ? `All caught up — ${total} card${total === 1 ? '' : 's'} tracked.`
+      : `${dueCount} card${dueCount === 1 ? '' : 's'} due of ${total}`;
+    renderReviewCard();
+  } catch (e) {
+    console.error('review render:', e);
+    el.reviewStage.innerHTML = `<div class="review-done"><p>Could not load flashcards: ${fmtErr(e)}</p></div>`;
+  }
+}
+
+function renderReviewCard() {
+  if (!el.reviewStage) return;
+  if (_reviewIndex >= _reviewQueue.length) {
+    // Find the next due date for a friendly message.
+    const state = loadSrsState();
+    let next = null;
+    for (const c of _reviewCards) {
+      const s = state[c.key];
+      if (s && s.due && (!next || s.due < next)) next = s.due;
+    }
+    el.reviewStage.innerHTML = `<div class="review-done">
+      <h3>All caught up!</h3>
+      <p>${next ? `Next review: ${next}` : 'No upcoming reviews. Add Q::A cards to your notes.'}</p>
+    </div>`;
+    if (el.reviewSummary) el.reviewSummary.textContent = 'Session complete.';
+    return;
+  }
+  const card = _reviewQueue[_reviewIndex];
+  const front = `<div class="review-face review-face-front">
+    <div class="review-face-label">Question</div>
+    <div class="review-q">${escapeHtml(card.question)}</div>
+    <div class="review-hint">Click card to reveal answer</div>
+  </div>`;
+  const back = `<div class="review-face review-face-back">
+    <div class="review-face-label">Answer</div>
+    <div class="review-a">${escapeHtml(card.answer)}</div>
+    <div class="review-source" data-src="${card.path}" data-line="${card.line}">Edit in note</div>
+  </div>`;
+  const actions = _reviewRevealed ? `<div class="review-actions">
+    ${['again', 'hard', 'good', 'easy'].map((r) => `<button class="review-rate" data-rate="${r}"><span class="review-rate-label">${r[0].toUpperCase() + r.slice(1)}</span><span class="review-rate-hint">${rateHint(r)}</span></button>`).join('')}
+  </div>` : '';
+  el.reviewStage.innerHTML = `<div class="review-card${_reviewRevealed ? ' revealed' : ''}" id="review-card"><div class="review-card-inner">${front}${back}</div></div>${actions}`;
+}
+
+function rateHint(r) {
+  return r === 'again' ? '<1m' : r === 'hard' ? 'soon' : r === 'good' ? 'normal' : 'longer';
+}
+
+function rateCard(rating) {
+  if (_reviewIndex >= _reviewQueue.length) return;
+  const card = _reviewQueue[_reviewIndex];
+  const state = loadSrsState();
+  const prev = state[card.key] || newCard();
+  state[card.key] = srsReview(prev, rating);
+  saveSrsState(state);
+  _reviewIndex++;
+  _reviewRevealed = false;
+  renderReviewCard();
+  const dueCount = Math.max(0, _reviewQueue.length - _reviewIndex);
+  if (el.reviewSummary) el.reviewSummary.textContent = `${dueCount} card${dueCount === 1 ? '' : 's'} due`;
+}
+
+// ---------- Pomodoro ----------
+let _pomoState = null;
+let _pomoInterval = null;
+
+function pomoEnsureLoaded() {
+  if (!_pomoState) _pomoState = pomoLoad();
+}
+function pomoSyncUi() {
+  pomoEnsureLoaded();
+  if (!el.pomoStatus) return;
+  const on = featureOn('pomodoro');
+  // Show the pill whenever there's an active or started session.
+  const hasSession = _pomoState && (_pomoState.running || _pomoState.remaining !== 25 * 60 || _pomoState.cycle > 0);
+  el.pomoStatus.classList.toggle('hidden', !(on && hasSession));
+  if (!hasSession) return;
+  if (el.pomoTime) el.pomoTime.textContent = pomoFormat(_pomoState.remaining);
+  if (el.pomoDot) {
+    el.pomoDot.className = 'pomo-dot ' + (_pomoState.phase === 'focus' ? 'pomo-dot-focus' : 'pomo-dot-break');
+  }
+  el.pomoStatus.classList.toggle('running', _pomoState.running);
+  if (el.pomoToggle) el.pomoToggle.textContent = _pomoState.running ? '⏸' : '▶';
+}
+
+function pomoStartTicker() {
+  if (_pomoInterval) return;
+  _pomoInterval = setInterval(() => {
+    pomoEnsureLoaded();
+    if (!_pomoState.running) return;
+    const r = pomoTick(_pomoState, 1);
+    _pomoState = r.state;
+    pomoSave(_pomoState);
+    if (r.finished) {
+      toast(`${pomoPhaseLabel(r.completed)} complete!`);
+      // Auto-start the next phase? Keep it opt-in: stay paused until user resumes.
+    }
+    pomoSyncUi();
+  }, 1000);
+}
+
+function pomoToggleRun() {
+  pomoEnsureLoaded();
+  _pomoState = _pomoState.running ? pomoPause(_pomoState) : pomoStart(_pomoState);
+  pomoSave(_pomoState);
+  if (_pomoState.running) pomoStartTicker();
+  pomoSyncUi();
+}
+
+function pomoStopAndReset() {
+  _pomoState = pomoReset();
+  pomoSave(_pomoState);
+  if (_pomoInterval) { clearInterval(_pomoInterval); _pomoInterval = null; }
+  pomoSyncUi();
+}
+
+function pomoDestroy() {
+  if (_pomoInterval) { clearInterval(_pomoInterval); _pomoInterval = null; }
+}
+
+// ---------- helpers ----------
+// NOTE: `basename` (line ~359) and `escapeHtml` (imported from ./lib/escape.js)
+// are both already in scope; reuse them rather than redeclaring.
 
 
 async function endCollabSession() {
@@ -3196,8 +3663,137 @@ const kanbanSearchInput = document.getElementById('kanban-search-input');
 if (kanbanSearchInput) {
   kanbanSearchInput.addEventListener('input', (e) => {
     _kanbanFilter = e.target.value;
-    renderKanban();
+    if (_wsMode === 'board') renderKanban();
+    else if (_wsMode === 'tasks') renderTasks();
   });
+}
+
+// ---------- Workspace hub event wiring (v0.33.0) ----------
+// Mode tabs
+if (el.workspaceTabs) {
+  el.workspaceTabs.addEventListener('click', (e) => {
+    const tab = e.target.closest('.workspace-tab');
+    if (tab) setWorkspaceMode(tab.dataset.mode);
+  });
+}
+// Refresh button (re-scan notes for Tasks/Review)
+if (el.workspaceRefresh) {
+  el.workspaceRefresh.addEventListener('click', () => {
+    _tasksNoteScan = null;
+    _reviewScan = null;
+    _calCacheKey = null; _calCache = null;
+    toast('Re-scanning notes…');
+    if (_wsMode === 'tasks') renderTasks();
+    else if (_wsMode === 'review') renderReview();
+    else if (_wsMode === 'calendar') renderCalendar();
+  });
+}
+
+// Calendar nav
+if (el.calPrev) el.calPrev.addEventListener('click', () => { stepMonth(-1); });
+if (el.calNext) el.calNext.addEventListener('click', () => { stepMonth(1); });
+if (el.calToday) el.calToday.addEventListener('click', () => {
+  const n = new Date();
+  _calYear = n.getFullYear();
+  _calMonth = n.getMonth();
+  renderCalendar();
+});
+if (el.calGrid) {
+  el.calGrid.addEventListener('click', (e) => {
+    const cell = e.target.closest('.cal-day');
+    if (cell) openDailyNoteAt(cell.dataset.stamp);
+  });
+  el.calGrid.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      const cell = e.target.closest('.cal-day');
+      if (cell) { e.preventDefault(); openDailyNoteAt(cell.dataset.stamp); }
+    }
+  });
+}
+function stepMonth(delta) {
+  _calMonth += delta;
+  if (_calMonth < 0) { _calMonth = 11; _calYear--; }
+  else if (_calMonth > 11) { _calMonth = 0; _calYear++; }
+  renderCalendar();
+}
+
+// Tasks: click row → open source (for notes) or do nothing special (kanban);
+// click checkbox → toggle done.
+if (el.tasksList) {
+  el.tasksList.addEventListener('click', async (e) => {
+    const check = e.target.closest('.task-check');
+    const row = e.target.closest('.task-row');
+    if (!row) return;
+    const id = row.dataset.id;
+    if (check) {
+      e.stopPropagation();
+      if (id.startsWith('kanban:')) {
+        const taskId = id.slice('kanban:'.length);
+        const t = _kanbanTasks.find((x) => x.id === taskId);
+        if (t) moveKanbanTask(taskId, t.status === 'done' ? 'todo' : 'done');
+        renderTasks();
+      } else if (id.startsWith('note:')) {
+        // note:<path>:<line>
+        const rest = id.slice('note:'.length);
+        const lastColon = rest.lastIndexOf(':');
+        const path = rest.slice(0, lastColon);
+        const line = Number(rest.slice(lastColon + 1));
+        const wasDone = check.classList.contains('checked');
+        const ok = await toggleNoteCheckbox(path, line, wasDone);
+        if (ok) {
+          _tasksNoteScan = null; // force rescan on next render
+          renderTasks();
+          toast(wasDone ? 'Marked open' : 'Marked done');
+        } else {
+          toast('Could not update note (line changed?)');
+        }
+      }
+      return;
+    }
+    // Row click → jump to source (notes only).
+    if (id.startsWith('note:')) {
+      const rest = id.slice('note:'.length);
+      const lastColon = rest.lastIndexOf(':');
+      const path = rest.slice(0, lastColon);
+      openPath(path);
+      closeKanban();
+    }
+  });
+}
+if (el.tasksSort) {
+  el.tasksSort.addEventListener('change', renderTasks);
+}
+
+// Review: click card to reveal, rate buttons to schedule.
+if (el.reviewStage) {
+  el.reviewStage.addEventListener('click', (e) => {
+    const card = e.target.closest('#review-card');
+    const rate = e.target.closest('.review-rate');
+    const src = e.target.closest('.review-source');
+    if (rate) { rateCard(rate.dataset.rate); return; }
+    if (src) {
+      const path = src.dataset.src;
+      if (path) { openPath(path); closeKanban(); }
+      return;
+    }
+    if (card && !_reviewRevealed) {
+      _reviewRevealed = true;
+      renderReviewCard();
+    }
+  });
+}
+
+// Pomodoro pill
+if (el.pomoStatus) {
+  el.pomoStatus.addEventListener('click', (e) => {
+    // The toggle button has its own target; clicks on the pill body open Board.
+    if (e.target === el.pomoToggle) return;
+    setWorkspaceMode('board', { skipRender: true });
+    openKanban();
+  });
+}
+if (el.pomoToggle) {
+  el.pomoToggle.addEventListener('click', (e) => { e.stopPropagation(); pomoToggleRun(); });
 }
 
 if (el.kanbanBoard) {
@@ -3590,7 +4186,7 @@ function syncSettingsControls() {
   }
 
   // Feature flags synchronization
-  const features = ['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily'];
+  const features = ['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily', 'pomodoro', 'calendar', 'tasks', 'review'];
   features.forEach((feat) => {
     const cb = document.getElementById(`settings-feature-${feat}`);
     if (cb) cb.checked = localStorage.getItem(`mdpeek-feature-${feat}`) !== '0';
@@ -3786,7 +4382,7 @@ document.getElementById('settings-autosave').addEventListener('change', (e) => {
 });
 
 // Feature flags change handlers
-['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily'].forEach((feat) => {
+['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily', 'pomodoro', 'calendar', 'tasks', 'review'].forEach((feat) => {
   const cb = document.getElementById(`settings-feature-${feat}`);
   if (cb) {
     cb.addEventListener('change', (e) => {
@@ -4493,6 +5089,8 @@ function doQuitApp() {
   // PowerShell processes behind. Safe no-op if the terminal drawer was never
   // opened.
   try { if (terminal?.destroyAll) terminal.destroyAll(); } catch (e) { console.error('terminal destroy:', e); }
+  // v0.33.0: stop the Pomodoro interval + flush its state.
+  try { pomoDestroy(); } catch (e) { console.error('pomodoro destroy:', e); }
   invoke('quit_app').catch((e) => toast('Could not quit: ' + fmtErr(e)));
 }
 
@@ -4778,6 +5376,11 @@ function bootMotion() {
 window.addEventListener('resize', () => {
   positionTabIndicator({ strip: el.tabStrip, indicator: el.tabStrip?.querySelector('.tab-indicator') });
 });
+
+// v0.33.0: restore the Pomodoro pill state on boot (it never auto-resumes
+// running after a reload, but shows the last phase/remaining so the user can
+// pick up where they left off).
+try { pomoSyncUi(); } catch (e) { console.error('[mdpeek] pomoSyncUi:', e); }
 
 // Restore sidebar state (default visible).
 if (localStorage.getItem('mdpeek-sidebar') === 'hidden') {

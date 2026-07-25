@@ -3394,6 +3394,335 @@ body.kanban-mode #kanban-view { display: flex; }
   opacity: 0.6;
 }
 
+/* ========================================================================
+   WORKSPACE HUB (v0.33.0) — Board · Calendar · Tasks · Review
+   The Kanban overlay is now a tabbed hub. The Board tab preserves the
+   original 3-column kanban below; the other three are new sibling panels.
+   ======================================================================== */
+
+/* Mode tabs — segmented pill row in the toolbar (between title + progress). */
+.workspace-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  margin-left: 4px;
+}
+.workspace-tab {
+  border: none;
+  background: transparent;
+  color: var(--fg-secondary);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 5px 14px;
+  border-radius: calc(var(--radius) - 2px);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+.workspace-tab:hover { background: var(--surface-hover); color: var(--fg); }
+.workspace-tab.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Panels: only the active one shows. Each panel animates in on switch
+   (reuses the settings-panel-in keyframe from motion.css). */
+.workspace-panel { display: none; flex: 1; min-height: 0; overflow: auto; }
+.workspace-panel.active {
+  display: block;
+  animation: settings-panel-in var(--dur-2) var(--ease-out);
+}
+/* Board panel keeps the original kanban-board layout. */
+.workspace-panel[data-mode="board"] { padding: 0; }
+/* The other panels get comfortable padding. */
+.workspace-panel[data-mode="calendar"],
+.workspace-panel[data-mode="tasks"],
+.workspace-panel[data-mode="review"] {
+  padding: 20px 24px;
+}
+
+/* Per-mode toolbar button visibility (toggled by JS, but provide the class). */
+.workspace-view .mode-board-only,
+.workspace-view .mode-calendar-only,
+.workspace-view .mode-tasks-only,
+.workspace-view .mode-review-only { display: none; }
+body.ws-mode-board .workspace-view .mode-board-only,
+body.ws-mode-calendar .workspace-view .mode-calendar-only,
+body.ws-mode-tasks .workspace-view .mode-tasks-only,
+body.ws-mode-review .workspace-view .mode-review-only { display: inline-flex; }
+
+/* ---- Pomodoro header pill (mirrors #collab-status) ---- */
+.pomo-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  user-select: none;
+  cursor: pointer;
+}
+.pomo-status.hidden { display: none; }
+.pomo-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  flex-shrink: 0;
+}
+.pomo-dot-focus { background: var(--accent); }
+.pomo-dot-break { background: var(--success); }
+.pomo-status.running .pomo-dot-focus { animation: dot-pulse 1.5s ease-in-out infinite; }
+.pomo-toggle {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+/* ---- Calendar ---- */
+.calendar-shell { max-width: 920px; margin: 0 auto; }
+.calendar-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.calendar-header .cal-label {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+}
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.cal-dow {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+  padding: 6px 0;
+}
+.cal-day {
+  aspect-ratio: 1 / 1;
+  min-height: 64px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elevated);
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-spring);
+}
+.cal-day:hover { background: var(--surface-hover); border-color: var(--border); }
+.cal-day:active { transform: scale(0.97); }
+.cal-day-out { opacity: 0.4; }
+.cal-day-today {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.cal-day-num { font-size: 13px; font-weight: 600; color: var(--fg-secondary); }
+.cal-day-today .cal-day-num { color: var(--accent); }
+.cal-day-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--accent);
+  margin-top: auto;
+  align-self: flex-start;
+}
+.cal-day-words {
+  font-size: 10.5px;
+  color: var(--fg-muted);
+  margin-top: 2px;
+}
+.cal-foot {
+  text-align: center;
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin: 16px 0 0;
+}
+
+/* ---- Tasks inbox ---- */
+.tasks-shell { max-width: 760px; margin: 0 auto; }
+.tasks-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.tasks-summary { font-size: 12.5px; color: var(--fg-muted); }
+.tasks-list { display: flex; flex-direction: column; gap: 8px; }
+.task-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-spring);
+}
+.task-row:hover { background: var(--surface-hover); border-color: var(--border); }
+.task-row:active { transform: scale(0.99); }
+.task-check {
+  width: 18px; height: 18px;
+  border: 1.5px solid var(--border);
+  border-radius: 5px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  background: var(--bg-elevated);
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+}
+.task-check.checked { background: var(--success); border-color: var(--success); }
+.task-check.checked::after {
+  content: '✓'; color: #fff; font-size: 12px; font-weight: 700; line-height: 1;
+}
+.task-body { flex: 1; min-width: 0; }
+.task-text { font-size: 13px; color: var(--fg); line-height: 1.4; }
+.task-row.done .task-text { color: var(--fg-muted); text-decoration: line-through; }
+.task-meta {
+  font-size: 11px;
+  color: var(--fg-muted);
+  margin-top: 3px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.task-badge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.task-badge-kanban { background: var(--accent-soft); color: var(--accent); }
+.task-badge-note { background: var(--surface); color: var(--fg-secondary); border: 1px solid var(--border-subtle); }
+.task-badge-todo { background: color-mix(in srgb, var(--kanban-todo) 18%, transparent); color: var(--kanban-todo); }
+.task-badge-progress { background: color-mix(in srgb, var(--kanban-doing) 18%, transparent); color: var(--kanban-doing); }
+.tasks-empty {
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+
+/* ---- Review / flashcards ---- */
+.review-shell { max-width: 640px; margin: 0 auto; }
+.review-header { text-align: center; margin-bottom: 20px; }
+.review-summary { font-size: 13px; color: var(--fg-muted); }
+.review-stage { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+.review-card {
+  width: 100%;
+  min-height: 220px;
+  perspective: 1200px;
+  cursor: pointer;
+}
+.review-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 220px;
+  transition: transform var(--dur-4) var(--ease-spring);
+  transform-style: preserve-3d;
+}
+.review-card.revealed .review-card-inner { transform: rotateY(180deg); }
+.review-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 32px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
+}
+.review-face-front { }
+.review-face-back {
+  transform: rotateY(180deg);
+  background: color-mix(in srgb, var(--accent-soft) 40%, var(--bg-elevated));
+}
+.review-face-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-muted);
+  margin-bottom: 12px;
+}
+.review-q, .review-a {
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--fg);
+}
+.review-hint {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-top: 16px;
+}
+.review-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.review-rate {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  cursor: pointer;
+  font: inherit;
+  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-spring);
+}
+.review-rate:hover { background: var(--surface-hover); }
+.review-rate:active { transform: scale(0.96); }
+.review-rate-label { font-size: 13px; font-weight: 600; }
+.review-rate-hint { font-size: 10.5px; color: var(--fg-muted); }
+.review-rate[data-rate="again"] { border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
+.review-rate[data-rate="again"]:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.review-rate[data-rate="easy"] { border-color: color-mix(in srgb, var(--success) 35%, transparent); }
+.review-rate[data-rate="easy"]:hover { background: color-mix(in srgb, var(--success) 12%, transparent); }
+.review-source {
+  font-size: 11px;
+  color: var(--fg-muted);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.review-done {
+  text-align: center;
+  padding: 48px 16px;
+}
+.review-done h3 { font-size: 20px; margin: 0 0 8px; }
+.review-done p { color: var(--fg-muted); font-size: 13px; margin: 0; }
+
 
 /* Settings Header Bar: title on left, Reset to default and Close (✕) on right */
 .settings-header {
