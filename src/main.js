@@ -33,12 +33,20 @@ import {
 import {
   normalizeNoteTasks, normalizeKanbanTasks, mergeTasks, filterTasks, sortTasks, taskStats,
 } from './lib/tasks.js';
+import {
+  WIDTHS, FONTS, THEMES, WIDTH_PX, FONT_PX, THEME_COLORS, DEFAULTS,
+  nextWidth, prevWidth, nextFont, prevFont, nextTheme,
+  readingTimeLabel, loadReaderPrefs,
+} from './lib/reading.js';
 import { DocumentStore, isPdfPath, isImagePath, isExcalidrawPath, langFromPath, langForEdit } from './lib/documents.js';
-import { renderMarkdown, renderCode, renderCsv, parseCsv, prepareCodeLang } from './lib/renderer.js';
+import { renderMarkdown, renderCode, renderCsv, parseCsv, prepareCodeLang, enhanceDom } from './lib/renderer.js';
 import { saveSession, loadSession, loadRecents, addRecent, removeRecent, saveRecents } from './lib/persistence.js';
 import { NavHistory } from './lib/nav-history.js';
 import { escapeHtml } from './lib/escape.js';
 import { getIconForPath, relativeTime } from './lib/file-type.js';
+// Vendor CSS bundling (v0.34.0): KaTeX + 6 highlight.js themes bundled locally
+// instead of CDN <link> tags in index.html. Works offline; no version skew.
+import { installHljsThemes } from './styles/vendors.css.js';
 // Real-time P2P collaboration (v0.21.0). Yjs + Trystero + Tauri deep-link.
 import * as collab from './collab.js';
 import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
@@ -191,6 +199,7 @@ const el = {
   export: document.getElementById('btn-export'),
   exportPdf: document.getElementById('btn-export-pdf'),
   present: document.getElementById('btn-present'),
+  reading: document.getElementById('btn-reading'),
   daily: document.getElementById('btn-daily'),
   explorer: document.getElementById('btn-explorer'),
   fileTree: document.getElementById('file-tree'),
@@ -230,6 +239,10 @@ const el = {
   dropzone: document.getElementById('dropzone'),
   pdfDrawToolbar: document.getElementById('pdf-draw-toolbar'),
   slideshow: document.getElementById('slideshow'),
+  reader: document.getElementById('reader'),
+  readerArticle: document.getElementById('reader-article'),
+  readerTitle: document.getElementById('reader-title'),
+  readerMeta: document.getElementById('reader-meta'),
   ctxMenu: document.getElementById('ctx-menu'),
   treeCtxMenu: document.getElementById('tree-ctx-menu'),
   closeDialog: document.getElementById('close-dialog'),
@@ -289,6 +302,11 @@ const el = {
 // also no-ops gracefully if elements aren't present yet (idempotent, called
 // again after full init via DOMContentLoaded below).
 bootMotion();
+// Install the bundled highlight.js <link> elements early (before any Tauri
+// code that could abort module execution in the browser dev environment).
+// applyTheme() — which runs later at the init section — toggles `disabled` on
+// these elements, so they must exist first. Same rationale as bootMotion above.
+installHljsThemes();
 document.addEventListener('DOMContentLoaded', bootMotion, { once: true });
 
 // Split pane drag-to-resize handler for Edit Mode
@@ -542,6 +560,7 @@ async function renderActive() {
     el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
     if (el.present) el.present.classList.add('hidden');
+    if (el.reading) el.reading.classList.add('hidden');
     if (el.share) el.share.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = ''; // clear stale TOC from the previous document
@@ -560,6 +579,7 @@ async function renderActive() {
     el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
     if (el.present) el.present.classList.add('hidden');
+    if (el.reading) el.reading.classList.add('hidden');
     if (el.share) el.share.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
@@ -591,6 +611,7 @@ async function renderActive() {
     el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
     if (el.present) el.present.classList.add('hidden');
+    if (el.reading) el.reading.classList.add('hidden');
     if (el.share) el.share.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
@@ -612,6 +633,7 @@ async function renderActive() {
     el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
     if (el.present) el.present.classList.add('hidden');
+    if (el.reading) el.reading.classList.add('hidden');
     // Share visible unless a session is already active.
     if (el.share) el.share.classList.toggle('hidden', collab.getStatus().active);
     el.viewMode.classList.remove('hidden');
@@ -653,6 +675,7 @@ async function renderActive() {
     el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
     if (el.present) el.present.classList.add('hidden');
+    if (el.reading) el.reading.classList.add('hidden');
     if (el.share) el.share.classList.add('hidden');
     el.pdfDrawToolbar.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
@@ -684,6 +707,7 @@ async function renderActive() {
       el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
     if (el.present) el.present.classList.add('hidden');
+    if (el.reading) el.reading.classList.add('hidden');
       if (el.share) el.share.classList.toggle('hidden', collab.getStatus().active);
       el.pdfDrawToolbar.classList.add('hidden');
       el.viewMode.classList.remove('hidden');
@@ -714,11 +738,12 @@ async function renderActive() {
   // and restore the markdown-body class (removed by the code-viewer branch).
   el.pdfDrawToolbar.classList.add('hidden');
   el.draw.classList.add('hidden');
-  // Export to HTML / Present only make sense for real markdown docs (not
-  // plain text — there's nothing to split into slides for a .txt file).
+  // Export to HTML / Present / Reading mode only make sense for real markdown
+  // docs (not plain text — there's nothing to split into slides or render).
   el.export.classList.toggle('hidden', !!doc.plain);
   if (el.exportPdf) el.exportPdf.classList.toggle('hidden', !!doc.plain);
   if (el.present) el.present.classList.toggle('hidden', !!doc.plain);
+  if (el.reading) el.reading.classList.toggle('hidden', !!doc.plain);
   // Share (collab) button: visible for any editable text doc (markdown, code,
   // plain .txt) and for Excalidraw canvases. Hidden only when a session is
   // already active (use End instead) — the per-viewer branches above already
@@ -870,6 +895,7 @@ const palette = initCommandPalette(() => {
     { id: 'find', label: 'Find', hint: 'Ctrl+F', keywords: 'find search', run: () => find.toggle() },
     { id: 'replace', label: 'Find & Replace', hint: 'Ctrl+H', keywords: 'replace substitute find', run: () => find.openReplace() },
     { id: 'focus', label: 'Focus mode', hint: 'F11', keywords: 'focus zen distraction', run: toggleFocus },
+    { id: 'reading', label: 'Reading mode', hint: 'Ctrl+Shift+R', keywords: 'reader immersive distraction safari pocket book', run: toggleReading },
     { id: 'typewriter', label: 'Toggle typewriter mode', keywords: 'typewriter center line writing', run: toggleTypewriter },
     { id: 'zoom-in', label: 'Zoom in', hint: 'Ctrl+=', keywords: 'zoom in larger', run: zoomIn },
     { id: 'zoom-out', label: 'Zoom out', hint: 'Ctrl+-', keywords: 'zoom out smaller', run: zoomOut },
@@ -1370,8 +1396,9 @@ function exportThemeVars() {
   return `:root { ${decls} --content-font-size: 16px; }`;
 }
 
-// Fetch the active hljs theme's CSS text from its <link> href. Returns '' if
-// offline or the fetch fails (code stays readable, just uncolored).
+// Fetch the active hljs theme's CSS text from its <link> href. v0.34.0: the
+// links now point at bundled local assets (not CDN), so this works offline.
+// Returns '' only if the fetch itself fails (shouldn't happen post-bundle).
 async function exportHljsCss() {
   try {
     const theme = document.documentElement.dataset.theme;
@@ -1657,6 +1684,107 @@ function toggleFullscreen() {
   } else {
     document.documentElement.requestFullscreen().catch(() => {});
   }
+}
+
+// ---------- immersive reading mode (v0.34.0) ----------
+// Safari-Reader-style full-screen overlay. Distinct from Focus mode (F11,
+// which only hides chrome): Reading Mode is a true overlay with adjustable
+// width / font size / color theme, independent of the app theme. Reuses the
+// live renderMarkdown + enhanceDom so Mermaid, KaTeX, code blocks, footnotes,
+// etc. render exactly as in the normal view.
+//
+// State: the three prefs (width/font/theme) are persisted under
+// mdpeek-reader-<name> and restored on enter. Cycling helpers live in
+// ./lib/reading.js so they're unit-testable.
+function readingPrefs() {
+  return loadReaderPrefs(localStorage);
+}
+function persistReaderPref(key, value) {
+  localStorage.setItem(`mdpeek-reader-${key}`, value);
+}
+function applyReaderPrefs(prefs) {
+  el.reader.dataset.readerWidth = prefs.width;
+  el.reader.dataset.readerFont = prefs.font;
+  el.reader.dataset.readerTheme = prefs.theme;
+}
+function refreshReaderMeta() {
+  const doc = store.active();
+  if (!doc) return;
+  const words = countWords(doc.content);
+  const label = readingTimeLabel(words);
+  el.readerMeta.textContent = `${words.toLocaleString()} words · ${label}`;
+}
+
+async function enterReading() {
+  const doc = store.active();
+  if (!doc || doc.pdf || doc.excalidraw || doc.code || doc.image || doc.csv) {
+    toast('Reading mode is for Markdown documents');
+    return;
+  }
+  // Sync any pending editor changes before rendering.
+  if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
+  // Title: the doc's filename, or "Untitled".
+  el.readerTitle.textContent = doc.path
+    ? basename(doc.path).replace(/\.(md|markdown|mdx)$/i, '')
+    : 'Untitled';
+  refreshReaderMeta();
+  // Render the doc into the reader article, then enhance (Mermaid, KaTeX, code
+  // badges/gutter) exactly as the normal view does.
+  el.readerArticle.innerHTML = renderMarkdown(doc.content);
+  try {
+    await enhanceDom(el.readerArticle, { lineNumbers: codeLineNumbersPref() });
+  } catch (e) {
+    console.error('[mdpeek] reader enhanceDom:', e);
+  }
+  applyReaderPrefs(readingPrefs());
+  el.reader.classList.remove('hidden');
+  document.body.classList.add('reading');
+  // Focus the scroll region so keyboard shortcuts work without a tab-focus.
+  const scroll = el.reader.querySelector('.reader-scroll');
+  if (scroll) scroll.scrollTop = 0;
+  el.reader.focus?.();
+}
+
+function exitReading() {
+  el.reader.classList.add('hidden');
+  document.body.classList.remove('reading');
+  // Drop rendered content so the next enter starts fresh (no stale diagrams).
+  el.readerArticle.innerHTML = '';
+}
+
+function toggleReading() {
+  if (document.body.classList.contains('reading')) {
+    exitReading();
+  } else {
+    enterReading();
+  }
+}
+
+// Cycle helpers — read current pref, advance, persist, apply live.
+function readerCycleWidth(dir) {
+  const cur = el.reader.dataset.readerWidth || DEFAULTS.width;
+  const next = dir > 0 ? nextWidth(cur) : prevWidth(cur);
+  persistReaderPref('width', next);
+  el.reader.dataset.readerWidth = next;
+}
+function readerCycleFont(dir) {
+  const cur = el.reader.dataset.readerFont || DEFAULTS.font;
+  const next = dir > 0 ? nextFont(cur) : prevFont(cur);
+  persistReaderPref('font', next);
+  el.reader.dataset.readerFont = next;
+}
+function readerCycleTheme() {
+  const cur = el.reader.dataset.readerTheme || DEFAULTS.theme;
+  const next = nextTheme(cur);
+  persistReaderPref('theme', next);
+  el.reader.dataset.readerTheme = next;
+}
+
+// Tiny local helper so reading mode doesn't reach into the editor/viewer
+// modules for the code-line-numbers flag. Mirrors viewer.js's read.
+function codeLineNumbersPref() {
+  try { return localStorage.getItem('mdpeek-code-line-numbers') === '1'; }
+  catch { return false; }
 }
 
 // ---------- typewriter mode ----------
@@ -3631,6 +3759,15 @@ el.save.addEventListener('click', saveActive);
 if (el.export) el.export.addEventListener('click', exportHtml);
 if (el.exportPdf) el.exportPdf.addEventListener('click', exportPdf);
 if (el.present) el.present.addEventListener('click', togglePresentation);
+if (el.reading) el.reading.addEventListener('click', toggleReading);
+// Reader overlay control buttons. Each is a no-op if Reading Mode isn't open
+// (defensive — the buttons are inside the hidden overlay anyway).
+document.getElementById('reader-exit')?.addEventListener('click', exitReading);
+document.getElementById('reader-width-prev')?.addEventListener('click', () => readerCycleWidth(-1));
+document.getElementById('reader-width-next')?.addEventListener('click', () => readerCycleWidth(1));
+document.getElementById('reader-font-prev')?.addEventListener('click', () => readerCycleFont(-1));
+document.getElementById('reader-font-next')?.addEventListener('click', () => readerCycleFont(1));
+document.getElementById('reader-theme')?.addEventListener('click', readerCycleTheme);
 if (el.share) el.share.addEventListener('click', openShareModal);
 if (el.shareCopyBtn) el.shareCopyBtn.addEventListener('click', copyShareLink);
 if (el.shareCancelBtn) el.shareCancelBtn.addEventListener('click', closeShareModal);
@@ -4100,6 +4237,7 @@ const SETTING_KEYS = [
   'mdpeek-base-font',
   'mdpeek-line-height',
   'mdpeek-line-numbers',
+  'mdpeek-code-line-numbers',
   'mdpeek-font-family',
   'mdpeek-autosave',
 ];
@@ -4157,6 +4295,10 @@ function syncSettingsControls() {
 
   const lineNumCb = document.getElementById('settings-line-numbers');
   if (lineNumCb) lineNumCb.checked = localStorage.getItem('mdpeek-line-numbers') !== '0';
+
+  // Code-block line numbers default OFF (opt-in, unlike the editor gutter).
+  const codeLineNumCb = document.getElementById('settings-code-line-numbers');
+  if (codeLineNumCb) codeLineNumCb.checked = localStorage.getItem('mdpeek-code-line-numbers') === '1';
 
   const activeLineCb = document.getElementById('settings-active-line');
   if (activeLineCb) activeLineCb.checked = localStorage.getItem('mdpeek-active-line') !== '0';
@@ -4359,6 +4501,15 @@ document.getElementById('settings-font-family').addEventListener('change', (e) =
 document.getElementById('settings-line-numbers').addEventListener('change', (e) => {
   localStorage.setItem('mdpeek-line-numbers', e.target.checked ? '1' : '0');
   applyLineNumbers();
+});
+
+// Code-block line numbers (fenced blocks in rendered Markdown). Off by default.
+// Re-renders the active doc so the gutter appears/disappears immediately.
+document.getElementById('settings-code-line-numbers')?.addEventListener('change', (e) => {
+  localStorage.setItem('mdpeek-code-line-numbers', e.target.checked ? '1' : '0');
+  // Re-render the active document so the gutter change is visible at once.
+  // The viewer/editor read the flag fresh on each render.
+  renderActive().catch((err) => console.error('[mdpeek] code-line-numbers re-render:', err));
 });
 
 // Active line highlight — toggle the line marker strip.
@@ -5033,6 +5184,28 @@ window.addEventListener('keydown', (e) => {
     else openKanban();
     return;
   }
+  // Ctrl+Shift+R → toggle immersive Reading Mode.
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'R' || e.key === 'r')) {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleReading();
+    return;
+  }
+  // Reader-internal keys. Only active while Reading Mode is open, and only
+  // when no modifier is held (so Ctrl+[ etc. keep their browser meaning).
+  // Esc exits, [ / ] narrow / widen, + / - grow / shrink text, T cycles theme.
+  if (document.body.classList.contains('reading') && !(e.ctrlKey || e.metaKey || e.altKey)) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      exitReading();
+      return;
+    }
+    if (e.key === '[') { e.preventDefault(); readerCycleWidth(-1); return; }
+    if (e.key === ']') { e.preventDefault(); readerCycleWidth(1); return; }
+    if (e.key === '+' || e.key === '=') { e.preventDefault(); readerCycleFont(1); return; }
+    if (e.key === '-' || e.key === '_') { e.preventDefault(); readerCycleFont(-1); return; }
+    if (e.key === 't' || e.key === 'T') { e.preventDefault(); readerCycleTheme(); return; }
+  }
   // Esc → close the Kanban board (full-page view). Only fires when the board
   // is open. Lives here (the global keydown handler) so it works regardless
   // of focus inside the board.
@@ -5361,6 +5534,11 @@ window.addEventListener('hljs-language-registered', () => {
 });
 
 // ---------- init ----------
+// (v0.34.0) installHljsThemes() is also called early — right after the el
+// cache near the top of this module — because Tauri API calls below can abort
+// module execution in the browser dev environment. This idempotent call is a
+// safety net for the production build where the early call always succeeds.
+installHljsThemes();
 const savedTheme = localStorage.getItem('mdpeek-theme');
 applyTheme(savedTheme && HLJS_FOR_THEME[savedTheme] ? savedTheme : DEFAULT_THEME);
 

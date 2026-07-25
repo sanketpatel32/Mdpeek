@@ -441,12 +441,15 @@ export async function prepareCodeLang(lang) {
 // Options:
 //   { mermaid: false } — skip mermaid rendering (expensive; used for the
 //   edit-mode live preview where diagrams would re-layout on every keystroke).
+//   { lineNumbers: true } — add a line-number gutter to each fenced code
+//   block (opt-in; mirrors the code-file viewer's gutter at renderCode()).
 export async function enhanceDom(container, {
   mermaid: renderMermaid = true,
   folding: renderFolding = true,
+  lineNumbers = false,
 } = {}) {
   if (typeof window === 'undefined') return;
-  enhanceCodeBlocks(container);
+  enhanceCodeBlocks(container, { lineNumbers });
   enhanceAnchors(container);
   if (renderFolding) enhanceFolding(container);
   // Kick off dynamic language registration for any fenced langs we don't yet
@@ -469,38 +472,62 @@ async function registerVisibleLanguages(container) {
   }
 }
 
-// Adds a copy button to each <pre> that contains a <code> block. One delegated
-// listener per container — avoids a listener per button (the rendered DOM is
-// rebuilt on every keystroke in edit mode, so per-button listeners would leak).
-function enhanceCodeBlocks(container) {
+// Adds a copy button, a language badge, and an optional line-number gutter to
+// each <pre> that contains a <code> block. One delegated click listener per
+// container — avoids a listener per button (the rendered DOM is rebuilt on
+// every keystroke in edit mode, so per-button listeners would leak).
+//
+// Options:
+//   { lineNumbers: true } — inject a 1-indexed gutter to the left of the code.
+//   Mirrors the code-file viewer's gutter (renderCode). Off by default; the
+//   caller passes it through from the mdpeek-code-line-numbers setting.
+function enhanceCodeBlocks(container, { lineNumbers = false } = {}) {
   if (typeof window === 'undefined') return;
   const pres = container.querySelectorAll('pre');
   pres.forEach((pre) => {
-    if (pre.querySelector(':scope > code')) {
-      let actions = pre.querySelector('.code-actions');
-      if (!actions) {
-        actions = document.createElement('div');
-        actions.className = 'code-actions';
-        
-        const saveBtn = document.createElement('button');
-        saveBtn.className = 'code-action-btn save-code-btn';
-        saveBtn.type = 'button';
-        saveBtn.setAttribute('aria-label', 'Save code block as file');
-        saveBtn.title = 'Save code block';
-        saveBtn.innerHTML =
-          '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+    const code = pre.querySelector(':scope > code');
+    if (!code) return;
 
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'code-action-btn copy-btn';
-        copyBtn.type = 'button';
-        copyBtn.setAttribute('aria-label', 'Copy code');
-        copyBtn.title = 'Copy';
-        copyBtn.innerHTML =
-          '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+    // Language badge — small pill in the top-left showing the detected lang.
+    // Skipped for plaintext (no value showing "plaintext"). Idempotent.
+    const lang = (code.className.match(/language-(\S+)/) || [])[1];
+    if (lang && lang !== 'plaintext' && !pre.querySelector('.code-lang')) {
+      const badge = document.createElement('span');
+      badge.className = 'code-lang';
+      badge.textContent = lang;
+      pre.append(badge);
+    }
 
-        actions.append(saveBtn, copyBtn);
-        pre.append(actions);
-      }
+    // Line-number gutter. Toggled by the setting; re-running enhanceDom with
+    // the flag flipped will add or leave it. We only add (never strip in-place)
+    // — a setting change triggers a full re-render that rebuilds pres fresh.
+    if (lineNumbers && !pre.querySelector('.code-gutter')) {
+      addCodeGutter(pre, code);
+    }
+
+    let actions = pre.querySelector('.code-actions');
+    if (!actions) {
+      actions = document.createElement('div');
+      actions.className = 'code-actions';
+
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'code-action-btn save-code-btn';
+      saveBtn.type = 'button';
+      saveBtn.setAttribute('aria-label', 'Save code block as file');
+      saveBtn.title = 'Save code block';
+      saveBtn.innerHTML =
+        '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'code-action-btn copy-btn';
+      copyBtn.type = 'button';
+      copyBtn.setAttribute('aria-label', 'Copy code');
+      copyBtn.title = 'Copy';
+      copyBtn.innerHTML =
+        '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+
+      actions.append(saveBtn, copyBtn);
+      pre.append(actions);
     }
   });
 
@@ -526,6 +553,34 @@ function enhanceCodeBlocks(container) {
     container.addEventListener('click', handler);
     container.__codeActionHandler = handler;
   }
+}
+
+// Build a 1-indexed line-number gutter matching the code block's line count.
+// The gutter shares line-height with the <pre><code> so rows stay aligned.
+// Layout: <pre class="with-gutter"> wraps a flex row of .code-gutter + the
+// original <code>. We move the existing <code> into the wrapper rather than
+// cloning, so the copy/save handlers still target the live code element.
+function addCodeGutter(pre, code) {
+  const lineCount = (code.textContent || '').split('\n').length;
+  // Trailing newline from ``` fences produces an extra empty line — trim it
+  // so the gutter doesn't show a phantom last row.
+  const count = code.textContent.endsWith('\n') ? lineCount - 1 : lineCount;
+  const gutter = document.createElement('div');
+  gutter.className = 'code-gutter';
+  gutter.setAttribute('aria-hidden', 'true');
+  let html = '';
+  for (let i = 1; i <= count; i++) html += `<div>${i}</div>`;
+  gutter.innerHTML = html;
+
+  const row = document.createElement('div');
+  row.className = 'code-row';
+  // Move the existing <code> into the row so highlighting + copy handlers
+  // keep working unchanged. The <pre> becomes a positioning shell.
+  row.append(gutter);
+  pre.append(row);
+  // Move code last (after gutter) — visually right of the gutter.
+  row.append(code);
+  pre.classList.add('with-gutter');
 }
 
 function saveCodeBlockAsFile(codeEl, preEl) {

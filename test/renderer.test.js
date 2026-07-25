@@ -269,6 +269,97 @@ describe('enhanceDom — copy buttons', () => {
   });
 });
 
+describe('enhanceDom — language badge', () => {
+  it('adds a .code-lang badge showing the language for non-plaintext blocks', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = '<pre><code class="hljs language-python">print(1)</code></pre>';
+    await enhanceDom(div);
+    const badge = div.querySelector('.code-lang');
+    expect(badge).toBeTruthy();
+    expect(badge.textContent).toBe('python');
+  });
+
+  it('skips the badge for plaintext (no value showing "plaintext")', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = '<pre><code class="hljs language-plaintext">hello</code></pre>';
+    await enhanceDom(div);
+    expect(div.querySelector('.code-lang')).toBeNull();
+  });
+
+  it('skips the badge when no language class is present', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = '<pre><code>no language</code></pre>';
+    await enhanceDom(div);
+    expect(div.querySelector('.code-lang')).toBeNull();
+  });
+
+  it('is idempotent — does not add a second badge on re-enhance', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = '<pre><code class="hljs language-rust">fn main() {}</code></pre>';
+    await enhanceDom(div);
+    await enhanceDom(div);
+    expect(div.querySelectorAll('.code-lang')).toHaveLength(1);
+  });
+});
+
+describe('enhanceDom — line-number gutter (v0.34.0)', () => {
+  it('does NOT add a gutter by default (opt-in)', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = '<pre><code class="hljs language-js">a\nb\nc</code></pre>';
+    await enhanceDom(div);
+    expect(div.querySelector('.code-gutter')).toBeNull();
+    expect(div.querySelector('pre').classList.contains('with-gutter')).toBe(false);
+  });
+
+  it('adds a gutter with one row per line when lineNumbers: true', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = '<pre><code class="hljs language-js">a\nb\nc</code></pre>';
+    await enhanceDom(div, { lineNumbers: true });
+    const gutter = div.querySelector('.code-gutter');
+    expect(gutter).toBeTruthy();
+    expect(gutter.children).toHaveLength(3);
+    expect(gutter.children[0].textContent).toBe('1');
+    expect(gutter.children[2].textContent).toBe('3');
+    expect(div.querySelector('pre').classList.contains('with-gutter')).toBe(true);
+  });
+
+  it('trims the phantom trailing line from a trailing newline', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    // "a\nb\n" splits to ['a','b',''] — the gutter should show 2 rows, not 3.
+    div.innerHTML = '<pre><code class="hljs language-js">a\nb\n</code></pre>';
+    await enhanceDom(div, { lineNumbers: true });
+    expect(div.querySelector('.code-gutter').children).toHaveLength(2);
+  });
+
+  it('preserves the copy/save buttons alongside the gutter', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = '<pre><code class="hljs language-js">x</code></pre>';
+    await enhanceDom(div, { lineNumbers: true });
+    expect(div.querySelector('.copy-btn')).toBeTruthy();
+    expect(div.querySelector('.save-code-btn')).toBeTruthy();
+    expect(div.querySelector('.code-gutter')).toBeTruthy();
+  });
+
+  it('moves the <code> into a .code-row alongside the gutter', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = '<pre><code class="hljs language-js">hello</code></pre>';
+    await enhanceDom(div, { lineNumbers: true });
+    const row = div.querySelector('.code-row');
+    expect(row).toBeTruthy();
+    expect(row.querySelector('code')).toBeTruthy();   // code still exists
+    expect(row.querySelector('.code-gutter')).toBeTruthy();
+  });
+});
+
 describe('enhanceDom — heading anchors', () => {
   it('appends an anchor link to each heading with an id', async () => {
     const { enhanceDom } = await import('../src/lib/renderer.js');

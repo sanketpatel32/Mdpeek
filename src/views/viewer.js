@@ -1,10 +1,18 @@
 import { renderMarkdown, enhanceDom } from '../lib/renderer.js';
 
+// v0.34.0: line numbers on fenced code blocks are opt-in (off by default). Read
+// once per render so a setting toggle takes effect on the next render without
+// a page reload.
+function codeLineNumbersOn() {
+  try { return localStorage.getItem('mdpeek-code-line-numbers') === '1'; }
+  catch { return false; }
+}
+
 // Renders `content` (markdown string) into `el`. Returns a promise that resolves
 // after mermaid diagrams are enhanced.
 export async function showDocument(el, content) {
   el.innerHTML = renderMarkdown(content);
-  await enhanceDom(el);
+  await enhanceDom(el, { lineNumbers: codeLineNumbersOn() });
 }
 
 // Builds a table of contents from h1-h3 inside `root` and injects it into the

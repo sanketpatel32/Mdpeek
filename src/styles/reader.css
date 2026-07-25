@@ -1,0 +1,232 @@
+/* Immersive Reading Mode (v0.34.0).
+   A Safari-Reader / Pocket-style full-screen overlay. Distinct from Focus mode
+   (F11, which only hides chrome): Reading Mode is a true overlay with its own
+   typography controls and color presets, independent of the app theme.
+
+   Driven by data attributes on the #reader element:
+     data-reader-width="narrow|medium|wide"   → column max-width
+     data-reader-font="small|medium|large"    → article font-size
+     data-reader-theme="light|sepia|dark"      → bg/fg color preset
+   These map to CSS custom properties so the article + scroll region both pick
+   them up. */
+
+.reader {
+  position: fixed;
+  inset: 0;
+  z-index: 1150;            /* above slideshow (1100), below modal (1200) */
+  display: flex;
+  flex-direction: column;
+  background: var(--reader-bg, #ffffff);
+  color: var(--reader-fg, #1d1d1f);
+}
+
+/* ---- control bar (frosted pill, mirrors app-header aesthetic) ---- */
+.reader-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 18px;
+  background: var(--reader-bar-bg, rgba(255, 255, 255, 0.72));
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--reader-border, rgba(0, 0, 0, 0.08));
+}
+.reader-title {
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40%;
+  color: var(--reader-fg, #1d1d1f);
+}
+.reader-meta {
+  flex: 1 1 auto;
+  font-size: 12px;
+  color: var(--reader-fg-muted, #6e6e73);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.reader-controls {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.reader-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 6px);
+  background: transparent;
+  color: var(--reader-fg-muted, #6e6e73);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.reader-btn:hover {
+  background: var(--reader-btn-hover, rgba(0, 0, 0, 0.06));
+  color: var(--reader-fg, #1d1d1f);
+}
+.reader-btn-lg { font-size: 15px; }
+.reader-btn:focus-visible {
+  outline: none;
+  border-color: var(--accent, #007aff);
+  box-shadow: 0 0 0 3px var(--accent-soft, rgba(0, 122, 255, 0.18));
+}
+.reader-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--reader-border, rgba(0, 0, 0, 0.1));
+}
+
+/* ---- scroll region + article ---- */
+.reader-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Smooth, momentum scrolling */
+  scroll-behavior: smooth;
+}
+.reader-article {
+  max-width: var(--reader-width, 720px);
+  margin: 0 auto;
+  padding: 64px 32px 160px;
+  font-size: var(--reader-font, 19px);
+  line-height: 1.7;
+  color: var(--reader-fg, #1d1d1f);
+  /* Reader typography: a touch more generous than the normal view */
+  font-family: var(--reader-font-family, var(--content-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif));
+}
+
+/* Reader-specific tweaks to the shared .markdown-body typography. Headings,
+   code, tables, etc. inherit from content.css; we only override sizing/spacing
+   to suit the larger reading font. */
+.reader-article h1 { font-size: 2.1em; margin-top: 0.4em; }
+.reader-article h2 { font-size: 1.6em; }
+.reader-article h3 { font-size: 1.3em; }
+.reader-article p,
+.reader-article li {
+  margin: 0 0 1em;
+}
+.reader-article pre {
+  font-size: 0.82em;   /* scale code down relative to the larger body text */
+}
+
+/* ---- hint strip (bottom) ---- */
+.reader-hint {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--reader-fg-muted, #6e6e73);
+  background: var(--reader-bar-bg, rgba(255, 255, 255, 0.72));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--reader-border, rgba(0, 0, 0, 0.08));
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+.reader:hover .reader-hint,
+.reader:focus-within .reader-hint {
+  opacity: 1;
+}
+
+/* ---- width stops → --reader-width token ---- */
+.reader[data-reader-width="narrow"] { --reader-width: 580px; }
+.reader[data-reader-width="medium"] { --reader-width: 720px; }
+.reader[data-reader-width="wide"]   { --reader-width: 880px; }
+
+/* ---- font stops → --reader-font token ---- */
+.reader[data-reader-font="small"]  { --reader-font: 17px; }
+.reader[data-reader-font="medium"] { --reader-font: 19px; }
+.reader[data-reader-font="large"]  { --reader-font: 21px; }
+
+/* ---- theme presets → bg / fg / muted / borders ---- */
+.reader[data-reader-theme="light"] {
+  --reader-bg: #ffffff;
+  --reader-fg: #1d1d1f;
+  --reader-fg-muted: #6e6e73;
+  --reader-border: rgba(0, 0, 0, 0.08);
+  --reader-bar-bg: rgba(255, 255, 255, 0.78);
+  --reader-btn-hover: rgba(0, 0, 0, 0.06);
+  --code-bg: #f6f8fa;
+  --code-border: #e1e4e8;
+  --border: #d0d7de;
+  --border-subtle: #eaeef2;
+  --surface: #f6f8fa;
+  --accent: #0969da;
+  --accent-soft: rgba(9, 105, 218, 0.14);
+}
+.reader[data-reader-theme="sepia"] {
+  --reader-bg: #f8f1e3;
+  --reader-fg: #5b4636;
+  --reader-fg-muted: #8a7560;
+  --reader-border: rgba(91, 70, 54, 0.14);
+  --reader-bar-bg: rgba(248, 241, 227, 0.82);
+  --reader-btn-hover: rgba(91, 70, 54, 0.10);
+  --code-bg: #efe6d3;
+  --code-border: #ddd0b8;
+  --border: #d9c9a8;
+  --border-subtle: #e8dec5;
+  --surface: #efe6d3;
+  --accent: #a85a2a;
+  --accent-soft: rgba(168, 90, 42, 0.16);
+}
+.reader[data-reader-theme="dark"] {
+  --reader-bg: #1a1a1c;
+  --reader-fg: #e6e6e6;
+  --reader-fg-muted: #9a9a9f;
+  --reader-border: rgba(255, 255, 255, 0.10);
+  --reader-bar-bg: rgba(26, 26, 28, 0.78);
+  --reader-btn-hover: rgba(255, 255, 255, 0.08);
+  --code-bg: #242427;
+  --code-border: #34343a;
+  --border: #34343a;
+  --border-subtle: #2a2a2e;
+  --surface: #242427;
+  --accent: #5e9eff;
+  --accent-soft: rgba(94, 158, 255, 0.18);
+}
+
+/* Entrance animation — gentle fade + slight scale. Honors reduced-motion. */
+.reader:not(.hidden) {
+  animation: reader-in 220ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+}
+@keyframes reader-in {
+  from { opacity: 0; transform: scale(0.99); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Print: reading mode shouldn't intercept printing — the export-PDF flow
+   handles that via body.printing. Hide the reader bar / hint if a print sneaks
+   through while it's open. */
+@media print {
+  .reader-bar, .reader-hint { display: none !important; }
+  .reader { position: static; background: #fff !important; color: #000 !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader:not(.hidden) { animation: none; }
+  .reader-hint { transition: none; }
+}
+
+/* Small screens: collapse the bar's text + shrink article padding. */
+@media (max-width: 640px) {
+  .reader-title { max-width: 30%; }
+  .reader-meta { display: none; }
+  .reader-article { padding: 32px 20px 120px; font-size: 17px !important; }
+}

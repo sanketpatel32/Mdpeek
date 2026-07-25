@@ -249,6 +249,77 @@
   border-color: #2da44e;
 }
 
+/* Language badge — small pill in the top-left of a code block showing the
+   detected language. Appears on hover (mirrors .code-actions reveal). Only
+   added for non-plaintext languages by enhanceCodeBlocks(). */
+.code-lang {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  padding: 1px 7px;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  transition: opacity 150ms var(--ease, ease);
+  pointer-events: none;
+  z-index: 5;
+  user-select: none;
+}
+.markdown-body pre:hover .code-lang {
+  opacity: 1;
+}
+/* When the gutter is on, the badge shifts right so it doesn't overlap the
+   gutter column. The gutter width + padding ≈ 52px; nudge to 60px. */
+.markdown-body pre.with-gutter .code-lang {
+  left: 60px;
+}
+
+/* Line-number gutter on fenced code blocks (opt-in via the
+   mdpeek-code-line-numbers setting). Layout: <pre.with-gutter> wraps a flex
+   .code-row containing .code-gutter + <code>. The gutter shares line-height
+   with the code so rows stay aligned. Mirrors the code-file viewer gutter. */
+.markdown-body pre.with-gutter {
+  padding-left: 0;   /* gutter owns the left padding */
+}
+.markdown-body pre .code-row {
+  display: flex;
+  align-items: flex-start;
+}
+.code-gutter {
+  flex: 0 0 auto;
+  padding: 0 12px 0 16px;
+  color: var(--fg-muted);
+  text-align: right;
+  user-select: none;
+  border-right: 1px solid var(--border-subtle);
+  line-height: 1.55;   /* must match pre code below */
+  font-size: 13px;
+  font-family: inherit;
+  opacity: 0.85;
+}
+.markdown-body pre .code-row > code {
+  display: block;
+  padding-left: 14px;
+  flex: 1 1 auto;
+  min-width: 0;        /* allow horizontal scroll within the pre */
+  line-height: 1.55;
+  font-size: 13px;
+}
+/* The badge and gutter don't make sense in print — strip them. */
+@media print {
+  .code-lang, .code-gutter { display: none !important; }
+  .markdown-body pre.with-gutter { padding-left: 14px !important; }
+  .markdown-body pre .code-row { display: block !important; }
+  .markdown-body pre .code-row > code { padding-left: 0 !important; }
+}
+
 /* Heading anchor links — a # glyph that appears on hover. Clicking copies the
    #slug fragment so it can be pasted as a deep link. Hidden by default to keep
    heading text clean; revealed on hover or keyboard focus. */

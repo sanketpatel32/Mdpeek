@@ -8,48 +8,13 @@
     <link rel="stylesheet" href="/src/styles/themes.css" />
     <link rel="stylesheet" href="/src/styles/base.css" />
     <link rel="stylesheet" href="/src/styles/content.css" />
+    <link rel="stylesheet" href="/src/styles/reader.css" />
     <link rel="stylesheet" href="/src/styles/motion.css" />
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"
-    />
-    <!-- One hljs theme is enabled at a time, driven by the active app theme.
-         applyTheme() toggles `disabled` on each link so code blocks match. -->
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css"
-      id="hljs-light"
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css"
-      id="hljs-dark"
-      disabled
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/solarized-light.min.css"
-      id="hljs-solar-light"
-      disabled
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/solarized-dark.min.css"
-      id="hljs-solar-dark"
-      disabled
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/dracula.min.css"
-      id="hljs-dracula"
-      disabled
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/nord.min.css"
-      id="hljs-nord"
-      disabled
-    />
+    <!-- KaTeX math CSS + the 6 highlight.js themes are bundled locally from
+         the npm deps (katex, highlight.js) by src/styles/vendors.css.js — no
+         more CDN <link> tags. installHljsThemes() injects the 6 hljs <link>
+         elements at boot with stable IDs (hljs-light, …); applyTheme()
+         toggles `disabled` on each so code blocks match the active theme. -->
   </head>
   <body>
     <header class="app-header" data-tauri-drag-region>
@@ -147,6 +112,11 @@
             <button class="ctx-item hidden" id="btn-present" role="menuitem" title="Present (split on ---)">
               <span class="ctx-ico" data-icon="presentation"></span>
               <span class="ctx-label">Present</span>
+            </button>
+            <button class="ctx-item hidden" id="btn-reading" role="menuitem" title="Reading mode (Ctrl+Shift+R)">
+              <span class="ctx-ico" data-icon="book-open"></span>
+              <span class="ctx-label">Reading mode</span>
+              <span class="ctx-hint">⇧⌘R</span>
             </button>
             <div class="ctx-sep"></div>
             <div class="ctx-group-label">Tools</div>
@@ -328,6 +298,41 @@
       <button class="slide-arrow next" type="button" title="Next (→)" aria-label="Next slide">›</button>
       <div class="slide-progress" aria-live="polite"></div>
       <div class="slide-hint">← → · space · F fullscreen · S style · Esc</div>
+    </div>
+
+    <!-- Immersive Reading Mode (v0.34.0). Safari-Reader-style full-screen
+         overlay with adjustable width / font size / color theme. Reuses the
+         live renderMarkdown + enhanceDom so Mermaid, KaTeX, code blocks,
+         footnotes, etc. render exactly as in the normal view. Independent of
+         the app theme — you can read in sepia while the app stays dark. -->
+    <div id="reader" class="reader hidden" role="dialog" aria-modal="true" aria-label="Reading mode">
+      <div class="reader-bar" data-tauri-drag-region>
+        <div class="reader-title" id="reader-title">Untitled</div>
+        <div class="reader-meta" id="reader-meta"></div>
+        <div class="reader-controls">
+          <button class="reader-btn" id="reader-width-prev" type="button" title="Narrower ( [ )" aria-label="Narrower">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          </button>
+          <button class="reader-btn" id="reader-width-next" type="button" title="Wider ( ] )" aria-label="Wider">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+          <span class="reader-divider" aria-hidden="true"></span>
+          <button class="reader-btn" id="reader-font-prev" type="button" title="Smaller text ( - )" aria-label="Smaller text">A</button>
+          <button class="reader-btn reader-btn-lg" id="reader-font-next" type="button" title="Larger text ( + )" aria-label="Larger text">A</button>
+          <span class="reader-divider" aria-hidden="true"></span>
+          <button class="reader-btn" id="reader-theme" type="button" title="Cycle color theme (T)" aria-label="Cycle color theme">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          </button>
+          <span class="reader-divider" aria-hidden="true"></span>
+          <button class="reader-btn reader-exit" id="reader-exit" type="button" title="Exit (Esc)" aria-label="Exit reading mode">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="reader-scroll">
+        <article class="markdown-body reader-article" id="reader-article"></article>
+      </div>
+      <div class="reader-hint">[ ] width · + − text · T theme · Esc exit</div>
     </div>
 
     <div id="ctx-menu" class="ctx-menu hidden" role="menu">
@@ -804,6 +809,16 @@
                   </div>
                   <label class="setting-toggle">
                     <input type="checkbox" id="settings-line-numbers" />
+                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+                  </label>
+                </div>
+                <div class="setting-row">
+                  <div class="setting-text">
+                    <div class="setting-label">Code block line numbers</div>
+                    <div class="setting-desc">Show a line-number gutter on fenced code blocks in rendered Markdown</div>
+                  </div>
+                  <label class="setting-toggle">
+                    <input type="checkbox" id="settings-code-line-numbers" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>

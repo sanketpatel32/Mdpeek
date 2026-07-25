@@ -91,7 +91,11 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     preview.innerHTML = renderMarkdown(textarea.value);
     // Skip mermaid (expensive, re-renders on every keystroke) and folding
     // (the live preview is too transient for clickable triangles to be useful).
-    await enhanceDom(preview, { mermaid: false, folding: false });
+    // Line numbers on fenced blocks follow the mdpeek-code-line-numbers setting.
+    let lineNumbers = false;
+    try { lineNumbers = localStorage.getItem('mdpeek-code-line-numbers') === '1'; }
+    catch { /* jsdom / SSR — default off */ }
+    await enhanceDom(preview, { mermaid: false, folding: false, lineNumbers });
   }
   function schedule() {
     clearTimeout(timer);

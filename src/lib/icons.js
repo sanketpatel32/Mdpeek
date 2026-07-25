@@ -22,6 +22,7 @@ import {
   Keyboard, ScrollText, Info,
   MoreHorizontal, Bell,
   Check, Palette,
+  BookOpen,
 } from 'lucide';
 
 // Map of kebab-case alias -> lucide icon node.
@@ -42,6 +43,7 @@ const ICONS = {
   'file-text':     FileText,
   'presentation':  Presentation,
   'share':         Share2,
+  'book-open':     BookOpen,
   'calendar':      Calendar,
   'columns':       Columns3,
   'kanban':        Kanban,

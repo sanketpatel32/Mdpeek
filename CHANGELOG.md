@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-07-25
+
+### Added — Reading Mode + rendering polish
+
+A focused release on the reading experience. Most "rendering power-ups"
+(Mermaid diagrams, KaTeX math, HTML/PDF export, code copy buttons) already
+shipped in earlier versions — this closes the genuine gaps: a true immersive
+reader, opt-in code-block line numbers, language badges, and offline-bundled
+rendering CSS.
+
+- **Immersive Reading Mode** — a Safari-Reader / Pocket-style full-screen
+  overlay (`Ctrl+Shift+R` or the toolbar). Adjustable column width
+  (`[` / `]`), text size (`+` / `-`), and color theme (`T` — light / sepia /
+  dark, independent of the app theme). Shows word count + reading-time
+  estimate. Reuses the live renderer so Mermaid diagrams, KaTeX math, syntax
+  highlighting, footnotes, and GFM alerts all render exactly as on screen.
+  Distinct from Focus mode (F11, which only hides chrome) — Reading Mode is
+  a real overlay with its own typography + color presets.
+- **Code-block line numbers** — opt-in setting (Editor → "Code block line
+  numbers") adds a 1-indexed gutter to fenced code blocks in rendered
+  Markdown. Mirrors the code-file viewer's gutter. Off by default (noisy on
+  short blocks).
+- **Language badges** — each fenced code block now shows a small language
+  pill (top-left, on hover) so you can tell at a glance what you're reading.
+- **Offline-bundled KaTeX + highlight.js CSS** — KaTeX math CSS and all six
+  highlight.js themes are now bundled locally from the npm deps instead of
+  loaded from a CDN. **Math styling and code colors no longer break when
+  offline**, and the KaTeX CSS version skew (CDN pinned to 0.16.11 while the
+  runtime was 0.17.0) is fixed.
+
+### Tests
+- Added `test/reading.test.js` (22 tests): option cycles, reading-time
+  estimate, preference loading with fallbacks. Extended `test/renderer.test.js`
+  (+9 tests): language badge presence/skip/idempotency, gutter opt-in default,
+  row count, phantom-line trim, copy-button coexistence. Full suite:
+  **405 passing**.
+
 ## [0.33.0] - 2026-07-25
 
 ### Added — Workspace hub: Board · Calendar · Tasks · Review (+ Pomodoro)
