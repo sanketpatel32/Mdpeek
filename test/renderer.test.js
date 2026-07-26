@@ -510,3 +510,65 @@ describe('renderCode — line numbers', () => {
     expect(gutterBlock.match(/<div>\d+<\/div>/g).length).toBe(3);
   });
 });
+
+// v0.35.0: GFM task lists must render with checkboxes that survive DOMPurify
+// sanitization — the preview's click handler targets these <input> elements.
+// marked v18 emits <li><input disabled type="checkbox"> with no class on the li.
+describe('renderMarkdown — GFM task lists (v0.35.0)', () => {
+  it('renders task items with a checkbox input', () => {
+    const html = renderMarkdown('- [ ] one\n- [x] two');
+    expect(html).toContain('<input');
+    expect(html).toContain('type="checkbox"');
+  });
+
+  it('marks checked items as checked', () => {
+    const html = renderMarkdown('- [x] done');
+    expect(html).toContain('checked');
+  });
+
+  it('DOMPurify keeps the checkbox inputs (click targets survive)', () => {
+    const html = renderMarkdown('- [ ] a\n- [x] b');
+    const inputCount = (html.match(/<input[^>]*type="checkbox"/g) || []).length;
+    expect(inputCount).toBe(2);
+  });
+
+  it('does not emit a checkbox for plain list items', () => {
+    const html = renderMarkdown('- plain item');
+    expect(html).not.toContain('checkbox');
+  });
+});
+
+// v0.35.0: enhanceDom must make task checkboxes interactive (remove `disabled`,
+// add role + tabindex) so the delegated click handler in main.js receives real
+// user clicks across all browsers.
+describe('enhanceDom — task checkboxes made interactive (v0.35.0)', () => {
+  it('removes the disabled attribute from task checkboxes', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = renderMarkdown('- [ ] a\n- [x] b');
+    await enhanceDom(div, { mermaid: false, folding: false });
+    const boxes = div.querySelectorAll('input[type="checkbox"]');
+    expect(boxes.length).toBe(2);
+    boxes.forEach((cb) => expect(cb.hasAttribute('disabled')).toBe(false));
+  });
+
+  it('adds role=checkbox and tabindex=0 for keyboard access', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = renderMarkdown('- [ ] task');
+    await enhanceDom(div, { mermaid: false, folding: false });
+    const cb = div.querySelector('input[type="checkbox"]');
+    expect(cb.getAttribute('role')).toBe('checkbox');
+    expect(cb.getAttribute('tabindex')).toBe('0');
+  });
+
+  it('preserves the checked state (only disabled is removed)', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = renderMarkdown('- [x] done');
+    await enhanceDom(div, { mermaid: false, folding: false });
+    const cb = div.querySelector('input[type="checkbox"]');
+    expect(cb.checked).toBe(true);
+    expect(cb.hasAttribute('disabled')).toBe(false);
+  });
+});

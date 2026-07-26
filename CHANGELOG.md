@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-07-26
+
+### Added — Editor & preview behave the way you'd expect
+
+Three small features closing the most jarring "why doesn't this work?" gaps
+between mdpeek and a real editor. No new dependencies; all logic is in the
+pure, unit-tested `editor-logic` module.
+
+- **Click task-list checkboxes in the preview.** A `- [ ]` checkbox in the
+  rendered view is now clickable — clicking it flips the source markdown to
+  `- [x]` and re-renders instantly. Works on saved files (auto-saves silently)
+  and unsaved/untitled docs (marks dirty). The checkbox cursor is a pointer and
+  hover highlights the accent border, so the affordance is discoverable.
+  Keyboard-accessible (`role=checkbox` + `tabindex`). Fenced code blocks
+  containing `- [ ]` are skipped so they don't get mistaken for tasks.
+- **`Ctrl+K` (or `Cmd+K`) inserts a Markdown link.** Wraps the selection as
+  `[selection](url)` and places the caret in the URL slot. If a URL is on the
+  clipboard, it's pre-filled automatically (best-effort; falls back gracefully
+  if clipboard read is blocked). Mirrors VS Code / Typora.
+- **Cursor position in the editor status bar.** The status bar (already showing
+  word count, char count, selection count, reading time) now also shows
+  `Ln 12, Col 8`, updating live as the caret moves.
+
 ## [0.34.1] - 2026-07-26
 
 ### Fixed — Settings & Slideshow polish

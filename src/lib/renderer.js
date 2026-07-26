@@ -451,11 +451,26 @@ export async function enhanceDom(container, {
   if (typeof window === 'undefined') return;
   enhanceCodeBlocks(container, { lineNumbers });
   enhanceAnchors(container);
+  enhanceTaskCheckboxes(container);
   if (renderFolding) enhanceFolding(container);
   // Kick off dynamic language registration for any fenced langs we don't yet
   // have. Non-blocking — this render stays as-is; the next render picks them up.
   registerVisibleLanguages(container);
   if (renderMermaid) await enhanceMermaid(container);
+}
+
+// v0.35.0: marked renders GFM task checkboxes with a `disabled` attribute (so
+// they don't toggle natively). We remove `disabled` so real user clicks reach
+// the delegated handler in main.js — the handler preventDefaults and toggles
+// the source markdown instead. Keeps a `role=checkbox` + tabindex so the
+// control stays keyboard-accessible. Idempotent across re-renders.
+function enhanceTaskCheckboxes(container) {
+  const boxes = container.querySelectorAll('input[type="checkbox"]');
+  boxes.forEach((cb) => {
+    if (cb.hasAttribute('disabled')) cb.removeAttribute('disabled');
+    if (!cb.hasAttribute('role')) cb.setAttribute('role', 'checkbox');
+    if (!cb.hasAttribute('tabindex')) cb.setAttribute('tabindex', '0');
+  });
 }
 
 // Scan code blocks in the container and ensure their languages are registered.

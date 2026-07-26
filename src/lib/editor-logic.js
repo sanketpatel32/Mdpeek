@@ -132,6 +132,31 @@ export function wrapSelection(text, start, end, before, after = before) {
   return { text: out, start: start + before.length, end: start + before.length };
 }
 
+// Insert a Markdown link `[text](url)` at the selection (Ctrl+K).
+// - Selection present → wrap it as the link text, place caret in the URL.
+// - No selection → insert `[](url)` with caret in the empty text slot.
+// If `url` is provided (e.g. caller detected a URL on the clipboard), it's
+// pre-filled; otherwise the URL slot is empty for the user to type/paste.
+// Caret lands in the emptiest slot so the user types immediately.
+export function insertLink(text, start, end, url = '') {
+  const sel = text.slice(start, end);
+  const hasSel = start !== end;
+  const link = `[${sel}](${url})`;
+  const out = text.slice(0, start) + link + text.slice(end);
+  if (hasSel && url) {
+    // Both filled — select nothing, place caret after the whole link.
+    return { text: out, start: start + link.length, end: start + link.length };
+  }
+  if (hasSel) {
+    // Text filled, URL empty — place caret in the URL slot to type it.
+    const urlPos = start + 1 + sel.length + 2; // `[` + sel + `](`
+    return { text: out, start: urlPos, end: urlPos };
+  }
+  // No selection — place caret in the empty text slot.
+  const textPos = start + 1; // right after `[`
+  return { text: out, start: textPos, end: textPos };
+}
+
 // Toggle a line prefix (e.g. '# ', '- ', '> ', '1. ') on every line touched by
 // the selection. If all touched lines already start with `prefix`, removes it;
 // otherwise adds it. Caret/selection shifts to follow the first line's delta.
@@ -252,4 +277,49 @@ export function lineCount(text) {
   let n = 1;
   for (let i = 0; i < text.length; i++) if (text[i] === '\n') n++;
   return n;
+}
+
+// Flip a GitHub task-list checkbox on a given 0-indexed line. Recognizes the
+// GFM syntax: `- [ ]` / `- [x]` (case-insensitive x), with any list marker
+// (-, *, +) and any leading indent. Returns the new { text } unchanged if the
+// line isn't a task item. Used by the clickable-checkbox-in-preview feature.
+export function toggleTaskLine(text, lineIndex) {
+  const lines = text.split('\n');
+  if (lineIndex < 0 || lineIndex >= lines.length) return { text };
+  const ln = lines[lineIndex];
+  const doneRe = /^(\s*[-*+]\s+)\[[xX]\](\s*)/;
+  const openRe = /^(\s*[-*+]\s+)\[ \](\s*)/;
+  if (doneRe.test(ln)) {
+    lines[lineIndex] = ln.replace(doneRe, '$1[ ]$2');
+  } else if (openRe.test(ln)) {
+    lines[lineIndex] = ln.replace(openRe, '$1[x]$2');
+  } else {
+    return { text };
+  }
+  return { text: lines.join('\n') };
+}
+
+// Map the Nth rendered task-list checkbox (0-indexed, in document order) back
+// to its source line index. The rendered order matches source order, so we
+// scan the source lines for task markers and return the (itemIndex)-th match.
+// Returns -1 if itemIndex is out of range (line changed under us, etc.).
+const TASK_LINE_RE = /^\s*[-*+]\s+\[[ xX]\]/;
+export function taskLineIndex(text, itemIndex) {
+  if (itemIndex < 0) return -1;
+  const lines = text.split('\n');
+  let seen = 0;
+  for (let i = 0; i < lines.length; i++) {
+    // Skip fenced code blocks so `- [ ]` inside ``` isn't mistaken for a task.
+    if (/^\s*```/.test(lines[i])) {
+      // toggle fence state by scanning — simple approach: skip to closing fence
+      i++;
+      while (i < lines.length && !/^\s*```/.test(lines[i])) i++;
+      continue;
+    }
+    if (TASK_LINE_RE.test(lines[i])) {
+      if (seen === itemIndex) return i;
+      seen++;
+    }
+  }
+  return -1;
 }

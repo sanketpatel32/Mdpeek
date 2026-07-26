@@ -438,10 +438,17 @@
   border: 1.5px solid var(--border);
   border-radius: 4px;
   background: var(--bg-elevated);
-  cursor: default;
+  /* v0.35.0: checkboxes in the preview are now clickable (toggle the source).
+     The native input stays disabled so it doesn't toggle visually on its own
+     (we drive state from markdown), but we still want a pointer cursor + hover
+     affordance so users discover they can click. */
+  cursor: pointer;
   position: relative;
   transition: background-color 120ms var(--ease, ease),
     border-color 120ms var(--ease, ease);
+}
+.markdown-body input[type="checkbox"]:hover {
+  border-color: var(--accent);
 }
 .markdown-body input[type="checkbox"]:checked {
   background: var(--accent);

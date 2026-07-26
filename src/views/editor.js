@@ -7,6 +7,7 @@ import {
   toggleLinePrefix,
   autoPair,
   handleBackspace,
+  insertLink,
   lineCount,
 } from '../lib/editor-logic.js';
 
@@ -238,6 +239,35 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
       e.preventDefault();
       e.stopPropagation();
       applyResult(wrapSelection(textarea.value, s, en, '`'));
+      return;
+    }
+    // Ctrl/Cmd+K → insert `[selection](url)` link. Try to read a URL from the
+    // clipboard first (best-effort; may be blocked). If the clipboard has a
+    // URL, pre-fill it; otherwise leave the URL slot empty. Mirrors VS Code.
+    if (ctrl && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const text = textarea.value;
+      const insert = (url) => applyResult(insertLink(text, s, en, url));
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        // Race the clipboard read against a short timeout so a blocked/empty
+        // clipboard doesn't hang the insert. Either way, we insert exactly once.
+        let done = false;
+        const run = () => {
+          if (done) return;
+          done = true;
+          insert('');
+        };
+        navigator.clipboard.readText().then((clip) => {
+          if (done) return;
+          const trimmed = (clip || '').trim();
+          done = true;
+          insert(/^https?:\/\//i.test(trimmed) && trimmed.length < 2048 ? trimmed : '');
+        }).catch(run);
+        setTimeout(run, 120); // fallback if clipboard hangs
+      } else {
+        insert('');
+      }
       return;
     }
 

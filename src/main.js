@@ -18,6 +18,7 @@ import { initFolderSearch } from './views/folder-search.js';
 import { initTerminal } from './views/terminal.js';
 import { renderTabs } from './views/tabs.js';
 import { renderIcons } from './lib/icons.js';
+import { toggleTaskLine, taskLineIndex } from './lib/editor-logic.js';
 // v0.34.1: build-time version for the About + Updates panels. Import is
 // hoisted to module top; the value is written into the DOM early (right after
 // bootMotion) because the Tauri window code further down aborts module
@@ -2521,6 +2522,38 @@ async function toggleNoteCheckbox(path, line, currentDone) {
   }
 }
 
+// v0.35.0: toggle a GFM task-list checkbox from the rendered preview. Unlike
+// toggleNoteCheckbox above (disk-only, Kanban inbox), this works on the active
+// doc's in-memory content — so it handles unsaved/untitled docs and keeps the
+// editor (if open) in sync. The clicked checkbox is the Nth rendered task item;
+// taskLineIndex maps it back to its source line, toggleTaskLine flips it, then
+// we re-render + persist (silent save — no toast for a checkbox click).
+async function togglePreviewCheckbox(itemIndex) {
+  const doc = store.active();
+  if (!doc) return;
+  const text = doc.content || '';
+  const lineIndex = taskLineIndex(text, itemIndex);
+  if (lineIndex < 0) return;
+  const { text: next } = toggleTaskLine(text, lineIndex);
+  if (next === text) return; // nothing changed (line wasn't a task)
+  doc.content = next;
+  store.markDirty(doc.id);
+  // Keep the editor in sync if it's open on this doc.
+  if (doc.editor && typeof doc.editor.setValue === 'function') {
+    const sel = doc.editor.getSelection();
+    doc.editor.setValue(next);
+    // Restore caret via the raw textarea (the editor object has no setSelection).
+    const ta = doc.editor.textarea && doc.editor.textarea();
+    if (ta && sel) ta.setSelectionRange(sel.start, sel.end);
+  }
+  // Persist to disk silently for saved files; unsaved docs just stay dirty.
+  if (doc.path) {
+    try { await invoke('save_file', { path: doc.path, content: next }); store.clearDirty(doc.id); }
+    catch (e) { console.error('checkbox save:', e); /* leave dirty */ }
+  }
+  renderActive();
+}
+
 // ---------- Review / spaced repetition ----------
 const SRS_KEY = 'mdpeek-srs-cards';
 let _reviewCards = [];     // all parsed cards for this session
@@ -3548,6 +3581,19 @@ function updateEditorStatus() {
     selHtml = `<span class="status-sep" aria-hidden="true">·</span><span class="status-sel">Selected: ${fmtNum(selCounts.words)} w, ${fmtNum(selCounts.chars)} c</span>`;
   }
 
+  // Cursor line:col (v0.35.0). Only meaningful in edit mode where the editor
+  // owns the caret. Computed from the selection start offset: line = number of
+  // newlines before it + 1, col = chars since the last newline + 1.
+  let posHtml = '';
+  if (doc && doc.mode === 'edit' && doc.editor) {
+    const sel = doc.editor.getSelection();
+    const at = sel ? sel.start : 0;
+    const before = text.slice(0, at);
+    const line = before.split('\n').length;
+    const col = at - (before.lastIndexOf('\n') + 1) + 1;
+    posHtml = `<span class="status-sep" aria-hidden="true">·</span><span class="status-pos">Ln ${line}, Col ${col}</span>`;
+  }
+
   el.editorStatus.innerHTML =
     `<span>${fmtNum(words)} words</span>` +
     `<span class="status-sep" aria-hidden="true">·</span>` +
@@ -3556,6 +3602,7 @@ function updateEditorStatus() {
     (readMins > 0 && !selHtml
       ? `<span class="status-sep" aria-hidden="true">·</span><span>~${readMins} min read</span>`
       : '') +
+    posHtml +
     `<span class="save-status" data-state="${savedState}" style="margin-left:auto">${savedLabel}</span>`;
 }
 
@@ -4904,6 +4951,30 @@ el.document.addEventListener('scroll', () => {
     updateActiveTocLink();
   });
 }, { passive: true });
+
+// v0.35.0: clickable GFM task-list checkboxes in the rendered preview. Marked
+// v18 renders `- [ ]` as <li><input disabled type="checkbox"> (no class on the
+// <li>). We intercept clicks on those checkbox inputs, find their containing
+// <li>, count how many checkbox-<li> siblings precede it (= source order), map
+// that index back to the source line via taskLineIndex, flip the marker, and
+// re-render. The inputs are `disabled` so they don't toggle natively — we drive
+// state ourselves from the source markdown.
+el.document.addEventListener('click', (e) => {
+  const target = e.target;
+  if (!(target instanceof HTMLInputElement) || target.type !== 'checkbox') return;
+  const item = target.closest('li');
+  if (!item) return;
+  const list = item.parentElement;
+  if (!list) return;
+  // Index of this <li> among its checkbox-bearing siblings = source order.
+  const tasks = Array.from(list.children).filter(
+    (li) => li.querySelector(':scope > input[type="checkbox"]')
+  );
+  const itemIndex = tasks.indexOf(item);
+  if (itemIndex < 0) return;
+  e.preventDefault();
+  togglePreviewCheckbox(itemIndex);
+});
 
 // Editor textarea: mark active doc dirty on input + debounced re-persist.
 el.editor.addEventListener('input', () => {

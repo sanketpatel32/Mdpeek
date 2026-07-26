@@ -10,6 +10,9 @@ import {
   findMatches,
   nextMatchIndex,
   lineCount,
+  insertLink,
+  toggleTaskLine,
+  taskLineIndex,
 } from '../src/lib/editor-logic.js';
 
 // helper: apply a logic result to verify text + caret in one assertion
@@ -286,5 +289,108 @@ describe('toggleLinePrefix', () => {
     // selection only on line 2 (positions 2..3)
     const r = toggleLinePrefix('a\nb\nc', 2, 3, '# ');
     expect(r.text).toBe('a\n# b\nc');
+  });
+});
+
+// ---------- insertLink (Ctrl+K) ----------
+
+describe('insertLink', () => {
+  it('wraps a selection as link text, caret in empty URL slot', () => {
+    const r = insertLink('hello world', 6, 11); // "world"
+    expect(r.text).toBe('hello [world]()');
+    // caret lands inside the URL slot: after `[world](`
+    expect(r.start).toBe('hello [world]('.length);
+    expect(r.end).toBe(r.start);
+  });
+
+  it('with no selection, places caret in the empty text slot', () => {
+    const r = insertLink('foo', 3, 3);
+    expect(r.text).toBe('foo[]()');
+    expect(r.start).toBe(4); // right after `[`
+    expect(r.end).toBe(4);
+  });
+
+  it('pre-fills a provided URL and places caret after the link', () => {
+    const r = insertLink('see ', 4, 4, 'https://x.io');
+    // no selection → [](https://x.io), but URL is filled
+    const r2 = insertLink('see link', 4, 8, 'https://x.io');
+    expect(r2.text).toBe('see [link](https://x.io)');
+    expect(r2.start).toBe('see [link](https://x.io)'.length);
+    expect(r2.end).toBe(r2.start);
+  });
+
+  it('with selection + URL, caret lands after the whole link', () => {
+    const r = insertLink('a b c', 2, 3, 'https://y.io');
+    expect(r.text).toBe('a [b](https://y.io) c');
+    expect(r.start).toBe('a [b](https://y.io)'.length);
+    expect(r.end).toBe(r.start);
+  });
+});
+
+// ---------- toggleTaskLine (preview checkbox toggle) ----------
+
+describe('toggleTaskLine', () => {
+  it('flips an open checkbox to checked', () => {
+    const r = toggleTaskLine('- [ ] buy milk', 0);
+    expect(r.text).toBe('- [x] buy milk');
+  });
+
+  it('flips a checked checkbox back to open', () => {
+    const r = toggleTaskLine('- [x] done', 0);
+    expect(r.text).toBe('- [ ] done');
+  });
+
+  it('handles uppercase X and * / + markers', () => {
+    expect(toggleTaskLine('* [X] a', 0).text).toBe('* [ ] a');
+    expect(toggleTaskLine('+ [ ] b', 0).text).toBe('+ [x] b');
+  });
+
+  it('preserves leading indent on nested tasks', () => {
+    const r = toggleTaskLine('  - [ ] nested', 0);
+    expect(r.text).toBe('  - [x] nested');
+  });
+
+  it('leaves non-task lines unchanged', () => {
+    const text = '- plain item\nnot a task';
+    expect(toggleTaskLine(text, 0).text).toBe(text);
+    expect(toggleTaskLine(text, 1).text).toBe(text);
+  });
+
+  it('flips only the specified line, not all task lines', () => {
+    const text = '- [ ] one\n- [x] two';
+    expect(toggleTaskLine(text, 0).text).toBe('- [x] one\n- [x] two');
+    expect(toggleTaskLine(text, 1).text).toBe('- [ ] one\n- [ ] two');
+  });
+
+  it('returns unchanged for out-of-range line index', () => {
+    expect(toggleTaskLine('- [ ] a', 5).text).toBe('- [ ] a');
+    expect(toggleTaskLine('- [ ] a', -1).text).toBe('- [ ] a');
+  });
+});
+
+// ---------- taskLineIndex (map rendered item N → source line) ----------
+
+describe('taskLineIndex', () => {
+  it('returns the source line for the Nth task item', () => {
+    const text = '# Title\n\n- [ ] one\n- [x] two\n\npara';
+    expect(taskLineIndex(text, 0)).toBe(2); // "one"
+    expect(taskLineIndex(text, 1)).toBe(3); // "two"
+  });
+
+  it('returns -1 for an out-of-range item index', () => {
+    const text = '- [ ] only';
+    expect(taskLineIndex(text, 1)).toBe(-1);
+    expect(taskLineIndex(text, -1)).toBe(-1);
+  });
+
+  it('ignores - [ ] inside fenced code blocks', () => {
+    const text = '- [ ] real task\n```\n- [ ] not a task\n```\n- [ ] another';
+    expect(taskLineIndex(text, 0)).toBe(0);   // "real task"
+    expect(taskLineIndex(text, 1)).toBe(4);   // "another" (skips the one in the fence)
+    expect(taskLineIndex(text, 2)).toBe(-1);  // no third task
+  });
+
+  it('returns -1 when there are no task items', () => {
+    expect(taskLineIndex('just text\n- plain list item', 0)).toBe(-1);
   });
 });
