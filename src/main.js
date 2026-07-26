@@ -18,6 +18,12 @@ import { initFolderSearch } from './views/folder-search.js';
 import { initTerminal } from './views/terminal.js';
 import { renderTabs } from './views/tabs.js';
 import { renderIcons } from './lib/icons.js';
+// v0.34.1: build-time version for the About + Updates panels. Import is
+// hoisted to module top; the value is written into the DOM early (right after
+// bootMotion) because the Tauri window code further down aborts module
+// execution in browser dev. Kept here with the other imports for clarity.
+import pkg from '../package.json' with { type: 'json' };
+const BUILD_VERSION = pkg && pkg.version ? pkg.version : null;
 import { wireRipples, positionTabIndicator } from './lib/motion.js';
 import {
   dateStamp, todayStamp, parseStamp, isDailyNoteName, monthLabel,
@@ -307,6 +313,17 @@ bootMotion();
 // applyTheme() — which runs later at the init section — toggles `disabled` on
 // these elements, so they must exist first. Same rationale as bootMotion above.
 installHljsThemes();
+// v0.34.1: write the build version into the About + Updates panels early.
+// MUST run before the Tauri window code (~line 5354: getCurrentWindow()) that
+// aborts module execution in browser dev — same bug pattern as bootMotion /
+// installHljsThemes above. The `pkg` import is hoisted to module top, so it's
+// available here. The runtime getVersion() call (later, Tauri-only) overwrites
+// #updates-current with the authoritative value if it resolves.
+if (BUILD_VERSION) {
+  const aboutVersionEl = document.getElementById('about-version');
+  if (aboutVersionEl) aboutVersionEl.textContent = BUILD_VERSION;
+  if (el.updatesCurrent) el.updatesCurrent.textContent = `v${BUILD_VERSION}`;
+}
 document.addEventListener('DOMContentLoaded', bootMotion, { once: true });
 
 // Split pane drag-to-resize handler for Edit Mode
@@ -1619,6 +1636,7 @@ function enterPresentation() {
   el.slideshow.classList.add(_slideshow.style + '-style');
   el.slideshow.classList.remove('hidden');
   document.body.classList.add('presenting');
+  syncSlideStyleBtn();
   updateSlide();
 }
 
@@ -1662,19 +1680,35 @@ function updateSlide() {
   }
   const progress = el.slideshow.querySelector('.slide-progress');
   if (progress) progress.textContent = `${index + 1} / ${slides.length}`;
+  // v0.34.1: drive the top progress bar via a CSS custom property.
+  const bar = el.slideshow.querySelector('.slide-progress-bar');
+  if (bar) {
+    const pct = slides.length > 1 ? ((index + 1) / slides.length) * 100 : 100;
+    bar.style.setProperty('--slide-progress', `${pct}%`);
+  }
   const prev = el.slideshow.querySelector('.slide-arrow.prev');
   const next = el.slideshow.querySelector('.slide-arrow.next');
   if (prev) prev.disabled = index === 0;
   if (next) next.disabled = index === slides.length - 1;
 }
 
-// Toggle between deck (dark, big, centered) and reading (theme, normal) styles.
+// Reflect the current slideshow style in the toggle button's label/icon so
+// users can see which mode they're in. v0.34.1.
+function syncSlideStyleBtn() {
+  if (!_slideshow) return;
+  const label = el.slideshow.querySelector('#slide-style-label');
+  if (label) label.textContent = _slideshow.style === 'deck' ? 'Reading' : 'Deck';
+}
+
+// Toggle between deck (big, centered) and reading (normal flow) styles.
+// v0.34.1: both styles now follow the app theme (deck used to force dark).
 function toggleSlideStyle() {
   if (!_slideshow) return;
   _slideshow.style = _slideshow.style === 'deck' ? 'reading' : 'deck';
   localStorage.setItem('mdpeek-slide-style', _slideshow.style);
   el.slideshow.classList.remove('deck-style', 'reading-style');
   el.slideshow.classList.add(_slideshow.style + '-style');
+  syncSlideStyleBtn();
 }
 
 // Toggle OS-level fullscreen (F key in presentation). No-op if not supported.
@@ -3768,6 +3802,8 @@ document.getElementById('reader-width-next')?.addEventListener('click', () => re
 document.getElementById('reader-font-prev')?.addEventListener('click', () => readerCycleFont(-1));
 document.getElementById('reader-font-next')?.addEventListener('click', () => readerCycleFont(1));
 document.getElementById('reader-theme')?.addEventListener('click', readerCycleTheme);
+// v0.34.1: visible style-toggle button in the slideshow overlay (was S-key only).
+document.getElementById('slide-style-btn')?.addEventListener('click', toggleSlideStyle);
 if (el.share) el.share.addEventListener('click', openShareModal);
 if (el.shareCopyBtn) el.shareCopyBtn.addEventListener('click', copyShareLink);
 if (el.shareCancelBtn) el.shareCancelBtn.addEventListener('click', closeShareModal);
@@ -5696,10 +5732,13 @@ setTimeout(() => {
   checkForUpdates(true);
 }, UPDATE_CHECK_DELAY_MS);
 
-// Show the current version in the Updates panel + initial idle badge.
-// (getVersion is async + Tauri-only; no-op gracefully in the browser/jsdom.)
+// Runtime version override: if the Tauri getVersion() call resolves (real
+// Tauri build), it overwrites the build-time value already written early at
+// the top of this module. In browser/jsdom it rejects and we keep BUILD_VERSION.
+// (v0.34.1: the early write + BUILD_VERSION live near bootMotion/installHljsThemes
+// because the Tauri window code further up aborts module execution in dev.)
 if (typeof getVersion === 'function') {
   getVersion().then((v) => {
     if (el.updatesCurrent) el.updatesCurrent.textContent = `v${v}`;
-  }).catch(() => { /* ignore — panel just shows 'v—' */ });
+  }).catch(() => { /* ignore — falls back to BUILD_VERSION or 'v—' */ });
 }

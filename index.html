@@ -291,13 +291,20 @@
     </div>
 
     <!-- Presentation mode (v0.20.0): fullscreen slideshow built by splitting
-         the active markdown doc on --- lines. Shown via body.presenting. -->
+         the active markdown doc on --- lines. Shown via body.presenting.
+         v0.34.1: added a top progress bar + a visible style-toggle button
+         (deck ↔ reading) so the switch isn't keyboard-only. -->
     <div id="slideshow" class="slideshow hidden" role="dialog" aria-modal="true" aria-label="Presentation">
+      <div class="slide-progress-bar" aria-hidden="true"></div>
       <button class="slide-arrow prev" type="button" title="Previous (←)" aria-label="Previous slide">‹</button>
       <div class="slide-stage"></div>
       <button class="slide-arrow next" type="button" title="Next (→)" aria-label="Next slide">›</button>
+      <button class="slide-style-btn" id="slide-style-btn" type="button" title="Switch style (S)" aria-label="Switch presentation style">
+        <span data-icon="slide-style"></span>
+        <span id="slide-style-label">Reading</span>
+      </button>
       <div class="slide-progress" aria-live="polite"></div>
-      <div class="slide-hint">← → · space · F fullscreen · S style · Esc</div>
+      <div class="slide-hint">← → · space · F fullscreen · Esc</div>
     </div>
 
     <!-- Immersive Reading Mode (v0.34.0). Safari-Reader-style full-screen

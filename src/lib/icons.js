@@ -23,6 +23,7 @@ import {
   MoreHorizontal, Bell,
   Check, Palette,
   BookOpen,
+  GalleryVerticalEnd,
 } from 'lucide';
 
 // Map of kebab-case alias -> lucide icon node.
@@ -42,6 +43,7 @@ const ICONS = {
   'download':      Download,
   'file-text':     FileText,
   'presentation':  Presentation,
+  'slide-style':   GalleryVerticalEnd,
   'share':         Share2,
   'book-open':     BookOpen,
   'calendar':      Calendar,

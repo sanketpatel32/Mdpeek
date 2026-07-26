@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.34.1] - 2026-07-26
+
+### Fixed — Settings & Slideshow polish
+
+Three UI bugs that made parts of the app look broken or unfinished.
+
+- **Appearance: theme grid collapsed to one column.** A CSS source-order bug
+  let the base `.setting-row { align-items: center }` rule override the theme
+  grid's `align-items: stretch`, shrinking the grid to its intrinsic width and
+  stacking all 10 theme cards vertically into a single 135px column. The panel
+  ballooned to ~1460px tall. Fixed by bumping `.setting-row-block` specificity
+  to `.setting-row.setting-row-block` so it wins regardless of source order.
+  The grid now lays out 4-wide as intended.
+- **About: stale version + inconsistent layout.** The "Version" label was
+  hardcoded to `0.32.2` in the HTML and never updated by JS, so it lagged
+  behind every release. The Updates panel's "Current version" only resolved
+  via the Tauri runtime API and showed `v—` in any non-Tauri context. Both
+  now read from a build-time `__APP_VERSION__` constant (injected by Vite
+  `define` from `package.json`), with the runtime value still overwriting
+  when available. The About card also now spans the full panel width to
+  match the Updates card below it (was a narrow 360px island).
+- **Slideshow: deck ignored your theme + style toggle was invisible.** Deck
+  style hardcoded a dark `#1a1a1a` backdrop, flash-banging light-theme users
+  the moment they presented. It now follows the app theme via `--bg`/`--fg`
+  tokens. The deck↔reading switch was keyboard-only (`S`); there's now a
+  visible style-toggle button (top-right) with a label showing the target
+  mode. A slim accent progress bar was added across the top, and the counter
+  pill + hint were strengthened for legibility.
+
 ## [0.34.0] - 2026-07-25
 
 ### Added — Reading Mode + rendering polish
