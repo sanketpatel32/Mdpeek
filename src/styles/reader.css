@@ -145,10 +145,21 @@
   opacity: 1;
 }
 
-/* ---- width stops → --reader-width token ---- */
+/* ---- width stops → --reader-width token ----
+   v0.35.1: 'fill' removes the max-width cap entirely so the article stretches
+   to the viewport. The generous horizontal padding keeps text off the screen
+   edges; on very wide monitors this is the "use the whole screen" option. */
 .reader[data-reader-width="narrow"] { --reader-width: 580px; }
 .reader[data-reader-width="medium"] { --reader-width: 720px; }
 .reader[data-reader-width="wide"]   { --reader-width: 880px; }
+.reader[data-reader-width="fill"]   { --reader-width: none; }
+.reader[data-reader-width="fill"] .reader-article {
+  max-width: none;
+  /* Scale side padding with viewport so text breathes on wide monitors but
+     doesn't waste space on narrower ones. Caps at ~12% per side. */
+  padding-left: max(32px, 8vw);
+  padding-right: max(32px, 8vw);
+}
 
 /* ---- font stops → --reader-font token ---- */
 .reader[data-reader-font="small"]  { --reader-font: 17px; }

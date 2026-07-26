@@ -2,19 +2,24 @@
 // cycling math + reading-time estimate are unit-testable in isolation.
 //
 // Three orthogonal preferences, each a small ordered cycle:
-//   width:  narrow → medium → wide  (column max-width in px)
+//   width:  narrow → medium → wide → fill  (column max-width in px, or fill)
 //   font:   small  → medium → large (article base font-size in px)
 //   theme:  light  → sepia  → dark  (background/foreground presets)
 //
 // All three are persisted independently under mdpeek-reader-<name> so reopening
 // Reading Mode restores the last-used combo. The cycles are deliberately short
-// (3 stops each) so keyboard cycling ([ ] + - T) is fast.
+// so keyboard cycling ([ ] + - T) is fast.
+//
+// v0.35.1: added a 'fill' width stop — removes the max-width cap entirely so
+// the article stretches to the viewport (with side padding). The three fixed
+// stops remain for readers who prefer a constrained column.
 
-export const WIDTHS = ['narrow', 'medium', 'wide'];
+export const WIDTHS = ['narrow', 'medium', 'wide', 'fill'];
 export const FONTS = ['small', 'medium', 'large'];
 export const THEMES = ['light', 'sepia', 'dark'];
 
-// Concrete px values per stop. Exposed for tests + the CSS-variable setters.
+// Concrete px values per FIXED stop (fill has no cap — it's handled in CSS via
+// a special rule that sets max-width: none). Exposed for tests + the setters.
 export const WIDTH_PX = { narrow: 580, medium: 720, wide: 880 };
 export const FONT_PX = { small: 17, medium: 19, large: 21 };
 

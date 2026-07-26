@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.35.1] - 2026-07-26
+
+### Fixed — Reading Mode "Fill" width option
+
+Reading Mode capped the article at 880px even on wide monitors, wasting screen
+space. Added a fourth width stop — **Fill** — that removes the max-width cap
+entirely so the article stretches to the viewport.
+
+- Cycle the width with `[` / `]` (or the width buttons in the reader bar):
+  `narrow (580) → medium (720) → wide (880) → fill (full width) → narrow…`
+- Fill keeps generous side padding (`max(32px, 8vw)`) so text stays off the
+  screen edges and breathes on ultrawide monitors.
+- The three fixed stops remain for readers who prefer a constrained column.
+
 ## [0.35.0] - 2026-07-26
 
 ### Added — Editor & preview behave the way you'd expect

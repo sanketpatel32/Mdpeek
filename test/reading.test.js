@@ -18,8 +18,8 @@ function makeStore(map = {}) {
 }
 
 describe('reading — option lists', () => {
-  it('exposes three width stops in order', () => {
-    expect(WIDTHS).toEqual(['narrow', 'medium', 'wide']);
+  it('exposes four width stops in order (v0.35.1: added fill)', () => {
+    expect(WIDTHS).toEqual(['narrow', 'medium', 'wide', 'fill']);
   });
   it('exposes three font stops in order', () => {
     expect(FONTS).toEqual(['small', 'medium', 'large']);
@@ -27,8 +27,13 @@ describe('reading — option lists', () => {
   it('exposes three theme stops in order', () => {
     expect(THEMES).toEqual(['light', 'sepia', 'dark']);
   });
-  it('maps every width stop to a px value', () => {
-    WIDTHS.forEach((w) => { expect(typeof WIDTH_PX[w]).toBe('number'); });
+  it('maps every FIXED width stop to a px value (fill has no cap)', () => {
+    const fixed = WIDTHS.filter((w) => w !== 'fill');
+    expect(fixed).toEqual(['narrow', 'medium', 'wide']);
+    fixed.forEach((w) => { expect(typeof WIDTH_PX[w]).toBe('number'); });
+  });
+  it('does not define a px value for fill (handled in CSS as max-width: none)', () => {
+    expect(WIDTH_PX.fill).toBeUndefined();
   });
   it('maps every font stop to a px value', () => {
     FONTS.forEach((f) => { expect(typeof FONT_PX[f]).toBe('number'); });
@@ -61,11 +66,14 @@ describe('reading — cycle()', () => {
 });
 
 describe('reading — typed cycle helpers', () => {
-  it('nextWidth / prevWidth advance and retreat across WIDTHS', () => {
+  it('nextWidth / prevWidth advance and retreat across WIDTHS (v0.35.1: 4 stops)', () => {
     expect(nextWidth('narrow')).toBe('medium');
-    expect(nextWidth('wide')).toBe('narrow');      // wraps
+    expect(nextWidth('medium')).toBe('wide');
+    expect(nextWidth('wide')).toBe('fill');        // v0.35.1: new stop
+    expect(nextWidth('fill')).toBe('narrow');      // wraps
     expect(prevWidth('medium')).toBe('narrow');
-    expect(prevWidth('narrow')).toBe('wide');      // wraps
+    expect(prevWidth('narrow')).toBe('fill');      // wraps (was 'wide' pre-0.35.1)
+    expect(prevWidth('fill')).toBe('wide');
   });
   it('nextFont / prevFont advance and retreat across FONTS', () => {
     expect(nextFont('small')).toBe('medium');
