@@ -9,6 +9,9 @@ import {
   handleBackspace,
   insertLink,
   lineCount,
+  duplicateLines,
+  moveLines,
+  toggleComment,
 } from '../lib/editor-logic.js';
 
 // Wire a textarea to a live-preview target with debounced re-render, plus the
@@ -268,6 +271,32 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
       } else {
         insert('');
       }
+      return;
+    }
+
+    // Ctrl+D → duplicate line(s) downward. Matches VS Code / Sublime muscle
+    // memory. (Note: VS Code also uses Ctrl+D for "add next occurrence" — we
+    // don't have multi-cursor, so duplicate is the more useful binding here.)
+    if (ctrl && !e.shiftKey && (e.key === 'd' || e.key === 'D')) {
+      e.preventDefault();
+      e.stopPropagation();
+      applyResult(duplicateLines(textarea.value, s, en));
+      return;
+    }
+    // Ctrl+/ → toggle HTML comment around selection (or current line).
+    if (ctrl && e.key === '/') {
+      e.preventDefault();
+      e.stopPropagation();
+      applyResult(toggleComment(textarea.value, s, en));
+      return;
+    }
+    // Alt+Up / Alt+Down → move line(s) up/down. No-op at the doc's edge leaves
+    // the text untouched (applyResult returns false and writes nothing).
+    if (e.altKey && !ctrl && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const dir = e.key === 'ArrowUp' ? -1 : 1;
+      applyResult(moveLines(textarea.value, s, en, dir));
       return;
     }
 

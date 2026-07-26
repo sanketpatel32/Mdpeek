@@ -323,3 +323,107 @@ export function taskLineIndex(text, itemIndex) {
   }
   return -1;
 }
+
+// ----------------------------- line operations -----------------------------
+// Duplicate / move / comment helpers. All operate on the line(s) spanned by
+// [start, end) and return the next { text, start, end }. Caret/selection is
+// placed on the resulting line(s) so the user can repeat the action.
+
+// Duplicate every line touched by the selection downward (VS Code Ctrl+D
+// behavior). With no selection, duplicates the caret's line. The selection
+// is moved onto the newly-inserted copy so a second Ctrl+D duplicates again.
+export function duplicateLines(text, start, end) {
+  const [lineStart, lineEnd] = lineRange2(text, start, end);
+  const block = text.slice(lineStart, lineEnd);
+  const nlAfter = text[lineEnd] === '\n' ? '\n' : '';
+  // Insert "<block>\n" after the last touched line. If there's no trailing
+  // newline (last line of doc), we add one to separate the copy.
+  const sep = nlAfter || '\n';
+  const out = text.slice(0, lineEnd) + sep + block + text.slice(lineEnd);
+  const newStart = lineEnd + sep.length;
+  const newEnd = newStart + block.length;
+  return { text: out, start: newStart, end: newEnd };
+}
+
+// Move the touched line(s) up (dir=-1) or down (dir=1). Swaps the block with
+// the adjacent line above/below. No-op (returns text unchanged) at the top of
+// the doc when moving up, or at the bottom when moving down — the caller can
+// detect that via `result.text === text` to skip the write-back. The selection
+// tracks the moved block so the user can repeat the move.
+export function moveLines(text, start, end, dir) {
+  const [lineStart, lineEnd] = lineRange2(text, start, end);
+  if (dir < 0) {
+    // Need a line above to swap with. The separator \n sits at lineStart-1.
+    if (lineStart === 0) return { text, start, end };
+    const prevEnd = lineStart - 1; // index of the \n between above and block
+    const prevStart = text.lastIndexOf('\n', prevEnd - 1) + 1; // start of above line
+    const before = text.slice(0, prevStart); // usually "" (prevStart follows a \n or is 0)
+    const above = text.slice(prevStart, prevEnd);
+    const block = text.slice(lineStart, lineEnd);
+    const rest = text.slice(lineEnd); // includes the \n after block if any
+    const out = before + block + '\n' + above + rest;
+    // Block moved up to [prevStart, prevStart + block.length).
+    const shift = prevStart - lineStart; // negative
+    return { text: out, start: start + shift, end: end + shift };
+  } else {
+    // Need a line below to swap with. Requires a \n right after the block.
+    if (lineEnd >= text.length || text[lineEnd] !== '\n') return { text, start, end };
+    const belowStart = lineEnd + 1;
+    let belowEnd = text.indexOf('\n', belowStart);
+    if (belowEnd === -1) belowEnd = text.length;
+    const before = text.slice(0, lineStart); // includes the \n before the block
+    const block = text.slice(lineStart, lineEnd);
+    const below = text.slice(belowStart, belowEnd);
+    const rest = text.slice(belowEnd); // includes the \n after below if any
+    const out = before + below + '\n' + block + rest;
+    // Block moved down by (below.length + 1 for the inserted \n).
+    const shift = below.length + 1;
+    return { text: out, start: start + shift, end: end + shift };
+  }
+}
+
+// Toggle an HTML comment (`<!-- ... -->`) around the selection. Markdown has
+// no native line-comment, so this is the canonical way to hide prose. Three
+// cases:
+//   - Selection already wrapped → unwrap (toggle off).
+//   - Selection present → wrap with `<!--` + `-->`, caret stays inside.
+//   - No selection → wrap the entire caret line, caret at start of content.
+export function toggleComment(text, start, end) {
+  const C_OPEN = '<!--';
+  const C_CLOSE = '-->';
+  // Toggle off if currently wrapped.
+  if (start !== end &&
+      text.slice(start - C_OPEN.length, start) === C_OPEN &&
+      text.slice(end, end + C_CLOSE.length) === C_CLOSE) {
+    const out = text.slice(0, start - C_OPEN.length) + text.slice(start, end) + text.slice(end + C_CLOSE.length);
+    return { text: out, start: start - C_OPEN.length, end: end - C_OPEN.length };
+  }
+  if (start !== end) {
+    const sel = text.slice(start, end);
+    const out = text.slice(0, start) + C_OPEN + sel + C_CLOSE + text.slice(end);
+    return { text: out, start: start + C_OPEN.length, end: end + C_OPEN.length };
+  }
+  // No selection → comment the whole caret line.
+  const [lineStart, lineEnd] = lineRange2(text, start, end);
+  const line = text.slice(lineStart, lineEnd);
+  const out = text.slice(0, lineStart) + C_OPEN + line + C_CLOSE + text.slice(lineEnd);
+  return { text: out, start: lineStart + C_OPEN.length, end: lineStart + C_OPEN.length + line.length };
+}
+
+// Returns [startOfFirstTouchedLine, startOfLineAfterLastTouchedLine).
+// Differs from lineRange() (which is caret-relative) in that it spans the
+// FULL block of touched lines including the trailing newline boundary, which
+// the move/duplicate ops need to reason about cleanly.
+function lineRange2(text, start, end) {
+  const s = Math.min(start, end);
+  const e = Math.max(start, end);
+  const lineStart = text.lastIndexOf('\n', s - 1) + 1;
+  let lineEnd = text.indexOf('\n', e);
+  if (lineEnd === -1) lineEnd = text.length;
+  // If the selection ends exactly at a line boundary (caret at col 0 of the
+  // next line), don't include that next line in the touched range.
+  if (e !== s && e === lineEnd && text[e - 1] === '\n') {
+    lineEnd = e - 1;
+  }
+  return [lineStart, lineEnd];
+}

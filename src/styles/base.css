@@ -96,6 +96,25 @@ body {
   background: var(--danger);
   filter: brightness(0.92);
 }
+/* v0.36.0: Always-on-top pin button. Narrower than min/max/close, icon-sized.
+   Active state (pinned) fills with the accent color so the user can tell at a
+   glance that always-on-top is on. */
+.window-btn.win-pin {
+  width: 36px;
+  color: var(--fg-muted);
+}
+.window-btn.win-pin svg {
+  width: 14px;
+  height: 14px;
+}
+.window-btn.win-pin.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.window-btn.win-pin.active:hover {
+  background: var(--accent-soft);
+  filter: brightness(0.96);
+}
 
 /* Focus / zen mode — hide the header + sidebar for distraction-free reading.
    body is display:flex column + main is flex:1, so hiding the header (which is

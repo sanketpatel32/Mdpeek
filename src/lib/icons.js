@@ -24,6 +24,7 @@ import {
   Check, Palette,
   BookOpen,
   GalleryVerticalEnd,
+  Pin, PinOff,
 } from 'lucide';
 
 // Map of kebab-case alias -> lucide icon node.
@@ -72,6 +73,8 @@ const ICONS = {
   'check':         Check,
   'palette':       Palette,
   'plus':          Plus,
+  'pin':           Pin,
+  'pin-off':       PinOff,
 };
 
 /** Default icon size (matches the old inline SVGs). */

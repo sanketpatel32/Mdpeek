@@ -1778,6 +1778,30 @@ async function enterReading() {
   const scroll = el.reader.querySelector('.reader-scroll');
   if (scroll) scroll.scrollTop = 0;
   el.reader.focus?.();
+  // v0.36.0: drive the top progress bar from the scroll position. Wired once
+  // (the reader element is long-lived); the listener reads the live scroll
+  // region each time so re-entering with a different doc just works.
+  setupReaderProgressTracking();
+  updateReaderProgress();
+}
+
+// Attach the scroll → progress-bar listener exactly once. The bar itself is
+// the thin accent strip at the very top of the reader (driven by the
+// --reader-progress custom property, 0–100%). Respects reduced motion via CSS.
+let readerProgressWired = false;
+function setupReaderProgressTracking() {
+  if (readerProgressWired) return;
+  const scroll = el.reader.querySelector('.reader-scroll');
+  if (!scroll) return;
+  scroll.addEventListener('scroll', updateReaderProgress, { passive: true });
+  readerProgressWired = true;
+}
+function updateReaderProgress() {
+  const scroll = el.reader.querySelector('.reader-scroll');
+  if (!scroll) return;
+  const max = scroll.scrollHeight - scroll.clientHeight;
+  const pct = max > 0 ? Math.min(100, Math.max(0, (scroll.scrollTop / max) * 100)) : 0;
+  el.reader.style.setProperty('--reader-progress', `${pct}%`);
 }
 
 function exitReading() {
@@ -5298,6 +5322,13 @@ window.addEventListener('keydown', (e) => {
     toggleReading();
     return;
   }
+  // Ctrl+Shift+A → toggle always-on-top (pin). Mirrors the titlebar pin button.
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleAlwaysOnTop();
+    return;
+  }
   // Reader-internal keys. Only active while Reading Mode is open, and only
   // when no modifier is held (so Ctrl+[ etc. keep their browser meaning).
   // Esc exits, [ / ] narrow / widen, + / - grow / shrink text, T cycles theme.
@@ -5452,6 +5483,36 @@ document.getElementById('win-maximize').addEventListener('click', async () => {
 document.getElementById('win-close').addEventListener('click', () => {
   showCloseDialog();
 });
+
+// v0.36.0: Always-on-top toggle (pin button in the titlebar + Ctrl+Shift+A).
+// Useful when taking notes alongside a browser/PDF. setAlwaysOnTop is a Tauri
+// window call; in browser dev it throws, so the button stays hidden and the
+// shortcut no-ops (guarded by the same try/catch). State is reflected in the
+// button's aria-pressed + an "active" class for styling.
+const winPinBtn = document.getElementById('win-pin');
+let alwaysOnTop = false;
+async function toggleAlwaysOnTop() {
+  try {
+    alwaysOnTop = !alwaysOnTop;
+    await appWindow.setAlwaysOnTop(alwaysOnTop);
+    if (winPinBtn) {
+      winPinBtn.setAttribute('aria-pressed', String(alwaysOnTop));
+      winPinBtn.classList.toggle('active', alwaysOnTop);
+      winPinBtn.title = alwaysOnTop ? 'Disable always on top (Ctrl+Shift+A)' : 'Always on top (Ctrl+Shift+A)';
+    }
+  } catch (e) {
+    console.error('setAlwaysOnTop failed:', e);
+    alwaysOnTop = !alwaysOnTop; // roll back the optimistic flip
+  }
+}
+if (winPinBtn) {
+  winPinBtn.addEventListener('click', toggleAlwaysOnTop);
+  // Reveal the button only when the Tauri API is actually available — keeps
+  // browser dev clean (no dead/decorative button).
+  appWindow.setAlwaysOnTop(false).then(() => {
+    winPinBtn.hidden = false;
+  }).catch(() => { /* browser dev — leave hidden */ });
+}
 async function syncMaxIcon() {
   let maximized = false;
   try {

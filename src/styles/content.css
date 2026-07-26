@@ -160,6 +160,49 @@
   max-width: 100%;
   border-radius: var(--radius);
 }
+/* v0.36.0: inline images in the preview are click-to-zoom (renderer.js wires
+   the click; data-zoom="1" is set on every standalone img). A subtle hover
+   affordance signals interactivity. Images inside links (data-zoom="0") keep
+   the default cursor so link navigation still feels right. */
+.markdown-body img[data-zoom="1"] {
+  cursor: zoom-in;
+  transition: opacity 160ms ease;
+}
+.markdown-body img[data-zoom="1"]:hover {
+  opacity: 0.9;
+}
+/* Full-screen lightbox overlay (created lazily in <body> by renderer.js). */
+.mdpeek-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;            /* above reader (1150) + slideshow (1100) + modal (1200) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 180ms ease, visibility 180ms ease;
+  cursor: zoom-out;
+}
+.mdpeek-lightbox.open {
+  opacity: 1;
+  visibility: visible;
+}
+.mdpeek-lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 6px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  object-fit: contain;
+  cursor: zoom-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mdpeek-lightbox { transition: none; }
+}
 .markdown-body hr {
   border: none;
   border-top: 1px solid var(--border-subtle);

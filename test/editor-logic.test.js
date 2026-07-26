@@ -13,6 +13,9 @@ import {
   insertLink,
   toggleTaskLine,
   taskLineIndex,
+  duplicateLines,
+  moveLines,
+  toggleComment,
 } from '../src/lib/editor-logic.js';
 
 // helper: apply a logic result to verify text + caret in one assertion
@@ -392,5 +395,106 @@ describe('taskLineIndex', () => {
 
   it('returns -1 when there are no task items', () => {
     expect(taskLineIndex('just text\n- plain list item', 0)).toBe(-1);
+  });
+});
+
+describe('duplicateLines', () => {
+  it('duplicates the caret line when no selection', () => {
+    const text = 'aaa\nbbb\nccc';
+    // Caret on line 1 ("bbb").
+    const r = duplicateLines(text, 5, 5);
+    expect(r.text).toBe('aaa\nbbb\nbbb\nccc');
+    // New selection covers the duplicate ("bbb" after the newline).
+    expect(r.start).toBe(8);
+    expect(r.end).toBe(11);
+  });
+
+  it('duplicates the last line of the doc (no trailing newline)', () => {
+    const text = 'aaa\nbbb';
+    const r = duplicateLines(text, 4, 4);
+    expect(r.text).toBe('aaa\nbbb\nbbb');
+  });
+
+  it('duplicates a multi-line selection as a block', () => {
+    const text = 'aaa\nbbb\nccc\nddd';
+    // Select "bbb\nccc" (lines 1-2).
+    const r = duplicateLines(text, 4, 11);
+    expect(r.text).toBe('aaa\nbbb\nccc\nbbb\nccc\nddd');
+  });
+
+  it('preserves caret-on-duplicate so a second call duplicates again', () => {
+    const text = 'aaa\nbbb\nccc';
+    const r1 = duplicateLines(text, 5, 5);
+    // Apply r1 and duplicate again from r1's selection.
+    const r2 = duplicateLines(r1.text, r1.start, r1.end);
+    expect(r2.text).toBe('aaa\nbbb\nbbb\nbbb\nccc');
+  });
+});
+
+describe('moveLines', () => {
+  it('moves a line down', () => {
+    const text = 'aaa\nbbb\nccc';
+    const r = moveLines(text, 4, 7, 1); // "bbb" down
+    expect(r.text).toBe('aaa\nccc\nbbb');
+  });
+
+  it('moves a line up', () => {
+    const text = 'aaa\nbbb\nccc';
+    const r = moveLines(text, 4, 7, -1); // "bbb" up
+    expect(r.text).toBe('bbb\naaa\nccc');
+  });
+
+  it('is a no-op moving the first line up (returns text unchanged)', () => {
+    const text = 'aaa\nbbb\nccc';
+    const r = moveLines(text, 0, 3, -1);
+    expect(r.text).toBe(text);
+  });
+
+  it('is a no-op moving the last line down', () => {
+    const text = 'aaa\nbbb\nccc';
+    const r = moveLines(text, 8, 11, 1);
+    expect(r.text).toBe(text);
+  });
+
+  it('moves a multi-line block down as a unit', () => {
+    const text = 'aaa\nbbb\nccc\nddd';
+    const r = moveLines(text, 4, 11, 1); // "bbb\nccc" down
+    expect(r.text).toBe('aaa\nddd\nbbb\nccc');
+  });
+
+  it('selection tracks the moved block so the move is repeatable', () => {
+    const text = 'aaa\nbbb\nccc';
+    const r1 = moveLines(text, 4, 7, -1); // "bbb" up → "bbb\naaa\nccc"
+    expect(r1.text).toBe('bbb\naaa\nccc');
+    const r2 = moveLines(r1.text, r1.start, r1.end, -1); // now first line, no-op
+    expect(r2.text).toBe(r1.text);
+  });
+});
+
+describe('toggleComment', () => {
+  it('wraps a selection in <!-- -->', () => {
+    const text = 'hello world';
+    const r = toggleComment(text, 0, 5);
+    expect(r.text).toBe('<!--hello--> world');
+    expect(r.start).toBe(4);  // after <!--
+    expect(r.end).toBe(9);    // before -->
+  });
+
+  it('toggles off when already wrapped', () => {
+    const text = '<!--hello--> world';
+    const r = toggleComment(text, 4, 9);
+    expect(r.text).toBe('hello world');
+  });
+
+  it('comments the whole caret line when no selection', () => {
+    const text = 'aaa\nbbb\nccc';
+    const r = toggleComment(text, 5, 5); // caret on "bbb"
+    expect(r.text).toBe('aaa\n<!--bbb-->\nccc');
+  });
+
+  it('comments an empty line (zero-length content)', () => {
+    const text = 'aaa\n\nccc';
+    const r = toggleComment(text, 4, 4);
+    expect(r.text).toBe('aaa\n<!---->\nccc');
   });
 });

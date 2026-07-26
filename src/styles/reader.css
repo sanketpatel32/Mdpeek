@@ -88,6 +88,29 @@
   background: var(--reader-border, rgba(0, 0, 0, 0.1));
 }
 
+/* ---- reading progress bar (v0.36.0) ----
+   Thin accent strip pinned just below the control bar. Width tracks scroll
+   via the --reader-progress custom property (set in main.js). Mirrors the
+   slideshow's progress bar pattern. */
+.reader-progress-bar {
+  flex: 0 0 auto;
+  height: 2px;
+  background: var(--reader-border, rgba(0, 0, 0, 0.06));
+  position: relative;
+  overflow: hidden;
+}
+.reader-progress-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--reader-progress, 0%);
+  background: var(--accent, #007aff);
+  transition: width 80ms linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reader-progress-bar::after { transition: none; }
+}
+
 /* ---- scroll region + article ---- */
 .reader-scroll {
   flex: 1 1 auto;

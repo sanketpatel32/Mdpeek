@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-07-26
+
+### Added — Eight quality-of-life features
+
+A batch of small, independently-useful improvements spanning the editor, the
+preview, Reading Mode, and the window. No new third-party dependencies; the
+emoji set is a curated inline table (~180 shortcodes, ~6 KB) instead of a full
+emoji dataset.
+
+**Editor**
+
+- **`Ctrl+D` — duplicate line(s).** Duplicates the current line (or each line
+  in the selection) downward, selection on the copy so a second `Ctrl+D`
+  duplicates again. Matches VS Code / Sublime muscle memory.
+- **`Alt+↑` / `Alt+↓` — move line(s) up / down.** Swaps the caret's line (or
+  the selected block) with its neighbor. No-op at the doc's edges.
+- **`Ctrl+/` — toggle HTML comment.** Wraps the selection (or the caret's
+  line) in `<!-- -->`; running it again unwraps. Markdown has no native line
+  comment, so this is the canonical way to hide prose.
+
+**Preview**
+
+- **Click-to-zoom images.** Clicking any inline image in the rendered markdown
+  opens it full-size against a dimmed backdrop; click anywhere or press `Esc`
+  to close. Images inside links still navigate normally.
+- **Lazy-loaded images.** Images now carry `loading="lazy" decoding="async"`,
+  so long image-heavy documents scroll smoothly instead of decoding every
+  image upfront.
+- **Emoji shortcodes.** `:smile:`, `:thumbsup:`, `:tada:`, `:heart:` and ~175
+  more render as emoji in prose. Shortcodes inside code spans and fenced code
+  blocks are left untouched, and the regex avoids matching URLs, times
+  (`12:30`), and the existing `::flashcard::` syntax.
+
+**Reading Mode**
+
+- **Scroll progress bar.** A thin accent strip under the control bar fills as
+  you read, mirroring the slideshow's progress indicator. Respects
+  reduced-motion.
+
+**Window**
+
+- **Always-on-top (pin).** A pin button in the titlebar (and `Ctrl+Shift+A`)
+  keeps the window floating above other apps — handy for taking notes
+  alongside a browser or PDF. The button is hidden in browser dev (where the
+  Tauri API isn't available).
+
 ## [0.35.1] - 2026-07-26
 
 ### Fixed — Reading Mode "Fill" width option

@@ -9,6 +9,7 @@ import DOMPurify from 'dompurify';
 import hljs from 'highlight.js/lib/common';
 import markedKatex from 'marked-katex-extension';
 import markedFootnote from 'marked-footnote';
+import { markedEmojiExt } from './emoji.js';
 
 // Local escapeHtml — escapes only & < > (NOT quotes). Deliberately different
 // from the shared src/lib/escape.js (which also escapes " '): renderer output
@@ -123,6 +124,7 @@ function buildMarked() {
   const marked = new Marked();
   marked.use(markedKatex({ throwOnError: false }));
   marked.use(markedFootnote());
+  marked.use(markedEmojiExt());
   marked.use({
     renderer: {
       // Override heading to inject slug-based ids. The token carries `text`
@@ -142,7 +144,11 @@ function buildMarked() {
         }
         const titleAttr = title ? ` title="${escapeAttr(title)}"` : '';
         const altAttr = text ? ` alt="${escapeAttr(text)}"` : ' alt=""';
-        return `<img src="${escapeAttr(src)}"${altAttr}${titleAttr} />`;
+        // loading="lazy" defers offscreen image decode until it nears the
+        // viewport, so long image-heavy docs scroll smoothly instead of
+        // decoding every image upfront. The browser handles the intersection
+        // observation natively; no JS cost.
+        return `<img src="${escapeAttr(src)}"${altAttr}${titleAttr} loading="lazy" decoding="async" />`;
       },
       heading({ tokens, depth, text }) {
         const inner = this.parser.parseInline(tokens);
@@ -451,6 +457,7 @@ export async function enhanceDom(container, {
   if (typeof window === 'undefined') return;
   enhanceCodeBlocks(container, { lineNumbers });
   enhanceAnchors(container);
+  enhanceImages(container);
   enhanceTaskCheckboxes(container);
   if (renderFolding) enhanceFolding(container);
   // Kick off dynamic language registration for any fenced langs we don't yet
@@ -683,6 +690,74 @@ function flashAnchor(a) {
     a.classList.remove('copied');
     delete a.dataset.copied;
   }, ANCHOR_FLASH_MS);
+}
+
+// v0.36.0: click-to-zoom for inline images in the markdown preview. A single
+// shared overlay (#mdpeek-lightbox) is lazily created in <body> on first use;
+// clicking any <img> inside the rendered markdown opens it full-size against a
+// dim backdrop. Click anywhere / press Esc to dismiss. Idempotent across
+// re-renders — one delegated listener per container (matches enhanceAnchors).
+// We opt OUT for images that are inside a link (<a><img></a>) so the link's
+// navigation isn't hijacked.
+function enhanceImages(container) {
+  if (typeof window === 'undefined') return;
+  // Mark images as zoomable so CSS can add the hover affordance. Done on every
+  // pass (re-render rebuilds the DOM), with a guard so we don't re-tag.
+  container.querySelectorAll('img').forEach((img) => {
+    if (img.dataset.zoom === undefined) {
+      // Skip images wrapped in an anchor — clicking should follow the link.
+      img.dataset.zoom = img.closest('a') ? '0' : '1';
+    }
+  });
+  if (!container.__imageZoomHandler) {
+    const handler = (e) => {
+      const img = e.target.closest('img');
+      if (!img || !container.contains(img)) return;
+      if (img.dataset.zoom !== '1') return;
+      openLightbox(img);
+    };
+    container.addEventListener('click', handler);
+    container.__imageZoomHandler = handler;
+  }
+}
+
+function openLightbox(img) {
+  const overlay = ensureLightbox();
+  const lbImg = overlay.querySelector('img');
+  lbImg.src = img.currentSrc || img.src;
+  lbImg.alt = img.alt || '';
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox() {
+  const overlay = document.getElementById('mdpeek-lightbox');
+  if (!overlay || !overlay.classList.contains('open')) return;
+  overlay.classList.remove('open');
+  document.body.style.overflow = '';
+  // Drop the src once faded out so a long data: URL doesn't stay in memory.
+  const lbImg = overlay.querySelector('img');
+  if (lbImg) lbImg.removeAttribute('src');
+}
+
+function ensureLightbox() {
+  let overlay = document.getElementById('mdpeek-lightbox');
+  if (overlay) return overlay;
+  overlay = document.createElement('div');
+  overlay.id = 'mdpeek-lightbox';
+  overlay.className = 'mdpeek-lightbox';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', 'Image preview');
+  overlay.innerHTML = '<img alt="" />';
+  overlay.addEventListener('click', closeLightbox);
+  document.body.appendChild(overlay);
+  // Esc closes — but only while open. A one-time document listener is fine
+  // because closeLightbox no-ops when the overlay isn't open.
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeLightbox();
+  });
+  return overlay;
 }
 
 // --------------------------- outline folding -------------------------------

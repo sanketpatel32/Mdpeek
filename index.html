@@ -161,6 +161,9 @@
       </div>
 
       <div class="window-controls">
+        <button class="window-btn win-pin" id="win-pin" title="Always on top (Ctrl+Shift+A)" aria-label="Toggle always on top" aria-pressed="false" hidden>
+          <span data-icon="pin"></span>
+        </button>
         <button class="window-btn" id="win-minimize" title="Minimize" aria-label="Minimize">
           <svg viewBox="0 0 10 10" width="10" height="10"><line x1="0" y1="5" x2="10" y2="5" stroke="currentColor" stroke-width="1"/></svg>
         </button>
@@ -336,6 +339,7 @@
           </button>
         </div>
       </div>
+      <div class="reader-progress-bar" aria-hidden="true"></div>
       <div class="reader-scroll">
         <article class="markdown-body reader-article" id="reader-article"></article>
       </div>
@@ -979,6 +983,7 @@
                     <tr><td><kbd>Ctrl</kbd>+<kbd>0</kbd></td><td>Reset zoom</td></tr>
                     <tr><td><kbd>Ctrl</kbd>+scroll</td><td>Zoom in / out</td></tr>
                         <tr><td><kbd>F11</kbd></td><td>Focus / Zen mode</td></tr>
+                        <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd></td><td>Toggle always-on-top (pin window)</td></tr>
                         <tr><td>Present button</td><td>Start presentation (split on <code>---</code>)</td></tr>
                         <tr><td>Share button</td><td>Start live collaboration (P2P, invite link)</td></tr>
                         <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd></td><td>Toggle typewriter mode</td></tr>
@@ -1001,6 +1006,9 @@
                     <tr><td><kbd>Ctrl</kbd>+<kbd>`</kbd></td><td>Inline code</td></tr>
                     <tr><td><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd></td><td>Indent / outdent</td></tr>
                     <tr><td><kbd>Enter</kbd></td><td>Continue lists, close fences</td></tr>
+                    <tr><td><kbd>Ctrl</kbd>+<kbd>D</kbd></td><td>Duplicate line(s)</td></tr>
+                    <tr><td><kbd>Alt</kbd>+<kbd>↑</kbd> / <kbd>Alt</kbd>+<kbd>↓</kbd></td><td>Move line(s) up / down</td></tr>
+                    <tr><td><kbd>Ctrl</kbd>+<kbd>/</kbd></td><td>Toggle HTML comment</td></tr>
                   </tbody>
                 </table>
               </div>

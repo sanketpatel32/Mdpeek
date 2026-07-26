@@ -572,3 +572,78 @@ describe('enhanceDom — task checkboxes made interactive (v0.35.0)', () => {
     expect(cb.hasAttribute('disabled')).toBe(false);
   });
 });
+
+describe('enhanceDom — image zoom tagging (v0.36.0)', () => {
+  it('tags standalone images as zoomable (data-zoom="1")', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = '<p><img src="https://example.com/a.png" alt="pic"></p>';
+    await enhanceDom(div, { mermaid: false, folding: false });
+    const img = div.querySelector('img');
+    expect(img.dataset.zoom).toBe('1');
+  });
+
+  it('does NOT tag images wrapped in a link (data-zoom="0")', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = '<a href="https://example.com"><img src="https://example.com/b.png"></a>';
+    await enhanceDom(div, { mermaid: false, folding: false });
+    const img = div.querySelector('img');
+    expect(img.dataset.zoom).toBe('0');
+  });
+
+  it('is idempotent — re-enhancing does not flip an existing tag', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    div.innerHTML = '<img src="https://example.com/c.png">';
+    await enhanceDom(div, { mermaid: false, folding: false });
+    await enhanceDom(div, { mermaid: false, folding: false });
+    expect(div.querySelector('img').dataset.zoom).toBe('1');
+  });
+
+  it('opens the lightbox overlay on click', async () => {
+    const { enhanceDom } = await import('../src/lib/renderer.js');
+    const div = document.createElement('div');
+    document.body.appendChild(div);
+    div.innerHTML = '<img src="https://example.com/d.png" alt="zoom me">';
+    await enhanceDom(div, { mermaid: false, folding: false });
+    div.querySelector('img').click();
+    const overlay = document.getElementById('mdpeek-lightbox');
+    expect(overlay).not.toBeNull();
+    expect(overlay.classList.contains('open')).toBe(true);
+    // Clean up.
+    overlay.remove();
+    div.remove();
+  });
+});
+
+describe('renderMarkdown — emoji shortcodes (v0.36.0)', () => {
+  it('replaces :shortcode: with the emoji in prose', () => {
+    const html = renderMarkdown('Hello :smile: world');
+    expect(html).toContain('😄');
+    expect(html).not.toContain(':smile:');
+  });
+
+  it('handles multiple shortcodes in one line', () => {
+    const html = renderMarkdown(':thumbsup: nice :tada:');
+    expect(html).toContain('👍');
+    expect(html).toContain('🎉');
+  });
+
+  it('leaves unknown shortcodes untouched', () => {
+    const html = renderMarkdown('see :not_real: ok');
+    expect(html).toContain(':not_real:');
+  });
+
+  it('does NOT replace shortcodes inside code spans', () => {
+    const html = renderMarkdown('run `cmd :smile:` now');
+    expect(html).toContain(':smile:');
+    expect(html).not.toContain('😄');
+  });
+
+  it('does NOT replace shortcodes inside fenced code blocks', () => {
+    const html = renderMarkdown('```\nconst x = ":heart:";\n```');
+    expect(html).toContain(':heart:');
+    expect(html).not.toContain('❤️');
+  });
+});
