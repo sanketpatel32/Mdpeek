@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findAllMatches } from '../src/lib/replace.js';
+import { findAllMatches, applyReplacements } from '../src/lib/replace.js';
 
 describe('findAllMatches', () => {
   it('returns an empty array for an empty query', () => {
@@ -48,5 +48,63 @@ describe('findAllMatches', () => {
     // offsets: 😀 occupies indices 1–2 (end is exclusive → 3).
     expect(findAllMatches('a😀b', '😀', { caseSensitive: true }))
       .toEqual([{ start: 1, end: 3 }]);
+  });
+});
+
+describe('applyReplacements', () => {
+  it('returns the original content and count 0 when there are no matches', () => {
+    const r = applyReplacements('hello world', 'xyz', 'abc', { caseSensitive: true });
+    expect(r).toEqual({ result: 'hello world', count: 0 });
+  });
+
+  it('replaces a single match', () => {
+    const r = applyReplacements('hello', 'ell', 'XX', { caseSensitive: true });
+    expect(r).toEqual({ result: 'hXXo', count: 1 });
+  });
+
+  it('replaces every match on one line', () => {
+    const r = applyReplacements('aaa', 'a', 'b', { caseSensitive: true });
+    expect(r).toEqual({ result: 'bbb', count: 3 });
+  });
+
+  it('replaces matches across multiple lines', () => {
+    const r = applyReplacements('foo\nbar\nfoo', 'foo', 'qux', { caseSensitive: true });
+    expect(r).toEqual({ result: 'qux\nbar\nqux', count: 2 });
+  });
+
+  it('supports an empty replacement (deletion)', () => {
+    const r = applyReplacements('a-b-c', '-', '', { caseSensitive: true });
+    expect(r).toEqual({ result: 'abc', count: 2 });
+  });
+
+  it('does not loop when the replacement contains the query', () => {
+    // query "a", replacement "aa" — must not re-match the inserted text.
+    const r = applyReplacements('a', 'a', 'aa', { caseSensitive: true });
+    expect(r).toEqual({ result: 'aa', count: 1 });
+  });
+
+  it('is case-insensitive when the flag is false', () => {
+    const r = applyReplacements('Foo foo FOO', 'foo', 'bar', { caseSensitive: false });
+    expect(r).toEqual({ result: 'bar bar bar', count: 3 });
+  });
+
+  it('inserts the replacement verbatim (no re-casing) in case-insensitive mode', () => {
+    const r = applyReplacements('FOO', 'foo', 'Bar', { caseSensitive: false });
+    expect(r).toEqual({ result: 'Bar', count: 1 });
+  });
+
+  it('is overlap-safe (aa in aaaa -> 2 replacements)', () => {
+    const r = applyReplacements('aaaa', 'aa', 'b', { caseSensitive: true });
+    expect(r).toEqual({ result: 'bb', count: 2 });
+  });
+
+  it('handles multibyte characters', () => {
+    const r = applyReplacements('café', 'é', 'e', { caseSensitive: true });
+    expect(r).toEqual({ result: 'cafe', count: 1 });
+  });
+
+  it('returns count 0 for an empty query', () => {
+    const r = applyReplacements('hello', '', 'x', { caseSensitive: true });
+    expect(r).toEqual({ result: 'hello', count: 0 });
   });
 });

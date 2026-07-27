@@ -26,3 +26,24 @@ export function findAllMatches(content, query, { caseSensitive }) {
   }
   return matches;
 }
+
+// Replace every occurrence of `query` with `replacement` in `content`.
+// Returns { result, count }. Reuses findAllMatches so the matching rules
+// (case-sensitivity, overlap-safety) are identical. The replacement text is
+// inserted verbatim — it is never re-scanned, so a replacement that contains
+// the query cannot cause an infinite loop.
+export function applyReplacements(content, query, replacement, { caseSensitive }) {
+  const matches = findAllMatches(content, query, { caseSensitive });
+  if (matches.length === 0) return { result: content, count: 0 };
+  // Walk matches left-to-right, splicing into a fresh string. Because matches
+  // are non-overlapping and we track an output cursor, earlier offsets stay
+  // valid as we build the result.
+  let out = '';
+  let cursor = 0;
+  for (const m of matches) {
+    out += content.slice(cursor, m.start) + replacement;
+    cursor = m.end;
+  }
+  out += content.slice(cursor);
+  return { result: out, count: matches.length };
+}
