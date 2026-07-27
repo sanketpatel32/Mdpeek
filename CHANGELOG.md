@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-07-27
+
+### Added — Editor completeness + navigation
+
+Seven features closing the remaining obvious editor gaps, plus a Go to line
+command. No new dependencies; all logic stays in the unit-tested
+`editor-logic` module.
+
+**Editor**
+
+- **Strikethrough button + `Ctrl+Shift+X`.** A formatting toolbar button (next
+  to Italic) and a matching keyboard shortcut for `~~strikethrough~~`. The
+  renderer already supported it; only the UI was missing.
+- **Blockquote shortcut `Ctrl+Shift+.`.** The Quote toolbar button now has a
+  keybind, matching Bold / Italic / Code.
+- **`Tab size` setting (2 / 4 / 8 spaces).** The editor no longer hardcodes
+  2-space indent — pick 2, 4, or 8 in Settings → Editor. Tab and Shift+Tab
+  respect it; the textarea's `tab-size` CSS follows along.
+- **`Word wrap` setting.** Soft-wrap was always on; now toggle it off in
+  Settings → Editor for horizontal scrolling on wide tables/code. Default on
+  (unchanged behavior).
+- **`Spellcheck` setting.** The editor was hardcoded `spellcheck="false"`;
+  writers can now turn squiggles on in Settings → Editor. Default off
+  (unchanged behavior).
+- **Go to line (`Ctrl+G`).** Prompts for a line number and scrolls the caret
+  there, matching VS Code / Sublime. Also in the command palette.
+  **Note:** `Ctrl+G` was previously "find next" — it's been reassigned. Find
+  next/prev are still on `F3` / `Shift+F3` and `Enter` in the find bar, so
+  nothing is lost.
+
+**Reading Mode**
+
+- **Scroll position memory.** Exiting and re-entering Reading Mode on the same
+  document now resumes where you left off, instead of jumping to the top.
+
+**Command palette**
+
+- **Insert today's date.** New palette entry inserts `YYYY-MM-DD (locale date)`
+  at the caret — handy for journals and meeting notes.
+
 ## [0.36.0] - 2026-07-26
 
 ### Added — Eight quality-of-life features

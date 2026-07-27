@@ -3,7 +3,20 @@
 // test/editor-logic.test.js. The DOM wiring in src/views/editor.js calls these
 // and writes the result back via setRangeText + setSelectionRange.
 
-const INDENT = '  '; // 2 spaces — matches GitHub/VS Code markdown default
+// Indent string used by handleTab/handleShiftTab. Defaults to 2 spaces
+// (GitHub/VS Code markdown default). v0.37.0: configurable via the
+// `mdpeek-tab-size` localStorage key — accepts '2' | '4' | '8'. Tests pass a
+// literal size so they don't touch localStorage; the editor passes nothing and
+// getIndent reads the live setting.
+const INDENT_TABLE = { '2': '  ', '4': '    ', '8': '        ' };
+const DEFAULT_INDENT = '  ';
+export function getIndent(size) {
+  if (size === 2 || size === 4 || size === 8) return INDENT_TABLE[String(size)];
+  if (typeof localStorage !== 'undefined') {
+    return INDENT_TABLE[localStorage.getItem('mdpeek-tab-size')] || DEFAULT_INDENT;
+  }
+  return DEFAULT_INDENT;
+}
 
 // ----------------------------- selection utils -----------------------------
 
@@ -17,18 +30,20 @@ function lineRange(text, pos) {
 
 // ----------------------------- Tab / Shift+Tab -----------------------------
 
-// No selection → insert 2 spaces at caret.
-// Selection (even partial) → indent every touched line by INDENT.
+// No selection → insert the indent string at caret.
+// Selection (even partial) → indent every touched line by one indent level.
 export function handleTab(text, start, end) {
+  const INDENT = getIndent();
   if (start === end) {
     return insertAt(text, start, INDENT, start + INDENT.length);
   }
   return indentLines(text, start, end, INDENT);
 }
 
-// Outdent every touched line by one INDENT (2 spaces). Lines with no leading
-// INDENT are left alone. Collapses a multi-line selection to its start.
+// Outdent every touched line by one indent level. Lines with no leading indent
+// are left alone. Collapses a multi-line selection to its start.
 export function handleShiftTab(text, start, end) {
+  const INDENT = getIndent();
   const [lineStart] = lineRange(text, Math.min(start, end));
   let cursor = lineStart;
   const lines = text.slice(lineStart, end).split('\n');

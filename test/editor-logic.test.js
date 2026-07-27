@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import {
   handleTab,
   handleShiftTab,
@@ -16,6 +16,7 @@ import {
   duplicateLines,
   moveLines,
   toggleComment,
+  getIndent,
 } from '../src/lib/editor-logic.js';
 
 // helper: apply a logic result to verify text + caret in one assertion
@@ -496,5 +497,60 @@ describe('toggleComment', () => {
     const text = 'aaa\n\nccc';
     const r = toggleComment(text, 4, 4);
     expect(r.text).toBe('aaa\n<!---->\nccc');
+  });
+});
+
+describe('getIndent (v0.37.0)', () => {
+  it('returns the explicit size when passed (2/4/8)', () => {
+    expect(getIndent(2)).toBe('  ');
+    expect(getIndent(4)).toBe('    ');
+    expect(getIndent(8)).toBe('        ');
+  });
+
+  it('returns 2 spaces by default when localStorage has no setting', () => {
+    localStorage.removeItem('mdpeek-tab-size');
+    expect(getIndent()).toBe('  ');
+  });
+
+  it('reads the mdpeek-tab-size setting from localStorage', () => {
+    localStorage.setItem('mdpeek-tab-size', '4');
+    expect(getIndent()).toBe('    ');
+    localStorage.setItem('mdpeek-tab-size', '8');
+    expect(getIndent()).toBe('        ');
+    localStorage.setItem('mdpeek-tab-size', '2');
+    expect(getIndent()).toBe('  ');
+    localStorage.removeItem('mdpeek-tab-size');
+  });
+
+  it('falls back to 2 spaces for an unknown setting value', () => {
+    localStorage.setItem('mdpeek-tab-size', '3');
+    expect(getIndent()).toBe('  ');
+    localStorage.setItem('mdpeek-tab-size', 'garbage');
+    expect(getIndent()).toBe('  ');
+    localStorage.removeItem('mdpeek-tab-size');
+  });
+});
+
+describe('handleTab respects tab-size setting (v0.37.0)', () => {
+  afterEach(() => {
+    localStorage.removeItem('mdpeek-tab-size');
+  });
+
+  it('inserts 4 spaces when mdpeek-tab-size is "4"', () => {
+    localStorage.setItem('mdpeek-tab-size', '4');
+    const r = handleTab('abc', 1, 1); // no selection
+    expect(r.text).toBe('a    bc');
+  });
+
+  it('inserts 8 spaces when mdpeek-tab-size is "8"', () => {
+    localStorage.setItem('mdpeek-tab-size', '8');
+    const r = handleTab('abc', 1, 1);
+    expect(r.text).toBe('a        bc');
+  });
+
+  it('outdents a single 4-space line when tab-size is "4"', () => {
+    localStorage.setItem('mdpeek-tab-size', '4');
+    const r = handleShiftTab('    a', 0, 5);
+    expect(r.text).toBe('a');
   });
 });

@@ -909,6 +909,7 @@ const palette = initCommandPalette(() => {
     },
     { id: 'copy-rich', label: 'Copy as rich text', hint: 'Ctrl+Shift+C', keywords: 'copy rich html clipboard paste formatted', run: copyAsRichText },
     { id: 'mode', label: 'Toggle edit / view', hint: 'Ctrl+E', keywords: 'toggle edit view mode', run: toggleMode },
+    { id: 'goto-line', label: 'Go to line…', hint: 'Ctrl+G', keywords: 'go to line jump navigate number', run: gotoLine },
     { id: 'sidebar', label: 'Toggle sidebar (TOC)', hint: 'Ctrl+B', keywords: 'sidebar toc outline', run: toggleSidebar },
     { id: 'find', label: 'Find', hint: 'Ctrl+F', keywords: 'find search', run: () => find.toggle() },
     { id: 'replace', label: 'Find & Replace', hint: 'Ctrl+H', keywords: 'replace substitute find', run: () => find.openReplace() },
@@ -927,6 +928,7 @@ const palette = initCommandPalette(() => {
     { id: 'pomo-start', label: 'Start Pomodoro', keywords: 'pomodoro timer focus 25 minute', run: pomoToggleRun },
     { id: 'terminal', label: 'Toggle terminal', hint: 'Ctrl+`', keywords: 'terminal powershell shell cmd console cli', run: () => terminal.toggle() },
     { id: 'snippet', label: 'Insert template / snippet', hint: 'Ctrl+Shift+S', keywords: 'snippet template callout table code meeting insert', run: () => snippetPicker.open() },
+    { id: 'insert-date', label: 'Insert today\'s date', keywords: 'date time today stamp now insert', run: insertDateAtCursor },
     { id: 'check-updates', label: 'Check for updates', keywords: 'update version check', run: () => checkForUpdates(false) },
     { id: 'quit', label: 'Quit mdpeek', keywords: 'quit exit close', run: doQuitApp },
   ];
@@ -985,6 +987,21 @@ function insertSnippetIntoEditor(doc, textToInsert) {
     doc.content += '\n\n' + textToInsert;
     renderActive();
   }
+}
+
+// v0.37.0: insert today's date (locale format) at the caret. Edit-mode inserts
+// inline; view-mode appends. Mirrors the snippet insert path.
+function insertDateAtCursor() {
+  const doc = store.active();
+  if (!doc || doc.pdf || doc.excalidraw || doc.image || doc.csv) {
+    toast('Switch to a Markdown document first');
+    return;
+  }
+  const now = new Date();
+  const iso = now.toISOString().slice(0, 10); // YYYY-MM-DD
+  const locale = now.toLocaleDateString();
+  // "2024-07-26 (Jul 26, 2024)" — ISO for sorting + locale for readability.
+  insertSnippetIntoEditor(doc, `${iso} (${locale})`);
 }
 
 // ---------- Integrated PowerShell Terminal ----------
@@ -1129,6 +1146,15 @@ function applyPendingLine(doc) {
   const line = doc.pendingLine;
   doc.pendingLine = null;
   if (line < 1) return;
+  scrollEditorToLine(doc, line);
+}
+
+// v0.37.0: extracted from applyPendingLine so the go-to-line prompt can reuse
+// the exact same caret+scroll math. Edit mode sets the caret on the line and
+// scrolls it into the upper third; code-view pixel-scrolls; other doc types
+// are a no-op (the caller decides whether to toast).
+function scrollEditorToLine(doc, line) {
+  if (!doc || line < 1) return false;
   if (doc.mode === 'edit' && doc.editor) {
     // Compute character offset + scrollTop via the same math the find bar uses.
     const text = doc.editor.getValue();
@@ -1141,14 +1167,41 @@ function applyPendingLine(doc) {
     const lineHeight = parseFloat(getComputedStyle(ta).lineHeight) || 20;
     const scrollTop = Math.max(0, (line - 1) * lineHeight - ta.clientHeight / 3);
     doc.editor.setState({ start: offset, end: offset, scrollTop });
+    return true;
   } else if (doc.code) {
     // Code view: the gutter's <div>s share the <pre>'s line-height. Scroll
     // the document so the target line lands roughly in the upper third.
     const gutterDiv = el.document.querySelector('.code-gutter > div');
     const lineHeight = gutterDiv ? (gutterDiv.getBoundingClientRect().height || 18) : 18;
     el.document.scrollTop = Math.max(0, (line - 1) * lineHeight - el.document.clientHeight / 3);
+    return true;
   }
-  // CSV / markdown-view / PDF / image / excalidraw: no line concept. No-op.
+  // CSV / markdown-view / PDF / image / excalidraw: no line concept.
+  return false;
+}
+
+// v0.37.0: Go to line — prompts for a line number and scrolls the caret there.
+// Edit mode only (the prompt+setState path needs a real caret); other modes
+// get a toast. Uses window.prompt for the simplest UI (no new modal chrome).
+function gotoLine() {
+  const doc = store.active();
+  if (!doc) return;
+  if (doc.mode !== 'edit' || !doc.editor) {
+    toast('Switch to edit mode to use Go to line');
+    return;
+  }
+  const totalLines = doc.editor.getValue().split('\n').length;
+  const raw = window.prompt(`Go to line (1–${totalLines}):`, '');
+  if (raw === null) return; // user cancelled
+  const line = parseInt(raw, 10);
+  if (!Number.isFinite(line) || line < 1) {
+    toast('Enter a positive line number');
+    return;
+  }
+  const clamped = Math.min(line, totalLines);
+  if (!scrollEditorToLine(doc, clamped)) {
+    toast('Could not jump to that line');
+  }
 }
 
 function newTab() {
@@ -1776,7 +1829,7 @@ async function enterReading() {
   document.body.classList.add('reading');
   // Focus the scroll region so keyboard shortcuts work without a tab-focus.
   const scroll = el.reader.querySelector('.reader-scroll');
-  if (scroll) scroll.scrollTop = 0;
+  if (scroll) scroll.scrollTop = doc.readerScrollY || 0;
   el.reader.focus?.();
   // v0.36.0: drive the top progress bar from the scroll position. Wired once
   // (the reader element is long-lived); the listener reads the live scroll
@@ -1805,6 +1858,12 @@ function updateReaderProgress() {
 }
 
 function exitReading() {
+  // v0.37.0: remember where the user was reading so re-entering resumes there
+  // instead of jumping to the top. Stored on the doc object (in-memory only,
+  // matches how view-mode doc.scrollY already behaves).
+  const doc = store.active();
+  const scroll = el.reader.querySelector('.reader-scroll');
+  if (doc && scroll) doc.readerScrollY = scroll.scrollTop;
   el.reader.classList.add('hidden');
   document.body.classList.remove('reading');
   // Drop rendered content so the next enter starts fresh (no stale diagrams).
@@ -3753,6 +3812,18 @@ function applyLineNumbers() {
   el.gutter.classList.toggle('hidden', !show);
 }
 
+// v0.37.0: word-wrap + spellcheck are editor-attribute toggles. Both default
+// to preserve prior behavior (wrap on, spellcheck off). Applied to the live
+// textarea; new tabs pick up the setting on initEditor via editor.js.
+function applyWordWrap() {
+  const on = localStorage.getItem('mdpeek-word-wrap') !== '0';
+  if (el.editor) el.editor.setAttribute('wrap', on ? 'soft' : 'off');
+}
+function applySpellcheck() {
+  const on = localStorage.getItem('mdpeek-spellcheck') === '1';
+  if (el.editor) el.editor.spellcheck = on;
+}
+
 function zoomIn() {
   zoomLevel = Math.min(ZOOM_MAX, +(zoomLevel + ZOOM_STEP).toFixed(2));
   applyZoom();
@@ -4347,6 +4418,9 @@ const SETTING_KEYS = [
   'mdpeek-code-line-numbers',
   'mdpeek-font-family',
   'mdpeek-autosave',
+  'mdpeek-tab-size',
+  'mdpeek-word-wrap',
+  'mdpeek-spellcheck',
 ];
 
 let _changelogRendered = false;
@@ -4412,6 +4486,14 @@ function syncSettingsControls() {
 
   const autosaveCb = document.getElementById('settings-autosave');
   if (autosaveCb) autosaveCb.checked = localStorage.getItem('mdpeek-autosave') !== '0';
+
+  // v0.37.0: tab-size select + word-wrap + spellcheck checkboxes.
+  const tabSizeSel = document.getElementById('settings-tab-size');
+  if (tabSizeSel) tabSizeSel.value = localStorage.getItem('mdpeek-tab-size') || '2';
+  const wordWrapCb = document.getElementById('settings-word-wrap');
+  if (wordWrapCb) wordWrapCb.checked = localStorage.getItem('mdpeek-word-wrap') !== '0';
+  const spellcheckCb = document.getElementById('settings-spellcheck');
+  if (spellcheckCb) spellcheckCb.checked = localStorage.getItem('mdpeek-spellcheck') === '1';
 
   // Notes folder display — show configured path or auto-initialize with system default.
   const notesPath = document.getElementById('settings-notes-path');
@@ -4493,6 +4575,8 @@ if (resetBtn) {
     if (find) find.setCaseSensitive(false);
     applyReadingComfort();
     applyLineNumbers();
+    applyWordWrap();
+    applySpellcheck();
     syncSettingsControls();
     toast('Settings reset to defaults');
   });
@@ -4626,6 +4710,25 @@ document.getElementById('settings-active-line')?.addEventListener('change', (e) 
     const ta = el.editMode.querySelector('.editor');
     if (ta) ta.dispatchEvent(new Event('input'));
   }
+});
+
+// v0.37.0: tab size — writes the key; editor-logic reads it live on next Tab.
+// Also nudges the textarea's tabSize CSS so the rendered spacing matches.
+document.getElementById('settings-tab-size')?.addEventListener('change', (e) => {
+  localStorage.setItem('mdpeek-tab-size', e.target.value);
+  if (el.editor) el.editor.style.tabSize = e.target.value;
+});
+
+// Word wrap — soft-wrap vs horizontal scroll. Default on.
+document.getElementById('settings-word-wrap')?.addEventListener('change', (e) => {
+  localStorage.setItem('mdpeek-word-wrap', e.target.checked ? '1' : '0');
+  applyWordWrap();
+});
+
+// Spellcheck — editor squiggles. Default off.
+document.getElementById('settings-spellcheck')?.addEventListener('change', (e) => {
+  localStorage.setItem('mdpeek-spellcheck', e.target.checked ? '1' : '0');
+  applySpellcheck();
 });
 
 // Notes folder — re-pick where daily notes are saved.
@@ -5126,11 +5229,16 @@ window.addEventListener('keydown', (e) => {
     // Ctrl+H = find & replace. No-op in view/PDF mode (find bar handles that).
     e.preventDefault();
     find.openReplace();
-  } else if (k === 'g') {
-    // Ctrl+G = next, Ctrl+Shift+G = prev (repeat last search even when closed).
+  } else if (k === 'g' && e.shiftKey) {
+    // Ctrl+Shift+G = previous match (repeat last search even when closed).
+    // Ctrl+G was reassigned to Go to line in v0.37.0 — F3 / Shift+F3 / Enter
+    // in the find bar still cover next/prev.
     e.preventDefault();
-    if (e.shiftKey) find.findPrev();
-    else find.findNext();
+    find.findPrev();
+  } else if (k === 'g') {
+    // Ctrl+G = Go to line (v0.37.0). Matches VS Code / Sublime convention.
+    e.preventDefault();
+    gotoLine();
   } else if (k === '=' || k === '+') {
     e.preventDefault();
     zoomIn();
@@ -5754,6 +5862,8 @@ if (savedZoom >= ZOOM_MIN && savedZoom <= ZOOM_MAX) {
 }
 applyReadingComfort();
 applyLineNumbers();
+applyWordWrap();
+applySpellcheck();
 applyFeatureFlags();
 
 (async () => {

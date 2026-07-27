@@ -35,7 +35,10 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
   // the user couldn't see what they typed). The gutter, active-line marker,
   // and typewriter mode all read positions from the mirror (below) so they
   // stay aligned even when a source line wraps to multiple visual rows.
-  textarea.setAttribute('wrap', 'soft');
+  // v0.37.0: wrap is configurable via mdpeek-word-wrap (default soft). Reading
+  // localStorage here matches the mdpeek-active-line pattern at line 196.
+  const wrapPref = (() => { try { return localStorage.getItem('mdpeek-word-wrap'); } catch { return null; } })();
+  textarea.setAttribute('wrap', wrapPref === '0' ? 'off' : 'soft');
 
   // ----- hidden mirror (wrap-aware measurement) -----
   // A visibility:hidden div that echoes the textarea's text one <div> per
@@ -283,6 +286,21 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
       applyResult(duplicateLines(textarea.value, s, en));
       return;
     }
+    // Ctrl+Shift+X → strikethrough (wrap in ~~). Mirrors the toolbar button.
+    if (ctrl && e.shiftKey && (e.key === 'x' || e.key === 'X')) {
+      e.preventDefault();
+      e.stopPropagation();
+      applyResult(wrapSelection(textarea.value, s, en, '~~'));
+      return;
+    }
+    // Ctrl+Shift+. → toggle blockquote prefix (> ). Mirrors the toolbar button;
+    // gives quote a keybind to match bold/italic/code.
+    if (ctrl && e.shiftKey && e.key === '.') {
+      e.preventDefault();
+      e.stopPropagation();
+      applyResult(toggleLinePrefix(textarea.value, s, en, '> '));
+      return;
+    }
     // Ctrl+/ → toggle HTML comment around selection (or current line).
     if (ctrl && e.key === '/') {
       e.preventDefault();
@@ -450,6 +468,7 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
       switch (type) {
         case 'bold': return applyResult(wrapSelection(textarea.value, s, en, '**'));
         case 'italic': return applyResult(wrapSelection(textarea.value, s, en, '*'));
+        case 'strike': return applyResult(wrapSelection(textarea.value, s, en, '~~'));
         case 'code': return applyResult(wrapSelection(textarea.value, s, en, '`'));
         case 'link': {
           const sel = textarea.value.slice(s, en);

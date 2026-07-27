@@ -209,6 +209,7 @@
                 <button class="fmt-btn" data-fmt="h2" type="button" title="Heading 2" aria-label="Heading 2"><strong>H2</strong></button>
                 <button class="fmt-btn" data-fmt="bold" type="button" title="Bold (Ctrl+B)" aria-label="Bold"><strong>B</strong></button>
                 <button class="fmt-btn" data-fmt="italic" type="button" title="Italic (Ctrl+I)" aria-label="Italic"><em>I</em></button>
+                <button class="fmt-btn" data-fmt="strike" type="button" title="Strikethrough (Ctrl+Shift+X)" aria-label="Strikethrough"><s>S</s></button>
                 <button class="fmt-btn" data-fmt="code" type="button" title="Inline code (Ctrl+`)" aria-label="Inline code"><code>&lt;/&gt;</code></button>
                 <button class="fmt-btn" data-fmt="link" type="button" title="Link" aria-label="Link">🔗</button>
                 <button class="fmt-btn" data-fmt="ul" type="button" title="Bulleted list" aria-label="Bulleted list">•</button>
@@ -853,6 +854,37 @@
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
+                <div class="setting-row">
+                  <div class="setting-text">
+                    <div class="setting-label">Tab size</div>
+                    <div class="setting-desc">Spaces inserted by Tab / used for auto-indent</div>
+                  </div>
+                  <select id="settings-tab-size" class="setting-select" aria-label="Tab size">
+                    <option value="2">2 spaces</option>
+                    <option value="4">4 spaces</option>
+                    <option value="8">8 spaces</option>
+                  </select>
+                </div>
+                <div class="setting-row">
+                  <div class="setting-text">
+                    <div class="setting-label">Word wrap</div>
+                    <div class="setting-desc">Soft-wrap long lines instead of horizontal scrolling</div>
+                  </div>
+                  <label class="setting-toggle">
+                    <input type="checkbox" id="settings-word-wrap" />
+                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+                  </label>
+                </div>
+                <div class="setting-row">
+                  <div class="setting-text">
+                    <div class="setting-label">Spellcheck</div>
+                    <div class="setting-desc">Show spell-check squiggles in the editor (off by default)</div>
+                  </div>
+                  <label class="setting-toggle">
+                    <input type="checkbox" id="settings-spellcheck" />
+                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+                  </label>
+                </div>
               </div>
             </div>
 
@@ -977,7 +1009,8 @@
                     <tr><td><kbd>Ctrl</kbd>+<kbd>B</kbd></td><td>Toggle sidebar (TOC)</td></tr>
                         <tr><td><kbd>Ctrl</kbd>+<kbd>F</kbd></td><td>Find</td></tr>
                         <tr><td><kbd>Ctrl</kbd>+<kbd>H</kbd></td><td>Find &amp; Replace (edit mode)</td></tr>
-                    <tr><td><kbd>Ctrl</kbd>+<kbd>G</kbd> / <kbd>Shift</kbd>+<kbd>G</kbd></td><td>Find next / previous</td></tr>
+                    <tr><td><kbd>Ctrl</kbd>+<kbd>G</kbd></td><td>Go to line (edit mode)</td></tr>
+                    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd></td><td>Find previous</td></tr>
                     <tr><td><kbd>F3</kbd> / <kbd>Shift</kbd>+<kbd>F3</kbd></td><td>Repeat search next / previous</td></tr>
                     <tr><td><kbd>Ctrl</kbd>+<kbd>=</kbd> / <kbd>Ctrl</kbd>+<kbd>-</kbd></td><td>Zoom in / out</td></tr>
                     <tr><td><kbd>Ctrl</kbd>+<kbd>0</kbd></td><td>Reset zoom</td></tr>
@@ -1003,6 +1036,8 @@
                   <tbody>
                     <tr><td><kbd>Ctrl</kbd>+<kbd>B</kbd></td><td>Bold (wrap in <code>**</code>)</td></tr>
                     <tr><td><kbd>Ctrl</kbd>+<kbd>I</kbd></td><td>Italic (wrap in <code>*</code>)</td></tr>
+                    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>X</kbd></td><td>Strikethrough (wrap in <code>~~</code>)</td></tr>
+                    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>.</kbd></td><td>Toggle blockquote (<code>&gt;</code>)</td></tr>
                     <tr><td><kbd>Ctrl</kbd>+<kbd>`</kbd></td><td>Inline code</td></tr>
                     <tr><td><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd></td><td>Indent / outdent</td></tr>
                     <tr><td><kbd>Enter</kbd></td><td>Continue lists, close fences</td></tr>
