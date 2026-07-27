@@ -647,3 +647,34 @@ describe('renderMarkdown — emoji shortcodes (v0.36.0)', () => {
     expect(html).not.toContain('❤️');
   });
 });
+
+describe('renderMarkdown — highlight marker ==text== (v0.38.0)', () => {
+  it('wraps ==text== in <mark>', () => {
+    const html = renderMarkdown('this is ==important== text');
+    expect(html).toContain('<mark>important</mark>');
+    expect(html).not.toContain('==important==');
+  });
+
+  it('handles multiple highlights on one line', () => {
+    const html = renderMarkdown('==a== and ==b==');
+    expect(html).toContain('<mark>a</mark>');
+    expect(html).toContain('<mark>b</mark>');
+  });
+
+  it('does NOT treat === (heading underline) as a highlight', () => {
+    const html = renderMarkdown('Title\n===');
+    expect(html).not.toContain('<mark>');
+  });
+
+  it('does NOT match == inside code spans', () => {
+    const html = renderMarkdown('run `a == b` now');
+    expect(html).not.toContain('<mark>');
+    expect(html).toContain('==');
+  });
+
+  it('renders inline formatting inside the highlight', () => {
+    const html = renderMarkdown('==bold **inside**==');
+    expect(html).toContain('<mark>');
+    expect(html).toContain('<strong>inside</strong>');
+  });
+});

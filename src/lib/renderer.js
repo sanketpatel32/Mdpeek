@@ -10,6 +10,7 @@ import hljs from 'highlight.js/lib/common';
 import markedKatex from 'marked-katex-extension';
 import markedFootnote from 'marked-footnote';
 import { markedEmojiExt } from './emoji.js';
+import { markedHighlightExt } from './highlight.js';
 
 // Local escapeHtml — escapes only & < > (NOT quotes). Deliberately different
 // from the shared src/lib/escape.js (which also escapes " '): renderer output
@@ -125,6 +126,7 @@ function buildMarked() {
   marked.use(markedKatex({ throwOnError: false }));
   marked.use(markedFootnote());
   marked.use(markedEmojiExt());
+  marked.use(markedHighlightExt());
   marked.use({
     renderer: {
       // Override heading to inject slug-based ids. The token carries `text`

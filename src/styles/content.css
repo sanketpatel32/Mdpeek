@@ -156,6 +156,16 @@
 .markdown-body strong {
   font-weight: 600;
 }
+/* v0.38.0: ==highlight== marker. Uses the existing --alert-warning token (the
+   same yellow GFM `[!WARNING]` callouts use), color-mixed for translucency so
+   it reads as a highlight rather than a solid block. Falls back to a fixed
+   yellow if the token is somehow missing. */
+.markdown-body mark {
+  background: color-mix(in srgb, var(--alert-warning, #ffd54a) 55%, transparent);
+  color: inherit;
+  padding: 0.05em 0.2em;
+  border-radius: 3px;
+}
 .markdown-body img {
   max-width: 100%;
   border-radius: var(--radius);

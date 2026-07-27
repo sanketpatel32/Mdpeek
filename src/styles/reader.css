@@ -189,6 +189,15 @@
 .reader[data-reader-font="medium"] { --reader-font: 19px; }
 .reader[data-reader-font="large"]  { --reader-font: 21px; }
 
+/* ---- v0.38.0: font-family stops → --reader-font-family token ----
+   'sans' deliberately sets nothing so the reader inherits the global app font
+   (whatever --content-font-family resolves to). 'serif'/'mono' override with
+   curated stacks. The article's font-family declaration already prefers
+   --reader-font-family over the global token, so this cascade wins cleanly. */
+.reader[data-reader-font-family="sans"]  { --reader-font-family: var(--content-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif); }
+.reader[data-reader-font-family="serif"] { --reader-font-family: Georgia, "Iowan Old Style", "Apple Garamond", "Times New Roman", serif; }
+.reader[data-reader-font-family="mono"]  { --reader-font-family: "Cascadia Code", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace; }
+
 /* ---- theme presets → bg / fg / muted / borders ---- */
 .reader[data-reader-theme="light"] {
   --reader-bg: #ffffff;

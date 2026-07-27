@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-07-27
+
+### Added — Highlight syntax, reader fonts, jump to heading
+
+Three features. No new dependencies; all logic stays in unit-tested pure
+modules (`highlight.js`, `reading.js`, `editor-logic.js`).
+
+**Editor / Preview**
+
+- **Highlight marker `==text==`.** Pandoc/Obsidian convention, now rendered as
+  a themed `<mark>` (yellow tint that adapts to dark themes). Toolbar button
+  next to Strikethrough + `Ctrl+Shift+H`. Implemented as a marked tokenizer
+  extension so it can't be confused with `===` heading underlines or `==`
+  inside code spans — the parser only recognizes it as inline prose syntax.
+
+**Reading Mode**
+
+- **Font family cycle.** `F` (or the new "Aa" button in the reader bar) cycles
+  sans → serif → mono. Sans inherits the global app font; serif and mono use
+  curated stacks. Persists independently of the other reader prefs.
+
+**Navigation**
+
+- **Go to heading (command palette).** A new "Go to heading…" entry in the
+  `Ctrl+Shift+P` palette lists every `#`-`######` heading in the active doc
+  (indented by level); selecting one scrolls the caret there. Edit-mode only
+  (view mode already has the sidebar TOC). Reuses the same `scrollEditorToLine`
+  helper as Go to line.
+
 ## [0.37.0] - 2026-07-27
 
 ### Added — Editor completeness + navigation

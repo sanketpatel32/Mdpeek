@@ -442,3 +442,33 @@ function lineRange2(text, start, end) {
   }
   return [lineStart, lineEnd];
 }
+
+// ----------------------------- heading extraction --------------------------
+// v0.38.0: parse ATX headings (#..######) for the "jump to heading" picker.
+// Returns [{ level, text, line }] where line is 1-indexed (matches the gutter
+// and scrollEditorToLine). Skips fenced code blocks so a `# comment` inside
+// ``` isn't mistaken for an h1. Setext headings (underline === / ---) are NOT
+// recognized — they're rare in notes and ATX covers >99% of real docs.
+const ATX_RE = /^(#{1,6})\s+(.+?)\s*#*\s*$/;
+export function extractHeadings(text) {
+  if (!text) return [];
+  const lines = text.split('\n');
+  const out = [];
+  let inFence = false;
+  let fenceMarker = '';
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i];
+    // Track fenced code blocks (``` or ~~~). A line opening/closing a fence
+    // can't also be a heading, so we check fence state before ATX.
+    const fenceOpen = ln.match(/^\s*(`{3,}|~{3,})/);
+    if (fenceOpen) {
+      if (!inFence) { inFence = true; fenceMarker = fenceOpen[1][0]; }
+      else if (fenceMarker && ln.trim().startsWith(fenceMarker.repeat(3))) { inFence = false; }
+      continue;
+    }
+    if (inFence) continue;
+    const m = ln.match(ATX_RE);
+    if (m) out.push({ level: m[1].length, text: m[2], line: i + 1 });
+  }
+  return out;
+}

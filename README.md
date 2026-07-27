@@ -2,21 +2,23 @@
 
 # mdpeek
 
-**A tiny but mighty file viewer, Markdown editor, integrated PowerShell terminal, and collaboration tool for Windows.**
+**A tiny but mighty file viewer, Markdown editor, integrated PowerShell terminal, reading mode, and collaboration tool for Windows.**
 
 Render Markdown beautifully, view PDFs / code / images / CSV / Excalidraw,
-edit with live preview, run PowerShell commands, present slideshows, sketch on PDFs, share a document
-for real-time P2P editing, and manage a global Kanban board — all in a ~6 MB
-package that installs in seconds.
+edit with live preview, run PowerShell commands, present slideshows, read in a
+distraction-free mode, sketch on PDFs, share a document for real-time P2P
+editing, and manage a Workspace hub (board, calendar, tasks, review, pomodoro)
+— all in a ~7 MB package that installs in seconds.
 
 [![Made with Tauri](https://img.shields.io/badge/made%20with-tauri%202-orange)](https://tauri.app)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Windows](https://img.shields.io/badge/platform-windows%2010%2F11-success)](https://github.com/sanketpatel32/Mdpeek/releases/latest)
-[![Installer Size](https://img.shields.io/badge/installer-~6.2MB-green)](https://github.com/sanketpatel32/Mdpeek/releases/latest)
-[![Tests](https://img.shields.io/badge/tests-292%20passing-brightgreen)](#-build)
+[![Installer Size](https://img.shields.io/badge/installer-~7.3MB-green)](https://github.com/sanketpatel32/Mdpeek/releases/latest)
+[![Version](https://img.shields.io/badge/version-0.37.0-blueviolet)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-490%2B%20passing-brightgreen)](#-build)
 
 Built with **Tauri 2 + vanilla JS**. Uses the system WebView2 (no bundled
-Chromium), making it ~95% smaller than Electron-based viewers like MarkText
+Chromium), making it far smaller than Electron-based viewers like MarkText
 (~90 MB) or mdview (~70 MB).
 
 [Features](#-features) · [Install](#-install) · [Shortcuts](#-keyboard-shortcuts) · [Build](#-build) · [Changelog](CHANGELOG.md)
@@ -43,10 +45,22 @@ Chromium), making it ~95% smaller than Electron-based viewers like MarkText
 - **Mermaid diagrams** — flowcharts, sequence diagrams, gantt charts (lazy-loaded)
 - **Alert callouts** — GitHub-style `> [!NOTE]` / `[!TIP]` / `[!WARNING]` / `[!CAUTION]` / `[!IMPORTANT]` blocks
 - **Heading IDs + table of contents** — in-document anchors and a collapsible TOC sidebar
+- **Emoji shortcodes** — `:smile:`, `:thumbsup:`, `:tada:`, `:heart:` and ~175 more render as emoji in prose (left untouched inside code)
+- **Clickable task checkboxes** — check a `- [ ]` box in the rendered view and the source updates
+- **`Ctrl+K` links** — turn selected text into a Markdown link from the editor
 - **Live syntax highlighting in editor** — transparent-text overlay preserving native cursor, selection, IME, and spellcheck
 - **Smart editing** — Tab/Shift+Tab indent, list continuation on `Enter`, auto-pair brackets/quotes, auto-close code fences
+- **Editor line operations** — `Ctrl+D` duplicate line, `Alt+↑`/`Alt+↓` move line(s), `Ctrl+/` toggle HTML comment
+- **Formatting shortcuts** — Bold/Italic/Code/Strikethrough (`Ctrl+Shift+X`)/Blockquote (`Ctrl+Shift+.`) keybinds
+- **Go to line (`Ctrl+G`)** — jump to a line number, VS Code / Sublime style
 - **Typewriter mode** — `Ctrl+Shift+T` keeps the caret vertically centered
 - **Unified find & replace** — `Ctrl+F` to find, `Ctrl+H` to replace across view, edit, and PDF modes
+
+### 📖 Reading Mode
+- A distraction-free reader for any Markdown document — `Ctrl+Shift+R` style flow with its own width, font, and theme controls
+- **Four width stops** — Narrow / Medium / Wide / **Fill** (full screen width)
+- **Three font sizes** and **three reader themes** (Light / Sepia / Dark)
+- **Scroll progress bar** and **scroll position memory** — resume where you left off when you re-enter Reading Mode
 
 ### 📁 Beyond Markdown
 - **PDF viewer** — render `.pdf` files with text selection, in-document search, and a drawing toolbar (pen, highlighter, eraser)
@@ -54,7 +68,7 @@ Chromium), making it ~95% smaller than Electron-based viewers like MarkText
 - **Code & config files** — `.js`, `.ts`, `.py`, `.json`, `.css`, `.xml`, `.yml`, `.log`, `Dockerfile`, and 60+ more open as syntax-highlighted views **and can be edited** (`Ctrl+E`)
 - **Plain text** — `.txt` files open in a full-width Notepad-style editor
 - **CSV / TSV viewer** — render delimited files as a sortable, paginated table
-- **Image viewer** — `.png`, `.jpg`, `.gif`, `.webp`, `.svg`, `.bmp`, `.ico`, `.avif` with zoom + fit-to-window
+- **Image viewer** — `.png`, `.jpg`, `.gif`, `.webp`, `.svg`, `.bmp`, `.ico`, `.avif` with zoom + fit-to-window; **click-to-zoom** any inline image in rendered Markdown
 
 ### 🎬 Presentation mode
 - Turn any Markdown document into a **fullscreen slideshow** by splitting on `---`
@@ -77,13 +91,23 @@ Chromium), making it ~95% smaller than Electron-based viewers like MarkText
 - **Back / Forward** navigation history (`Alt+Left` / `Alt+Right`)
 - **Quick switcher** (`Ctrl+P`) — fuzzy-find recent files
 
-### 📋 Global Kanban board
-- Three columns (To do / In progress / Done), always one shortcut away (`Ctrl+Shift+K`)
-- Pointer-event based drag-and-drop between columns
+### 🧰 Workspace hub
+A single home for your day-to-day planning, opened from the home screen / hub:
+- **Board** — Kanban with To do / In progress / Done columns, drag-and-drop between columns
+- **Calendar** — month grid with daily-note awareness
+- **Tasks** — note tasks and board tasks, normalized and merged
+- **Review** — spaced-repetition review of `::flashcard::` entries
+- **Pomodoro** — focus timer with phase tracking
 
-### ⚙️ Settings & Feature Flags (v0.24.1)
-- **Opt-out Feature Flags Category** — enable or disable non-essential features anytime (*Live Collaboration*, *Kanban Board*, *Integrated Terminal*, *Presentation Slideshow*, *Markdown Snippets*, *Daily Notes*)
+### 🪟 Window & UI
+- **Calm Glass UI** — frosted topbar, motion system, lucide icons, theme-aware surfaces
+- **Always-on-top (pin)** — titlebar pin button or `Ctrl+Shift+A` keeps the window floating above other apps
+- **Home screen / Hub** — a redesigned start page for jumping into recent docs and the Workspace
 - **10 Themes** — Light, Dark, Solarized Light/Dark, Dracula, Nord, GitHub, GitHub Dark, Tokyo Night, Catppuccin
+
+### ⚙️ Settings & Feature Flags
+- **Opt-out Feature Flags** — enable or disable non-essential features anytime (*Live Collaboration*, *Workspace Hub*, *Integrated Terminal*, *Presentation Slideshow*, *Markdown Snippets*, *Daily Notes*)
+- **Editor settings** — Tab size (2 / 4 / 8), Word wrap, Spellcheck
 - **Lazy-rendered Changelog** — instant modal tab switching without startup overhead
 
 ---
@@ -134,13 +158,32 @@ Download from the [Releases page](https://github.com/sanketpatel32/Mdpeek/releas
 | Toggle edit / view | `Ctrl+E` |
 | Toggle sidebar (TOC) | `Ctrl+B` |
 | Find / Find & Replace | `Ctrl+F` / `Ctrl+H` |
+| Find next / previous | `F3` / `Shift+F3` |
+| Go to line | `Ctrl+G` |
 | Copy as rich text | `Ctrl+Shift+C` |
 | Zoom in / out / reset | `Ctrl+=` / `Ctrl+-` / `Ctrl+0` |
 | Zoom (mouse) | `Ctrl+scroll` |
 | Focus / Zen mode | `F11` |
 | Typewriter mode | `Ctrl+Shift+T` |
-| Kanban board | `Ctrl+Shift+K` |
+| Always-on-top (pin) | `Ctrl+Shift+A` |
+| Workspace / Kanban board | `Ctrl+Shift+K` |
 | Exit focus / close find / close drawer | `Esc` |
+
+### Editor
+
+| Action | Key |
+| --- | --- |
+| Bold / Italic / Inline code | `Ctrl+B` / `Ctrl+I` / `Ctrl+Shift+C`* |
+| Strikethrough | `Ctrl+Shift+X` |
+| Blockquote | `Ctrl+Shift+.` |
+| Insert / follow link | `Ctrl+K` |
+| Duplicate line(s) | `Ctrl+D` |
+| Move line(s) up / down | `Alt+↑` / `Alt+↓` |
+| Toggle HTML comment | `Ctrl+/` |
+| Indent / outdent | `Tab` / `Shift+Tab` |
+| Insert today's date | Command palette → "Insert date" |
+
+> *\*Inline code uses the editor's code formatting action; `Ctrl+Shift+C` is also bound to "Copy as rich text" in view mode.*
 
 ---
 
@@ -152,7 +195,7 @@ Download from the [Releases page](https://github.com/sanketpatel32/Mdpeek/releas
 git clone https://github.com/sanketpatel32/Mdpeek.git
 cd Mdpeek
 npm install            # install dependencies
-npm test               # run unit tests (292 tests, Vitest)
+npm test               # run unit tests (490+ tests, Vitest)
 npm run tauri dev      # launch in dev mode (hot reload)
 npm run tauri:build    # build production installer -> releases/
 npm run make-release   # sign + publish to GitHub Releases (maintainers)
@@ -166,11 +209,20 @@ npm run make-release   # sign + publish to GitHub Releases (maintainers)
 src/
 ├── lib/
 │   ├── renderer.js          MD → HTML pipeline (marked + DOMPurify + hljs + KaTeX + mermaid + save-code-btn)
+│   ├── highlight.js         editor syntax-highlight overlay helpers
 │   ├── documents.js         DocumentStore + file-type classification (md/txt/pdf/excalidraw/code/csv/image)
 │   ├── file-type.js         extension → kind mapping
-│   ├── editor-logic.js      smart editing: indent, list continuation, auto-pair, Markdown shortcuts
+│   ├── editor-logic.js      smart editing: indent, list continuation, auto-pair, Markdown shortcuts, line ops
+│   ├── reading.js           Reading Mode options (width / font / theme) + reading-time + prefs
+│   ├── dates.js             calendar grid + daily-note stamp math
+│   ├── srs.js               spaced-repetition review scheduling
+│   ├── flashcards.js        ::flashcard:: parser
+│   ├── pomodoro.js          Pomodoro timer state machine
+│   ├── tasks.js             note + Kanban task normalization/merge/sort
+│   ├── emoji.js             ~180 emoji shortcode → glyph table
 │   ├── drawing.js           PDF annotation stroke geometry + hit-testing
 │   ├── fuzzy.js             fuzzy matcher for command palette + quick switcher + folder search
+│   ├── icons.js             lucide icon set
 │   └── persistence.js       localStorage session + recent-files wrapper
 ├── views/
 │   ├── terminal.js          integrated terminal (xterm.js + real ConPTY backend, multi-tab, theme-synced)
@@ -186,7 +238,7 @@ src/
 │   ├── folder-search.js     grep across a folder with fuzzy match mode
 │   └── command-palette.js   Ctrl+Shift+P launcher + Ctrl+P quick switcher + Ctrl+Shift+S snippet picker
 ├── collab.js                Yjs + Trystero P2P collaboration (text + Excalidraw)
-├── main.js                  app wiring: tabs, shortcuts, IPC, drag-drop, auto-update, Kanban, terminal, settings
+├── main.js                  app wiring: tabs, shortcuts, IPC, drag-drop, auto-update, Workspace, terminal, settings
 └── styles/                  themes.css (10 themes), base.css (layout + terminal), content.css (markdown)
 
 src-tauri/

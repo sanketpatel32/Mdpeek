@@ -210,6 +210,7 @@
                 <button class="fmt-btn" data-fmt="bold" type="button" title="Bold (Ctrl+B)" aria-label="Bold"><strong>B</strong></button>
                 <button class="fmt-btn" data-fmt="italic" type="button" title="Italic (Ctrl+I)" aria-label="Italic"><em>I</em></button>
                 <button class="fmt-btn" data-fmt="strike" type="button" title="Strikethrough (Ctrl+Shift+X)" aria-label="Strikethrough"><s>S</s></button>
+                <button class="fmt-btn" data-fmt="highlight" type="button" title="Highlight (Ctrl+Shift+H)" aria-label="Highlight"><mark>H</mark></button>
                 <button class="fmt-btn" data-fmt="code" type="button" title="Inline code (Ctrl+`)" aria-label="Inline code"><code>&lt;/&gt;</code></button>
                 <button class="fmt-btn" data-fmt="link" type="button" title="Link" aria-label="Link">🔗</button>
                 <button class="fmt-btn" data-fmt="ul" type="button" title="Bulleted list" aria-label="Bulleted list">•</button>
@@ -334,6 +335,7 @@
           <button class="reader-btn" id="reader-theme" type="button" title="Cycle color theme (T)" aria-label="Cycle color theme">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
           </button>
+          <button class="reader-btn" id="reader-font-family" type="button" title="Cycle font family (F)" aria-label="Cycle font family">Aa</button>
           <span class="reader-divider" aria-hidden="true"></span>
           <button class="reader-btn reader-exit" id="reader-exit" type="button" title="Exit (Esc)" aria-label="Exit reading mode">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -344,7 +346,7 @@
       <div class="reader-scroll">
         <article class="markdown-body reader-article" id="reader-article"></article>
       </div>
-      <div class="reader-hint">[ ] width · + − text · T theme · Esc exit</div>
+      <div class="reader-hint">[ ] width · + − text · T theme · F font · Esc exit</div>
     </div>
 
     <div id="ctx-menu" class="ctx-menu hidden" role="menu">
@@ -1037,6 +1039,7 @@
                     <tr><td><kbd>Ctrl</kbd>+<kbd>B</kbd></td><td>Bold (wrap in <code>**</code>)</td></tr>
                     <tr><td><kbd>Ctrl</kbd>+<kbd>I</kbd></td><td>Italic (wrap in <code>*</code>)</td></tr>
                     <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>X</kbd></td><td>Strikethrough (wrap in <code>~~</code>)</td></tr>
+                    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>H</kbd></td><td>Highlight (wrap in <code>==</code>)</td></tr>
                     <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>.</kbd></td><td>Toggle blockquote (<code>&gt;</code>)</td></tr>
                     <tr><td><kbd>Ctrl</kbd>+<kbd>`</kbd></td><td>Inline code</td></tr>
                     <tr><td><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd></td><td>Indent / outdent</td></tr>

@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
-  WIDTHS, FONTS, THEMES,
+  WIDTHS, FONTS, THEMES, FONT_FAMILIES, FONT_FAMILY_STACK,
   WIDTH_PX, FONT_PX, THEME_COLORS,
   DEFAULTS,
-  cycle, nextWidth, prevWidth, nextFont, prevFont, nextTheme,
+  cycle, nextWidth, prevWidth, nextFont, prevFont, nextTheme, nextFontFamily,
   readingTimeMinutes, readingTimeLabel, READING_WPM,
   loadReaderPrefs,
 } from '../src/lib/reading.js';
@@ -44,6 +44,18 @@ describe('reading — option lists', () => {
       expect(Array.isArray(pair)).toBe(true);
       expect(pair).toHaveLength(2);
     });
+  });
+  it('exposes three font-family stops in order (v0.38.0)', () => {
+    expect(FONT_FAMILIES).toEqual(['sans', 'serif', 'mono']);
+  });
+  it('maps every font-family stop to a CSS stack string (v0.38.0)', () => {
+    FONT_FAMILIES.forEach((f) => {
+      expect(typeof FONT_FAMILY_STACK[f]).toBe('string');
+    });
+    // 'sans' deliberately empty so the reader inherits the global app font.
+    expect(FONT_FAMILY_STACK.sans).toBe('');
+    expect(FONT_FAMILY_STACK.serif.toLowerCase()).toContain('serif');
+    expect(FONT_FAMILY_STACK.mono.toLowerCase()).toContain('monospace');
   });
 });
 
@@ -86,6 +98,11 @@ describe('reading — typed cycle helpers', () => {
     expect(nextTheme('sepia')).toBe('dark');
     expect(nextTheme('dark')).toBe('light');      // wraps
   });
+  it('nextFontFamily advances and wraps across FONT_FAMILIES (v0.38.0)', () => {
+    expect(nextFontFamily('sans')).toBe('serif');
+    expect(nextFontFamily('serif')).toBe('mono');
+    expect(nextFontFamily('mono')).toBe('sans');   // wraps
+  });
 });
 
 describe('reading — reading-time estimate', () => {
@@ -122,25 +139,34 @@ describe('reading — loadReaderPrefs', () => {
     expect(prefs.width).toBe('medium');
     expect(prefs.font).toBe('medium');
     expect(prefs.theme).toBe('light');
+    expect(prefs.fontFamily).toBe('sans');
   });
   it('restores valid stored values', () => {
     const store = makeStore({
       'mdpeek-reader-width': 'wide',
       'mdpeek-reader-font': 'large',
       'mdpeek-reader-theme': 'dark',
+      'mdpeek-reader-font-family': 'serif',
     });
-    expect(loadReaderPrefs(store)).toEqual({ width: 'wide', font: 'large', theme: 'dark' });
+    expect(loadReaderPrefs(store)).toEqual({ width: 'wide', font: 'large', theme: 'dark', fontFamily: 'serif' });
   });
   it('falls back to default for an invalid stored value', () => {
     const store = makeStore({
       'mdpeek-reader-width': 'banana',   // invalid
       'mdpeek-reader-font': 'large',     // valid
       'mdpeek-reader-theme': 'neon',     // invalid
+      'mdpeek-reader-font-family': 'comic-sans', // invalid
     });
-    expect(loadReaderPrefs(store)).toEqual({ width: 'medium', font: 'large', theme: 'light' });
+    expect(loadReaderPrefs(store)).toEqual({ width: 'medium', font: 'large', theme: 'light', fontFamily: 'sans' });
   });
   it('handles a partially-populated store', () => {
     const store = makeStore({ 'mdpeek-reader-theme': 'sepia' });
-    expect(loadReaderPrefs(store)).toEqual({ width: 'medium', font: 'medium', theme: 'sepia' });
+    expect(loadReaderPrefs(store)).toEqual({ width: 'medium', font: 'medium', theme: 'sepia', fontFamily: 'sans' });
+  });
+  it('restores font-family even when other prefs are unset (v0.38.0)', () => {
+    const store = makeStore({ 'mdpeek-reader-font-family': 'mono' });
+    const prefs = loadReaderPrefs(store);
+    expect(prefs.fontFamily).toBe('mono');
+    expect(prefs.width).toBe('medium'); // others still default
   });
 });

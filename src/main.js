@@ -18,7 +18,7 @@ import { initFolderSearch } from './views/folder-search.js';
 import { initTerminal } from './views/terminal.js';
 import { renderTabs } from './views/tabs.js';
 import { renderIcons } from './lib/icons.js';
-import { toggleTaskLine, taskLineIndex } from './lib/editor-logic.js';
+import { toggleTaskLine, taskLineIndex, extractHeadings } from './lib/editor-logic.js';
 // v0.34.1: build-time version for the About + Updates panels. Import is
 // hoisted to module top; the value is written into the DOM early (right after
 // bootMotion) because the Tauri window code further down aborts module
@@ -42,7 +42,7 @@ import {
 } from './lib/tasks.js';
 import {
   WIDTHS, FONTS, THEMES, WIDTH_PX, FONT_PX, THEME_COLORS, DEFAULTS,
-  nextWidth, prevWidth, nextFont, prevFont, nextTheme,
+  nextWidth, prevWidth, nextFont, prevFont, nextTheme, nextFontFamily,
   readingTimeLabel, loadReaderPrefs,
 } from './lib/reading.js';
 import { DocumentStore, isPdfPath, isImagePath, isExcalidrawPath, langFromPath, langForEdit } from './lib/documents.js';
@@ -910,6 +910,7 @@ const palette = initCommandPalette(() => {
     { id: 'copy-rich', label: 'Copy as rich text', hint: 'Ctrl+Shift+C', keywords: 'copy rich html clipboard paste formatted', run: copyAsRichText },
     { id: 'mode', label: 'Toggle edit / view', hint: 'Ctrl+E', keywords: 'toggle edit view mode', run: toggleMode },
     { id: 'goto-line', label: 'Go to line…', hint: 'Ctrl+G', keywords: 'go to line jump navigate number', run: gotoLine },
+    { id: 'goto-heading', label: 'Go to heading…', keywords: 'go to heading jump navigate outline toc h1 h2', run: () => headingPicker.open() },
     { id: 'sidebar', label: 'Toggle sidebar (TOC)', hint: 'Ctrl+B', keywords: 'sidebar toc outline', run: toggleSidebar },
     { id: 'find', label: 'Find', hint: 'Ctrl+F', keywords: 'find search', run: () => find.toggle() },
     { id: 'replace', label: 'Find & Replace', hint: 'Ctrl+H', keywords: 'replace substitute find', run: () => find.openReplace() },
@@ -976,6 +977,31 @@ const snippetPicker = initSnippetPicker(
     } else {
       insertSnippetIntoEditor(doc, item.text);
     }
+  }
+);
+
+// v0.38.0: jump-to-heading picker. Reads the active doc's source fresh on each
+// open (so it stays correct after edits / tab switches), parses ATX headings,
+// and on confirm scrolls the caret to the chosen heading's line. Reuses the
+// same scrollEditorToLine helper the go-to-line prompt uses. Edit-mode only;
+// view mode already has the sidebar TOC for navigation.
+const headingPicker = initQuickSwitcher(
+  () => {
+    const doc = store.active();
+    if (!doc || !doc.editor) return [];
+    const text = doc.editor.getValue();
+    return extractHeadings(text).map((h) => ({
+      // Indent by level so nested headings read visually in the list.
+      label: '  '.repeat(h.level - 1) + h.text,
+      hint: `L${h.line}`,
+      keywords: h.text,
+      _line: h.line,
+    }));
+  },
+  (item) => {
+    const doc = store.active();
+    if (!doc || !doc.editor || !item._line) return;
+    scrollEditorToLine(doc, item._line);
   }
 );
 
@@ -1794,6 +1820,7 @@ function applyReaderPrefs(prefs) {
   el.reader.dataset.readerWidth = prefs.width;
   el.reader.dataset.readerFont = prefs.font;
   el.reader.dataset.readerTheme = prefs.theme;
+  el.reader.dataset.readerFontFamily = prefs.fontFamily || 'sans';
 }
 function refreshReaderMeta() {
   const doc = store.active();
@@ -1896,6 +1923,14 @@ function readerCycleTheme() {
   const next = nextTheme(cur);
   persistReaderPref('theme', next);
   el.reader.dataset.readerTheme = next;
+}
+// v0.38.0: font-family cycle (sans → serif → mono). Bound to the 'F' key,
+// which was previously unused in the reader (T is theme, +/- is size).
+function readerCycleFontFamily() {
+  const cur = el.reader.dataset.readerFontFamily || DEFAULTS.fontFamily;
+  const next = nextFontFamily(cur);
+  persistReaderPref('font-family', next);
+  el.reader.dataset.readerFontFamily = next;
 }
 
 // Tiny local helper so reading mode doesn't reach into the editor/viewer
@@ -3944,6 +3979,7 @@ document.getElementById('reader-width-next')?.addEventListener('click', () => re
 document.getElementById('reader-font-prev')?.addEventListener('click', () => readerCycleFont(-1));
 document.getElementById('reader-font-next')?.addEventListener('click', () => readerCycleFont(1));
 document.getElementById('reader-theme')?.addEventListener('click', readerCycleTheme);
+document.getElementById('reader-font-family')?.addEventListener('click', readerCycleFontFamily);
 // v0.34.1: visible style-toggle button in the slideshow overlay (was S-key only).
 document.getElementById('slide-style-btn')?.addEventListener('click', toggleSlideStyle);
 if (el.share) el.share.addEventListener('click', openShareModal);
@@ -5451,6 +5487,7 @@ window.addEventListener('keydown', (e) => {
     if (e.key === '+' || e.key === '=') { e.preventDefault(); readerCycleFont(1); return; }
     if (e.key === '-' || e.key === '_') { e.preventDefault(); readerCycleFont(-1); return; }
     if (e.key === 't' || e.key === 'T') { e.preventDefault(); readerCycleTheme(); return; }
+    if (e.key === 'f' || e.key === 'F') { e.preventDefault(); readerCycleFontFamily(); return; }
   }
   // Esc → close the Kanban board (full-page view). Only fires when the board
   // is open. Lives here (the global keydown handler) so it works regardless

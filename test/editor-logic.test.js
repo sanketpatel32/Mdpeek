@@ -17,6 +17,7 @@ import {
   moveLines,
   toggleComment,
   getIndent,
+  extractHeadings,
 } from '../src/lib/editor-logic.js';
 
 // helper: apply a logic result to verify text + caret in one assertion
@@ -552,5 +553,53 @@ describe('handleTab respects tab-size setting (v0.37.0)', () => {
     localStorage.setItem('mdpeek-tab-size', '4');
     const r = handleShiftTab('    a', 0, 5);
     expect(r.text).toBe('a');
+  });
+});
+
+describe('extractHeadings (v0.38.0)', () => {
+  it('parses ATX headings with their level and 1-indexed line', () => {
+    const text = '# Title\n\nsome text\n## Section\n### Sub';
+    expect(extractHeadings(text)).toEqual([
+      { level: 1, text: 'Title', line: 1 },
+      { level: 2, text: 'Section', line: 4 },
+      { level: 3, text: 'Sub', line: 5 },
+    ]);
+  });
+
+  it('ignores lines that only look like headings inside fenced code blocks', () => {
+    const text = '# Real\n```\n# not a heading\n## also not\n```\n## Also real';
+    const heads = extractHeadings(text);
+    expect(heads).toHaveLength(2);
+    expect(heads[0].text).toBe('Real');
+    expect(heads[1].text).toBe('Also real');
+  });
+
+  it('works with ~~~ fences too, not just ```', () => {
+    const text = '# Real\n~~~\n# not a heading\n~~~\n## Real again';
+    const heads = extractHeadings(text);
+    expect(heads).toHaveLength(2);
+  });
+
+  it('strips trailing # sequences (closing hashes)', () => {
+    expect(extractHeadings('# Title ##')).toEqual([{ level: 1, text: 'Title', line: 1 }]);
+    expect(extractHeadings('## Sub ###')).toEqual([{ level: 2, text: 'Sub', line: 1 }]);
+  });
+
+  it('ignores a bare # with no text', () => {
+    expect(extractHeadings('#\n## \nreal text')).toEqual([]);
+  });
+
+  it('caps heading level at 6 (####### is not a heading)', () => {
+    expect(extractHeadings('####### seven hashes')).toEqual([]);
+    expect(extractHeadings('###### six is ok')).toEqual([{ level: 6, text: 'six is ok', line: 1 }]);
+  });
+
+  it('returns [] for empty / null input', () => {
+    expect(extractHeadings('')).toEqual([]);
+    expect(extractHeadings(null)).toEqual([]);
+  });
+
+  it('returns [] for text with no headings', () => {
+    expect(extractHeadings('just a paragraph\nand another')).toEqual([]);
   });
 });

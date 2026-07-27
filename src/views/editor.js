@@ -293,6 +293,13 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
       applyResult(wrapSelection(textarea.value, s, en, '~~'));
       return;
     }
+    // Ctrl+Shift+H → highlight (wrap in ==). Renders as <mark>.
+    if (ctrl && e.shiftKey && (e.key === 'h' || e.key === 'H')) {
+      e.preventDefault();
+      e.stopPropagation();
+      applyResult(wrapSelection(textarea.value, s, en, '=='));
+      return;
+    }
     // Ctrl+Shift+. → toggle blockquote prefix (> ). Mirrors the toolbar button;
     // gives quote a keybind to match bold/italic/code.
     if (ctrl && e.shiftKey && e.key === '.') {
@@ -469,6 +476,7 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
         case 'bold': return applyResult(wrapSelection(textarea.value, s, en, '**'));
         case 'italic': return applyResult(wrapSelection(textarea.value, s, en, '*'));
         case 'strike': return applyResult(wrapSelection(textarea.value, s, en, '~~'));
+        case 'highlight': return applyResult(wrapSelection(textarea.value, s, en, '=='));
         case 'code': return applyResult(wrapSelection(textarea.value, s, en, '`'));
         case 'link': {
           const sel = textarea.value.slice(s, en);

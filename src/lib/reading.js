@@ -17,11 +17,23 @@
 export const WIDTHS = ['narrow', 'medium', 'wide', 'fill'];
 export const FONTS = ['small', 'medium', 'large'];
 export const THEMES = ['light', 'sepia', 'dark'];
+// v0.38.0: font-family cycle. Distinct from FONTS (which is size). Readers can
+// switch between the app's body font, a serif for long-form prose, and a mono
+// for technical/code-heavy docs. 'sans' inherits the global app font setting.
+export const FONT_FAMILIES = ['sans', 'serif', 'mono'];
 
 // Concrete px values per FIXED stop (fill has no cap — it's handled in CSS via
 // a special rule that sets max-width: none). Exposed for tests + the setters.
 export const WIDTH_PX = { narrow: 580, medium: 720, wide: 880 };
 export const FONT_PX = { small: 17, medium: 19, large: 21 };
+// CSS font-family stacks per family stop. 'sans' deliberately uses the empty
+// string so the reader inherits whatever --reader-font-family / the global
+// app font resolves to (it does NOT force a specific sans stack).
+export const FONT_FAMILY_STACK = {
+  sans: '',
+  serif: 'Georgia, "Iowan Old Style", "Apple Garamond", "Times New Roman", serif',
+  mono: '"Cascadia Code", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace',
+};
 
 // Reader color presets. Independent of the app theme — you can read in sepia
 // while the app stays dark. Each entry is [bg, fg].
@@ -33,7 +45,8 @@ export const THEME_COLORS = {
 
 // Default combo — comfortable for most readers. Medium width + medium font is
 // the Safari-Reader-style default; light theme matches the typical app theme.
-export const DEFAULTS = { width: 'medium', font: 'medium', theme: 'light' };
+// fontFamily defaults to 'sans' (inherits the global app font setting).
+export const DEFAULTS = { width: 'medium', font: 'medium', theme: 'light', fontFamily: 'sans' };
 
 // Cycle an ordered list forward (dir=1) or backward (dir=-1). Wraps around.
 //   cycle(['a','b','c'], 'a', 1)  → 'b'
@@ -54,6 +67,7 @@ export const prevWidth = (cur) => cycle(WIDTHS, cur, -1);
 export const nextFont = (cur) => cycle(FONTS, cur, 1);
 export const prevFont = (cur) => cycle(FONTS, cur, -1);
 export const nextTheme = (cur) => cycle(THEMES, cur, 1);
+export const nextFontFamily = (cur) => cycle(FONT_FAMILIES, cur, 1);
 
 // Estimate reading time from word count. Average adult silent reading rate is
 // ~200-250 wpm for non-technical prose; we use 200 (mdpeek reads technical
@@ -81,5 +95,6 @@ export function loadReaderPrefs(store) {
     width: read('width', WIDTHS, DEFAULTS.width),
     font: read('font', FONTS, DEFAULTS.font),
     theme: read('theme', THEMES, DEFAULTS.theme),
+    fontFamily: read('font-family', FONT_FAMILIES, DEFAULTS.fontFamily),
   };
 }
