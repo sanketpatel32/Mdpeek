@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-07-27
+
+### Added — Polish batch
+
+Many small completions across the editor, settings, and docs. No architectural
+changes; every feature is a pure addition.
+
+**Editor**
+
+- **Sort lines** — command palette: "Sort lines A→Z" / "Sort lines Z→A".
+  Sorts the selected range, or the whole document if the selection is a caret.
+  Case-insensitive (locale-aware). No keybind (palette is the discovery
+  surface, matching `goto-line`/`backlinks`).
+- **Five new toolbar buttons**: H3 heading, task-list item (`- [ ]`), insert
+  table (3×3 skeleton), horizontal rule (`---`), and image placeholder. The
+  toolbar previously stopped at H2 and had no table/hr/image affordance.
+
+**Settings**
+
+- **Export / Import settings** — two new buttons in the settings header (next
+  to Reset). Export downloads a JSON snapshot of every `mdpeek-*` preference;
+  Import reads one back and re-applies all live state. Only keys in the
+  canonical `SETTING_KEYS` list are touched (no arbitrary localStorage
+  injection); values are type-checked to strings.
+
+**Docs**
+
+- **Shortcuts table rebuilt.** Added missing global shortcuts
+  (`Ctrl+Shift+R` reading mode, `Ctrl+,` settings, `Ctrl+Shift+K` kanban,
+  `Ctrl+`` terminal) and two new sections — **Reading mode** (width / font /
+  theme / font-family / outline / exit) and **Presentation mode** (nav /
+  fullscreen / notes / style / exit). Speaker-notes `N` (added in v0.40) and
+  reader outline `O` (v0.41) are now documented.
+
+### Tests & internals
+
+- New pure function `sortLines` in `editor-logic.js` (locale-aware, preserves
+  surrounding text, no-op for <2 lines).
+- **+8 tests** (sortLines: asc/desc/multi-line/case-insensitive/no-op/
+  preserve-outside/trailing-newline/caret-position). **602 total.**
+
 ## [0.41.0] - 2026-07-27
 
 ### Added — Productivity batch

@@ -427,6 +427,34 @@ export function moveLines(text, start, end, dir) {
   }
 }
 
+// Sort the line(s) spanned by [start, end]. If the selection spans multiple
+// lines, only those lines are sorted; if it's a caret (start === end), the
+// whole document is sorted. `dir` is 'asc' (default) or 'desc'. Uses
+// localeCompare for natural ordering (case-insensitive, accent-aware). The
+// returned selection covers the sorted block. No-op if fewer than 2 lines.
+export function sortLines(text, start, end, dir = 'asc') {
+  if (!text) return { text, start, end };
+  const [lineStart, lineEnd] = lineRange2(text, start, end);
+  // Whole-doc sort when the selection is a caret OR covers only one line.
+  const singleLine = lineStart === lineEnd || text.indexOf('\n', lineStart) === -1
+    || text.indexOf('\n', lineStart) >= lineEnd;
+  const blkStart = singleLine ? 0 : lineStart;
+  const blkEnd = singleLine ? text.length : lineEnd;
+  const block = text.slice(blkStart, blkEnd);
+  // Split into lines WITHOUT keeping the trailing newline on each, so we can
+  // re-join with '\n' cleanly. Preserve whether the block ended with a newline.
+  const hadTrailingNl = block.endsWith('\n');
+  const lines = (hadTrailingNl ? block.slice(0, -1) : block).split('\n');
+  if (lines.length < 2) return { text, start, end };
+  lines.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  if (dir === 'desc') lines.reverse();
+  const sorted = lines.join('\n') + (hadTrailingNl ? '\n' : '');
+  const out = text.slice(0, blkStart) + sorted + text.slice(blkEnd);
+  // Place the caret at the end of the sorted block.
+  const newCaret = blkStart + sorted.length - (hadTrailingNl ? 1 : 0);
+  return { text: out, start: newCaret, end: newCaret };
+}
+
 // Toggle an HTML comment (`<!-- ... -->`) around the selection. Markdown has
 // no native line-comment, so this is the canonical way to hide prose. Three
 // cases:

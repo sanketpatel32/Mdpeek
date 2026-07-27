@@ -19,7 +19,7 @@ import { initFolderSearch } from './views/folder-search.js';
 import { initTerminal } from './views/terminal.js';
 import { renderTabs } from './views/tabs.js';
 import { renderIcons } from './lib/icons.js';
-import { toggleTaskLine, taskLineIndex, extractHeadings, buildRelativeImageMarkdown } from './lib/editor-logic.js';
+import { toggleTaskLine, taskLineIndex, extractHeadings, buildRelativeImageMarkdown, sortLines } from './lib/editor-logic.js';
 import { docBasename, backlinkQueries, formatBacklinkItems } from './lib/backlinks.js';
 import { extractSpeakerNotes } from './lib/slides.js';
 import { EMOJI_MAP } from './lib/emoji.js';
@@ -917,6 +917,8 @@ const palette = initCommandPalette(() => {
     { id: 'copy-rich', label: 'Copy as rich text', hint: 'Ctrl+Shift+C', keywords: 'copy rich html clipboard paste formatted', run: copyAsRichText },
     { id: 'mode', label: 'Toggle edit / view', hint: 'Ctrl+E', keywords: 'toggle edit view mode', run: toggleMode },
     { id: 'goto-line', label: 'Go to line…', hint: 'Ctrl+G', keywords: 'go to line jump navigate number', run: gotoLine },
+    { id: 'sort-asc', label: 'Sort lines A→Z', keywords: 'sort lines ascending alpha arrange order', run: () => sortSelection('asc') },
+    { id: 'sort-desc', label: 'Sort lines Z→A', keywords: 'sort lines descending reverse arrange order', run: () => sortSelection('desc') },
     { id: 'goto-heading', label: 'Go to heading…', keywords: 'go to heading jump navigate outline toc h1 h2', run: () => headingPicker.open() },
     { id: 'sidebar', label: 'Toggle sidebar (TOC)', hint: 'Ctrl+B', keywords: 'sidebar toc outline', run: toggleSidebar },
     { id: 'find', label: 'Find', hint: 'Ctrl+F', keywords: 'find search', run: () => find.toggle() },
@@ -947,7 +949,7 @@ const palette = initCommandPalette(() => {
   const hasDoc = !!doc;
   const collabActive = collab.getStatus().active;
   return cmds.filter((c) => {
-    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks') && !hasDoc) return false;
+    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks' || c.id === 'sort-asc' || c.id === 'sort-desc') && !hasDoc) return false;
     if (c.id === 'end-collab' && !collabActive) return false;
     if (c.id === 'start-collab' && collabActive) return false;
     if ((c.id === 'start-collab' || c.id === 'end-collab') && localStorage.getItem('mdpeek-feature-collab') === '0') return false;
@@ -1352,6 +1354,27 @@ function gotoLine() {
   const clamped = Math.min(line, totalLines);
   if (!scrollEditorToLine(doc, clamped)) {
     toast('Could not jump to that line');
+  }
+}
+
+// v0.42.0: sort the selected line(s) ascending or descending. Whole-doc sort
+// when the selection is a caret. Edit-mode only.
+function sortSelection(dir) {
+  const doc = store.active();
+  if (!doc || doc.mode !== 'edit' || !doc.editor) {
+    toast('Switch to edit mode to sort lines');
+    return;
+  }
+  const { start, end } = doc.editor.getSelection();
+  const r = sortLines(doc.editor.getValue(), start, end, dir);
+  if (r.text === doc.editor.getValue()) return; // no-op (fewer than 2 lines)
+  doc.editor.replaceRange(0, doc.editor.getValue().length, r.text);
+  doc.editor.setState({ start: r.start, end: r.end });
+  if (doc.content !== r.text) {
+    doc.content = r.text;
+    store.markDirty(doc.id);
+    persistSoon();
+    scheduleAutoSave();
   }
 }
 
@@ -4911,6 +4934,74 @@ if (resetBtn) {
     toast('Settings reset to defaults');
   });
 }
+
+// v0.42.0: export/import settings as JSON. Only keys in SETTING_KEYS are
+// touched (no arbitrary localStorage injection on import). Values are
+// type-checked to strings. After import every live apply* helper re-runs so
+// the UI reflects the new state immediately.
+function exportSettings() {
+  const data = {};
+  for (const k of SETTING_KEYS) {
+    const v = localStorage.getItem(k);
+    if (v !== null) data[k] = v;
+  }
+  data.__exported_at = new Date().toISOString();
+  if (BUILD_VERSION) data.__app_version = BUILD_VERSION;
+  try {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `mdpeek-settings-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast('Settings exported');
+  } catch (e) {
+    toast('Could not export: ' + fmtErr(e));
+  }
+}
+
+function importSettings() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  input.onchange = async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+        throw new Error('file is not a settings object');
+      }
+      let count = 0;
+      for (const k of SETTING_KEYS) {
+        if (k in data && typeof data[k] === 'string') {
+          localStorage.setItem(k, data[k]);
+          count++;
+        }
+      }
+      // Re-apply all live state so the UI matches the imported prefs.
+      applyTheme(localStorage.getItem('mdpeek-theme') || 'light');
+      if (find) find.setCaseSensitive(localStorage.getItem('mdpeek-find-case') === '1');
+      applyLineNumbers();
+      applyWordWrap();
+      applySpellcheck();
+      applyUserCss();
+      applyReadingComfort();
+      syncSettingsControls();
+      toast(`Imported ${count} setting${count === 1 ? '' : 's'}`);
+    } catch (e) {
+      toast('Could not import: ' + fmtErr(e));
+    }
+  };
+  input.click();
+}
+
+document.getElementById('settings-export')?.addEventListener('click', exportSettings);
+document.getElementById('settings-import')?.addEventListener('click', importSettings);
 
 // Click outside the card closes the dialog.
 el.settingsDialog.addEventListener('click', (e) => {

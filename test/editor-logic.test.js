@@ -16,6 +16,7 @@ import {
   duplicateLines,
   moveLines,
   toggleComment,
+  sortLines,
   getIndent,
   extractHeadings,
   buildRelativeImageMarkdown,
@@ -519,6 +520,57 @@ describe('moveLines', () => {
     expect(r1.text).toBe('bbb\naaa\nccc');
     const r2 = moveLines(r1.text, r1.start, r1.end, -1); // now first line, no-op
     expect(r2.text).toBe(r1.text);
+  });
+});
+
+describe('sortLines', () => {
+  it('sorts ascending (whole doc, caret selection)', () => {
+    const r = sortLines('cherry\napple\nbanana', 0, 0, 'asc');
+    expect(r.text).toBe('apple\nbanana\ncherry');
+  });
+
+  it('sorts descending', () => {
+    const r = sortLines('apple\nbanana\ncherry', 0, 0, 'desc');
+    expect(r.text).toBe('cherry\nbanana\napple');
+  });
+
+  it('sorts only the selected multi-line range', () => {
+    // Selection covers 'banana\ncherry' (lines 2-3); 'header' + 'apple' are
+    // untouched. Ascending → 'banana' before 'cherry' (b < c).
+    const text = 'header\nbanana\ncherry\napple';
+    // 'header\n' = 7 chars; 'banana\ncherry' ends at index 7+6+1+6 = 20.
+    const r = sortLines(text, 7, 20, 'asc');
+    expect(r.text).toBe('header\nbanana\ncherry\napple');
+  });
+
+  it('is case-insensitive (localeCompare base sensitivity)', () => {
+    const r = sortLines('banana\nApple\nCHERRY', 0, 0, 'asc');
+    expect(r.text).toBe('Apple\nbanana\nCHERRY');
+  });
+
+  it('is a no-op for fewer than 2 lines', () => {
+    expect(sortLines('solo', 0, 0, 'asc').text).toBe('solo');
+    expect(sortLines('', 0, 0, 'asc').text).toBe('');
+  });
+
+  it('preserves text outside the sorted block', () => {
+    const text = 'keep-top\nzebra\napple\nkeep-bottom';
+    const r = sortLines(text, 9, 15, 'asc'); // select 'zebra\napple'
+    expect(r.text.startsWith('keep-top\n')).toBe(true);
+    expect(r.text.endsWith('\nkeep-bottom')).toBe(true);
+    expect(r.text).toBe('keep-top\napple\nzebra\nkeep-bottom');
+  });
+
+  it('preserves a trailing newline at end of doc', () => {
+    const r = sortLines('b\na\n', 0, 0, 'asc');
+    expect(r.text).toBe('a\nb\n');
+  });
+
+  it('places the caret at the end of the sorted block', () => {
+    // 'apple\nbanana\ncherry' sorted ascending → caret at end (index 19).
+    const r = sortLines('cherry\napple\nbanana', 0, 0, 'asc');
+    expect(r.start).toBe(r.end);
+    expect(r.start).toBe('apple\nbanana\ncherry'.length);
   });
 });
 

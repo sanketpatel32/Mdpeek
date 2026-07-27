@@ -486,12 +486,29 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
         }
         case 'h1': return applyResult(toggleLinePrefix(textarea.value, s, en, '# '));
         case 'h2': return applyResult(toggleLinePrefix(textarea.value, s, en, '## '));
+        case 'h3': return applyResult(toggleLinePrefix(textarea.value, s, en, '### '));
         case 'ul': return applyResult(toggleLinePrefix(textarea.value, s, en, '- '));
         case 'ol': return applyResult(toggleLinePrefix(textarea.value, s, en, '1. '));
+        case 'task': return applyResult(toggleLinePrefix(textarea.value, s, en, '- [ ] '));
         case 'quote': return applyResult(toggleLinePrefix(textarea.value, s, en, '> '));
         case 'fence': {
           const insert = '\n```\n\n```\n';
           return applyResult({ text: textarea.value.slice(0, s) + insert + textarea.value.slice(en), start: s + 5, end: s + 5 });
+        }
+        case 'table': {
+          // 3x3 skeleton (matches the snippet). Caret lands on the first
+          // header cell so the user can rename it immediately.
+          const insert = '\n| Column A | Column B | Column C |\n| --- | --- | --- |\n| cell | cell | cell |\n| cell | cell | cell |\n\n';
+          return applyResult({ text: textarea.value.slice(0, s) + insert + textarea.value.slice(en), start: s + 4, end: s + 12 });
+        }
+        case 'hr': {
+          const insert = '\n---\n\n';
+          return applyResult({ text: textarea.value.slice(0, s) + insert + textarea.value.slice(en), start: s + insert.length, end: s + insert.length });
+        }
+        case 'image': {
+          // Placeholder; caret selects the alt text so the user can type it.
+          const insert = `![](https://)`;
+          return applyResult({ text: textarea.value.slice(0, s) + insert + textarea.value.slice(en), start: s + 2, end: s + 2 });
         }
         default: return false;
       }
