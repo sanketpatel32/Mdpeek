@@ -472,3 +472,19 @@ export function extractHeadings(text) {
   }
   return out;
 }
+
+// Build a portable relative-path image markdown link for a pasted/dropped
+// image. Used by insertImageFromBlob in main.js when the
+// `mdpeek-image-beside-doc` setting is on (default). Returns the markdown
+// string, or null if `docPath` is null/empty (untitled doc — no folder to
+// save beside, so the caller falls back to a global path or data URL).
+//
+//   buildRelativeImageMarkdown('C:\\notes\\Foo.md', 'img-abc.png')
+//     → '![](assets/img-abc.png)'
+//   buildRelativeImageMarkdown('/home/me/Foo.md', 'img-abc.png')
+//     → '![](assets/img-abc.png)'
+//   buildRelativeImageMarkdown(null, 'img-abc.png') → null
+export function buildRelativeImageMarkdown(docPath, filename) {
+  if (!docPath) return null;
+  return `![](assets/${filename})`;
+}

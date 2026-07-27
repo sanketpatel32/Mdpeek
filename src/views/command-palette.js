@@ -21,7 +21,9 @@ const PICKER_HTML = (placeholder) => `
 
 // Build a modal picker. `getItems()` returns the current list of items, each
 // shaped { label, hint?, keywords?, indices? }. `onSelect(item)` runs when the
-// user confirms. The returned { open, close } controls visibility.
+// user confirms. The returned { open, close, setItems } controls visibility
+// and (for pickers that populate lazily, e.g. backlinks) lets the caller swap
+// in a fresh item list before opening.
 function makePicker({ placeholder, getItems, onSelect, id }) {
   const overlay = document.createElement('div');
   overlay.id = id;
@@ -34,9 +36,11 @@ function makePicker({ placeholder, getItems, onSelect, id }) {
 
   let filtered = [];
   let selected = 0;
+  // Wrapped so setItems can swap the source without rebuilding the picker.
+  let _getItems = getItems;
 
   function render(query) {
-    const all = getItems();
+    const all = _getItems();
     const scored = [];
     for (const item of all) {
       const hay = (item.label + ' ' + (item.keywords || '')).toLowerCase();
@@ -104,6 +108,12 @@ function makePicker({ placeholder, getItems, onSelect, id }) {
   function close() {
     overlay.classList.add('hidden');
   }
+  // Swap the item source (used by pickers that compute their list lazily —
+  // e.g. the backlinks picker, which scans the folder on demand and then
+  // opens). Subsequent open() calls re-render against the new list.
+  function setItems(arr) {
+    _getItems = () => arr;
+  }
 
   input.addEventListener('input', () => render(input.value.trim()));
   input.addEventListener('keydown', (e) => {
@@ -122,7 +132,7 @@ function makePicker({ placeholder, getItems, onSelect, id }) {
     if (e.target === overlay) close();
   });
 
-  return { open, close };
+  return { open, close, setItems };
 }
 
 // Command palette — actions.

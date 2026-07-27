@@ -18,7 +18,9 @@ import { initFolderSearch } from './views/folder-search.js';
 import { initTerminal } from './views/terminal.js';
 import { renderTabs } from './views/tabs.js';
 import { renderIcons } from './lib/icons.js';
-import { toggleTaskLine, taskLineIndex, extractHeadings } from './lib/editor-logic.js';
+import { toggleTaskLine, taskLineIndex, extractHeadings, buildRelativeImageMarkdown } from './lib/editor-logic.js';
+import { docBasename, backlinkQueries, formatBacklinkItems } from './lib/backlinks.js';
+import { extractSpeakerNotes } from './lib/slides.js';
 // v0.34.1: build-time version for the About + Updates panels. Import is
 // hoisted to module top; the value is written into the DOM early (right after
 // bootMotion) because the Tauri window code further down aborts module
@@ -930,6 +932,7 @@ const palette = initCommandPalette(() => {
     { id: 'terminal', label: 'Toggle terminal', hint: 'Ctrl+`', keywords: 'terminal powershell shell cmd console cli', run: () => terminal.toggle() },
     { id: 'snippet', label: 'Insert template / snippet', hint: 'Ctrl+Shift+S', keywords: 'snippet template callout table code meeting insert', run: () => snippetPicker.open() },
     { id: 'insert-date', label: 'Insert today\'s date', keywords: 'date time today stamp now insert', run: insertDateAtCursor },
+    { id: 'backlinks', label: 'Find backlinks', keywords: 'backlinks links inbound references wiki', run: openBacklinks },
     { id: 'check-updates', label: 'Check for updates', keywords: 'update version check', run: () => checkForUpdates(false) },
     { id: 'quit', label: 'Quit mdpeek', keywords: 'quit exit close', run: doQuitApp },
   ];
@@ -939,7 +942,7 @@ const palette = initCommandPalette(() => {
   const hasDoc = !!doc;
   const collabActive = collab.getStatus().active;
   return cmds.filter((c) => {
-    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet') && !hasDoc) return false;
+    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks') && !hasDoc) return false;
     if (c.id === 'end-collab' && !collabActive) return false;
     if (c.id === 'start-collab' && collabActive) return false;
     if ((c.id === 'start-collab' || c.id === 'end-collab') && localStorage.getItem('mdpeek-feature-collab') === '0') return false;
@@ -1004,6 +1007,48 @@ const headingPicker = initQuickSwitcher(
     scrollEditorToLine(doc, item._line);
   }
 );
+
+// v0.40.0: Backlinks picker. Lists files that link to the active doc (both
+// [[wiki]] and [text](file.md) forms). Lazily populated by openBacklinks
+// just before open() — the picker's items are swapped in via setItems.
+const backlinksPicker = initQuickSwitcher(
+  () => [],
+  async (item) => {
+    if (!item || !item.path) return;
+    try {
+      const content = await invoke('read_file', { path: item.path });
+      await openPath(item.path, content);
+    } catch (e) {
+      toast('Could not open: ' + fmtErr(e));
+    }
+  }
+);
+
+// Run two parallel `search_in_folder` queries (wiki-link + standard-link
+// forms), dedupe, and open the picker with the results. Requires a saved
+// active doc (to know what to look for) and an open folder (to know where
+// to scan).
+async function openBacklinks() {
+  const doc = store.active();
+  if (!doc || !doc.path) { toast('Save the doc first to find backlinks.'); return; }
+  const root = localStorage.getItem('mdpeek-explorer-root');
+  if (!root) { toast('Open a folder to scan for backlinks.'); return; }
+  const name = docBasename(doc.path);
+  const queries = backlinkQueries(name);
+  try {
+    const results = await Promise.all(queries.map((q) =>
+      invoke('search_in_folder', { root, query: q, caseSensitive: true, maxResults: 200 })
+        .catch(() => ({ results: [] }))
+    ));
+    const hits = results.flatMap((r) => (r && r.results) || []);
+    const items = formatBacklinkItems(hits, doc.path);
+    if (items.length === 0) { toast(`No files link to ${name}.`); return; }
+    backlinksPicker.setItems(items);
+    backlinksPicker.open();
+  } catch (e) {
+    toast('Backlinks scan failed: ' + fmtErr(e));
+  }
+}
 
 function insertSnippetIntoEditor(doc, textToInsert) {
   if (doc.editor) {
@@ -1408,9 +1453,15 @@ async function saveActive() {
 
 // ---------- image paste / drop into the editor ----------
 // When an image is pasted or dropped onto the textarea while editing a
-// markdown doc, save the bytes to an `assets/` folder beside the doc and
-// insert `![](assets/<hash>.<ext>)` at the caret. For untitled docs (no path),
-// fall back to a base64 data URL so the image still embeds inline.
+// markdown doc, save the bytes to disk and insert a markdown image link at the
+// caret.
+//
+// v0.40.0: when `mdpeek-image-beside-doc` is on (default ON), the image is
+// saved to `<docDir>/assets/<hash>.<ext>` and inserted as a portable relative
+// link `![](assets/<hash>.<ext>)` — so moving/sharing the .md keeps the image
+// working. Untitled docs (no path) and the explicit-OFF setting fall back to
+// the legacy behaviour: global assets folder + absolute file:// URL. If disk
+// write fails entirely we embed a base64 data URL so the image still shows.
 async function insertImageFromBlob(blob) {
   const doc = store.active();
   if (!doc || !doc.editor) return false;
@@ -1419,22 +1470,42 @@ async function insertImageFromBlob(blob) {
   const hash = await sha256Hex(buf).catch(() => Math.random().toString(36).slice(2));
   const short = String(hash).slice(0, 10);
   const filename = `img-${short}.${ext}`;
+
+  const besideDoc = localStorage.getItem('mdpeek-image-beside-doc') !== '0';
+  const relativeMd = besideDoc ? buildRelativeImageMarkdown(doc && doc.path, filename) : null;
   let md;
-  try {
-    const savedPath = await invoke('save_image', { dir: 'global', filename, bytes: Array.from(buf) });
-    const normalized = savedPath.replace(/\\/g, '/');
-    const pathUrl = normalized.startsWith('/') ? `file://${normalized}` : `file:///${normalized}`;
-    md = `![](${encodeURI(pathUrl)})`;
-  } catch (e) {
-    // Fall back to inline data URL if disk write fails
-    const b64 = bytesToBase64(buf);
-    md = `![](data:${blob.type};base64,${b64})`;
+  if (relativeMd) {
+    const docDir = doc.path.replace(/[\\/][^\\/]+$/, '');
+    try {
+      await invoke('save_image', { dir: docDir + '\\assets', filename, bytes: Array.from(buf) });
+      md = relativeMd;
+    } catch (e) {
+      md = await fallbackImageMarkdown(blob, buf, filename);
+    }
+  } else {
+    md = await fallbackImageMarkdown(blob, buf, filename);
   }
   doc.editor.insertAtCursor(md);
   store.markDirty(doc.id);
   persistSoon();
   scheduleAutoSave();
   return true;
+}
+
+// Legacy fallback for paste-image: write to the central global assets folder
+// and emit an absolute file:// URL. Used when "save beside doc" is off or when
+// the active doc is untitled (no folder to save beside).
+async function fallbackImageMarkdown(blob, buf, filename) {
+  try {
+    const savedPath = await invoke('save_image', { dir: 'global', filename, bytes: Array.from(buf) });
+    const normalized = savedPath.replace(/\\/g, '/');
+    const pathUrl = normalized.startsWith('/') ? `file://${normalized}` : `file:///${normalized}`;
+    return `![](${encodeURI(pathUrl)})`;
+  } catch (e) {
+    // Last resort: embed as a base64 data URL so the image still renders.
+    const b64 = bytesToBase64(buf);
+    return `![](data:${blob.type};base64,${b64})`;
+  }
 }
 
 // Minimal SHA-256 → hex (async, Web Crypto). Used for stable image filenames
@@ -1694,21 +1765,24 @@ function enterPresentation() {
     toast('Nothing to present — the document is empty');
     return;
   }
-  // Build the slide articles. Rendered synchronously per slide (mermaid blocks
-  // render as static SVG if pre-rendered, otherwise raw code — skip the
-  // expensive enhanceDom mermaid pass for fast slide transitions).
+  // Build the slide articles. v0.40.0: strip speaker notes out of each slide
+  // first (note: lines / <!-- note: --> comments) so they don't render on the
+  // visible slide — they're surfaced in a toggleable panel via the N key.
+  const parsed = slides.map((md) => extractSpeakerNotes(md));
   const stage = el.slideshow.querySelector('.slide-stage');
   stage.innerHTML = '';
-  for (const slideMd of slides) {
+  for (const { cleanMd } of parsed) {
     const article = document.createElement('article');
     article.className = 'markdown-body slide';
-    article.innerHTML = renderMarkdown(slideMd);
+    article.innerHTML = renderMarkdown(cleanMd);
     stage.appendChild(article);
   }
   _slideshow = {
     slides,
+    parsed,
     index: 0,
     style: localStorage.getItem('mdpeek-slide-style') === 'reading' ? 'reading' : 'deck',
+    notesVisible: false,
   };
   // Apply the style class on the overlay (drives all the .deck-style /
   // .reading-style CSS rules) + the body class that reveals it.
@@ -1726,6 +1800,14 @@ function exitPresentation() {
   // Drop the built slide articles so the next enter re-renders fresh content.
   const stage = el.slideshow.querySelector('.slide-stage');
   if (stage) stage.innerHTML = '';
+  // v0.40.0: also reset the speaker-notes panel so it doesn't leak into the
+  // next presentation.
+  const notesPanel = el.slideshow.querySelector('.speaker-notes');
+  if (notesPanel) {
+    notesPanel.classList.add('hidden');
+    const body = notesPanel.querySelector('.speaker-notes-body');
+    if (body) body.textContent = '';
+  }
   // Exit OS fullscreen too if we entered it via F.
   if (document.fullscreenElement) {
     document.exitFullscreen().catch(() => {});
@@ -1770,6 +1852,12 @@ function updateSlide() {
   const next = el.slideshow.querySelector('.slide-arrow.next');
   if (prev) prev.disabled = index === 0;
   if (next) next.disabled = index === slides.length - 1;
+  // v0.40.0: refresh the speaker-notes panel body for the active slide.
+  const notesBody = el.slideshow.querySelector('.speaker-notes-body');
+  if (notesBody) {
+    const note = _slideshow.parsed && _slideshow.parsed[index] ? _slideshow.parsed[index].note : '';
+    notesBody.textContent = note || '';
+  }
 }
 
 // Reflect the current slideshow style in the toggle button's label/icon so
@@ -1798,6 +1886,23 @@ function toggleFullscreen() {
   } else {
     document.documentElement.requestFullscreen().catch(() => {});
   }
+}
+
+// v0.40.0: toggle the speaker-notes panel (N key in presentation). Shows the
+// current slide's notes (collected from note: lines / <!-- note: --> comments
+// at split time). Stays visible across slide changes; updateSlide refreshes
+// the body. No-op if no slide has any notes.
+function toggleSpeakerNotes() {
+  if (!_slideshow) return;
+  const hasAnyNote = _slideshow.parsed && _slideshow.parsed.some((p) => p && p.note);
+  if (!hasAnyNote) {
+    toast('No speaker notes in this deck. Add `note: …` lines.');
+    return;
+  }
+  const panel = el.slideshow.querySelector('.speaker-notes');
+  if (!panel) return;
+  _slideshow.notesVisible = !_slideshow.notesVisible;
+  panel.classList.toggle('hidden', !_slideshow.notesVisible);
 }
 
 // ---------- immersive reading mode (v0.34.0) ----------
@@ -4472,6 +4577,7 @@ const SETTING_KEYS = [
   'mdpeek-tab-size',
   'mdpeek-word-wrap',
   'mdpeek-spellcheck',
+  'mdpeek-image-beside-doc',
 ];
 
 let _changelogRendered = false;
@@ -4545,6 +4651,10 @@ function syncSettingsControls() {
   if (wordWrapCb) wordWrapCb.checked = localStorage.getItem('mdpeek-word-wrap') !== '0';
   const spellcheckCb = document.getElementById('settings-spellcheck');
   if (spellcheckCb) spellcheckCb.checked = localStorage.getItem('mdpeek-spellcheck') === '1';
+
+  // v0.40.0: portable pasted images — save beside the doc + relative link.
+  const imageBesideDocCb = document.getElementById('settings-image-beside-doc');
+  if (imageBesideDocCb) imageBesideDocCb.checked = localStorage.getItem('mdpeek-image-beside-doc') !== '0';
 
   // Notes folder display — show configured path or auto-initialize with system default.
   const notesPath = document.getElementById('settings-notes-path');
@@ -4782,6 +4892,13 @@ document.getElementById('settings-spellcheck')?.addEventListener('change', (e) =
   applySpellcheck();
 });
 
+// v0.40.0: pasted/dropped images save beside the doc + use a relative link.
+// Default on (portable). No apply* helper needed — insertImageFromBlob reads
+// the setting fresh on every paste.
+document.getElementById('settings-image-beside-doc')?.addEventListener('change', (e) => {
+  localStorage.setItem('mdpeek-image-beside-doc', e.target.checked ? '1' : '0');
+});
+
 // Notes folder — re-pick where daily notes are saved.
 document.getElementById('settings-notes-pick').addEventListener('click', () => {
   changeNotesFolder();
@@ -4970,7 +5087,34 @@ async function openInternalLink(href) {
     const content = await invoke('read_file', { path: fullPath });
     await openPath(fullPath, content);
   } catch (err) {
-    toast('Linked file not found: ' + href);
+    // v0.40.0: if the target is a markdown file, offer to create it on click
+    // rather than just dead-ending. One deliberate click prevents typos from
+    // silently writing junk files.
+    if (/\.(md|markdown|mdx)$/i.test(normalized)) {
+      const displayName = normalized.replace(/\\/g, '/').split('/').pop();
+      toast(`${displayName} not found — click to create`, {
+        onClick: () => createAndOpenMissingLink(fullPath, displayName),
+      });
+    } else {
+      toast('Linked file not found: ' + href);
+    }
+  }
+}
+
+// v0.40.0: create a missing wiki-link / md-link target on demand. Writes a
+// small H1 starter (so the new doc isn't blank) then opens it in a tab and
+// refreshes the explorer so the file appears in the tree. Mirrors the
+// daily-note create idiom at the daily-note builder.
+async function createAndOpenMissingLink(fullPath, displayName) {
+  const title = displayName.replace(/\.(md|markdown|mdx)$/i, '');
+  const starter = `# ${title}\n\n`;
+  try {
+    await invoke('save_file', { path: fullPath, content: starter });
+    await openPath(fullPath, starter);
+    refreshTree();
+    toast(`Created ${displayName}`);
+  } catch (e) {
+    toast('Could not create: ' + fmtErr(e));
   }
 }
 
@@ -5400,6 +5544,13 @@ window.addEventListener('keydown', (e) => {
         e.preventDefault();
         e.stopPropagation();
         toggleSlideStyle();
+        return;
+      // v0.40.0: speaker-notes panel.
+      case 'n':
+      case 'N':
+        e.preventDefault();
+        e.stopPropagation();
+        toggleSpeakerNotes();
         return;
     }
     // Any other key: swallow it so the editor/find bar don't grab keystrokes

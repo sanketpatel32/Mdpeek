@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-07-27
+
+### Added — Portable images, backlinks, speaker notes, wiki auto-create
+
+Four features focused on note-taking workflows. Three are pure additions;
+one (paste-image default) flips to a portable default that you can revert.
+
+**Editor / Images**
+
+- **Pasted images save beside the doc with a portable relative link.** When
+  you paste or drop an image into a saved `.md` file, it now writes to
+  `<docDir>/assets/<hash>.<ext>` and inserts `![](assets/<hash>.<ext>)` — so
+  moving, copying, or sharing the doc keeps the image working. The previous
+  behaviour (global assets folder + absolute `file://` URL) is preserved as a
+  fallback for untitled docs and is available as an opt-out under
+  Settings → Editor → *Save pasted images beside the doc* (on by default).
+
+**Navigation / Backlinks**
+
+- **Find backlinks** command (palette: "Find backlinks"). Scans the open
+  folder for both `[[Wiki]]` and `[text](file.md)` links pointing at the
+  active doc and lists the linking files in a quick-switcher, with the
+  matching line as a preview hint. Selecting one opens it. Reuses the
+  Rust-side `search_in_folder` grep — two parallel queries, no new IPC.
+
+**Presentation / Speaker notes**
+
+- **Speaker notes in slideshow mode.** Lines starting with `note:` and
+  `<!-- note: … -->` HTML comments are stripped from the visible slide and
+  surfaced in a toggleable bottom panel (press `N` during a presentation).
+  Both syntaxes are case-insensitive; the `note:` form is line-anchored so
+  prose mentioning "note:" mid-sentence stays on the slide.
+
+**Links / Wiki auto-create**
+
+- **Click a missing `.md` link to create it.** Clicking a `[[DoesNotExist]]`
+  wiki-link (or `[text](missing.md)`) that doesn't resolve shows a clickable
+  toast *"<file> not found — click to create"*. One deliberate click writes a
+  small H1 starter, opens the new doc, and refreshes the file tree. The
+  second click is intentional — typos never silently write junk files.
+
+### Tests & internals
+
+- New pure modules: `src/lib/backlinks.js` (`docBasename`, `backlinkQueries`,
+  `formatBacklinkItems`), `src/lib/slides.js` (`extractSpeakerNotes`),
+  `buildRelativeImageMarkdown` added to `editor-logic.js`.
+- `makePicker` gained a `setItems` method so pickers can populate lazily
+  (used by the backlinks picker).
+- **+35 tests** (backlinks 18, slides 14, image-markdown 3). **561 total.**
+
 ## [0.39.0] - 2026-07-27
 
 ### Added — Project-wide find & replace

@@ -18,6 +18,7 @@ import {
   toggleComment,
   getIndent,
   extractHeadings,
+  buildRelativeImageMarkdown,
 } from '../src/lib/editor-logic.js';
 
 // helper: apply a logic result to verify text + caret in one assertion
@@ -601,5 +602,23 @@ describe('extractHeadings (v0.38.0)', () => {
 
   it('returns [] for text with no headings', () => {
     expect(extractHeadings('just a paragraph\nand another')).toEqual([]);
+  });
+});
+
+describe('buildRelativeImageMarkdown', () => {
+  it('builds a relative assets/ link for a saved doc (Windows path)', () => {
+    expect(buildRelativeImageMarkdown('C:\\notes\\Foo.md', 'img-abc.png'))
+      .toBe('![](assets/img-abc.png)');
+  });
+
+  it('builds a relative assets/ link for a saved doc (Unix path)', () => {
+    expect(buildRelativeImageMarkdown('/home/me/Foo.md', 'img-xyz.jpg'))
+      .toBe('![](assets/img-xyz.jpg)');
+  });
+
+  it('returns null for an untitled doc (no folder to save beside)', () => {
+    expect(buildRelativeImageMarkdown(null, 'img-abc.png')).toBeNull();
+    expect(buildRelativeImageMarkdown('', 'img-abc.png')).toBeNull();
+    expect(buildRelativeImageMarkdown(undefined, 'img-abc.png')).toBeNull();
   });
 });
