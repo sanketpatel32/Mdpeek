@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
 
 #[derive(Serialize)]
@@ -443,6 +443,99 @@ pub fn search_in_folder(
         files_scanned,
         files_with_matches,
     })
+}
+
+// ---------------------------------------------------------------------------
+// Batch file I/O for project-wide find & replace.
+// These are thin I/O commands — no substitution logic lives here (that stays
+// in JS, in src/lib/replace.js). Per-file error isolation: one unreadable or
+// unwritable file does not abort the batch.
+// ---------------------------------------------------------------------------
+
+/// One file's read outcome for `read_files_batch`.
+#[derive(Serialize)]
+pub struct FileReadResult {
+    pub path: String,
+    pub content: Option<String>,   // None on binary/unreadable
+    pub error: Option<String>,     // Some(msg) when content is None
+}
+
+/// Batch-read a list of files. Reuses the binary-skip + lossy-UTF-8 read path
+/// from `search_in_folder` so replace operates on the same set of files the
+/// search results came from. Files that are binary or unreadable return
+/// `content: None` + `error: Some(msg)`; they do not abort the batch.
+#[tauri::command]
+pub fn read_files_batch(paths: Vec<String>) -> Result<Vec<FileReadResult>, String> {
+    let mut out = Vec::with_capacity(paths.len());
+    for path in paths {
+        // Skip binary extensions (reuses the helper from search_in_folder).
+        if search_is_binary_ext(&path) {
+            out.push(FileReadResult {
+                path,
+                content: None,
+                error: Some("binary file".to_string()),
+            });
+            continue;
+        }
+        let p = std::path::Path::new(&path);
+        if search_looks_binary(p) {
+            out.push(FileReadResult {
+                path,
+                content: None,
+                error: Some("binary file".to_string()),
+            });
+            continue;
+        }
+        match fs::read(p) {
+            Ok(bytes) => {
+                let content = String::from_utf8_lossy(&bytes).into_owned();
+                out.push(FileReadResult { path, content: Some(content), error: None });
+            }
+            Err(e) => {
+                out.push(FileReadResult {
+                    path,
+                    content: None,
+                    error: Some(format!("read failed: {}", e)),
+                });
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// One write requested by `write_files_batch`.
+#[derive(Deserialize)]
+pub struct FileWrite {
+    pub path: String,
+    pub content: String,
+}
+
+/// One file's write outcome for `write_files_batch`.
+#[derive(Serialize)]
+pub struct FileWriteResult {
+    pub path: String,
+    pub ok: bool,
+    pub error: Option<String>,
+}
+
+/// Batch-write a list of files. Uses the same `fs::write` as `save_file`.
+/// Per-file error isolation: one unwritable file returns `ok: false` +
+/// `error`; the rest still write. Returns one result per input write, in
+/// the same order.
+#[tauri::command]
+pub fn write_files_batch(writes: Vec<FileWrite>) -> Result<Vec<FileWriteResult>, String> {
+    let mut out = Vec::with_capacity(writes.len());
+    for w in writes {
+        match fs::write(&w.path, &w.content) {
+            Ok(()) => out.push(FileWriteResult { path: w.path, ok: true, error: None }),
+            Err(e) => out.push(FileWriteResult {
+                path: w.path,
+                ok: false,
+                error: Some(format!("write failed: {}", e)),
+            }),
+        }
+    }
+    Ok(out)
 }
 
 #[tauri::command]

@@ -176,6 +176,8 @@ pub fn run() {
             commands::save_file_as,
             commands::save_file_as_html,
             commands::read_file,
+            commands::read_files_batch,
+            commands::write_files_batch,
             commands::save_image,
             commands::get_global_assets_dir,
             commands::save_annotated_image,
