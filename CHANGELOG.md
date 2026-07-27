@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-07-27
+
+### Added — Project-wide find & replace
+
+Replace text across every file in the open folder, straight from the folder
+search panel. The matching engine is a pure, unit-tested module so the live
+preview and the actual replacement can never diverge.
+
+- **Replace bar in the folder-search panel.** After running a search, type a
+  replacement, see a live per-file diff preview, then apply across all files
+  or a selected subset.
+- **Pure substitution engine** (`src/lib/replace.js`): `findAllMatches` +
+  `applyReplacements`, code-point-based offsets (emoji-safe), case-sensitive
+  toggle, non-overlapping left-to-right matching. 20 unit tests.
+- **Batch file I/O** (Rust): `read_files_batch` and `write_files_batch`
+  commands with per-file error isolation — one unreadable or unwritable file
+  never aborts the batch. Reuses the binary-skip + lossy-UTF-8 path from
+  `search_in_folder` so replace operates on the exact same file set search did.
+- **Safe write semantics:** files open in a tab with unsaved edits are never
+  clobbered; clean open tabs are synced in place after a write so the editor
+  reflects the change without a watcher round-trip.
+
 ## [0.38.0] - 2026-07-27
 
 ### Added — Highlight syntax, reader fonts, jump to heading
