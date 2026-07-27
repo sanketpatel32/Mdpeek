@@ -111,6 +111,48 @@
   .reader-progress-bar::after { transition: none; }
 }
 
+/* ---- outline / TOC sidebar (v0.41.0) ----
+   Sits below the progress bar, left of the scroll region. Hidden by default;
+   toggled with the O key. When visible, the article shifts right via the
+   .reader.toc-open class so neither overlaps the other. */
+.reader-toc {
+  flex: 0 0 auto;
+  width: 240px;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 20px 12px 32px;
+  background: var(--reader-surface, var(--surface, #f7f7f8));
+  border-right: 1px solid var(--reader-border, rgba(0, 0, 0, 0.06));
+  font-size: 13px;
+  line-height: 1.5;
+}
+.reader-toc-item {
+  display: block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: var(--reader-fg-muted, var(--fg-muted, #6e6e73));
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.reader-toc-item:hover {
+  background: var(--reader-surface-hover, var(--surface-hover, rgba(0, 0, 0, 0.04)));
+  color: var(--reader-fg, var(--fg, #1d1d1f));
+}
+.reader-toc-item.level-1 { font-weight: 600; }
+.reader-toc-item.level-2 { padding-left: 20px; }
+.reader-toc-item.level-3 { padding-left: 32px; font-size: 12px; }
+.reader-toc-item.level-4,
+.reader-toc-item.level-5,
+.reader-toc-item.level-6 { padding-left: 44px; font-size: 12px; opacity: 0.85; }
+.reader-toc-empty {
+  color: var(--reader-fg-muted, var(--fg-muted, #6e6e73));
+  font-style: italic;
+  padding: 8px;
+}
+
 /* ---- scroll region + article ---- */
 .reader-scroll {
   flex: 1 1 auto;

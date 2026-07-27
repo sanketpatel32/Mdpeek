@@ -156,3 +156,8 @@ export function hasEmoji(name) {
 
 // The full map size, exposed for a sanity-check test.
 export const EMOJI_COUNT = Object.keys(EMOJI).length;
+
+// v0.41.0: raw map exposed for the autocomplete source (buildCandidates needs
+// to enumerate keys + read the glyph for the dropdown hint). Kept read-only
+// by convention — callers must not mutate.
+export const EMOJI_MAP = EMOJI;

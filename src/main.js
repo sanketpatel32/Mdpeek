@@ -12,6 +12,7 @@ import { showImage } from './views/image-viewer.js';
 import { initEditor } from './views/editor.js';
 import { initFindBar } from './views/find-bar.js';
 import { initCommandPalette, initQuickSwitcher, initSnippetPicker } from './views/command-palette.js';
+import { initAutocomplete } from './views/autocomplete-dropdown.js';
 import { initFileTree, setTreeRoot, setActivePath, refreshTree } from './views/file-tree.js';
 import { initCsvViewer } from './views/csv-viewer.js';
 import { initFolderSearch } from './views/folder-search.js';
@@ -21,6 +22,7 @@ import { renderIcons } from './lib/icons.js';
 import { toggleTaskLine, taskLineIndex, extractHeadings, buildRelativeImageMarkdown } from './lib/editor-logic.js';
 import { docBasename, backlinkQueries, formatBacklinkItems } from './lib/backlinks.js';
 import { extractSpeakerNotes } from './lib/slides.js';
+import { EMOJI_MAP } from './lib/emoji.js';
 // v0.34.1: build-time version for the About + Updates panels. Import is
 // hoisted to module top; the value is written into the DOM early (right after
 // bootMotion) because the Tauri window code further down aborts module
@@ -502,6 +504,9 @@ function syncToolbarForDoc(doc) {
 async function renderActive() {
   // Sync the outgoing doc's editor content + caret + scroll back into its model.
   if (_lastRenderedId !== null && _lastRenderedId !== store.activeId) {
+    // v0.41.0: dismiss the autocomplete dropdown so it doesn't linger at a
+    // stale caret position over the newly-active doc.
+    autocomplete.hide();
     // Closing the find bar on tab switch prevents stale highlights from one
     // doc lingering over another, and drops the textarea selection of a
     // soon-to-be-destroyed editor.
@@ -1049,6 +1054,81 @@ async function openBacklinks() {
     toast('Backlinks scan failed: ' + fmtErr(e));
   }
 }
+
+// v0.41.0: editor autocomplete (`:emoji`, `[[wiki`, `#tag`). The dropdown
+// view calls getSources(kind, query) async; we dispatch by kind. Emoji is
+// synchronous (static map); wiki + tag hit the filesystem and are cached.
+let _acFileCache = null;     // { dir, files[] } — invalidated on tree refresh
+let _acTagCache = null;      // { at: timestamp, tags[] }
+const AC_TAG_TTL_MS = 60_000;
+
+async function acListFiles(dir) {
+  if (!dir) return [];
+  if (_acFileCache && _acFileCache.dir === dir) return _acFileCache.files;
+  try {
+    const entries = await invoke('list_dir', { path: dir });
+    const files = entries
+      .filter((e) => !e.is_dir && /\.(md|markdown|mdx)$/i.test(e.name))
+      .map((e) => e.name.replace(/\.(md|markdown|mdx)$/i, ''));
+    _acFileCache = { dir, files };
+    return files;
+  } catch {
+    return [];
+  }
+}
+
+async function acListTags() {
+  if (_acTagCache && Date.now() - _acTagCache.at < AC_TAG_TTL_MS) return _acTagCache.tags;
+  const root = localStorage.getItem('mdpeek-explorer-root');
+  if (!root) return [];
+  try {
+    const res = await invoke('search_in_folder', { root, query: '#', caseSensitive: false, maxResults: 500 });
+    const hits = (res && res.results) || [];
+    const tags = new Set();
+    for (const h of hits) {
+      if (!h.matches) continue;
+      for (const m of h.matches) {
+        if (!m.text) continue;
+        // Pull `#word` tokens out of each matched line.
+        const re = /#([\w][\w-]*)/g;
+        let mm;
+        while ((mm = re.exec(m.text)) !== null) tags.add(mm[1]);
+      }
+    }
+    const list = Array.from(tags).sort();
+    _acTagCache = { at: Date.now(), tags: list };
+    return list;
+  } catch {
+    return [];
+  }
+}
+
+async function acGetSources(kind /*, query */) {
+  if (kind === 'emoji') return { emojis: EMOJI_MAP };
+  if (kind === 'wiki') {
+    const doc = store.active();
+    const dir = doc && doc.path ? doc.path.replace(/[\\/][^\\/]+$/, '') : null;
+    const root = localStorage.getItem('mdpeek-explorer-root');
+    // Prefer the doc's own folder; fall back to the workspace root.
+    const files = await acListFiles(dir || root);
+    return { files };
+  }
+  if (kind === 'tag') return { tags: await acListTags() };
+  return {};
+}
+
+const autocomplete = initAutocomplete({
+  getEditor: () => {
+    const doc = store.active();
+    return doc && doc.editor ? doc.editor : null;
+  },
+  getSources: acGetSources,
+});
+
+// Invalidate the file cache when the tree refreshes (file added/removed).
+// _acFileCache is module-private; this hook lets file-tree.js signal a
+// refresh without exporting a setter.
+function invalidateAcFileCache() { _acFileCache = null; }
 
 function insertSnippetIntoEditor(doc, textToInsert) {
   if (doc.editor) {
@@ -1666,6 +1746,26 @@ function toggleMode() {
   renderActive().catch((e) => console.error('toggleMode render failed:', e));
 }
 
+// ---------- custom CSS (v0.41.0) ----------
+// Inject the user's custom stylesheet into <head>. Targets .markdown-body so
+// it applies to every rendered surface (view article, edit preview, reader,
+// slideshow). Idempotent: replaces the existing <style> if present.
+function applyUserCss() {
+  const id = 'mdpeek-user-css';
+  let style = document.getElementById(id);
+  const css = (localStorage.getItem('mdpeek-user-css') || '').trim();
+  if (!css) {
+    if (style) style.remove();
+    return;
+  }
+  if (!style) {
+    style = document.createElement('style');
+    style.id = id;
+    document.head.appendChild(style);
+  }
+  style.textContent = css;
+}
+
 // ---------- theme ----------
 function applyTheme(next) {
   if (!HLJS_FOR_THEME[next]) next = DEFAULT_THEME;
@@ -1959,6 +2059,9 @@ async function enterReading() {
   applyReaderPrefs(readingPrefs());
   el.reader.classList.remove('hidden');
   document.body.classList.add('reading');
+  // v0.41.0: build the outline + restore its visibility from the pref.
+  buildReaderToc();
+  if (localStorage.getItem('mdpeek-reader-toc') === '1') toggleReaderToc(true);
   // Focus the scroll region so keyboard shortcuts work without a tab-focus.
   const scroll = el.reader.querySelector('.reader-scroll');
   if (scroll) scroll.scrollTop = doc.readerScrollY || 0;
@@ -1968,6 +2071,53 @@ async function enterReading() {
   // region each time so re-entering with a different doc just works.
   setupReaderProgressTracking();
   updateReaderProgress();
+}
+
+// v0.41.0: build the reader outline from the rendered article's headings.
+// Covers h1–h6 (the view-mode TOC only does h1–h3 — this is the better
+// default for long-form reading). Each entry scrolls the heading into view
+// inside the reader scroll region on click.
+function buildReaderToc() {
+  const toc = el.reader.querySelector('#reader-toc');
+  if (!toc) return;
+  const headings = el.readerArticle.querySelectorAll('h1, h2, h3, h4, h5, h6');
+  if (headings.length === 0) {
+    toc.innerHTML = '<div class="reader-toc-empty">No headings</div>';
+    return;
+  }
+  toc.innerHTML = '';
+  const scroll = el.reader.querySelector('.reader-scroll');
+  headings.forEach((h) => {
+    const level = parseInt(h.tagName.slice(1), 10);
+    const text = (h.textContent || '').trim() || '(untitled)';
+    const a = document.createElement('a');
+    a.className = `reader-toc-item level-${level}`;
+    a.href = '#';
+    a.textContent = text;
+    a.title = text;
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      // Scroll inside the reader's scroll region, not the window.
+      if (scroll) {
+        const rect = h.getBoundingClientRect();
+        const scrollRect = scroll.getBoundingClientRect();
+        scroll.scrollTop += rect.top - scrollRect.top - 12;
+      } else {
+        h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+    toc.appendChild(a);
+  });
+}
+
+// Show/hide the reader outline. Called with no arg → toggle; with a boolean
+// → set explicitly (used by enterReading to restore the saved state).
+function toggleReaderToc(force) {
+  const toc = el.reader.querySelector('#reader-toc');
+  if (!toc) return;
+  const show = typeof force === 'boolean' ? force : toc.classList.contains('hidden');
+  toc.classList.toggle('hidden', !show);
+  localStorage.setItem('mdpeek-reader-toc', show ? '1' : '0');
 }
 
 // Attach the scroll → progress-bar listener exactly once. The bar itself is
@@ -2000,6 +2150,9 @@ function exitReading() {
   document.body.classList.remove('reading');
   // Drop rendered content so the next enter starts fresh (no stale diagrams).
   el.readerArticle.innerHTML = '';
+  // v0.41.0: clear the outline too.
+  const toc = el.reader.querySelector('#reader-toc');
+  if (toc) { toc.innerHTML = ''; toc.classList.add('hidden'); }
 }
 
 function toggleReading() {
@@ -3393,6 +3546,16 @@ el.fileTreeBody.addEventListener('click', (e) => {
 // input/textarea guard in the keydown handler below covers other fields.
 el.editor.addEventListener('focus', () => { _treeActivePath = null; _treeActiveKind = null; });
 
+// v0.41.0: autocomplete key handling. Capture phase so we run before the
+// editor's own keydown (which would otherwise intercept Tab/Enter for indent
+// / newline). handleKeydown returns true only when the dropdown is active
+// AND the key is one we care about — otherwise it's a no-op and the editor's
+// handler runs normally.
+el.editor.addEventListener('keydown', (e) => {
+  if (localStorage.getItem('mdpeek-feature-autocomplete') === '0') return;
+  autocomplete.handleKeydown(e);
+}, true);
+
 // ---------- File-tree context menu (Cut/Copy/Paste/Rename/Delete) ----------
 // Standard Windows-explorer-style right-click menu on files and folders in
 // the explorer tree. Backed by the delete_path / rename_path / copy_path /
@@ -4578,6 +4741,8 @@ const SETTING_KEYS = [
   'mdpeek-word-wrap',
   'mdpeek-spellcheck',
   'mdpeek-image-beside-doc',
+  'mdpeek-user-css',
+  'mdpeek-reader-toc',
 ];
 
 let _changelogRendered = false;
@@ -4656,6 +4821,10 @@ function syncSettingsControls() {
   const imageBesideDocCb = document.getElementById('settings-image-beside-doc');
   if (imageBesideDocCb) imageBesideDocCb.checked = localStorage.getItem('mdpeek-image-beside-doc') !== '0';
 
+  // v0.41.0: custom CSS textarea + reader-TOC toggle state.
+  const userCssTa = document.getElementById('settings-user-css');
+  if (userCssTa) userCssTa.value = localStorage.getItem('mdpeek-user-css') || '';
+
   // Notes folder display — show configured path or auto-initialize with system default.
   const notesPath = document.getElementById('settings-notes-path');
   if (notesPath) {
@@ -4678,7 +4847,7 @@ function syncSettingsControls() {
   }
 
   // Feature flags synchronization
-  const features = ['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily', 'pomodoro', 'calendar', 'tasks', 'review'];
+  const features = ['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily', 'pomodoro', 'calendar', 'tasks', 'review', 'autocomplete'];
   features.forEach((feat) => {
     const cb = document.getElementById(`settings-feature-${feat}`);
     if (cb) cb.checked = localStorage.getItem(`mdpeek-feature-${feat}`) !== '0';
@@ -4899,6 +5068,17 @@ document.getElementById('settings-image-beside-doc')?.addEventListener('change',
   localStorage.setItem('mdpeek-image-beside-doc', e.target.checked ? '1' : '0');
 });
 
+// v0.41.0: custom CSS. Debounced save + live apply so the user sees changes
+// without closing settings (the styles hit every .markdown-body surface).
+let _userCssTimer = null;
+document.getElementById('settings-user-css')?.addEventListener('input', (e) => {
+  clearTimeout(_userCssTimer);
+  _userCssTimer = setTimeout(() => {
+    localStorage.setItem('mdpeek-user-css', e.target.value || '');
+    applyUserCss();
+  }, 300);
+});
+
 // Notes folder — re-pick where daily notes are saved.
 document.getElementById('settings-notes-pick').addEventListener('click', () => {
   changeNotesFolder();
@@ -4911,12 +5091,15 @@ document.getElementById('settings-autosave').addEventListener('change', (e) => {
 });
 
 // Feature flags change handlers
-['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily', 'pomodoro', 'calendar', 'tasks', 'review'].forEach((feat) => {
+['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily', 'pomodoro', 'calendar', 'tasks', 'review', 'autocomplete'].forEach((feat) => {
   const cb = document.getElementById(`settings-feature-${feat}`);
   if (cb) {
     cb.addEventListener('change', (e) => {
       localStorage.setItem(`mdpeek-feature-${feat}`, e.target.checked ? '1' : '0');
       applyFeatureFlags();
+      // v0.41.0: dismissing the dropdown when autocomplete is toggled off
+      // mid-typing avoids a dangling popup.
+      if (feat === 'autocomplete' && !e.target.checked) autocomplete.hide();
     });
   }
 });
@@ -5313,6 +5496,11 @@ el.editor.addEventListener('input', () => {
   persistSoon();
   updateEditorStatus();
   scheduleAutoSave();
+  // v0.41.0: re-evaluate the autocomplete trigger after each keystroke.
+  // Gated by the mdpeek-autocomplete feature flag (default on).
+  if (localStorage.getItem('mdpeek-feature-autocomplete') !== '0') {
+    autocomplete.refresh();
+  }
 });
 
 // Image paste into the editor. If the clipboard has an image (screenshot,
@@ -5654,6 +5842,8 @@ window.addEventListener('keydown', (e) => {
     if (e.key === '-' || e.key === '_') { e.preventDefault(); readerCycleFont(-1); return; }
     if (e.key === 't' || e.key === 'T') { e.preventDefault(); readerCycleTheme(); return; }
     if (e.key === 'f' || e.key === 'F') { e.preventDefault(); readerCycleFontFamily(); return; }
+    // v0.41.0: toggle the outline sidebar.
+    if (e.key === 'o' || e.key === 'O') { e.preventDefault(); toggleReaderToc(); return; }
   }
   // Esc → close the Kanban board (full-page view). Only fires when the board
   // is open. Lives here (the global keydown handler) so it works regardless
@@ -6068,6 +6258,7 @@ applyLineNumbers();
 applyWordWrap();
 applySpellcheck();
 applyFeatureFlags();
+applyUserCss();
 
 (async () => {
   try {

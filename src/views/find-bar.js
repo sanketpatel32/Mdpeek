@@ -12,12 +12,16 @@
 import { findMatches, nextMatchIndex } from '../lib/editor-logic.js';
 
 const CASE_KEY = 'mdpeek-find-case';
+const REGEX_KEY = 'mdpeek-find-regex';
+const WHOLE_WORD_KEY = 'mdpeek-find-whole-word';
 
 let created = false;
 let overlay;        // #find-overlay — the fixed wrapper
 let input;          // .find-input
 let countEl;        // .find-count
 let caseBtn;        // .find-toggle (Aa)
+let regexBtn;       // .find-toggle (.*)
+let wholeWordBtn;   // .find-toggle (W)
 let replaceRow;     // .find-replace-row (hidden until Ctrl+H or chevron)
 let replaceInput;   // .find-replace-input
 let expandBtn;      // .find-expand (chevron — toggles replace row)
@@ -25,6 +29,8 @@ let expandBtn;      // .find-expand (chevron — toggles replace row)
 // Module state. Single source of truth, reset on close.
 let query = '';
 let caseSensitive = false;
+let regex = false;
+let wholeWord = false;
 let marks = [];     // [<mark>] in view mode; empty in edit mode
 let matchIdx = -1;
 let debounceTimer = null;
@@ -50,6 +56,8 @@ function build() {
   overlay.innerHTML = `
     <div class="find-bar-card">
       <button class="find-toggle" id="find-case" title="Match case" aria-label="Match case" aria-pressed="false" type="button">Aa</button>
+      <button class="find-toggle" id="find-regex" title="Regular expression (.* )" aria-label="Regular expression" aria-pressed="false" type="button">.*</button>
+      <button class="find-toggle" id="find-whole-word" title="Whole word (W)" aria-label="Whole word" aria-pressed="false" type="button">W</button>
       <input type="text" class="find-input" placeholder="Find…" spellcheck="false" autocomplete="off" />
       <span class="find-count">0/0</span>
       <button class="find-prev tool-btn icon-only" title="Previous (Shift+Enter)" aria-label="Previous match" type="button">
@@ -76,21 +84,68 @@ function build() {
   input = overlay.querySelector('.find-input');
   countEl = overlay.querySelector('.find-count');
   caseBtn = overlay.querySelector('#find-case');
+  regexBtn = overlay.querySelector('#find-regex');
+  wholeWordBtn = overlay.querySelector('#find-whole-word');
   replaceRow = overlay.querySelector('.find-replace-row');
   replaceInput = overlay.querySelector('.find-replace-input');
   expandBtn = overlay.querySelector('.find-expand');
 
-  // Restore case preference.
+  // Restore preferences.
   caseSensitive = localStorage.getItem(CASE_KEY) === '1';
   caseBtn.setAttribute('aria-pressed', String(caseSensitive));
   caseBtn.classList.toggle('active', caseSensitive);
+  // v0.41.0: regex + whole-word prefs.
+  regex = localStorage.getItem(REGEX_KEY) === '1';
+  regexBtn.setAttribute('aria-pressed', String(regex));
+  regexBtn.classList.toggle('active', regex);
+  wholeWord = localStorage.getItem(WHOLE_WORD_KEY) === '1';
+  wholeWordBtn.setAttribute('aria-pressed', String(wholeWord));
+  wholeWordBtn.classList.toggle('active', wholeWord);
+  syncToggleStates();
 
   wireOnce();
+}
+
+// The options object threaded into every findMatches call. Defined once so
+// every call site (run/step/replace) stays in sync.
+function matchOpts() {
+  return { caseSensitive, regex, wholeWord };
+}
+
+// Whole-word is meaningless under regex (a regex already expresses its own
+// boundaries). Disable the W button visually when regex is on.
+function syncToggleStates() {
+  if (!wholeWordBtn) return;
+  const disabled = regex;
+  wholeWordBtn.disabled = disabled;
+  wholeWordBtn.title = disabled
+    ? 'Whole word (disabled while regex is on)'
+    : 'Whole word (W)';
+}
+
+function setRegex(value) {
+  regex = !!value;
+  localStorage.setItem(REGEX_KEY, regex ? '1' : '0');
+  regexBtn.setAttribute('aria-pressed', String(regex));
+  regexBtn.classList.toggle('active', regex);
+  syncToggleStates();
+  if (isOpen()) run();
+}
+
+function setWholeWord(value) {
+  if (regex) return; // no-op while regex is on
+  wholeWord = !!value;
+  localStorage.setItem(WHOLE_WORD_KEY, wholeWord ? '1' : '0');
+  wholeWordBtn.setAttribute('aria-pressed', String(wholeWord));
+  wholeWordBtn.classList.toggle('active', wholeWord);
+  if (isOpen()) run();
 }
 
 // ---------- listeners (attached exactly once) ----------
 function wireOnce() {
   caseBtn.addEventListener('click', () => setCaseSensitive(!caseSensitive));
+  regexBtn.addEventListener('click', () => setRegex(!regex));
+  wholeWordBtn.addEventListener('click', () => setWholeWord(!wholeWord));
 
   input.addEventListener('input', () => {
     query = input.value;
@@ -171,7 +226,7 @@ function runEdit() {
     return;
   }
   const text = editor.getValue();
-  const ms = findMatches(text, query, caseSensitive);
+  const ms = findMatches(text, query, matchOpts());
   if (ms.length === 0) {
     matchIdx = -1;
     return;
@@ -214,7 +269,7 @@ function runView(container) {
     }
     text += seg;
   }
-  const ms = findMatches(text, query, caseSensitive);
+  const ms = findMatches(text, query, matchOpts());
   if (ms.length === 0) {
     matchIdx = -1;
     return;
@@ -382,7 +437,7 @@ function stepEdit(forward) {
   const editor = ctx.getEditor();
   if (!editor || !query) return;
   const text = editor.getValue();
-  const ms = findMatches(text, query, caseSensitive);
+  const ms = findMatches(text, query, matchOpts());
   if (ms.length === 0) {
     matchIdx = -1;
     return;
@@ -409,7 +464,7 @@ async function runPdf(controller) {
   for (let page = 1; page <= controller.pdfDoc.numPages; page++) {
     const text = controller.textCache.get(page) || '';
     if (!text) continue;
-    const ms = findMatches(text, query, caseSensitive);
+    const ms = findMatches(text, query, matchOpts());
     for (const m of ms) {
       pdfMatches.push({ page, start: m.start, end: m.end });
     }
@@ -542,7 +597,7 @@ function updateCount() {
   const mode = ctx.getMode();
   if (mode === 'edit') {
     const editor = ctx.getEditor();
-    total = editor ? findMatches(editor.getValue(), query, caseSensitive).length : 0;
+    total = editor ? findMatches(editor.getValue(), query, matchOpts()).length : 0;
   } else if (mode === 'pdf') {
     total = pdfMatches.length;
   } else {
@@ -636,7 +691,20 @@ function replaceCurrent() {
   const text = editor.getValue();
   const selected = text.slice(start, end);
   // Confirm the selection is a real match (not the user's arbitrary drag).
-  const isMatch = caseSensitive ? selected === query : selected.toLowerCase() === query.toLowerCase();
+  // For regex mode the selection can't equal the literal query — test it
+  // against the compiled pattern instead. Whole-word is handled by findMatches
+  // already (we just check membership in the match set here).
+  let isMatch;
+  if (regex) {
+    try {
+      const re = new RegExp('^(?:' + query + ')$', caseSensitive ? '' : 'i');
+      isMatch = re.test(selected);
+    } catch {
+      isMatch = false;
+    }
+  } else {
+    isMatch = caseSensitive ? selected === query : selected.toLowerCase() === query.toLowerCase();
+  }
   if (!isMatch) { step(true); return; }
   const replacement = replaceInput.value;
   const next = text.slice(0, start) + replacement + text.slice(end);
@@ -656,7 +724,7 @@ function replaceAll() {
   if (mode !== 'edit') return;
   const text = editor.getValue();
   const replacement = replaceInput.value;
-  const ms = findMatches(text, query, caseSensitive);
+  const ms = findMatches(text, query, matchOpts());
   if (ms.length === 0) return;
   // Walk matches right-to-left so earlier offsets stay valid as we splice.
   let out = text;
@@ -715,5 +783,5 @@ export function initFindBar(accessors) {
   created = true;
   ctx = { ...ctx, ...accessors };
   build();
-  return { close, toggle, refresh, setCaseSensitive, openReplace, findNext: () => step(true), findPrev: () => step(false) };
+  return { close, toggle, refresh, setCaseSensitive, setRegex, setWholeWord, openReplace, findNext: () => step(true), findPrev: () => step(false) };
 }

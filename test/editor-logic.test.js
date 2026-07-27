@@ -222,6 +222,54 @@ describe('findMatches', () => {
     const m = findMatches('ababab', 'ab');
     expect(m).toHaveLength(3);
   });
+
+  // ---------- v0.41.0: regex + whole-word ----------
+
+  it('supports regex mode (basic alternation)', () => {
+    const m = findMatches('cat dog bird', 'cat|dog', { regex: true });
+    expect(m).toEqual([{ start: 0, end: 3 }, { start: 4, end: 7 }]);
+  });
+
+  it('supports regex with capture-group-free patterns', () => {
+    // `h.*o` is greedy but each match still has correct start/end.
+    const m = findMatches('hi hello halo', 'h\\w+', { regex: true });
+    expect(m).toHaveLength(3);
+    expect(m[0]).toEqual({ start: 0, end: 2 });   // 'hi'
+    expect(m[1]).toEqual({ start: 3, end: 8 });   // 'hello'
+  });
+
+  it('returns [] for an invalid regex (no throw)', () => {
+    expect(findMatches('abc', '[', { regex: true })).toEqual([]);
+  });
+
+  it('regex respects caseSensitive option', () => {
+    const m = findMatches('Foo foo', 'foo', { regex: true, caseSensitive: true });
+    expect(m).toEqual([{ start: 4, end: 7 }]);
+  });
+
+  it('regex does not infinite-loop on zero-length matches', () => {
+    // `a*` matches empty string at every position; guard advances lastIndex.
+    const m = findMatches('xyz', 'a*', { regex: true });
+    // Empty matches are recorded with start === end; the loop must terminate.
+    expect(m.length).toBeGreaterThan(0);
+  });
+
+  it('wholeWord matches only at word boundaries', () => {
+    const m = findMatches('cat catalog cat', 'cat', { wholeWord: true });
+    // Position 4 ('catalog') is NOT a whole-word match; 0 and 12 are.
+    expect(m).toEqual([{ start: 0, end: 3 }, { start: 12, end: 15 }]);
+  });
+
+  it('wholeWord + caseSensitive combine', () => {
+    const m = findMatches('Cat cat CAT', 'cat', { wholeWord: true, caseSensitive: true });
+    expect(m).toEqual([{ start: 4, end: 7 }]);
+  });
+
+  it('legacy 3-arg positional form still works (backward compat)', () => {
+    // Old callers pass `caseSensitive` as the 3rd positional arg.
+    expect(findMatches('Foo foo', 'Foo', true)).toEqual([{ start: 0, end: 3 }]);
+    expect(findMatches('Foo foo', 'Foo', false)).toEqual([{ start: 0, end: 3 }, { start: 4, end: 7 }]);
+  });
 });
 
 describe('nextMatchIndex', () => {

@@ -245,19 +245,49 @@ export function handleBackspace(text, start, end) {
 
 // ----------------------------- find ----------------------------------------
 
-// Returns array of {start, end} for every match of `query` (case-insensitive
-// unless caseSensitive). Empty query → [].
-export function findMatches(text, query, caseSensitive = false) {
+// Returns array of {start, end} for every match of `query`.
+// v0.41.0: options object adds `regex` and `wholeWord`. The legacy
+// `findMatches(text, query, caseSensitive)` 3-arg form still works because
+// the 3rd arg is accepted positionally and threaded into `caseSensitive`.
+export function findMatches(text, query, opts = {}) {
+  if (typeof opts === 'boolean') opts = { caseSensitive: opts };
+  const { caseSensitive = false, regex = false, wholeWord = false } = opts;
   if (!query) return [];
+
+  // Regex path. Invalid pattern → [] (UI shows "no match"). Zero-length
+  // matches (e.g. `a*`) are advanced by 1 to avoid an infinite loop.
+  if (regex) {
+    let re;
+    try { re = new RegExp(query, caseSensitive ? 'g' : 'gi'); }
+    catch { return []; }
+    const out = [];
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      out.push({ start: m.index, end: m.index + m[0].length });
+      if (m[0].length === 0) re.lastIndex++;
+    }
+    return out;
+  }
+
   const hay = caseSensitive ? text : text.toLowerCase();
   const needle = caseSensitive ? query : query.toLowerCase();
+  // Whole-word: require a non-word char (or string boundary) on each side.
+  // We still find candidates via indexOf for speed, then boundary-check.
+  const isWord = (ch) => /\w/.test(ch);
   const out = [];
   let i = 0;
-  while (i < hay.length) {
+  while (i <= hay.length) {
     const idx = hay.indexOf(needle, i);
     if (idx === -1) break;
-    out.push({ start: idx, end: idx + needle.length });
-    i = idx + needle.length;
+    const end = idx + needle.length;
+    if (wholeWord) {
+      const leftOk = idx === 0 || !isWord(hay[idx - 1]);
+      const rightOk = end === hay.length || !isWord(hay[end]);
+      if (leftOk && rightOk) out.push({ start: idx, end });
+    } else {
+      out.push({ start: idx, end });
+    }
+    i = end;
   }
   return out;
 }

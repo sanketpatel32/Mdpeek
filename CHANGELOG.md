@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-07-27
+
+### Added — Productivity batch
+
+Four daily-use wins. All logic stays in unit-tested pure modules; no new
+dependencies, no Rust changes.
+
+**Editor / Autocomplete**
+
+- **Trigger-char autocomplete** for emoji, wiki-links, and tags. Type `:smil`
+  in the editor → a dropdown of matching emoji shortcodes appears; Tab or
+  Enter accepts. `[[read` suggests `.md` files in the current folder;
+  `#pro` suggests tags already used across your notes. Arrow keys navigate,
+  Esc dismisses. The dropdown is non-focusable and positioned at the caret
+  (mirror-div technique). Gated by a feature flag (on by default).
+
+**Find / Replace**
+
+- **Regex + whole-word find.** Two new toggles in the find bar (next to the
+  existing `Aa` case button): `.*` for regex, `W` for whole-word. Regex
+  accepts standard JS patterns (`cat|dog`, `h\w+`); invalid patterns show
+  "no match" instead of throwing. Whole-word is auto-disabled while regex is
+  on (a regex expresses its own boundaries). Single-doc only — folder search
+  keeps its substring behaviour.
+
+**Reading / Navigation**
+
+- **Reader outline (TOC).** Press `O` in Reading Mode to toggle a sidebar
+  listing every heading (h1–h6). Click an entry to jump to it. State
+  persists across sessions via `mdpeek-reader-toc`. Also fixes a latent gap
+  in the view-mode TOC (which only showed h1–h3) for the reader surface.
+
+**Settings / Power users**
+
+- **Custom CSS injection.** Settings → Appearance → *Custom CSS* — a
+  textarea where you can paste styles scoped to `.markdown-body`. Applies
+  live (debounced) to every rendered surface: view article, edit preview,
+  reader, slideshow. Stored in localStorage; included in the reset action.
+
+### Tests & internals
+
+- New pure module `src/lib/autocomplete.js` (`detectTrigger`,
+  `buildCandidates`, `acceptSuggestion`) + `src/views/autocomplete-dropdown.js`
+  (caret-positioned overlay).
+- `findMatches` extended with `{ regex, wholeWord }` options object;
+  backward-compatible (legacy 3-arg positional form still works).
+- `EMOJI_MAP` exported from `emoji.js` for the autocomplete source.
+- **+33 tests** (autocomplete 25, findMatches regex/whole-word 8). **594 total.**
+
 ## [0.40.0] - 2026-07-27
 
 ### Added — Portable images, backlinks, speaker notes, wiki auto-create

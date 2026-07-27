@@ -349,10 +349,13 @@
         </div>
       </div>
       <div class="reader-progress-bar" aria-hidden="true"></div>
+      <!-- v0.41.0: reader outline. Hidden by default; toggle with O.
+           Populated from the rendered article's h1-h6 after enterReading. -->
+      <aside class="reader-toc hidden" id="reader-toc" aria-label="Outline"></aside>
       <div class="reader-scroll">
         <article class="markdown-body reader-article" id="reader-article"></article>
       </div>
-      <div class="reader-hint">[ ] width · + − text · T theme · F font · Esc exit</div>
+      <div class="reader-hint">[ ] width · + − text · T theme · F font · O outline · Esc exit</div>
     </div>
 
     <div id="ctx-menu" class="ctx-menu hidden" role="menu">
@@ -807,6 +810,18 @@
                   </select>
                 </div>
               </div>
+              <!-- v0.41.0: custom CSS injection. Targets .markdown-body so it
+                   applies uniformly to view-mode article, edit-mode preview,
+                   reader, and slideshow. Saved to localStorage (debounced). -->
+              <div class="setting-card">
+                <div class="setting-row setting-row-stacked">
+                  <div class="setting-text">
+                    <div class="setting-label">Custom CSS</div>
+                    <div class="setting-desc">Extra styles applied to rendered Markdown (scope rules to <code>.markdown-body</code>). Saved as you type.</div>
+                  </div>
+                  <textarea id="settings-user-css" class="setting-textarea" rows="6" spellcheck="false" placeholder="/* e.g.  .markdown-body h1 { color: red; } */" aria-label="Custom CSS"></textarea>
+                </div>
+              </div>
             </div>
 
             <!-- Editor -->
@@ -1006,6 +1021,16 @@
                   </div>
                   <label class="setting-toggle">
                     <input type="checkbox" id="settings-feature-review" />
+                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+                  </label>
+                </div>
+                <div class="setting-row">
+                  <div class="setting-text">
+                    <div class="setting-label">Editor autocomplete</div>
+                    <div class="setting-desc">Show a suggestion dropdown when you type <code>:emoji</code>, <code>[[wiki</code>, or <code>#tag</code> in the editor</div>
+                  </div>
+                  <label class="setting-toggle">
+                    <input type="checkbox" id="settings-feature-autocomplete" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
