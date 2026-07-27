@@ -10,8 +10,18 @@
 // race protection.
 
 import { invoke } from '@tauri-apps/api/core';
+import { applyReplacements } from '../lib/replace.js';
 
 const CASE_KEY = 'mdpeek-folder-search-case';
+
+// Minimal status notifier — the panel is a singleton with no access to the
+// app's toast helper. Reuses the count badge as the message surface.
+function notify(msg) {
+  countEl.textContent = msg;
+  countEl.classList.add('search-notify');
+  clearTimeout(notify._t);
+  notify._t = setTimeout(() => countEl.classList.remove('search-notify'), 2500);
+}
 
 let created = false;
 let overlay;          // #folder-search-overlay
@@ -30,6 +40,17 @@ let debounceTimer = null;
 let searchGen = 0;           // bumped on every input change; race guard
 let inFlight = false;        // true while a search is awaiting Rust
 let onOpenCallback = null;   // (path, line, query) => void — caller wires openPath
+// --- replace state (project-wide find & replace) ---
+let replaceInput;        // .folder-search-replace-input
+let replaceRow;          // .folder-search-replace-row (hidden until expanded)
+let expandBtn;           // .folder-search-expand (chevron)
+let replaceAllBtn;       // .folder-search-replace-all
+let undoBtn;             // .folder-search-undo
+let replaceExpanded = false;
+let lastReplace = null;  // [{ path, oldContent }] for single-level undo, or null
+let isDirtyCb = null;        // (path) => boolean — is this path an open tab with unsaved edits?
+let updateOpenDocCb = null;  // (path, newContent) => void — sync a clean open tab after write
+let lastResults = [];       // last search result set (for currentMatchPaths)
 
 // Build the DOM once. Idempotent — safe to call repeatedly.
 function build() {
@@ -43,9 +64,17 @@ function build() {
         <button class="folder-search-toggle tool-btn icon-only" id="folder-search-case" title="Match case" aria-label="Match case" aria-pressed="false">Aa</button>
         <input type="search" class="folder-search-input" placeholder="Search in folder…" aria-label="Search query" spellcheck="false" autocomplete="off" />
         <span class="folder-search-count">0</span>
+        <button class="folder-search-expand tool-btn icon-only" title="Toggle replace" aria-label="Toggle replace" type="button">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
         <button class="folder-search-close tool-btn icon-only" title="Close (Esc)" aria-label="Close search panel">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
+      </div>
+      <div class="folder-search-replace-row hidden">
+        <input type="text" class="folder-search-replace-input" placeholder="Replace…" aria-label="Replacement text" spellcheck="false" autocomplete="off" />
+        <button class="tool-btn folder-search-replace-all" title="Replace all (Alt+A)" type="button">All</button>
+        <button class="tool-btn folder-search-undo" title="Undo last replace" type="button" disabled>Undo</button>
       </div>
       <div class="folder-search-results" role="list"></div>
     </div>
@@ -58,6 +87,11 @@ function build() {
   resultsEl = overlay.querySelector('.folder-search-results');
   headerLabelEl = overlay.querySelector('.folder-search-folder');
   closeBtn = overlay.querySelector('.folder-search-close');
+  expandBtn = overlay.querySelector('.folder-search-expand');
+  replaceRow = overlay.querySelector('.folder-search-replace-row');
+  replaceInput = overlay.querySelector('.folder-search-replace-input');
+  replaceAllBtn = overlay.querySelector('.folder-search-replace-all');
+  undoBtn = overlay.querySelector('.folder-search-undo');
 
   // Restore the case-sensitive preference (mirrors the find bar).
   caseSensitive = localStorage.getItem(CASE_KEY) === '1';
@@ -94,6 +128,35 @@ function build() {
     runSearch();
   });
 
+  // Chevron — toggle the replace row (mirrors the find-bar's expand chevron).
+  expandBtn.addEventListener('click', () => setReplaceExpanded(!replaceExpanded));
+
+  // Replace All + Undo buttons.
+  replaceAllBtn.addEventListener('click', replaceAll);
+  undoBtn.addEventListener('click', undoReplace);
+
+  // Replace input — Alt+A = replace all, Alt+Enter = replace focused file,
+  // Esc = close panel. Matches the find-bar's replace bindings.
+  replaceInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+    } else if (e.key === 'a' && e.altKey) {
+      e.preventDefault();
+      replaceAll();
+    } else if (e.key === 'Enter' && e.altKey) {
+      e.preventDefault();
+      replaceFocusedFile();
+    }
+  });
+
+  // Re-render results on replace-input change so the live preview updates.
+  replaceInput.addEventListener('input', () => {
+    if (replaceExpanded && query) {
+      runSearch();
+    }
+  });
+
   // Close button.
   closeBtn.addEventListener('click', close);
 
@@ -104,12 +167,29 @@ function build() {
 
   // Result click — delegated since the list re-renders constantly.
   resultsEl.addEventListener('click', (e) => {
+    // Per-file Replace button on a file-group header.
+    const replaceBtn = e.target.closest('.search-file-replace');
+    if (replaceBtn) {
+      e.preventDefault();
+      const group = e.target.closest('.search-file-group');
+      const path = group && group.dataset.path;
+      if (path) replaceOneFile(path);
+      return;
+    }
+    // Match row — open the file at the matched line.
     const match = e.target.closest('.search-match');
     if (!match) return;
     const path = match.dataset.path;
     const line = parseInt(match.dataset.line, 10);
     if (path && onOpenCallback) onOpenCallback(path, line, query);
   });
+}
+
+function setReplaceExpanded(on) {
+  replaceExpanded = !!on;
+  replaceRow.classList.toggle('hidden', !replaceExpanded);
+  expandBtn.classList.toggle('active', replaceExpanded);
+  expandBtn.setAttribute('aria-pressed', replaceExpanded ? 'true' : 'false');
 }
 
 async function runSearch() {
@@ -151,6 +231,7 @@ async function runSearch() {
 }
 
 function renderResults(summary) {
+  lastResults = summary.results || [];
   const { results, truncated, total_matches, files_scanned, files_with_matches } = summary;
   // Count badge: show match count (or "truncated" hint via the body text).
   countEl.textContent = String(total_matches);
@@ -167,16 +248,25 @@ function renderResults(summary) {
       const before = escapeHtml(m.text.slice(0, m.match_start));
       const hit = escapeHtml(m.text.slice(m.match_start, m.match_end));
       const after = escapeHtml(m.text.slice(m.match_end));
+      // Preview: when a replacement is typed and the row is expanded, show
+      // the post-replace line (old match struck through -> new text). Falls
+      // back to the plain match highlight when no replacement is typed.
+      const replacement = replaceExpanded ? replaceInput.value : '';
+      const showPreview = replaceExpanded && replacement !== '' && query;
+      const hitHtml = showPreview
+        ? `<del>${hit}</del><span class="search-arrow"> → </span><ins>${escapeHtml(replacement)}</ins>`
+        : `<mark>${hit}</mark>`;
       return `<div class="search-match" role="listitem" data-path="${escapeAttr(file.path)}" data-line="${m.line}" title="${escapeAttr(file.path)}:${m.line}">
         <span class="search-line">${m.line}</span>
-        <span class="search-text">${before}<mark>${hit}</mark>${after}</span>
+        <span class="search-text">${before}${hitHtml}${after}</span>
       </div>`;
     }).join('');
     const relPath = relativizeForDisplay(file.path);
-    return `<div class="search-file-group">
+    return `<div class="search-file-group" data-path="${escapeAttr(file.path)}">
       <div class="search-file-header" title="${escapeAttr(file.path)}">
         <span class="search-file-name">${escapeHtml(relPath)}</span>
         <span class="search-file-count">${file.matches.length}</span>
+        ${replaceExpanded ? `<button class="tool-btn search-file-replace" title="Replace in this file" type="button">Replace</button>` : ''}
       </div>
       ${matchRows}
     </div>`;
@@ -215,11 +305,197 @@ function escapeAttr(s) {
   return escapeHtml(s).replace(/"/g, '&quot;');
 }
 
+// Best-effort single-line preview: replace the first occurrence of `query`
+// in `line` with `replacement`, honoring case-sensitivity. Used to render
+// the post-replace line in the results list. Only the FIRST match is shown
+// (search_in_folder returns one match per line), so multi-match lines are
+// undercounted in the preview — the true count comes from applyReplacements
+// on full file content at confirm time.
+function previewReplacement(line, query, replacement, caseSensitive) {
+  if (!query) return line;
+  const hay = caseSensitive ? line : line.toLowerCase();
+  const needle = caseSensitive ? query : query.toLowerCase();
+  const idx = hay.indexOf(needle);
+  if (idx === -1) return line;
+  return line.slice(0, idx) + replacement + line.slice(idx + needle.length);
+}
+
+// Collect the distinct file paths from the last search result set.
+function currentMatchPaths() {
+  return lastResults.map((r) => r.path);
+}
+
+// Replace every match across every file-with-matches in the current result
+// set. Reads all candidate files in one batch, applies the pure
+// applyReplacements per file, skips files open with unsaved edits (dirty
+// guard), confirms with the user, writes the batch, syncs open tabs, stores
+// an undo snapshot, and re-runs the search.
+async function replaceAll() {
+  if (!folderPath || !query) return;
+  // Gather the paths that currently have matches. If the last search
+  // truncated, we still only operate on what's visible — the user can narrow
+  // the query to reach more.
+  const paths = currentMatchPaths();
+  if (paths.length === 0) return;
+  const replacement = replaceInput.value;
+  const caseSen = caseSensitive;
+  // 1. Batch-read all candidate files.
+  let reads;
+  try {
+    reads = await invoke('read_files_batch', { paths });
+  } catch (e) {
+    notify('Read failed: ' + (e?.message || e || 'unknown error'));
+    return;
+  }
+  // 2. Compute replacements per file, honoring the dirty guard.
+  const writes = [];
+  let totalReplacements = 0;
+  const skippedDirty = [];
+  const skippedError = [];
+  for (const r of reads) {
+    if (r.error || r.content == null) {
+      skippedError.push(r.path);
+      continue;
+    }
+    if (isDirtyCb && isDirtyCb(r.path)) {
+      skippedDirty.push(r.path);
+      continue;
+    }
+    const { result, count } = applyReplacements(r.content, query, replacement, { caseSensitive: caseSen });
+    if (count === 0) continue; // no matches after re-read (e.g. file changed)
+    writes.push({ path: r.path, oldContent: r.content, newContent: result, count });
+    totalReplacements += count;
+  }
+  if (writes.length === 0) {
+    notify(skippedDirty.length
+      ? `No replacements — ${skippedDirty.length} file(s) skipped (unsaved changes)`
+      : 'No replacements');
+    return;
+  }
+  // 3. Confirm with the user.
+  const skippedNote = skippedDirty.length + skippedError.length
+    ? `\n${skippedDirty.length} skipped (unsaved changes)${skippedError.length ? `, ${skippedError.length} unreadable` : ''}`
+    : '';
+  const msg = `Replace ${totalReplacements} occurrence${totalReplacements === 1 ? '' : 's'} across ${writes.length} file${writes.length === 1 ? '' : 's'}?${skippedNote}`;
+  if (!window.confirm(msg)) return;
+  // 4. Batch-write.
+  const writePayload = writes.map((w) => ({ path: w.path, content: w.newContent }));
+  let results;
+  try {
+    results = await invoke('write_files_batch', { writes: writePayload });
+  } catch (e) {
+    notify('Write failed: ' + (e?.message || e || 'unknown error'));
+    return;
+  }
+  // 5. Sync open tabs + report any write failures.
+  let failed = 0;
+  for (let i = 0; i < writes.length; i++) {
+    const w = writes[i];
+    const res = results[i];
+    if (res && res.ok && updateOpenDocCb) updateOpenDocCb(w.path, w.newContent);
+    if (!res || !res.ok) failed += 1;
+  }
+  // 6. Store undo snapshot (only files that wrote successfully).
+  lastReplace = writes
+    .filter((w, i) => results[i] && results[i].ok)
+    .map((w) => ({ path: w.path, oldContent: w.oldContent }));
+  undoBtn.disabled = !lastReplace || lastReplace.length === 0;
+  notify(failed
+    ? `Replaced ${totalReplacements} in ${writes.length - failed} file(s); ${failed} failed`
+    : `Replaced ${totalReplacements} across ${writes.length} file(s)`);
+  // 7. Re-run the search to show remaining matches.
+  runSearch();
+}
+
+// Replace all matches in a single file (the file whose group header was
+// focused when Alt+Enter was pressed). Reuses the Replace All engine by
+// temporarily narrowing lastResults to one path. Restores lastResults so
+// the next full Replace All still sees the full set.
+async function replaceFocusedFile() {
+  if (!folderPath || !query) return;
+  if (lastResults.length === 0) return;
+  const target = lastResults[0].path;
+  const saved = lastResults;
+  lastResults = saved.filter((r) => r.path === target);
+  try {
+    await replaceAll();
+  } finally {
+    lastResults = saved;
+  }
+}
+
+// Replace all matches in one specific file. Reuses the Replace All engine
+// with lastResults narrowed to that path. Restores lastResults afterward.
+async function replaceOneFile(path) {
+  if (!folderPath || !query || !path) return;
+  const saved = lastResults;
+  lastResults = saved.filter((r) => r.path === path);
+  try {
+    await replaceAll();
+  } finally {
+    lastResults = saved;
+  }
+}
+
+// Restore the content of every file written by the last replace. Before
+// restoring, re-reads each file's current content; if it already matches the
+// pre-replace state (someone reverted it), that file is skipped — never
+// clobber post-replace edits. Clears the snapshot after.
+async function undoReplace() {
+  if (!lastReplace || lastReplace.length === 0) return;
+  // Re-read current contents to detect files already reverted.
+  const paths = lastReplace.map((e) => e.path);
+  let reads;
+  try {
+    reads = await invoke('read_files_batch', { paths });
+  } catch (e) {
+    notify('Undo read failed: ' + (e?.message || e || 'unknown error'));
+    return;
+  }
+  const current = new Map();
+  for (const r of reads) if (r.content != null) current.set(r.path, r.content);
+  const writes = [];
+  let skippedStale = 0;
+  for (const entry of lastReplace) {
+    const cur = current.get(entry.path);
+    // If the file is unchanged from the pre-replace state, nothing to undo.
+    if (cur === entry.oldContent) { skippedStale += 1; continue; }
+    writes.push({ path: entry.path, content: entry.oldContent });
+  }
+  if (writes.length === 0) {
+    notify(skippedStale ? 'Nothing to undo (files unchanged)' : 'Undo: nothing to restore');
+    lastReplace = null;
+    undoBtn.disabled = true;
+    return;
+  }
+  let results;
+  try {
+    results = await invoke('write_files_batch', { writes });
+  } catch (e) {
+    notify('Undo write failed: ' + (e?.message || e || 'unknown error'));
+    return;
+  }
+  let failed = 0;
+  for (let i = 0; i < writes.length; i++) {
+    const res = results[i];
+    if (res && res.ok && updateOpenDocCb) updateOpenDocCb(writes[i].path, writes[i].content);
+    if (!res || !res.ok) failed += 1;
+  }
+  lastReplace = null;
+  undoBtn.disabled = true;
+  notify(failed
+    ? `Undid ${writes.length - failed} file(s); ${failed} failed`
+    : `Undid ${writes.length} file(s)`);
+  runSearch();
+}
+
 // ---------- public API ----------
-export function initFolderSearch(onOpen) {
+export function initFolderSearch(onOpen, { isDirty, updateOpenDoc } = {}) {
   if (created) return { open, close, destroy };
   build();
   onOpenCallback = onOpen || null;
+  isDirtyCb = isDirty || null;
+  updateOpenDocCb = updateOpenDoc || null;
   created = true;
   return { open, close, destroy };
 }

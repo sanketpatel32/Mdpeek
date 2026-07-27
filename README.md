@@ -87,6 +87,7 @@ Chromium), making it far smaller than Electron-based viewers like MarkText
 ### 🗂 File explorer & Explorer Context Menu
 - **Built-in file tree** — open a folder and browse it in a sidebar (`Ctrl+Shift+E`)
 - **Full file operations** via right-click context menu — Cut / Copy / Paste / Rename (F2) / Delete (Recycle Bin) / Search in folder…
+- **Project-wide find & replace** — search a folder and replace across all matches, with a live preview, a confirmation step, per-file replace, and single-level undo (`Alt+A`)
 - **Windows Explorer right-click integration** — right-click any file → "Open with mdpeek", any folder → "Open folder in mdpeek"
 - **Back / Forward** navigation history (`Alt+Left` / `Alt+Right`)
 - **Quick switcher** (`Ctrl+P`) — fuzzy-find recent files

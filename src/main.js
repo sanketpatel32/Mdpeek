@@ -3607,9 +3607,24 @@ function startRenameInTree(row, path) {
 // Folder-wide search panel. Singleton — built once on first open, then
 // reused. The onOpen callback receives (path, line, query) and routes the
 // click through openPathAndJump so the file opens at the right line.
-const folderSearch = initFolderSearch((path, line, query) => {
-  openPathAndJump(path, line, query);
-});
+const folderSearch = initFolderSearch(
+  (path, line, query) => { openPathAndJump(path, line, query); },
+  {
+    // Is `path` open in a tab with unsaved edits? Mirrors the file-changed
+    // watcher guard (src/main.js:5811) — never clobber unsaved work.
+    isDirty: (path) => store.docs.some((d) => d.path === path && d.dirty),
+    // Sync a clean open tab after an external write so the editor reflects
+    // the change without waiting for a watcher round-trip.
+    updateOpenDoc: (path, newContent) => {
+      const doc = store.docs.find((d) => d.path === path);
+      if (!doc) return;
+      doc.content = newContent;
+      if (doc.editor && doc.mode === 'edit') doc.editor.setValue(newContent);
+      // The content now matches disk — clear the dirty flag.
+      store.clearDirty(doc.id);
+    },
+  },
+);
 
 async function openFolderForExplorer() {
   try {
