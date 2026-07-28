@@ -246,6 +246,26 @@
   margin: 0.4em 0;
 }
 
+/* definition lists (v0.44.0) — `Term\n: Definition` via the marked extension.
+   Term bolded, definitions indented with a hanging indent so multi-line ones
+   align under their first line. */
+.markdown-body dl {
+  margin: 0 0 1em;
+}
+.markdown-body dt {
+  font-weight: 600;
+  margin-top: 0.6em;
+}
+.markdown-body dt:first-child {
+  margin-top: 0;
+}
+.markdown-body dd {
+  margin: 0.2em 0 0.4em 1.5em;
+  padding-left: 0.5em;
+  border-left: 2px solid var(--border-subtle);
+  color: var(--fg-secondary);
+}
+
 /* code */
 .markdown-body pre {
   background: var(--code-bg);

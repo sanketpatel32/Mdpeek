@@ -546,3 +546,100 @@ export function buildRelativeImageMarkdown(docPath, filename) {
   if (!docPath) return null;
   return `![](assets/${filename})`;
 }
+
+// ----------------------------- table cell navigation -----------------------
+// v0.44.0: when the caret sits inside a markdown table row, Tab/Shift+Tab
+// should jump cell-to-cell (like a spreadsheet) instead of inserting the
+// indent string. Returns { caret } when it handled the key (the editor sets
+// the selection to that absolute offset), or null to fall through to normal
+// Tab handling. `dir` is +1 (Tab) or -1 (Shift+Tab).
+//
+// A "table row" is a line matching /^\s*\|.*\|\s*$/ — i.e. starts with a pipe
+// (after optional indent) and ends with one. The delimiter row (|---|---|)
+// qualifies too; navigating onto it is harmless and matches Typora/Obsidian.
+export function tableCellNav(text, caret, dir) {
+  if (!text || typeof caret !== 'number') return null;
+  // Find the line the caret is on.
+  const lineStart = text.lastIndexOf('\n', caret - 1) + 1;
+  let lineEnd = text.indexOf('\n', caret);
+  if (lineEnd === -1) lineEnd = text.length;
+  const line = text.slice(lineStart, lineEnd);
+  // Must look like a table row.
+  if (!/^\s*\|.*\|\s*$/.test(line)) return null;
+
+  // Split into cells. We keep track of each cell's [start, end) offsets in
+  // the full text so we can jump the caret to absolute positions. The pipes
+  // themselves are the delimiters; cells are what's between them.
+  //   "| a | b |"  →  cells: " a ", " b "  (between the 3 pipes)
+  const pipeOffsets = [];
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '|' && !(i > 0 && line[i - 1] === '\\')) pipeOffsets.push(i);
+  }
+  if (pipeOffsets.length < 2) return null;
+
+  // Build [absStart, absEnd) per cell from consecutive pipe pairs.
+  const cells = [];
+  for (let i = 0; i < pipeOffsets.length - 1; i++) {
+    const cs = lineStart + pipeOffsets[i] + 1;
+    const ce = lineStart + pipeOffsets[i + 1];
+    cells.push([cs, ce]);
+  }
+
+  // Locate the cell containing the caret (caret may be on a pipe; treat a
+  // pipe as belonging to the cell to its right, except the last pipe which
+  // belongs to the cell to its left).
+  let idx = cells.findIndex(([cs, ce]) => caret >= cs && caret < ce);
+  if (idx === -1) {
+    // Caret is on/after the final pipe → last cell.
+    idx = cells.length - 1;
+  }
+
+  let target = idx + dir;
+  if (target >= 0 && target < cells.length) {
+    // Stay on this row: place caret at the start of the target cell's content
+    // (skip one leading space if present, so the caret lands after the space).
+    return { caret: cellContentStart(text, cells[target]) };
+  }
+
+  // Past the row edge → move to the same column on the prev/next row.
+  const wantCol = dir > 0 ? 0 : cells.length - 1;
+  if (dir > 0) {
+    // Move down to the next row, first cell.
+    if (lineEnd >= text.length) return { caret }; // no next line
+    const nextLineEnd = text.indexOf('\n', lineEnd + 1);
+    const nextEnd = nextLineEnd === -1 ? text.length : nextLineEnd;
+    const nextLine = text.slice(lineEnd + 1, nextEnd);
+    if (!/^\s*\|.*\|\s*$/.test(nextLine)) return { caret };
+    return { caret: cellOnRow(text, lineEnd + 1, nextLine, wantCol) };
+  } else {
+    // Move up to the previous row, last cell.
+    if (lineStart === 0) return { caret }; // no previous line
+    const prevLineStart = text.lastIndexOf('\n', lineStart - 2) + 1;
+    const prevLine = text.slice(prevLineStart, lineStart - 1);
+    if (!/^\s*\|.*\|\s*$/.test(prevLine)) return { caret };
+    return { caret: cellOnRow(text, prevLineStart, prevLine, wantCol) };
+  }
+}
+
+// Place the caret at the content start of cell `col` on the row beginning at
+// `rowStart`. `line` is the row's text. Falls back to row start if the row
+// has fewer cells than `col`.
+function cellOnRow(text, rowStart, line, col) {
+  const pipes = [];
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '|' && !(i > 0 && line[i - 1] === '\\')) pipes.push(i);
+  }
+  if (pipes.length < 2) return rowStart;
+  const maxCol = pipes.length - 2; // last cell index
+  const c = Math.min(col, maxCol);
+  const cellStart = rowStart + pipes[c] + 1;
+  return cellContentStart(text, [cellStart, rowStart + pipes[c + 1]]);
+}
+
+// Given a cell [start, end), return the offset of its first non-space char
+// (so Tab lands inside the content, not on the leading padding).
+function cellContentStart(text, [cs, ce]) {
+  let i = cs;
+  while (i < ce && (text[i] === ' ' || text[i] === '\t')) i++;
+  return i;
+}

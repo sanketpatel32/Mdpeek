@@ -188,6 +188,7 @@ pub fn run() {
             commands::rename_path,
             commands::copy_path,
             commands::move_path,
+            commands::write_temp_html,
             commands::register_context_menu,
             commands::unregister_context_menu,
             commands::is_context_menu_registered,

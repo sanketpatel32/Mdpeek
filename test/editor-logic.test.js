@@ -20,6 +20,7 @@ import {
   getIndent,
   extractHeadings,
   buildRelativeImageMarkdown,
+  tableCellNav,
 } from '../src/lib/editor-logic.js';
 
 // helper: apply a logic result to verify text + caret in one assertion
@@ -720,5 +721,86 @@ describe('buildRelativeImageMarkdown', () => {
     expect(buildRelativeImageMarkdown(null, 'img-abc.png')).toBeNull();
     expect(buildRelativeImageMarkdown('', 'img-abc.png')).toBeNull();
     expect(buildRelativeImageMarkdown(undefined, 'img-abc.png')).toBeNull();
+  });
+});
+
+describe('tableCellNav', () => {
+  // Table used across tests:
+  //   | a | b | c |
+  //    0123456789...
+  // Indices (0-based, single line):
+  //   |<0> a<4> |<6> b<8> |<10> c<12> |<14>
+  // The line is 15 chars. Cell " a " is [1,4), " b " is [5,8), " c " is [9,12).
+
+  it('returns null when the caret is not on a table row', () => {
+    expect(tableCellNav('hello world', 3, 1)).toBeNull();
+    expect(tableCellNav('just\ntext', 6, 1)).toBeNull();
+  });
+
+  it('moves forward to the next cell on Tab', () => {
+    // "| a | b | c |", caret at index 2 (inside "a"). Next cell "b" content
+    // starts at index 6 (after "| ").
+    const line = '| a | b | c |';
+    const r = tableCellNav(line, 2, 1);
+    expect(r).not.toBeNull();
+    expect(r.caret).toBe(6);
+  });
+
+  it('moves backward to the previous cell on Shift+Tab', () => {
+    const line = '| a | b | c |';
+    // caret at index 10 (inside "c") → prev cell "b" at index 6
+    const r = tableCellNav(line, 10, -1);
+    expect(r).not.toBeNull();
+    expect(r.caret).toBe(6);
+  });
+
+  it('wraps down to the next row (first cell) when Tabbing past the last cell', () => {
+    const md = '| a | b |\n| c | d |';
+    // First row "| a | b |" is 9 chars; second starts at index 10.
+    // Caret at index 6 (inside "b", the last cell of row 1). Tab should land
+    // in "c" of row 2, which starts at index 10 + 2 = 12.
+    const r = tableCellNav(md, 6, 1);
+    expect(r).not.toBeNull();
+    expect(r.caret).toBe(12);
+  });
+
+  it('wraps up to the previous row (last cell) when Shift-Tabbing past the first cell', () => {
+    const md = '| a | b |\n| c | d |';
+    // caret at index 12 (inside "c", the first cell of row 2). Shift+Tab
+    // should land in "b" of row 1, at index 6.
+    const r = tableCellNav(md, 12, -1);
+    expect(r).not.toBeNull();
+    expect(r.caret).toBe(6);
+  });
+
+  it('returns {caret} unchanged when Tabbing past the last row (no next row)', () => {
+    const md = '| a | b |';
+    // single row, caret in last cell "b" at index 6, Tab forward → nowhere to
+    // go. Should return {caret: 6} (no-op) rather than null so the editor
+    // doesn't fall through to handleTab and insert indent.
+    const r = tableCellNav(md, 6, 1);
+    expect(r).not.toBeNull();
+    expect(r.caret).toBe(6);
+  });
+
+  it('works on the delimiter row too (harmless navigation)', () => {
+    const md = '| a | b |\n| --- | --- |\n| c | d |';
+    // delimiter row starts at index 10: "| --- | --- |"
+    //   10:| 11:(sp) 12:- 13:- 14:- 15:(sp) 16:| 17:(sp) 18:- ...
+    // caret at index 13 (inside first "---"). Tab → next cell content "---"
+    // at index 18 (the leading space at 17 is skipped by cellContentStart).
+    const r = tableCellNav(md, 13, 1);
+    expect(r).not.toBeNull();
+    expect(r.caret).toBe(18);
+  });
+
+  it('skips leading cell padding to land on content', () => {
+    // Cell with extra padding "|   wide   |"; caret on pipe. Tab from a
+    // prior cell should land on 'w', not on the leading spaces.
+    const line = '| x |   wide   |';
+    // caret in "x" at index 2 → Tab → next cell content 'w' at index 8
+    const r = tableCellNav(line, 2, 1);
+    expect(r).not.toBeNull();
+    expect(r.caret).toBe(8);
   });
 });

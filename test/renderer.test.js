@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { renderMarkdown, renderCode } from '../src/lib/renderer.js';
+import { renderMarkdown, renderCode, expandTocMarker } from '../src/lib/renderer.js';
 
 // Mock the heavy mermaid module so enhanceDom tests are fast and deterministic
 // (don't depend on the real 400KB library loading under load).
@@ -676,5 +676,77 @@ describe('renderMarkdown — highlight marker ==text== (v0.38.0)', () => {
     const html = renderMarkdown('==bold **inside**==');
     expect(html).toContain('<mark>');
     expect(html).toContain('<strong>inside</strong>');
+  });
+});
+
+describe('expandTocMarker', () => {
+  it('passes through markdown with no [[toc]] marker unchanged', () => {
+    const md = '# Title\n\nSome text.\n\n## Section';
+    expect(expandTocMarker(md)).toBe(md);
+  });
+
+  it('replaces a standalone [[toc]] line with a heading list', () => {
+    const md = '# Intro\n\n## A\n\n## B\n\n[[toc]]';
+    const out = expandTocMarker(md);
+    // The marker is replaced; the result references each heading by slug.
+    expect(out).not.toContain('[[toc]]');
+    expect(out).toContain('- [Intro](#intro)');
+    expect(out).toContain('- [A](#a)');
+    expect(out).toContain('- [B](#b)');
+  });
+
+  it('leaves [[toc]] inside a fenced code block untouched', () => {
+    const md = '# H\n\n```\n[[toc]]\n```\n\n[[toc]]';
+    const out = expandTocMarker(md);
+    // The fenced one survives verbatim; the standalone one is expanded.
+    expect(out).toContain('```\n[[toc]]\n```');
+    expect(out).toContain('- [H](#h)');
+  });
+
+  it('expands multiple [[toc]] markers in the same doc', () => {
+    const md = '# A\n\n[[toc]]\n\nmore\n\n[[toc]]';
+    const out = expandTocMarker(md);
+    const matches = out.split('- [A](#a)').length - 1;
+    expect(matches).toBe(2);
+  });
+
+  it('dedupes slug collisions the same way the heading-id hook does', () => {
+    // Two "Foo" headings → second one gets slug "foo-1". The TOC link must
+    // point at that deduped slug or the in-page anchor won't resolve.
+    const md = '# Foo\n\n# Foo\n\n[[toc]]';
+    const out = expandTocMarker(md);
+    expect(out).toContain('- [Foo](#foo)');
+    expect(out).toContain('- [Foo](#foo-1)');
+  });
+});
+
+describe('renderMarkdown — definition lists', () => {
+  it('renders Term + : Definition as <dl><dt><dd>', () => {
+    const html = renderMarkdown('Apple\n: A fruit\n: Also a company');
+    expect(html).toContain('<dl>');
+    expect(html).toContain('<dt>Apple</dt>');
+    expect(html).toContain('<dd>A fruit</dd>');
+    expect(html).toContain('<dd>Also a company</dd>');
+    expect(html).toContain('</dl>');
+  });
+
+  it('renders multiple consecutive definition lists', () => {
+    const html = renderMarkdown('Apple\n: Fruit\n\nBanana\n: Yellow');
+    // Two separate <dl> blocks (separated by a blank line).
+    const dlCount = html.split('<dl>').length - 1;
+    expect(dlCount).toBe(2);
+    expect(html).toContain('<dt>Banana</dt>');
+  });
+
+  it('parses inline markdown in the term and definitions', () => {
+    const html = renderMarkdown('**Bold** term\n: [link](https://x.com)');
+    expect(html).toContain('<dt><strong>Bold</strong> term</dt>');
+    expect(html).toContain('<a href="https://x.com"');
+  });
+
+  it('leaves a standalone colon line as a paragraph (no term above)', () => {
+    // A colon line with no preceding term line shouldn't become an empty <dl>.
+    const html = renderMarkdown(': just a colon line');
+    expect(html).not.toContain('<dl>');
   });
 });

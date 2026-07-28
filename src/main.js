@@ -23,6 +23,11 @@ import { toggleTaskLine, taskLineIndex, extractHeadings, buildRelativeImageMarkd
 import { docBasename, backlinkQueries, formatBacklinkItems } from './lib/backlinks.js';
 import { extractSpeakerNotes } from './lib/slides.js';
 import { EMOJI_MAP } from './lib/emoji.js';
+import { goalProgress, formatGoalChip, GOAL_KEY, SESSION_KEY } from './lib/writing-goal.js';
+import { getTemplates, saveTemplate, deleteTemplate, TEMPLATES_KEY } from './lib/templates.js';
+import { extractDocLinks, classifyLinks } from './lib/link-checker.js';
+import { themeForHour, prefersDarkFromMedia, THEME_MODE_KEY } from './lib/theme-schedule.js';
+import { getDocTheme, setDocTheme, clearDocTheme } from './lib/doc-theme.js';
 // v0.34.1: build-time version for the About + Updates panels. Import is
 // hoisted to module top; the value is written into the DOM early (right after
 // bootMotion) because the Tauri window code further down aborts module
@@ -507,6 +512,9 @@ async function renderActive() {
     // v0.41.0: dismiss the autocomplete dropdown so it doesn't linger at a
     // stale caret position over the newly-active doc.
     autocomplete.hide();
+    // v0.44.0: apply per-doc theme override (or restore the global) when the
+    // active doc changes. No-op if neither the old nor new doc pinned a theme.
+    syncDocThemeForActive();
     // Closing the find bar on tab switch prevents stale highlights from one
     // doc lingering over another, and drops the textarea selection of a
     // soon-to-be-destroyed editor.
@@ -769,6 +777,13 @@ async function renderActive() {
   if (el.exportPdf) el.exportPdf.classList.toggle('hidden', !!doc.plain);
   if (el.present) el.present.classList.toggle('hidden', !!doc.plain);
   if (el.reading) el.reading.classList.toggle('hidden', !!doc.plain);
+  // v0.44.0: copy-as-HTML, open-in-browser, pin-doc-theme, clear-doc-theme.
+  document.getElementById('btn-copy-html')?.classList.toggle('hidden', !!doc.plain);
+  document.getElementById('btn-open-browser')?.classList.toggle('hidden', !!doc.plain);
+  // Per-doc theme only applies to saved docs (needs a path to key on).
+  const hasPath = !!doc.path;
+  document.getElementById('btn-pin-doc-theme')?.classList.toggle('hidden', !hasPath || !!doc.plain);
+  document.getElementById('btn-clear-doc-theme')?.classList.toggle('hidden', !hasPath || !!doc.plain);
   // Share (collab) button: visible for any editable text doc (markdown, code,
   // plain .txt) and for Excalidraw canvases. Hidden only when a session is
   // already active (use End instead) — the per-viewer branches above already
@@ -835,10 +850,18 @@ async function renderActive() {
     doc.editor.setTypewriter(localStorage.getItem('mdpeek-typewriter') === '1');
     el.editorStatus.classList.remove('hidden');
     updateEditorStatus();
+    // v0.44.0: restore the editor outline visibility for edit-mode docs.
+    if (outlineEl) {
+      const want = localStorage.getItem(OUTLINE_KEY) === '1';
+      outlineEl.classList.toggle('hidden', !want);
+      if (want) rebuildEditorOutline();
+    }
     setReadingProgressVisible(false);
   } else {
     el.editMode.classList.add('hidden');
     el.editorStatus.classList.add('hidden');
+    // v0.44.0: editor outline is edit-mode only — hide it in view mode.
+    if (outlineEl) outlineEl.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.document.classList.remove('has-welcome');
     await showDocument(el.document, doc.content);
@@ -915,11 +938,14 @@ const palette = initCommandPalette(() => {
       },
     },
     { id: 'copy-rich', label: 'Copy as rich text', hint: 'Ctrl+Shift+C', keywords: 'copy rich html clipboard paste formatted', run: copyAsRichText },
+    { id: 'copy-html', label: 'Copy as HTML source', keywords: 'copy html source clipboard paste code cms', run: copyAsHtml },
+    { id: 'open-in-browser', label: 'Open in browser', keywords: 'open browser external launch chrome firefox edge default', run: openInBrowser },
     { id: 'mode', label: 'Toggle edit / view', hint: 'Ctrl+E', keywords: 'toggle edit view mode', run: toggleMode },
     { id: 'goto-line', label: 'Go to line…', hint: 'Ctrl+G', keywords: 'go to line jump navigate number', run: gotoLine },
     { id: 'sort-asc', label: 'Sort lines A→Z', keywords: 'sort lines ascending alpha arrange order', run: () => sortSelection('asc') },
     { id: 'sort-desc', label: 'Sort lines Z→A', keywords: 'sort lines descending reverse arrange order', run: () => sortSelection('desc') },
     { id: 'goto-heading', label: 'Go to heading…', keywords: 'go to heading jump navigate outline toc h1 h2', run: () => headingPicker.open() },
+    { id: 'editor-outline', label: 'Toggle editor outline', keywords: 'editor outline toc headings panel jump navigate', run: toggleEditorOutline },
     { id: 'sidebar', label: 'Toggle sidebar (TOC)', hint: 'Ctrl+B', keywords: 'sidebar toc outline', run: toggleSidebar },
     { id: 'find', label: 'Find', hint: 'Ctrl+F', keywords: 'find search', run: () => find.toggle() },
     { id: 'replace', label: 'Find & Replace', hint: 'Ctrl+H', keywords: 'replace substitute find', run: () => find.openReplace() },
@@ -940,6 +966,13 @@ const palette = initCommandPalette(() => {
     { id: 'snippet', label: 'Insert template / snippet', hint: 'Ctrl+Shift+S', keywords: 'snippet template callout table code meeting insert', run: () => snippetPicker.open() },
     { id: 'insert-date', label: 'Insert today\'s date', keywords: 'date time today stamp now insert', run: insertDateAtCursor },
     { id: 'backlinks', label: 'Find backlinks', keywords: 'backlinks links inbound references wiki', run: openBacklinks },
+    { id: 'check-links', label: 'Check links (find broken)', keywords: 'check links broken missing dead validate wiki md', run: checkLinks },
+    { id: 'writing-goal', label: 'Set writing goal…', keywords: 'writing goal word count target session words', run: setWritingGoal },
+    { id: 'clear-writing-goal', label: 'Clear writing goal', keywords: 'clear remove writing goal word count target', run: clearWritingGoal },
+    { id: 'new-from-template', label: 'New from template…', keywords: 'new template create document skeleton starter', run: newFromTemplate },
+    { id: 'save-as-template', label: 'Save as template', keywords: 'save template snippet document skeleton starter', run: saveCurrentAsTemplate },
+    { id: 'pin-doc-theme', label: 'Pin theme to this doc…', keywords: 'pin theme per document override color sepia', run: pinCurrentDocTheme },
+    { id: 'clear-doc-theme', label: 'Clear pinned doc theme', keywords: 'clear remove pin theme per document override', run: clearCurrentDocTheme },
     { id: 'check-updates', label: 'Check for updates', keywords: 'update version check', run: () => checkForUpdates(false) },
     { id: 'quit', label: 'Quit mdpeek', keywords: 'quit exit close', run: doQuitApp },
   ];
@@ -949,7 +982,7 @@ const palette = initCommandPalette(() => {
   const hasDoc = !!doc;
   const collabActive = collab.getStatus().active;
   return cmds.filter((c) => {
-    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks' || c.id === 'sort-asc' || c.id === 'sort-desc') && !hasDoc) return false;
+    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks' || c.id === 'sort-asc' || c.id === 'sort-desc' || c.id === 'copy-html' || c.id === 'open-in-browser' || c.id === 'check-links' || c.id === 'writing-goal' || c.id === 'save-as-template' || c.id === 'pin-doc-theme' || c.id === 'clear-doc-theme') && !hasDoc) return false;
     if (c.id === 'end-collab' && !collabActive) return false;
     if (c.id === 'start-collab' && collabActive) return false;
     if ((c.id === 'start-collab' || c.id === 'end-collab') && localStorage.getItem('mdpeek-feature-collab') === '0') return false;
@@ -1028,6 +1061,34 @@ const backlinksPicker = initQuickSwitcher(
     } catch (e) {
       toast('Could not open: ' + fmtErr(e));
     }
+  }
+);
+
+// v0.44.0: Template picker. Lazily populated from getTemplates(localStorage)
+// before each open so newly-saved templates show up without a re-init.
+const templatePicker = initQuickSwitcher(
+  () => getTemplates(localStorage).map((t) => ({
+    label: t.name,
+    hint: '',
+    keywords: t.name + ' ' + t.content.slice(0, 200),
+    _content: t.content,
+  })),
+  (item) => {
+    if (!item || typeof item._content !== 'string') return;
+    // Open a fresh untitled doc seeded with the template content, in edit mode.
+    store.open({ path: null, content: item._content, mode: 'edit' });
+  }
+);
+
+// v0.44.0: Broken-link picker (link checker results). Items carry the line
+// number; selecting one scrolls the editor there.
+const brokenLinkPicker = initQuickSwitcher(
+  () => [],
+  (item) => {
+    if (!item || !item.line) return;
+    const doc = store.active();
+    if (!doc || !doc.editor) return;
+    scrollEditorToLine(doc, item.line);
   }
 );
 
@@ -1808,9 +1869,17 @@ function cycleTheme() {
 // Shared implementation — applyTheme validates first, cycleTheme already
 // knows the next id is valid.
 function applyThemeImpl(next) {
+  applyThemeVisuals(next);
+  localStorage.setItem('mdpeek-theme', next);
+}
+
+// v0.44.0: apply theme visuals to the DOM WITHOUT touching localStorage. Used
+// by the per-doc theme override (renderActive) so a pinned doc theme shows up
+// without overwriting the user's global preference.
+function applyThemeVisuals(next) {
+  if (!HLJS_FOR_THEME[next]) next = DEFAULT_THEME;
   const root = document.documentElement;
   root.dataset.theme = next;
-  localStorage.setItem('mdpeek-theme', next);
   // Enable exactly one highlight.js stylesheet; disable the rest so code
   // blocks recolor to match the active UI theme.
   const want = HLJS_FOR_THEME[next];
@@ -3483,6 +3552,218 @@ async function copyAsRichText() {
   }
 }
 
+// ---------- writing goal (v0.44.0) ----------
+// Set a word-count target for the active doc. The status bar then shows a
+// live chip with words written since the goal was set, turning green at 100%.
+function setWritingGoal() {
+  const doc = store.active();
+  if (!doc) { toast('Open a document first'); return; }
+  const cur = localStorage.getItem(GOAL_KEY) || '';
+  const raw = window.prompt('Set a word-count goal (words to write):', cur);
+  if (raw === null) return; // cancelled
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n) || n <= 0) {
+    // Empty / invalid clears the goal.
+    localStorage.removeItem(GOAL_KEY);
+    localStorage.removeItem(SESSION_KEY);
+    updateEditorStatus();
+    toast('Writing goal cleared');
+    return;
+  }
+  // Snapshot the current word count so progress measures NEW words written.
+  const text = doc && doc.editor ? doc.editor.getValue() : (doc ? doc.content : '');
+  const { words } = wordCount(text);
+  localStorage.setItem(GOAL_KEY, String(n));
+  localStorage.setItem(SESSION_KEY, String(words));
+  updateEditorStatus();
+  toast(`Goal set: write ${n} words`);
+}
+
+function clearWritingGoal() {
+  localStorage.removeItem(GOAL_KEY);
+  localStorage.removeItem(SESSION_KEY);
+  updateEditorStatus();
+  toast('Writing goal cleared');
+}
+
+// ---------- copy as HTML source (v0.44.0) ----------
+// Sibling to copyAsRichText, but writes the rendered HTML source as plain text
+// (so you can paste it into a CMS, email source, or a code editor).
+async function copyAsHtml() {
+  const doc = store.active();
+  if (!doc || doc.plain) { toast('Nothing to copy'); return; }
+  if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
+  const html = renderMarkdown(doc.content);
+  try {
+    await navigator.clipboard.writeText(html);
+    toast('Copied as HTML source');
+  } catch (e) {
+    toast('Copy failed: ' + fmtErr(e));
+  }
+}
+
+// ---------- open in browser (v0.44.0) ----------
+// Stage the rendered doc as a temp HTML file and hand it to the system browser
+// via the opener plugin. No save dialog — the file lives in the OS temp dir
+// under mdpeek/ and is overwritten on the next open.
+async function openInBrowser() {
+  const doc = store.active();
+  if (!doc || doc.pdf || doc.excalidraw || doc.code || doc.csv) {
+    toast('Open in browser is for Markdown documents');
+    return;
+  }
+  if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
+  const bodyHtml = renderMarkdown(doc.content);
+  const title = doc.path ? basename(doc.path).replace(/\.(md|markdown|mdx)$/i, '') : 'Untitled';
+  const css = `/* mdpeek preview */ ${exportThemeVars()} ${EXPORT_CSS} ${await exportHljsCss()}`;
+  const full =
+    `<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8">\n` +
+    `<meta name="viewport" content="width=device-width, initial-scale=1">\n` +
+    `<title>${escapeHtml(title)}</title>\n<style>\n${css}\n</style>\n</head>\n<body>\n` +
+    `${bodyHtml}\n</body>\n</html>`;
+  try {
+    const tempPath = await invoke('write_temp_html', { content: full, suggestedName: title });
+    await openUrl('file:///' + tempPath.replace(/\\/g, '/').replace(/^\//, ''));
+    toast('Opened in browser');
+  } catch (e) {
+    toast('Open in browser failed: ' + fmtErr(e));
+  }
+}
+
+// ---------- document templates (v0.44.0) ----------
+// User-defined doc skeletons stored in localStorage. "Save as template"
+// snapshots the current doc; "New from template" creates a fresh untitled doc
+// seeded with that content. The picker is built from initSnippetPicker's core.
+function newFromTemplate() {
+  const list = getTemplates(localStorage);
+  if (list.length === 0) {
+    toast('No templates yet — use "Save as template" first');
+    return;
+  }
+  templatePicker.open();
+}
+
+function saveCurrentAsTemplate() {
+  const doc = store.active();
+  if (!doc) { toast('Open a document first'); return; }
+  const raw = window.prompt('Template name:', doc.path ? basename(doc.path).replace(/\.(md|markdown|mdx)$/i, '') : '');
+  if (!raw) return;
+  const name = raw.trim();
+  if (!name) return;
+  const content = doc.mode === 'edit' && doc.editor ? doc.editor.getValue() : (doc.content || '');
+  saveTemplate(localStorage, name, content);
+  refreshTemplatePickerItems();
+  toast(`Saved template "${name}"`);
+}
+
+function refreshTemplatePickerItems() {
+  if (!templatePicker?.setItems) return;
+  const list = getTemplates(localStorage);
+  templatePicker.setItems(list.map((t) => ({
+    label: t.name,
+    hint: '',
+    keywords: t.name + ' ' + t.content.slice(0, 200),
+    text: t.content,
+  })));
+}
+
+// ---------- link checker (v0.44.0) ----------
+// Scan the active doc for [[wiki]] and [text](file.md) links, compare each
+// target's basename against the files in the doc's folder, and list any that
+// don't resolve. Clicking a broken link jumps to its line.
+async function checkLinks() {
+  const doc = store.active();
+  if (!doc) { toast('Open a document first'); return; }
+  if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
+  const links = extractDocLinks(doc.content || '');
+  if (links.length === 0) { toast('No document links found'); return; }
+
+  // Build a Set of basenames in the doc's folder (one list_dir call).
+  let basenames = [];
+  if (doc.path) {
+    const slash = Math.max(doc.path.lastIndexOf('/'), doc.path.lastIndexOf('\\'));
+    const dir = slash >= 0 ? doc.path.slice(0, slash) : '';
+    if (dir) {
+      try {
+        const entries = await invoke('list_dir', { path: dir });
+        basenames = (entries || []).map((e) => (typeof e === 'string' ? e : e.name)).filter(Boolean);
+      } catch (e) {
+        toast('Could not read folder: ' + fmtErr(e));
+        return;
+      }
+    }
+  }
+  const { ok, broken } = classifyLinks(links, basenames);
+  if (broken.length === 0) {
+    toast(`All ${ok.length} link${ok.length === 1 ? '' : 's'} resolve ✓`);
+    return;
+  }
+  // Show broken links in a picker; clicking jumps to the line.
+  const items = broken.map((l) => ({
+    label: l.display || l.target,
+    hint: `→ ${l.target}  (line ${l.line})`,
+    keywords: `${l.target} ${l.display} broken missing`,
+    line: l.line,
+  }));
+  brokenLinkPicker.setItems(items);
+  brokenLinkPicker.open();
+}
+
+// ---------- per-document theme (v0.44.0) ----------
+// Pin a theme to one doc so it always renders in that palette regardless of
+// the global theme. The override lives in a path→themeId map (see doc-theme.js);
+// renderActive applies it on switch-in and restores the global on switch-away.
+let _appliedDocTheme = null; // themeId currently applied via per-doc override (null = global in use)
+
+function pinCurrentDocTheme() {
+  const doc = store.active();
+  if (!doc || !doc.path) { toast('Save the document first to pin a theme to it'); return; }
+  const current = getDocTheme(doc.path, localStorage) || (localStorage.getItem('mdpeek-theme') || 'light');
+  const raw = window.prompt(
+    `Pin a theme to "${basename(doc.path)}".\nTheme id (light, dark, dracula, nord, solar-light, solar-dark, github, github-dark, tokyo-night, catppuccin):`,
+    current,
+  );
+  if (raw === null) return;
+  const id = raw.trim();
+  if (!id) return;
+  setDocTheme(doc.path, id, localStorage);
+  // Apply immediately so the user sees it. We use applyThemeVisuals (not
+  // applyThemeImpl) so we DON'T overwrite the global mdpeek-theme preference.
+  _appliedDocTheme = id;
+  applyThemeVisuals(id);
+  toast(`Pinned "${id}" to this document`);
+}
+
+function clearCurrentDocTheme() {
+  const doc = store.active();
+  if (!doc || !doc.path) return;
+  clearDocTheme(doc.path, localStorage);
+  // Restore the global theme.
+  const global = localStorage.getItem('mdpeek-theme') || 'light';
+  _appliedDocTheme = null;
+  applyThemeVisuals(global);
+  toast('Cleared this document\'s theme');
+}
+
+// Called from renderActive when switching docs: if the newly-active doc has a
+// pinned theme, apply it (visually only); otherwise restore the global. Kept
+// as a no-op when the override matches what's already showing.
+function syncDocThemeForActive() {
+  const doc = store.active();
+  const pinned = doc && doc.path ? getDocTheme(doc.path, localStorage) : null;
+  if (pinned) {
+    if (_appliedDocTheme !== pinned) {
+      _appliedDocTheme = pinned;
+      applyThemeVisuals(pinned);
+    }
+  } else if (_appliedDocTheme !== null) {
+    // Switching away from an overridden doc → restore the global.
+    const global = localStorage.getItem('mdpeek-theme') || 'light';
+    _appliedDocTheme = null;
+    applyThemeVisuals(global);
+  }
+}
+
 // ---------- back / forward navigation ----------
 // Walk the doc history (browser-style). Suppression during the walk prevents
 // the 'change' event from re-pushing the destination onto the stack.
@@ -3977,11 +4258,72 @@ function fmtNum(n) {
   return n.toLocaleString();
 }
 
+// ---------- editor outline pane (v0.44.0) ----------
+// A collapsible list of the active doc's headings, shown alongside the editor.
+// Click a heading to jump the caret there. Reuses extractHeadings (the same
+// parser the "Go to heading" picker uses) and scrollEditorToLine. Hidden by
+// default; toggled by a command palette entry + the panel's close button.
+const OUTLINE_KEY = 'mdpeek-editor-outline';
+const outlineEl = document.getElementById('editor-outline');
+const outlineBody = document.getElementById('editor-outline-body');
+
+function rebuildEditorOutline() {
+  if (!outlineEl || outlineEl.classList.contains('hidden')) return;
+  const doc = store.active();
+  // Outline is edit-mode only (view mode already has the sidebar TOC).
+  if (!doc || doc.mode !== 'edit' || !doc.editor) { outlineEl.classList.add('hidden'); return; }
+  const headings = extractHeadings(doc.editor.getValue());
+  if (headings.length === 0) {
+    outlineBody.innerHTML = '<div class="editor-outline-empty">No headings yet</div>';
+    return;
+  }
+  // Render tiered by level. Reuse the reader-toc-item classes so the indent
+  // styling matches the reader outline.
+  outlineBody.innerHTML = headings
+    .map((h) => `<div class="reader-toc-item level-${Math.min(h.level, 6)}" data-line="${h.line}" title="Line ${h.line}">${escapeHtml(h.text)}</div>`)
+    .join('');
+}
+
+function setEditorOutlineVisible(on) {
+  if (!outlineEl) return;
+  outlineEl.classList.toggle('hidden', !on);
+  localStorage.setItem(OUTLINE_KEY, on ? '1' : '0');
+  if (on) rebuildEditorOutline();
+}
+
+function toggleEditorOutline() {
+  const doc = store.active();
+  if (!doc) { toast('Open a document first'); return; }
+  if (doc.mode !== 'edit') {
+    toast('Switch to edit mode to use the outline');
+    return;
+  }
+  setEditorOutlineVisible(outlineEl?.classList.contains('hidden'));
+}
+
+if (outlineBody) {
+  outlineBody.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-line]');
+    if (!item) return;
+    const doc = store.active();
+    if (!doc || !doc.editor) return;
+    const line = parseInt(item.dataset.line, 10);
+    if (Number.isFinite(line)) scrollEditorToLine(doc, line);
+  });
+}
+if (outlineEl) {
+  document.getElementById('editor-outline-close')?.addEventListener('click', () => setEditorOutlineVisible(false));
+}
+// Restore the saved outline state on first render of an edit-mode doc.
+// (Deferred to renderActive via the OUTLINE_KEY check below.)
+
 function updateEditorStatus() {
   if (!el.editorStatus || el.editorStatus.classList.contains('hidden')) return;
   const doc = store.active();
   const text = doc && doc.editor ? doc.editor.getValue() : el.editor.value;
   const { words, chars, readMins } = wordCount(text);
+  // v0.44.0: keep the editor outline in sync with edits (cheap — pure parse).
+  rebuildEditorOutline();
   const savedState = doc && doc.dirty ? 'dirty' : 'saved';
   const savedLabel = doc && doc.dirty ? '· edited' : '· saved';
 
@@ -4018,11 +4360,25 @@ function updateEditorStatus() {
     posHtml = `<span class="status-sep" aria-hidden="true">·</span><span class="status-pos">Ln ${line}, Col ${col}</span>`;
   }
 
+  // Writing-goal chip (v0.44.0). Reflects words written since the goal was
+  // set, against the target. Turns green when the goal is met.
+  let goalHtml = '';
+  const goalRaw = localStorage.getItem(GOAL_KEY);
+  if (goalRaw) {
+    const sessionWords = parseInt(localStorage.getItem(SESSION_KEY) || '0', 10);
+    const p = goalProgress(words, goalRaw, sessionWords);
+    if (p) {
+      const cls = p.done ? 'status-goal done' : 'status-goal';
+      goalHtml = `<span class="status-sep" aria-hidden="true">·</span><span class="${cls}" title="Words written since goal was set">🎯 ${formatGoalChip(p)}</span>`;
+    }
+  }
+
   el.editorStatus.innerHTML =
     `<span>${fmtNum(words)} words</span>` +
     `<span class="status-sep" aria-hidden="true">·</span>` +
     `<span>${fmtNum(chars)} chars</span>` +
     selHtml +
+    goalHtml +
     (readMins > 0 && !selHtml
       ? `<span class="status-sep" aria-hidden="true">·</span><span>~${readMins} min read</span>`
       : '') +
@@ -4275,6 +4631,10 @@ el.open.addEventListener('click', openFileDialog);
 el.save.addEventListener('click', saveActive);
 if (el.export) el.export.addEventListener('click', exportHtml);
 if (el.exportPdf) el.exportPdf.addEventListener('click', exportPdf);
+document.getElementById('btn-copy-html')?.addEventListener('click', copyAsHtml);
+document.getElementById('btn-open-browser')?.addEventListener('click', openInBrowser);
+document.getElementById('btn-pin-doc-theme')?.addEventListener('click', pinCurrentDocTheme);
+document.getElementById('btn-clear-doc-theme')?.addEventListener('click', clearCurrentDocTheme);
 if (el.present) el.present.addEventListener('click', togglePresentation);
 if (el.reading) el.reading.addEventListener('click', toggleReading);
 // Reader overlay control buttons. Each is a no-op if Reading Mode isn't open
@@ -4694,8 +5054,44 @@ if (el.themeGrid) {
   el.themeGrid.addEventListener('click', (e) => {
     const card = e.target.closest('.theme-card');
     if (!card) return;
+    // Selecting a specific theme implies manual mode from now on (so the
+    // system/time scheduler doesn't immediately overwrite the user's pick).
+    localStorage.setItem(THEME_MODE_KEY, 'manual');
+    syncThemeModeSeg();
     applyTheme(card.dataset.theme);
   });
+}
+
+// v0.44.0: theme-mode segmented control (Manual / Match system / By time).
+const themeModeSeg = document.getElementById('theme-mode-seg');
+function syncThemeModeSeg() {
+  const mode = localStorage.getItem(THEME_MODE_KEY) || 'manual';
+  themeModeSeg?.querySelectorAll('.seg-btn').forEach((btn) => {
+    const on = btn.dataset.mode === mode;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-checked', on ? 'true' : 'false');
+  });
+}
+if (themeModeSeg) {
+  themeModeSeg.addEventListener('click', (e) => {
+    const btn = e.target.closest('.seg-btn');
+    if (!btn) return;
+    const mode = btn.dataset.mode;
+    localStorage.setItem(THEME_MODE_KEY, mode);
+    syncThemeModeSeg();
+    // Apply immediately so the user sees the effect.
+    if (mode === 'system') {
+      try {
+        const mql = window.matchMedia('(prefers-color-scheme: dark)');
+        applyTheme(prefersDarkFromMedia(mql) ? 'dark' : 'light');
+      } catch { applyTheme(DEFAULT_THEME); }
+    } else if (mode === 'time') {
+      applyTheme(themeForHour(new Date().getHours()));
+    } else {
+      applyTheme(localStorage.getItem('mdpeek-theme') || DEFAULT_THEME);
+    }
+  });
+  syncThemeModeSeg();
 }
 
 // ---------- more-menu wiring (topbar overflow, v0.32.0) ----------
@@ -4752,6 +5148,7 @@ const SETTING_KEYS = [
   'mdpeek-new-tab-format',
   'mdpeek-new-tab-mode',
   'mdpeek-theme',
+  THEME_MODE_KEY,
   'mdpeek-close-action',
   'mdpeek-find-case',
   'mdpeek-base-font',
@@ -4788,6 +5185,8 @@ function syncSettingsControls() {
   if (fmtSel) fmtSel.value = localStorage.getItem('mdpeek-new-tab-format') || 'home';
   const modePref = localStorage.getItem('mdpeek-new-tab-mode') || 'view';
   setSegActive('new-tab-mode', modePref);
+  // v0.44.0: theme-mode segmented control sync.
+  syncThemeModeSeg();
 
   // v0.32.0: theme is now a visual grid (no <select>). Sync the active card
   // ring + aria-checked from the stored theme. applyThemeImpl also does this,
@@ -6299,8 +6698,33 @@ window.addEventListener('hljs-language-registered', () => {
 // module execution in the browser dev environment. This idempotent call is a
 // safety net for the production build where the early call always succeeds.
 installHljsThemes();
-const savedTheme = localStorage.getItem('mdpeek-theme');
-applyTheme(savedTheme && HLJS_FOR_THEME[savedTheme] ? savedTheme : DEFAULT_THEME);
+// v0.44.0: theme scheduling. If mode is 'system', follow the OS theme; if
+// 'time', pick by local hour. Otherwise the user's saved theme wins. We also
+// install the listeners here so changes propagate live without a restart.
+const themeMode = localStorage.getItem(THEME_MODE_KEY) || 'manual';
+if (themeMode === 'system') {
+  try {
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    applyTheme(prefersDarkFromMedia(mql) ? 'dark' : 'light');
+    mql.addEventListener('change', (ev) => {
+      // Don't fight a per-doc override.
+      if (_appliedDocTheme) return;
+      applyTheme(prefersDarkFromMedia(ev) ? 'dark' : 'light');
+    });
+  } catch {
+    applyTheme(DEFAULT_THEME);
+  }
+} else if (themeMode === 'time') {
+  applyTheme(themeForHour(new Date().getHours()));
+  // Re-check every 5 minutes so a long-running session crosses day/night.
+  setInterval(() => {
+    if (_appliedDocTheme) return;
+    applyTheme(themeForHour(new Date().getHours()));
+  }, 5 * 60 * 1000);
+} else {
+  const savedTheme = localStorage.getItem('mdpeek-theme');
+  applyTheme(savedTheme && HLJS_FOR_THEME[savedTheme] ? savedTheme : DEFAULT_THEME);
+}
 
 // v0.32.0: render lucide icons + wire ripples. The function declaration
 // hoists, so it can be called early (right after the `el` cache, before any

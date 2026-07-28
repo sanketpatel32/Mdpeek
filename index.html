@@ -95,6 +95,14 @@
               <span class="ctx-label">Toggle edit</span>
               <span class="ctx-hint">Ctrl+E</span>
             </button>
+            <button class="ctx-item hidden" id="btn-pin-doc-theme" role="menuitem" title="Pin a theme to this document">
+              <span class="ctx-ico" data-icon="palette"></span>
+              <span class="ctx-label">Pin theme to this doc</span>
+            </button>
+            <button class="ctx-item hidden" id="btn-clear-doc-theme" role="menuitem" title="Remove this document's pinned theme">
+              <span class="ctx-ico" data-icon="palette"></span>
+              <span class="ctx-label">Clear pinned theme</span>
+            </button>
             <button class="ctx-item hidden" id="btn-draw" role="menuitem" title="Annotate PDF">
               <span class="ctx-ico" data-icon="pen-tool"></span>
               <span class="ctx-label">Annotate PDF</span>
@@ -108,6 +116,14 @@
             <button class="ctx-item hidden" id="btn-export-pdf" role="menuitem" title="Export as PDF">
               <span class="ctx-ico" data-icon="file-text"></span>
               <span class="ctx-label">Export PDF</span>
+            </button>
+            <button class="ctx-item hidden" id="btn-copy-html" role="menuitem" title="Copy rendered HTML source">
+              <span class="ctx-ico" data-icon="clipboard"></span>
+              <span class="ctx-label">Copy as HTML</span>
+            </button>
+            <button class="ctx-item hidden" id="btn-open-browser" role="menuitem" title="Open in system browser">
+              <span class="ctx-ico" data-icon="external-link"></span>
+              <span class="ctx-label">Open in browser</span>
             </button>
             <button class="ctx-item hidden" id="btn-present" role="menuitem" title="Present (split on ---)">
               <span class="ctx-ico" data-icon="presentation"></span>
@@ -228,6 +244,13 @@
               <div id="gutter" class="gutter" aria-hidden="true"></div>
               <textarea id="editor" class="editor" wrap="off" spellcheck="false" placeholder="Type markdown here..."></textarea>
               <div id="peer-carets" class="peer-carets" aria-hidden="true"></div>
+              <aside id="editor-outline" class="editor-outline hidden" aria-label="Document outline">
+                <div class="editor-outline-header">
+                  <span class="editor-outline-title">Outline</span>
+                  <button id="editor-outline-close" class="editor-outline-close" type="button" title="Hide outline" aria-label="Hide outline">✕</button>
+                </div>
+                <div id="editor-outline-body" class="editor-outline-body"></div>
+              </aside>
             </div>
             <div id="editor-status" class="editor-status hidden" aria-live="polite"></div>
           </div>
@@ -664,6 +687,19 @@
 
             <!-- Appearance -->
             <div class="settings-panel hidden" data-cat="appearance">
+              <div class="setting-card">
+                <div class="setting-row setting-row-block">
+                  <div class="setting-text">
+                    <div class="setting-label">Theme mode</div>
+                    <div class="setting-desc">Match the OS theme, switch by time of day, or pick manually below</div>
+                  </div>
+                  <div id="theme-mode-seg" class="seg" role="radiogroup" aria-label="Theme mode">
+                    <button type="button" class="seg-btn" data-mode="manual" role="radio" aria-checked="false">Manual</button>
+                    <button type="button" class="seg-btn" data-mode="system" role="radio" aria-checked="false">Match system</button>
+                    <button type="button" class="seg-btn" data-mode="time" role="radio" aria-checked="false">By time</button>
+                  </div>
+                </div>
+              </div>
               <div class="setting-card">
                 <div class="setting-row setting-row-block">
                   <div class="setting-text">

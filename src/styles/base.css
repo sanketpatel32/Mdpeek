@@ -637,6 +637,14 @@ main {
 .editor-status .status-sep {
   opacity: 0.5;
 }
+/* v0.44.0: writing-goal chip in the status bar. Green when the goal is met. */
+.editor-status .status-goal {
+  color: var(--fg-secondary);
+}
+.editor-status .status-goal.done {
+  color: var(--success);
+  font-weight: 600;
+}
 .editor-status .save-status {
   margin-left: auto;
   color: var(--fg-muted);
@@ -1017,6 +1025,71 @@ mark.find-current {
   overflow: hidden;
   position: relative;
   background: var(--bg);
+}
+/* v0.44.0: editor outline — a floating panel anchored top-right of the editor
+   area, showing the doc's headings. Click to jump. Overlays the editor rather
+   than taking layout space (so it doesn't shrink the textarea on small screens). */
+.editor-outline {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 240px;
+  max-height: calc(100% - 16px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  z-index: 20;
+  overflow: hidden;
+}
+.editor-outline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface);
+  user-select: none;
+}
+.editor-outline-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+}
+.editor-outline-close {
+  background: transparent;
+  border: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 12px;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.editor-outline-close:hover {
+  background: var(--surface-hover);
+  color: var(--fg);
+}
+.editor-outline-body {
+  overflow-y: auto;
+  padding: 4px;
+  flex: 1;
+}
+.editor-outline-body .reader-toc-item {
+  cursor: pointer;
+}
+.editor-outline-empty {
+  padding: 12px 8px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  text-align: center;
 }
 /* Active-line highlight: a thin tinted strip painted behind the textarea on
    the line containing the caret. The position + height are set as CSS vars

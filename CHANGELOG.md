@@ -7,6 +7,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-07-28
+
+### Added — Everything from the audit (11 features)
+
+A batch of 11 small-but-missing features, each plugging a gap identified in the
+v0.44 audit. All pure-frontend except one tiny Rust helper. No existing behavior
+changed; every feature is additive.
+
+#### Editor
+
+- **Table cell navigation.** Pressing Tab / Shift+Tab *inside* a markdown table
+  row now jumps cell-to-cell (and wraps to the next/previous row at the edges)
+  instead of inserting indent. Outside a table, Tab still indents as before.
+- **Editor outline pane.** A collapsible panel showing the active doc's
+  headings, floating top-right of the editor. Click a heading to jump the caret
+  there. Toggle via the command palette ("Toggle editor outline"). Edit-mode
+  only — view mode already has the sidebar TOC.
+
+#### Writing aids
+
+- **Writing goal.** Set a word-count target ("Set writing goal…" in the
+  palette); the status bar shows a live `🎯 written / goal (pct%)` chip that
+  turns green when you hit the target. Progress measures *new* words written
+  since the goal was set, not the doc total.
+
+#### Markdown rendering
+
+- **Auto-TOC marker.** A standalone `[[toc]]` line in a doc expands to an
+  inline, clickable list of the document's headings — anchor links resolve to
+  the same slugs the renderer generates. Markers inside code fences are left
+  alone, and slug collisions are deduped to match.
+- **Definition lists.** `Term` followed by one or more `: Definition` lines
+  now renders as a proper `<dl><dt><dd>` block, with inline markdown (bold,
+  links, …) supported in both the term and the definitions.
+
+#### Export & external
+
+- **Copy as HTML source.** Copies the rendered HTML *source* (not rich text)
+  to the clipboard — for pasting into a CMS, email source view, or code editor.
+- **Open in browser.** Stages the rendered doc as a temp HTML file and hands
+  it to the system default browser. No save dialog.
+
+#### Workspace & file management
+
+- **Document templates.** Save the current doc as a reusable template
+  ("Save as template"), then create new docs seeded from it ("New from
+  template…"). Templates persist in localStorage and survive restarts.
+- **Link checker.** "Check links" scans the active doc for `[[wiki]]` and
+  `[text](file.md)` links, compares each target against the files actually in
+  the doc's folder, and lists any that don't resolve. Click a broken link to
+  jump to its line.
+
+#### Themes & appearance
+
+- **Theme scheduling.** A "Theme mode" segmented control in Appearance lets
+  the app follow the OS theme (Match system) or switch by time of day
+  (dark 19:00–07:00, light otherwise). Manual is the default; picking a theme
+  card flips back to manual.
+- **Per-document theme override.** Pin a theme to one doc ("Pin theme to this
+  doc" in the more menu) so it always renders in that palette regardless of
+  the global theme. Switching away restores the global automatically.
+
+### Changed
+
+- `applyThemeImpl` split into a visual-only `applyThemeVisuals` (used by the
+  per-doc override so it doesn't overwrite the global preference) + the
+  persisting wrapper.
+- New `write_temp_html` Rust command stages rendered HTML in the OS temp dir
+  for the "Open in browser" feature.
+
+### Tests
+
+672 pass (+69): table cell nav (8), expandTocMarker (5), definition lists (4),
+writing-goal (9), link-checker (13), templates (10), theme-schedule (8),
+doc-theme (12).
+
 ## [0.43.0] - 2026-07-28
 
 ### Fixed — Terminal freeze on close

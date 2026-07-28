@@ -12,6 +12,7 @@ import {
   duplicateLines,
   moveLines,
   toggleComment,
+  tableCellNav,
 } from '../lib/editor-logic.js';
 
 // Wire a textarea to a live-preview target with debounced re-render, plus the
@@ -328,6 +329,15 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     // Ctrl+F is owned by the global find module now — no handler here.
 
     if (e.key === 'Tab') {
+      // v0.44.0: inside a markdown table row, Tab/Shift+Tab jump cell-to-cell
+      // instead of inserting/removing indent. Falls through to handleTab when
+      // the caret isn't in a table cell.
+      const nav = tableCellNav(textarea.value, s, e.shiftKey ? -1 : 1);
+      if (nav) {
+        e.preventDefault();
+        textarea.setSelectionRange(nav.caret, nav.caret);
+        return;
+      }
       e.preventDefault();
       applyResult(e.shiftKey ? handleShiftTab(textarea.value, s, en) : handleTab(textarea.value, s, en));
       return;

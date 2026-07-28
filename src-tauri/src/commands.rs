@@ -53,6 +53,36 @@ pub fn save_file(path: String, content: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Write content to a uniquely-named file in the OS temp dir and return its
+/// absolute path. Used by the "Open in browser" command to stage a rendered
+/// HTML preview without prompting for a save location. The filename is
+/// sanitized and prefixed with `mdpeek-` + a timestamp so repeated opens
+/// don't collide and are easy to spot in the temp folder.
+#[tauri::command]
+pub fn write_temp_html(content: String, suggested_name: Option<String>) -> Result<String, String> {
+    let mut dir = std::env::temp_dir();
+    dir.push("mdpeek");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    // Sanitize the suggested name to a safe filename stem; default to "preview".
+    let stem: String = suggested_name
+        .as_deref()
+        .map(|s| {
+            s.chars()
+                .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+                .collect::<String>()
+        })
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "preview".to_string());
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let fname = format!("mdpeek-{}-{}.html", stem, ts);
+    let path = dir.join(fname);
+    fs::write(&path, &content).map_err(|e| e.to_string())?;
+    Ok(path.display().to_string())
+}
+
 #[tauri::command]
 pub async fn save_file_as(content: String) -> Result<String, String> {
     let file = rfd::AsyncFileDialog::new()

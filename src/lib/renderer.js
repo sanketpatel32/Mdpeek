@@ -11,6 +11,7 @@ import markedKatex from 'marked-katex-extension';
 import markedFootnote from 'marked-footnote';
 import { markedEmojiExt } from './emoji.js';
 import { markedHighlightExt } from './highlight.js';
+import { markedDefinitionLists } from './definition-lists.js';
 
 // Local escapeHtml — escapes only & < > (NOT quotes). Deliberately different
 // from the shared src/lib/escape.js (which also escapes " '): renderer output
@@ -60,6 +61,73 @@ function transformWikiLinks(s) {
     // Angle-bracket wrap so paths with spaces don't break the markdown link.
     return `[${display}](${href.includes(' ') ? `<${href}>` : href})`;
   });
+}
+
+// Expand a standalone `[[toc]]` marker into a markdown bullet list of the
+// document's headings, so a generated table of contents can be placed inline
+// anywhere in the body. Runs BEFORE preprocessWikiLinks (so the marker isn't
+// turned into a wiki-link) and skips fenced/inline code.
+//
+//   [[toc]]  →  "- [# H1](#h1)\n- [## H2](#h2)\n..."
+//
+// The anchor slugs match what slugify() (used by the heading-id hook) emits,
+// so the links resolve. Headings inside fenced code are skipped, matching
+// extractHeadings. If no marker is present, returns `md` unchanged.
+export function expandTocMarker(md) {
+  if (!md || !md.includes('[[toc]]')) return md;
+  const fenceRe = /```[\s\S]*?```|`[^`\n]*`/g;
+  const headings = [];
+  // First pass: collect headings from non-code spans.
+  let last = 0;
+  let m;
+  const spans = [];
+  while ((m = fenceRe.exec(md)) !== null) {
+    spans.push({ code: false, text: md.slice(last, m.index) });
+    spans.push({ code: true, text: m[0] });
+    last = m.index + m[0].length;
+  }
+  spans.push({ code: false, text: md.slice(last) });
+
+  const headingRe = /^(#{1,6})\s+(.+?)\s*#*\s*$/;
+  const slugCounts = new Map();
+  for (const span of spans) {
+    if (span.code) continue;
+    for (const line of span.text.split('\n')) {
+      const hm = line.match(headingRe);
+      if (!hm) continue;
+      const level = hm[1].length;
+      const text = hm[2];
+      let slug = slugify(text);
+      if (!slug) continue;
+      // Dedupe slugs the same way the heading-id hook does (suffix -1, -2...).
+      const seen = slugCounts.get(slug) || 0;
+      slugCounts.set(slug, seen + 1);
+      if (seen > 0) slug = `${slug}-${seen}`;
+      headings.push({ level, text, slug });
+    }
+  }
+
+  // Second pass: replace `[[toc]]` lines with the generated list. Only a
+  // marker alone on its line (allowing leading whitespace) is expanded — an
+  // inline `text [[toc]]` is left alone so we don't surprise the user.
+  const tocMd = headings
+    .map((h) => `${'  '.repeat(h.level - 1)}- [${h.text}](#${h.slug})`)
+    .join('\n');
+  // Build the output by walking spans again; replace in non-code spans only.
+  let out = '';
+  for (const span of spans) {
+    if (span.code) { out += span.text; continue; }
+    out += span.text.replace(/^(\s*)\[\[toc\]\]\s*$/gm, (_whole, indent) => {
+      // Re-indent each generated line to match the marker's indent so the
+      // TOC nests correctly under a list item if the user indented it.
+      if (!indent) return tocMd;
+      return tocMd
+        .split('\n')
+        .map((l) => (l ? indent + l : l))
+        .join('\n');
+    });
+  }
+  return out;
 }
 
 // ----------------------------- heading IDs --------------------------------
@@ -126,6 +194,7 @@ function buildMarked() {
   marked.use(markedKatex({ throwOnError: false }));
   marked.use(markedFootnote());
   marked.use(markedEmojiExt());
+  marked.use(markedDefinitionLists());
   marked.use(markedHighlightExt());
   marked.use({
     renderer: {
@@ -284,11 +353,14 @@ export function renderMarkdown(md) {
 
   // Reset slug dedupe so each render is self-contained.
   _slugCounts = new Map();
+  // Expand any [[toc]] markers into an inline heading list BEFORE wiki-link
+  // preprocessing (otherwise [[toc]] would be rewritten as a wiki-link).
+  const tocExpanded = expandTocMarker(input);
   // Preprocess Obsidian-style wiki-links: [[Target]] → [Target](Target.md)
   // and [[Target|Display]] → [Display](Target.md). Done before marked so the
   // result is a standard markdown link rendered like any other. Code blocks
   // and inline code are skipped to avoid mangling code that contains [[ ]].
-  const processed = preprocessWikiLinks(input);
+  const processed = preprocessWikiLinks(tocExpanded);
   const raw = marked.parse(processed, { async: false });
   const html = DOMPurify.sanitize(raw);
   cacheSet(input, html);
