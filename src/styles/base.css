@@ -4749,12 +4749,14 @@ body.ws-mode-review .workspace-view .mode-review-only { display: inline-flex; }
   flex: 0 0 auto;
   background: var(--bg-elevated);
   border-top: 1px solid var(--border);
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
+  /* Theme-tinted shadow: dark on light themes, soft on dark ones. The old
+     hardcoded rgba(0,0,0,0.25) was invisible on dark themes and harsh on
+     light ones. color-mix with --fg adapts to every theme automatically. */
+  box-shadow: 0 -8px 24px color-mix(in srgb, var(--fg) 12%, transparent);
   display: flex;
   flex-direction: column;
   z-index: 45;
   font-family: var(--mono-font, "Cascadia Code", "Fira Code", Consolas, monospace);
-  backdrop-filter: blur(12px);
   transition: opacity 180ms var(--ease);
 }
 .terminal-resize-handle {
@@ -4766,9 +4768,23 @@ body.ws-mode-review .workspace-view .mode-review-only { display: inline-flex; }
   cursor: ns-resize;
   z-index: 50;
 }
-.terminal-resize-handle:hover {
+/* A thin always-visible grab bar centered in the handle, so users can tell
+   the edge is draggable without hovering. Brightens to the accent on hover. */
+.terminal-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 36px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border);
+  transition: background-color 120ms var(--ease), width 120ms var(--ease);
+}
+.terminal-resize-handle:hover::after {
   background: var(--accent);
-  opacity: 0.5;
+  width: 48px;
 }
 .terminal-drawer.dragover {
   border-top: 2px dashed var(--accent);
@@ -4825,6 +4841,9 @@ body.ws-mode-review .workspace-view .mode-review-only { display: inline-flex; }
   color: var(--fg);
   border-color: var(--border-subtle);
   font-weight: 600;
+  /* Accent underline marks the focused tab — works on every theme since
+     --accent is tuned per-theme (Dracula purple, Nord frost, etc.). */
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 .terminal-tab-close {
   display: inline-flex;
@@ -4835,10 +4854,14 @@ body.ws-mode-review .workspace-view .mode-review-only { display: inline-flex; }
   border-radius: 50%;
   font-size: 10px;
   opacity: 0.6;
+  transition: background-color 120ms var(--ease), color 120ms var(--ease), opacity 120ms var(--ease);
 }
 .terminal-tab-close:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.15);
+  /* Proper close affordance: red disc, themed foreground. The old
+     rgba(255,255,255,0.15) tint was invisible on light themes. */
+  background: var(--danger);
+  color: var(--bg-elevated);
 }
 .terminal-pwd {
   font-size: 11px;

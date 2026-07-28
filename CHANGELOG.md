@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-07-28
+
+### Fixed — Terminal freeze on close
+
+The integrated terminal could put the window into a "Not Responding" state
+when the app was quit while a terminal was open. Two reinforcing root causes,
+both fixed:
+
+- **`destroyAll()` no longer respawns a PTY during shutdown.** Closing the
+  last terminal tab normally recreates a fresh one so the drawer is never
+  empty — but during app shutdown that branch fired a brand-new
+  `spawn_terminal` milliseconds before `app.exit(0)`, racing process teardown
+  and hanging the window. The teardown path now skips the respawn.
+- **`kill_terminal` no longer holds the state mutex across `child.kill()`.**
+  On Windows ConPTY, `TerminateProcess` can stall briefly (interactive
+  PowerShell, antivirus, profile unload); while it stalled, every other
+  terminal IPC queued behind the same lock and the whole app looked frozen.
+  The kill now runs on a worker thread, off the IPC thread.
+- New `kill_all_terminals` command drains every live PTY in one shot on
+  shutdown so `TermState` is empty by the time `quit_app` drops it.
+
+### Changed — Terminal now matches every theme
+
+The terminal's ANSI colors and chrome were hardcoded and only looked right on
+the default dark theme. Now:
+
+- **ANSI palette is derived from theme tokens.** Green follows `--success`,
+  yellow `--alert-warning`, cyan `--alert-note`, magenta `--alert-important`,
+  red `--danger`, blue `--accent` — so Dracula gets its signature greens,
+  Solarized its yellows, Nord its frosts, instead of generic Tailwind colors.
+- **Theme-aware drawer shadow** via `color-mix(in srgb, var(--fg) 12%, …)`
+  replaces the hardcoded `rgba(0,0,0,0.25)` that was harsh on light themes
+  and invisible on dark ones.
+- **Active tab gets an accent underline**, and the close button turns into a
+  proper red disc on hover (the old white tint was invisible on light themes).
+- **Resize handle** now shows a thin always-visible grab bar that brightens
+  to the accent on hover, instead of flooding the whole 8px strip.
+- Dropped a no-op `backdrop-filter: blur(12px)` (the drawer bg is opaque, so
+  it cost performance in WebView2 and rendered nothing).
+
 ## [0.42.0] - 2026-07-27
 
 ### Added — Polish batch

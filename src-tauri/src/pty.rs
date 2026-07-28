@@ -226,13 +226,41 @@ pub fn write_terminal(
     Ok(())
 }
 
-/// Kill a terminal: remove from state so the entry drops, which closes the PTY
-/// and causes the reader thread to hit EOF.
+/// Kill a terminal: remove it from state (fast, under the lock) and perform
+/// the actual `child.kill()` on a worker thread. On Windows ConPTY,
+/// `TerminateProcess` can stall briefly (interactive PowerShell, AV scan,
+/// profile unload); running it off the IPC thread means a slow kill can't
+/// block other terminal commands queueing on the same state mutex — which was
+/// the root cause of the "Not Responding on close" symptom.
 #[tauri::command]
 pub fn kill_terminal(state: tauri::State<'_, TermState>, id: u32) -> Result<(), String> {
-    if let Some(mut entry) = state.0.lock().unwrap_or_else(|e| e.into_inner()).remove(&id) {
-        let _ = entry._child.kill();
+    let entry = state.0.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+    if let Some(mut entry) = entry {
+        std::thread::spawn(move || {
+            let _ = entry._child.kill();
+        });
     }
+    Ok(())
+}
+
+/// Drain and kill every live terminal in one shot. Used by the frontend's
+/// shutdown path (`destroyAll`) so that `app.exit(0)` drops an already-empty
+/// `TermState` — no reader thread is mid-`read()`, no child teardown collides
+/// with WebView2 shutdown. All kills run on a single worker thread.
+#[tauri::command]
+pub fn kill_all_terminals(state: tauri::State<'_, TermState>) -> Result<(), String> {
+    let entries: Vec<TermEntry> = state
+        .0
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .drain()
+        .map(|(_, v)| v)
+        .collect();
+    std::thread::spawn(move || {
+        for mut entry in entries {
+            let _ = entry._child.kill();
+        }
+    });
     Ok(())
 }
 

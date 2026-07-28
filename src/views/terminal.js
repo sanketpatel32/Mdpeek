@@ -42,31 +42,46 @@ export function getTerminalFontFamily() {
 
 // Build an xterm.js theme object from the app's active theme CSS vars. xterm.js
 // expects hex strings (or `#rrggbb` / `rgba(...)`); we hand it the same colors
-// the rest of the app uses so the terminal matches the chosen theme. Falls
-// back to neutral colors if a var is missing.
+// the rest of the app uses so the terminal matches the chosen theme.
+//
+// The ANSI 16-color palette is derived from the theme's accent / alert tokens
+// (each theme tunes `--alert-*` to its signature palette — Dracula's greens,
+// Solarized's yellows, Nord's frosts) so the terminal finally *looks* like the
+// theme instead of generic Tailwind colors. Fallbacks are a sane neutral
+// palette close to xterm.js defaults, valid if the vars are read before the
+// theme stylesheet has applied (e.g. during first paint).
 export function xtermThemeFromApp() {
+  const fg     = readCssVar('--fg', '#e8e8e8');
+  const bg     = readCssVar('--bg', '#000000');
+  const muted  = readCssVar('--fg-muted', '#888888');
+  const red     = readCssVar('--danger',          '#ff5555');
+  const green   = readCssVar('--success',         '#50fa7b');
+  const yellow  = readCssVar('--alert-warning',   '#f1fa8c');
+  const blue    = readCssVar('--accent',          '#8be9fd');
+  const magenta = readCssVar('--alert-important', '#ff79c6');
+  const cyan    = readCssVar('--alert-note',      '#8be9fd');
   return {
-    background: readCssVar('--bg', '#000000'),
-    foreground: readCssVar('--fg', '#ffffff'),
-    cursor: readCssVar('--fg', '#ffffff'),
-    cursorAccent: readCssVar('--bg', '#000000'),
-    selectionBackground: readCssVar('--surface-hover', 'rgba(255,255,255,0.2)'),
-    black: readCssVar('--fg', '#000000'),
-    red: readCssVar('--danger', '#ff0000'),
-    green: '#22c55e',
-    yellow: '#f59e0b',
-    blue: readCssVar('--accent', '#0000ff'),
-    magenta: '#c084fc',
-    cyan: '#06b6d4',
-    white: readCssVar('--fg', '#ffffff'),
-    brightBlack: readCssVar('--fg-muted', '#666666'),
-    brightRed: readCssVar('--danger', '#ff5555'),
-    brightGreen: '#4ade80',
-    brightYellow: '#fbbf24',
-    brightBlue: readCssVar('--accent', '#5555ff'),
-    brightMagenta: '#d8b4fe',
-    brightCyan: '#22d3ee',
-    brightWhite: readCssVar('--fg', '#ffffff'),
+    background: bg,
+    foreground: fg,
+    cursor: fg,
+    cursorAccent: bg,
+    selectionBackground: readCssVar('--surface-active', 'rgba(255,255,255,0.2)'),
+    black: muted,
+    red,
+    green,
+    yellow,
+    blue,
+    magenta,
+    cyan,
+    white: fg,
+    brightBlack: muted,
+    brightRed: red,
+    brightGreen: green,
+    brightYellow: yellow,
+    brightBlue: blue,
+    brightMagenta: magenta,
+    brightCyan: cyan,
+    brightWhite: fg,
   };
 }
 
@@ -320,14 +335,16 @@ export function initTerminal({ cwdProvider, onToast }) {
     updatePwdDisplay();
   }
 
-  function closeTab(id, e) {
+  function closeTab(id, e, opts = {}) {
     if (e) e.stopPropagation();
     const idx = tabs.findIndex((t) => t.id === id);
     const tab = tabs[idx];
     if (!tab) return;
 
     // Kill the PTY (drop closes the ConPTY; the reader thread exits on EOF).
-    if (tab.ptyId !== undefined) {
+    // Skipped during destroyAll, which drains the whole map in one shot via
+    // kill_all_terminals (faster, and avoids spawning a worker thread per tab).
+    if (!opts.destroy && tab.ptyId !== undefined) {
       invoke('kill_terminal', { id: tab.ptyId }).catch(() => { /* best-effort */ });
     }
     tab.onDataDisp.dispose();
@@ -336,16 +353,18 @@ export function initTerminal({ cwdProvider, onToast }) {
     tab.mountEl?.remove();
 
     tabs = tabs.filter((t) => t.id !== id);
-    if (tabs.length === 0) {
+    if (tabs.length === 0 && !opts.destroy) {
       // Recreate a fresh tab so the drawer is never empty (matches the
-      // previous version's behavior).
+      // previous version's behavior). The `destroy` opt skips this so app
+      // shutdown doesn't race a fresh spawn_terminal against app.exit(0) —
+      // which was the root cause of the "Not Responding on close" freeze.
       createTab();
       return;
     }
-    if (activeTabId === id) {
+    if (tabs.length > 0 && activeTabId === id) {
       const next = tabs[Math.max(0, idx - 1)];
       switchTab(next.id);
-    } else {
+    } else if (tabs.length > 0) {
       renderTabs();
     }
   }
@@ -488,8 +507,16 @@ export function initTerminal({ cwdProvider, onToast }) {
     clear,
     execute,
     destroyAll() {
-      // Kill every live PTY. Called on app shutdown.
-      [...tabs].forEach((t) => closeTab(t.id));
+      // Kill every live PTY. Called on app shutdown. Two things matter here:
+      //  1. Don't respawn a fresh tab when the last one closes (closeTab's
+      //     `destroy` opt) — that would race a new spawn_terminal against
+      //     app.exit(0) and freeze the window.
+      //  2. Drain the backend map in a single kill_all_terminals call so the
+      //     Rust side empties TermState before quit_app drops it.
+      [...tabs].forEach((t) => closeTab(t.id, null, { destroy: true }));
+      tabs = [];
+      activeTabId = null;
+      invoke('kill_all_terminals').catch(() => { /* best-effort */ });
       bootstrapped = false;
     },
     // Apply a new xterm theme to every open terminal. Called by main.js when

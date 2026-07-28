@@ -195,6 +195,7 @@ pub fn run() {
             pty::spawn_terminal,
             pty::write_terminal,
             pty::kill_terminal,
+            pty::kill_all_terminals,
             pty::resize_terminal,
             watcher::watch_path,
             get_initial_file,

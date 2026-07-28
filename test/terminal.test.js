@@ -95,9 +95,30 @@ describe('xtermThemeFromApp', () => {
   it('uses sensible fallbacks when vars are missing', () => {
     const theme = xtermThemeFromApp();
     expect(theme.background).toBe('#000000');
-    expect(theme.foreground).toBe('#ffffff');
-    expect(theme.red).toBe('#ff0000');
-    expect(theme.blue).toBe('#0000ff');
+    expect(theme.foreground).toBe('#e8e8e8');
+    // Fallbacks are a sane neutral ANSI palette (close to xterm.js defaults),
+    // not pure primary hexes — keeps the terminal legible before the theme
+    // stylesheet applies.
+    expect(theme.red).toBe('#ff5555');
+    expect(theme.blue).toBe('#8be9fd');
+  });
+
+  it('derives the ANSI palette from the theme alert/success tokens', () => {
+    // Each theme tunes --alert-* to its signature palette (Dracula greens,
+    // Solarized yellows, Nord frosts). The mapper must pass those through so
+    // the terminal actually matches the chosen theme.
+    document.documentElement.style.setProperty('--success', '#50fa7b');
+    document.documentElement.style.setProperty('--alert-warning', '#f1fa8c');
+    document.documentElement.style.setProperty('--alert-note', '#8be9fd');
+    document.documentElement.style.setProperty('--alert-important', '#ff79c6');
+    const theme = xtermThemeFromApp();
+    expect(theme.green).toBe('#50fa7b');
+    expect(theme.yellow).toBe('#f1fa8c');
+    expect(theme.cyan).toBe('#8be9fd');
+    expect(theme.magenta).toBe('#ff79c6');
+    // Bright variants reuse the same source colors.
+    expect(theme.brightGreen).toBe('#50fa7b');
+    expect(theme.brightYellow).toBe('#f1fa8c');
   });
 
   it('always returns the full ANSI 16-color palette', () => {
