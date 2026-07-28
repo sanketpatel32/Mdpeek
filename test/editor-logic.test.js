@@ -21,6 +21,8 @@ import {
   extractHeadings,
   buildRelativeImageMarkdown,
   tableCellNav,
+  formatTableBlock,
+  sortTableRows,
 } from '../src/lib/editor-logic.js';
 
 // helper: apply a logic result to verify text + caret in one assertion
@@ -802,5 +804,85 @@ describe('tableCellNav', () => {
     const r = tableCellNav(line, 2, 1);
     expect(r).not.toBeNull();
     expect(r.caret).toBe(8);
+  });
+});
+
+describe('formatTableBlock (v0.45.0)', () => {
+  it('returns null when the caret is not in a table', () => {
+    expect(formatTableBlock('just prose', 3)).toBeNull();
+  });
+
+  it('aligns columns by padding to the widest cell', () => {
+    const md = '| name | age |\n| --- | --- |\n| Bob | 30 |\n| Alice | 25 |';
+    const r = formatTableBlock(md, md.indexOf('Bob'));
+    expect(r).not.toBeNull();
+    // Each line should have matching column widths.
+    const lines = r.text.split('\n');
+    expect(lines[0]).toBe('| name  | age |');
+    expect(lines[2]).toBe('| Bob   | 30  |');
+    expect(lines[3]).toBe('| Alice | 25  |');
+  });
+
+  it('preserves alignment markers in the delimiter row', () => {
+    const md = '| left | center | right |\n| :--- | :----: | ----: |\n| a | b | c |';
+    const r = formatTableBlock(md, md.indexOf('a'));
+    const lines = r.text.split('\n');
+    // Markers preserved; dashes padded to match each column's content width.
+    // left(4)→:---, center(6)→:----:, right(5)→----:
+    expect(lines[1]).toBe('| :--- | :----: | ----: |');
+  });
+
+  it('normalizes short delimiters to the GFM minimum (3 dashes)', () => {
+    // Single-dash delimiters get padded to width 3 so GFM still recognizes them.
+    const md = '| a | b |\n| - | - |\n| 1 | 2 |';
+    const r = formatTableBlock(md, md.length - 2);
+    expect(r).not.toBeNull();
+    expect(r.text).toBe('| a | b |\n| --- | --- |\n| 1 | 2 |');
+  });
+
+  it('does not touch surrounding prose', () => {
+    const md = 'intro\n| a | b |\n| - | - |\n| 1 | 2 |\noutro';
+    const r = formatTableBlock(md, md.indexOf('1'));
+    expect(r.text).toContain('intro\n');
+    expect(r.text).toContain('\noutro');
+  });
+});
+
+describe('sortTableRows (v0.45.0)', () => {
+  const tbl = '| name | age |\n| --- | --- |\n| Bob | 30 |\n| Alice | 25 |\n| Carol | 40 |';
+
+  it('returns null when the caret is not in a table', () => {
+    expect(sortTableRows('prose', 0)).toBeNull();
+  });
+
+  it('sorts body rows by column 0 ascending', () => {
+    const r = sortTableRows(tbl, tbl.indexOf('Bob'), 0, 'asc');
+    const body = r.text.split('\n').slice(2);
+    expect(body.map((l) => l.match(/Alice|Bob|Carol/)[0])).toEqual(['Alice', 'Bob', 'Carol']);
+  });
+
+  it('sorts body rows by column 0 descending', () => {
+    const r = sortTableRows(tbl, tbl.indexOf('Bob'), 0, 'desc');
+    const body = r.text.split('\n').slice(2);
+    expect(body.map((l) => l.match(/Alice|Bob|Carol/)[0])).toEqual(['Carol', 'Bob', 'Alice']);
+  });
+
+  it('sorts numerically when the column is numeric', () => {
+    // Lexicographic sort would put '30' before '4'; numeric puts 4 first.
+    const md = '| n |\n| - |\n| 30 |\n| 4 |';
+    const r = sortTableRows(md, md.indexOf('30'), 0, 'asc');
+    expect(r.text.split('\n').slice(2)).toEqual(['| 4 |', '| 30 |']);
+  });
+
+  it('keeps the header and delimiter rows in place', () => {
+    const r = sortTableRows(tbl, tbl.indexOf('Bob'), 0, 'asc');
+    const lines = r.text.split('\n');
+    expect(lines[0]).toBe('| name | age |');
+    expect(lines[1]).toBe('| --- | --- |');
+  });
+
+  it('returns null for a table with no body rows (header + delimiter only)', () => {
+    const md = '| a | b |\n| - | - |';
+    expect(sortTableRows(md, 3, 0, 'asc')).toBeNull();
   });
 });

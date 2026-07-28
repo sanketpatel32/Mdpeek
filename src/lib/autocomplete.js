@@ -4,10 +4,11 @@
 // fetched by main.js) and renders the results; on accept it calls
 // acceptSuggestion to splice the chosen value into the text.
 //
-// Three trigger kinds, each fired by a leading character:
-//   :foo    → emoji shortcode (matches the EMOJI map keys)
-//   [[foo   → wiki-link target (basenames of .md files in the folder)
-//   #foo    → tag (free-form; sourced from existing #tags in the workspace)
+// Four trigger kinds, each fired by a leading sequence:
+//   :foo      → emoji shortcode (matches the EMOJI map keys)
+//   [[foo     → wiki-link target (basenames of .md files in the folder)
+//   #foo      → tag (free-form; sourced from existing #tags in the workspace)
+//   ](#foo    → in-document heading link (v0.45.0; also `[[#foo`)
 
 // Word chars for trigger boundaries. Underscore included so `foo_bar` is one
 // token; digits so `#2026` works; `+`/`-` included for emoji like `:+1:`.
@@ -25,6 +26,17 @@ const WORD = /[\w+-]/;
 export function detectTrigger(textBeforeCaret) {
   if (!textBeforeCaret) return null;
   const caret = textBeforeCaret.length;
+
+  // --- heading: `](#` (markdown in-doc link) or `[[#` (Obsidian in-doc link) ---
+  // Must run BEFORE the wiki branch so `[[#foo` is treated as a heading link,
+  // not a wiki link to a file literally named `#foo`. The query is whatever
+  // word chars follow the `#`; a space or `]` ends it.
+  const headRe = /(?:\]\(|\[\[)#([\w-]*)$/;
+  const hm = textBeforeCaret.match(headRe);
+  if (hm) {
+    const start = hm.index + hm[0].length - hm[1].length - 1; // index of `#`
+    return { kind: 'heading', query: hm[1], start };
+  }
 
   // --- wiki: highest priority, scanned last (rightmost trigger wins below) ---
   // Find the last unclosed `[[`.
@@ -88,7 +100,7 @@ export function detectTrigger(textBeforeCaret) {
 // `includes`, then alphabetical. The candidate lists are short; fancy fuzzy
 // ranking isn't worth the complexity for v1.
 export function buildCandidates(kind, query, sources = {}) {
-  const { emojis = {}, files = [], tags = [], limit = 8 } = sources;
+  const { emojis = {}, files = [], tags = [], headings = [], limit = 8 } = sources;
   const q = (query || '').toLowerCase();
 
   if (kind === 'emoji') {
@@ -114,6 +126,20 @@ export function buildCandidates(kind, query, sources = {}) {
       .filter((t) => !q || t.toLowerCase().includes(q))
       .slice(0, limit);
     return matched.map((t) => ({ value: `#${t}`, display: `#${t}`, hint: '' }));
+  }
+
+  // v0.45.0: in-document heading links. `headings` is an array of
+  // { slug, text, depth } from extractHeadings. We match against BOTH the
+  // slug and the display text (users type either), and the inserted value is
+  // just the `#slug` (the `](` or `[[` prefix is already in the buffer — we
+  // replace from the `#` onward, so acceptSuggestion gets start = index of #).
+  if (kind === 'heading') {
+    const matched = headings
+      .filter((h) => !q
+        || h.slug.toLowerCase().includes(q)
+        || h.text.toLowerCase().includes(q))
+      .slice(0, limit);
+    return matched.map((h) => ({ value: `#${h.slug}`, display: h.text, hint: `h${h.depth}` }));
   }
 
   return [];

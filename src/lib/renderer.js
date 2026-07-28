@@ -12,12 +12,17 @@ import markedFootnote from 'marked-footnote';
 import { markedEmojiExt } from './emoji.js';
 import { markedHighlightExt } from './highlight.js';
 import { markedDefinitionLists } from './definition-lists.js';
+import { markedSubSup, expandSuperscript } from './subsup.js';
+import { parseImageSize } from './image-size.js';
+import { escapeHtml } from './escape.js';
 
-// Local escapeHtml — escapes only & < > (NOT quotes). Deliberately different
-// from the shared src/lib/escape.js (which also escapes " '): renderer output
-// is always passed through DOMPurify, which handles attribute escaping. Using
-// the quote-escaping variant here would double-escape inside code blocks.
-function escapeHtml(s) {
+// Local escapeText — escapes only & < > (NOT quotes). Used for TEXT CONTENT
+// (code block bodies, mermaid source). Deliberately different from the shared
+// src/lib/escape.js `escapeHtml` (which also escapes " '): renderer text
+// content is always passed through DOMPurify, and using the quote-escaping
+// variant inside code blocks would double-escape. For ATTRIBUTE values we use
+// the shared escapeHtml (imported above) which correctly escapes quotes.
+function escapeText(s) {
   return s
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -130,7 +135,82 @@ export function expandTocMarker(md) {
   return out;
 }
 
-// ----------------------------- heading IDs --------------------------------
+// ----------------------------- admonitions --------------------------------
+// Rewrite mkDocs/Material/Obsidian `!!! type` admonition blocks into the
+// GFM alert syntax (`> [!TYPE]`) that the blockquote renderer already themes
+// (see detectAlert + .markdown-alert-* CSS). Runs as a pre-pass so users with
+// existing `!!!` docs get the same themed callouts for free, with zero new
+// CSS or renderer code.
+//
+// Grammar (Python-Markdown admonition convention):
+//   !!! type "Optional title"
+//       indented body line 1
+//       indented body line 2
+//
+//   →  > [!TYPE] Optional title
+//      > indented body line 1
+//      > indented body line 2
+//
+// The body must be indented (≥4 spaces / 1 tab) under the `!!!` line; a line
+// with less indentation ends the block. Body indentation is stripped by one
+// level when re-emitted as blockquoted content. Recognized types cover the
+// full mkDocs set; unknown types map to NOTE for the icon but keep their
+// keyword in the rendered title (so `!!! weather` still renders, just with
+// the info icon). Passes through unchanged if no `!!!` line is present.
+const ADMONITION_TYPES = new Set([
+  'note', 'abstract', 'info', 'tip', 'success', 'question', 'warning',
+  'failure', 'danger', 'bug', 'example', 'quote', 'done', 'info',
+]);
+// Map arbitrary mkDocs types to one of the 5 GFM alert types the renderer
+// recognizes (NOTE/TIP/IMPORTANT/WARNING/CAUTION). Anything unmapped → NOTE.
+function alertTypeFor(kind) {
+  const k = kind.toLowerCase();
+  if (k === 'tip') return 'TIP';
+  if (k === 'warning') return 'WARNING';
+  if (k === 'danger' || k === 'caution' || k === 'failure' || k === 'bug' || k === 'error') return 'CAUTION';
+  if (k === 'success' || k === 'done' || k === 'check' || k === 'example' || k === 'abstract' || k === 'question' || k === 'important') return 'IMPORTANT';
+  return 'NOTE'; // note, info, quote, summary, etc.
+}
+
+export function expandAdmonitions(md) {
+  if (!md || md.indexOf('!!!') === -1) return md;
+  const lines = md.split('\n');
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const m = lines[i].match(/^!!!\s+([A-Za-z][\w-]*)(?:\s+"([^"]*)")?\s*$/);
+    if (!m) { out.push(lines[i]); i++; continue; }
+    const kind = m[1];
+    const title = m[2] || '';
+    const alertType = alertTypeFor(kind);
+    // Header line: `> [!TYPE]` + optional title (title shown after the marker
+    // so detectAlert still strips the `[!TYPE]` prefix correctly).
+    const header = title
+      ? `> [!${alertType}] ${title}`
+      : `> [!${alertType}]`;
+    out.push(header);
+    i++;
+    // Consume the indented body. mkDocs uses 4-space indent; we accept any
+    // leading whitespace (≥1 space or a tab). Stop at the first non-blank
+    // line with no indent, but keep blank lines that separate body paragraphs
+    // (a blank line followed by a non-indented line ends the block).
+    let blanks = [];
+    while (i < lines.length) {
+      const line = lines[i];
+      if (/^\s*$/.test(line)) { blanks.push(line); i++; continue; }
+      const bodyM = line.match(/^( {1,8}|\t)(.*)$/);
+      if (!bodyM) break; // non-indented non-blank line ends the block
+      // Flush any pending blank lines (now that we know the block continues).
+      for (const b of blanks) out.push('>');
+      blanks = [];
+      out.push(`> ${bodyM[2]}`);
+      i++;
+    }
+    // Trailing blank lines belong to the surrounding doc, not the block.
+    for (const b of blanks) out.push(b);
+  }
+  return out.join('\n');
+}
 // GitHub-compatible slug: lowercase, spaces→hyphens, strip everything that
 // isn't alphanumeric or hyphen. Empty result → null (caller falls back).
 function slugify(text) {
@@ -195,6 +275,7 @@ function buildMarked() {
   marked.use(markedFootnote());
   marked.use(markedEmojiExt());
   marked.use(markedDefinitionLists());
+  marked.use(markedSubSup());
   marked.use(markedHighlightExt());
   marked.use({
     renderer: {
@@ -202,6 +283,9 @@ function buildMarked() {
       // (plain) and `tokens` (for inline rendering); we slugify the plain text
       // and render the tokens for the inner HTML.
       image({ href, title, text }) {
+        // v0.45.0: parse image-size syntax (GitHub "=WxH" in title, Obsidian
+        // "|W" in alt) and strip the size tokens from the displayed attrs.
+        const { alt, title: cleanTitle, width, height } = parseImageSize({ href, title, text });
         let src = href || '';
         if (src && !src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('data:')) {
           if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
@@ -213,13 +297,19 @@ function buildMarked() {
             }
           }
         }
-        const titleAttr = title ? ` title="${escapeAttr(title)}"` : '';
-        const altAttr = text ? ` alt="${escapeAttr(text)}"` : ' alt=""';
+        // escapeHtml here is the shared src/lib/escape.js variant (escapes
+        // & < > " ') — correct for attribute values. (v0.45.0 fix: previously
+        // this called an undefined `escapeAttr`, which threw on every image
+        // with an alt/title and crashed the render.)
+        const titleAttr = cleanTitle ? ` title="${escapeHtml(cleanTitle)}"` : '';
+        const altAttr = alt ? ` alt="${escapeHtml(alt)}"` : ' alt=""';
+        const wAttr = width ? ` width="${width}"` : '';
+        const hAttr = height ? ` height="${height}"` : '';
         // loading="lazy" defers offscreen image decode until it nears the
         // viewport, so long image-heavy docs scroll smoothly instead of
         // decoding every image upfront. The browser handles the intersection
         // observation natively; no JS cost.
-        return `<img src="${escapeAttr(src)}"${altAttr}${titleAttr} loading="lazy" decoding="async" />`;
+        return `<img src="${escapeHtml(src)}"${altAttr}${titleAttr}${wAttr}${hAttr} loading="lazy" decoding="async" />`;
       },
       heading({ tokens, depth, text }) {
         const inner = this.parser.parseInline(tokens);
@@ -256,16 +346,16 @@ function buildMarked() {
       code({ text, lang }) {
         if (lang === 'mermaid') {
           // Escape so a fence containing `</div>` can't break out of the wrapper.
-          return `<div class="mermaid">${escapeHtml(text)}</div>`;
+          return `<div class="mermaid">${escapeText(text)}</div>`;
         }
         const language = lang && hljs.getLanguage(lang) ? lang : 'plaintext';
         let highlighted;
         try {
           highlighted = language === 'plaintext'
-            ? escapeHtml(text)
+            ? escapeText(text)
             : hljs.highlight(text, { language }).value;
         } catch {
-          highlighted = escapeHtml(text);
+          highlighted = escapeText(text);
         }
         return `<pre><code class="hljs language-${language}">${highlighted}</code></pre>`;
       },
@@ -353,14 +443,24 @@ export function renderMarkdown(md) {
 
   // Reset slug dedupe so each render is self-contained.
   _slugCounts = new Map();
+  // Rewrite mkDocs `!!! type` admonitions into GFM `> [!TYPE]` alerts so the
+  // existing blockquote callout renderer themes them. Must run BEFORE the
+  // other pre-passes (the `>` prefix we emit could confuse them otherwise).
+  const admExpanded = expandAdmonitions(input);
   // Expand any [[toc]] markers into an inline heading list BEFORE wiki-link
   // preprocessing (otherwise [[toc]] would be rewritten as a wiki-link).
-  const tocExpanded = expandTocMarker(input);
+  const tocExpanded = expandTocMarker(admExpanded);
+  // Expand Pandoc-style superscript `x^2^` → `x<sup>2</sup>` BEFORE marked.
+  // Necessary because marked's GFM inline text tokenizer eats `^` as a plain
+  // char (it's not in the text stop-set), so a tokenizer extension never
+  // gets a chance. Subscript `~` is handled by a marked extension instead
+  // (marked stops at `~`). Skips fenced/inline code.
+  const supExpanded = expandSuperscript(tocExpanded);
   // Preprocess Obsidian-style wiki-links: [[Target]] → [Target](Target.md)
   // and [[Target|Display]] → [Display](Target.md). Done before marked so the
   // result is a standard markdown link rendered like any other. Code blocks
   // and inline code are skipped to avoid mangling code that contains [[ ]].
-  const processed = preprocessWikiLinks(tocExpanded);
+  const processed = preprocessWikiLinks(supExpanded);
   const raw = marked.parse(processed, { async: false });
   const html = DOMPurify.sanitize(raw);
   cacheSet(input, html);
@@ -382,9 +482,9 @@ export function renderCode(text, lang) {
   try {
     highlighted = language
       ? hljs.highlight(input, { language }).value
-      : escapeHtml(input);
+      : escapeText(input);
   } catch {
-    highlighted = escapeHtml(input);
+    highlighted = escapeText(input);
   }
   // Build a line-number gutter matching the source's line count. The gutter
   // and <pre> share line-height so they stay aligned row-for-row; both live
@@ -474,13 +574,13 @@ function renderCsvTable(rows) {
   const body = rows.slice(1);
   const ths = header.map((label, i) => {
     const numeric = body.length > 0 && isNumericColumn(body, i);
-    return `<th data-col="${i}" data-sort-type="${numeric ? 'number' : 'string'}" data-state="none" tabindex="0" role="button" aria-label="Sort by ${escapeHtml(label)}"><span class="th-label">${escapeHtml(label)}</span><span class="sort-ind" aria-hidden="true"></span></th>`;
+    return `<th data-col="${i}" data-sort-type="${numeric ? 'number' : 'string'}" data-state="none" tabindex="0" role="button" aria-label="Sort by ${escapeText(label)}"><span class="th-label">${escapeText(label)}</span><span class="sort-ind" aria-hidden="true"></span></th>`;
   }).join('');
   const trs = body.map((row) => {
     const tds = header.map((_, i) => {
       const v = row[i] ?? '';
       const numeric = Number.isFinite(Number(v)) && v !== '';
-      return `<td${numeric ? ' data-numeric="1"' : ''}>${escapeHtml(v)}</td>`;
+      return `<td${numeric ? ' data-numeric="1"' : ''}>${escapeText(v)}</td>`;
     }).join('');
     return `<tr>${tds}</tr>`;
   }).join('');
@@ -795,13 +895,51 @@ function enhanceImages(container) {
   }
 }
 
+// v0.45.0: gallery navigation state. When the lightbox opens, we collect every
+// zoomable image in the same container as the clicked one and track the index.
+// Prev/next buttons + arrow keys move through the gallery; the counter shows
+// "i / n". A single module-level object holds the current gallery so the
+// keydown + button handlers can reach it without closure gymnastics.
+const _lightbox = { images: [], index: -1 };
+
 function openLightbox(img) {
   const overlay = ensureLightbox();
-  const lbImg = overlay.querySelector('img');
-  lbImg.src = img.currentSrc || img.src;
-  lbImg.alt = img.alt || '';
+  // Build the gallery from the clicked image's container so each rendered doc
+  // is its own gallery (a long doc with 50 images won't merge with another).
+  const container = img.closest('.markdown-body') || img.parentElement || document.body;
+  const all = Array.from(container.querySelectorAll('img[data-zoom="1"]'));
+  _lightbox.images = all.length ? all : [img];
+  _lightbox.index = Math.max(0, _lightbox.images.indexOf(img));
+  showLightboxAt(_lightbox.index);
   overlay.classList.add('open');
   document.body.style.overflow = 'hidden';
+}
+
+// Render the image at `index` and update the counter. No-op if out of range.
+function showLightboxAt(index) {
+  if (index < 0 || index >= _lightbox.images.length) return;
+  _lightbox.index = index;
+  const overlay = document.getElementById('mdpeek-lightbox');
+  if (!overlay) return;
+  const img = _lightbox.images[index];
+  const lbImg = overlay.querySelector('img');
+  if (lbImg) {
+    lbImg.src = img.currentSrc || img.src;
+    lbImg.alt = img.alt || '';
+  }
+  const counter = overlay.querySelector('.lb-count');
+  if (counter) {
+    counter.textContent = _lightbox.images.length > 1
+      ? `${index + 1} / ${_lightbox.images.length}`
+      : '';
+  }
+}
+
+// Move ±1 through the gallery, wrapping at the ends.
+function lightboxNav(dir) {
+  if (_lightbox.images.length <= 1) return;
+  const n = _lightbox.images.length;
+  showLightboxAt((_lightbox.index + dir + n) % n);
 }
 
 function closeLightbox() {
@@ -809,6 +947,8 @@ function closeLightbox() {
   if (!overlay || !overlay.classList.contains('open')) return;
   overlay.classList.remove('open');
   document.body.style.overflow = '';
+  _lightbox.images = [];
+  _lightbox.index = -1;
   // Drop the src once faded out so a long data: URL doesn't stay in memory.
   const lbImg = overlay.querySelector('img');
   if (lbImg) lbImg.removeAttribute('src');
@@ -823,13 +963,27 @@ function ensureLightbox() {
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.setAttribute('aria-label', 'Image preview');
-  overlay.innerHTML = '<img alt="" />';
+  // v0.45.0: prev/next arrow buttons + a counter pill join the <img>. The
+  // buttons stopPropagation so the overlay's click-to-close doesn't fire when
+  // the user taps an arrow.
+  overlay.innerHTML = ''
+    + '<button class="lb-prev" type="button" aria-label="Previous image">‹</button>'
+    + '<img alt="" />'
+    + '<button class="lb-next" type="button" aria-label="Next image">›</button>'
+    + '<div class="lb-count" aria-live="polite"></div>';
   overlay.addEventListener('click', closeLightbox);
+  const prev = overlay.querySelector('.lb-prev');
+  const next = overlay.querySelector('.lb-next');
+  prev.addEventListener('click', (e) => { e.stopPropagation(); lightboxNav(-1); });
+  next.addEventListener('click', (e) => { e.stopPropagation(); lightboxNav(1); });
   document.body.appendChild(overlay);
   // Esc closes — but only while open. A one-time document listener is fine
-  // because closeLightbox no-ops when the overlay isn't open.
+  // because closeLightbox no-ops when the overlay isn't open. v0.45.0: arrow
+  // keys move through the gallery when more than one image is present.
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'Escape') { closeLightbox(); return; }
+    if (e.key === 'ArrowLeft') { lightboxNav(-1); return; }
+    if (e.key === 'ArrowRight') { lightboxNav(1); return; }
   });
   return overlay;
 }

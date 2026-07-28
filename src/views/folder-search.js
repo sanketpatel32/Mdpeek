@@ -491,13 +491,13 @@ async function undoReplace() {
 
 // ---------- public API ----------
 export function initFolderSearch(onOpen, { isDirty, updateOpenDoc } = {}) {
-  if (created) return { open, close, destroy };
+  if (created) return { open, close, destroy, searchWith };
   build();
   onOpenCallback = onOpen || null;
   isDirtyCb = isDirty || null;
   updateOpenDocCb = updateOpenDoc || null;
   created = true;
-  return { open, close, destroy };
+  return { open, close, destroy, searchWith };
 }
 
 function open(targetFolderPath) {
@@ -523,6 +523,19 @@ function close() {
   // Cancel any pending search so it doesn't write results after close.
   searchGen += 1;
   clearTimeout(debounceTimer);
+}
+
+// v0.45.0: open the panel pre-seeded with a query and run it immediately.
+// Used by the tag pane so clicking a #tag shows matching files without the
+// user retyping. Mirrors open() but skips the query reset + empty prompt.
+function searchWith(targetFolderPath, initialQuery) {
+  if (!created) return;
+  open(targetFolderPath);
+  if (initialQuery) {
+    input.value = initialQuery;
+    query = initialQuery;
+    runSearch();
+  }
 }
 
 function destroy() {

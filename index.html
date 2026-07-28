@@ -121,6 +121,10 @@
               <span class="ctx-ico" data-icon="clipboard"></span>
               <span class="ctx-label">Copy as HTML</span>
             </button>
+            <button class="ctx-item hidden" id="btn-copy-plaintext" role="menuitem" title="Copy markdown-stripped plain text">
+              <span class="ctx-ico" data-icon="clipboard"></span>
+              <span class="ctx-label">Copy as plain text</span>
+            </button>
             <button class="ctx-item hidden" id="btn-open-browser" role="menuitem" title="Open in system browser">
               <span class="ctx-ico" data-icon="external-link"></span>
               <span class="ctx-label">Open in browser</span>
@@ -250,6 +254,16 @@
                   <button id="editor-outline-close" class="editor-outline-close" type="button" title="Hide outline" aria-label="Hide outline">✕</button>
                 </div>
                 <div id="editor-outline-body" class="editor-outline-body"></div>
+              </aside>
+              <!-- v0.45.0: document statistics panel (word/char/sentence/paragraph
+                   counts + reading/speaking time). Toggled via the command
+                   palette; mirrors the editor-outline aside shape. -->
+              <aside id="doc-stats" class="doc-stats hidden" aria-label="Document statistics">
+                <div class="doc-stats-header">
+                  <span class="doc-stats-title">Statistics</span>
+                  <button id="doc-stats-close" class="doc-stats-close" type="button" title="Hide statistics" aria-label="Hide statistics">✕</button>
+                </div>
+                <div id="doc-stats-body" class="doc-stats-body"></div>
               </aside>
             </div>
             <div id="editor-status" class="editor-status hidden" aria-live="polite"></div>
@@ -959,6 +973,16 @@
                 </div>
                 <div class="setting-row">
                   <div class="setting-text">
+                    <div class="setting-label">Smart paste</div>
+                    <div class="setting-desc">Pasting a URL over a selection makes a markdown link; pasting rich HTML converts tables, lists, and links to markdown (on by default)</div>
+                  </div>
+                  <label class="setting-toggle">
+                    <input type="checkbox" id="settings-smart-paste" />
+                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+                  </label>
+                </div>
+                <div class="setting-row">
+                  <div class="setting-text">
                     <div class="setting-label">Save pasted images beside the doc</div>
                     <div class="setting-desc">Paste/drop an image into a saved doc and it's written to <code>assets/</code> next to the file with a portable relative link (on by default)</div>
                   </div>
@@ -1123,6 +1147,7 @@
                         <tr><td><kbd>Esc</kbd></td><td>Exit focus mode / close find</td></tr>
                         <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd></td><td>Command palette</td></tr>
                         <tr><td><kbd>Ctrl</kbd>+<kbd>P</kbd></td><td>Quick switcher (recent files)</td></tr>
+                        <tr><td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd></td><td>Reopen closed tab</td></tr>
                   </tbody>
                 </table>
               </div>

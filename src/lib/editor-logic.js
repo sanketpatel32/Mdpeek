@@ -643,3 +643,153 @@ function cellContentStart(text, [cs, ce]) {
   while (i < ce && (text[i] === ' ' || text[i] === '\t')) i++;
   return i;
 }
+
+// v0.45.0: detect the contiguous table block (consecutive /^\s*\|.*\|\s*$/
+// lines) surrounding the caret. Returns { startLine, endLine, lines } where
+// lines is the array of table-row strings (without their newlines), or null
+// when the caret is not inside a table. Used by formatTableBlock + sortTableRows.
+function detectTableBlock(text, pos) {
+  const lineStart = text.lastIndexOf('\n', pos - 1) + 1;
+  // Walk backwards to the first non-table line.
+  let s = lineStart;
+  while (s > 0) {
+    const prevStart = text.lastIndexOf('\n', s - 2) + 1;
+    const prevLine = text.slice(prevStart, s - 1); // exclude the newline
+    if (!/^\s*\|.*\|\s*$/.test(prevLine)) break;
+    s = prevStart;
+  }
+  // Walk forwards to the first non-table line.
+  let e = text.indexOf('\n', pos);
+  if (e === -1) e = text.length;
+  let endLineEnd = e;
+  while (endLineEnd < text.length) {
+    const nextStart = endLineEnd + 1;
+    const nextEnd = text.indexOf('\n', nextStart);
+    const nextLineEnd = nextEnd === -1 ? text.length : nextEnd;
+    const nextLine = text.slice(nextStart, nextLineEnd);
+    if (!/^\s*\|.*\|\s*$/.test(nextLine)) break;
+    endLineEnd = nextLineEnd;
+  }
+  const blockText = text.slice(s, endLineEnd);
+  const lines = blockText.split('\n').filter((l) => /^\s*\|.*\|\s*$/.test(l));
+  if (lines.length < 2) return null; // a table needs a header + delimiter at minimum
+  return { startLine: s, endLine: endLineEnd, lines };
+}
+
+// Split a table row into raw cell bodies (the text between the pipes, with the
+// surrounding spaces preserved so alignment can pad them). The leading/trailing
+// pipes are dropped; escaped pipes \| are preserved as-is (caller treats them
+// literally, matching the renderer's behavior). Returns [] if the line isn't
+// a valid row.
+function splitRowCells(line) {
+  const trimmed = line.replace(/^\s+/, '');
+  // Strip exactly one leading and one trailing pipe (the markdown table shape).
+  const inner = trimmed.replace(/^\|/, '').replace(/\|\s*$/, '');
+  // Split on unescaped pipes. A simple scan avoids lookbehind portability
+  // issues some engines have with /\|/ in split().
+  const cells = [];
+  let cur = '';
+  for (let i = 0; i < inner.length; i++) {
+    const ch = inner[i];
+    if (ch === '|' && !(i > 0 && inner[i - 1] === '\\')) {
+      cells.push(cur);
+      cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  cells.push(cur);
+  return cells;
+}
+
+// Format the table block surrounding the caret: pad each cell so columns line
+// up, preserving the delimiter row's alignment markers (:--: etc.). Returns
+// the transformed { text, start, end } or null if the caret isn't in a table.
+// The caret is moved to the start of the formatted block.
+export function formatTableBlock(text, pos) {
+  if (!text || typeof pos !== 'number') return null;
+  const block = detectTableBlock(text, pos);
+  if (!block) return null;
+  const { startLine, endLine, lines } = block;
+  const parsed = lines.map((l) => splitRowCells(l));
+  const colCount = Math.max(...parsed.map((r) => r.length));
+  const widths = new Array(colCount).fill(0);
+  // Compute per-column max content width, skipping the delimiter row (its
+  // cells are dashes — padding those would widen the table for no reason).
+  for (let r = 0; r < parsed.length; r++) {
+    if (r === 1 && isDelimiterRow(parsed[r])) continue;
+    for (let c = 0; c < parsed[r].length; c++) {
+      widths[c] = Math.max(widths[c], parsed[r][c].trim().length);
+    }
+  }
+  // Re-emit each row with padded cells. The delimiter row's dashes are
+  // extended to the column width so the rendered table looks consistent.
+  const out = parsed.map((row, r) => {
+    const padded = [];
+    for (let c = 0; c < colCount; c++) {
+      const cell = (row[c] || '').trim();
+      if (r === 1 && isDelimiterCell(cell)) {
+        padded.push(padDelimiter(cell, widths[c]));
+      } else {
+        padded.push(padCell(cell, widths[c]));
+      }
+    }
+    return `| ${padded.join(' | ')} |`;
+  });
+  const formatted = out.join('\n');
+  const next = text.slice(0, startLine) + formatted + text.slice(endLine);
+  return { text: next, start: startLine, end: startLine };
+}
+
+// Pad a normal cell to `width` with trailing spaces (left-aligned, the GFM
+// default). The one-space padding on each side is added by the joiner in
+// formatTableBlock, so this is just the raw content width.
+function padCell(cell, width) {
+  return cell + ' '.repeat(Math.max(0, width - cell.length));
+}
+function padDelimiter(cell, width) {
+  // Delimiter cells look like :---, ---, :--:, ---. Pad the dashes to width.
+  const m = cell.match(/^(:?)(-*)(:?)$/);
+  if (!m) return padCell(cell, width);
+  const [, left, , right] = m;
+  const target = Math.max(3, width); // min 3 dashes so GFM still sees a delimiter
+  const dashCount = Math.max(0, target - left.length - right.length);
+  return `${left}${'-'.repeat(dashCount)}${right}`;
+}
+function isDelimiterRow(row) {
+  return row.every((c) => isDelimiterCell(c.trim()));
+}
+function isDelimiterCell(cell) {
+  return /^:?-+:?$/.test(cell);
+}
+
+// Sort the body rows of the table surrounding the caret by column `col`
+// (0-indexed) in direction `dir` ('asc' | 'desc'). The header + delimiter
+// rows are kept in place; numeric cells sort numerically, others lexically.
+// Returns the transformed { text, start, end } or null if not in a table.
+export function sortTableRows(text, pos, col = 0, dir = 'asc') {
+  if (!text || typeof pos !== 'number') return null;
+  const block = detectTableBlock(text, pos);
+  if (!block) return null;
+  const { startLine, endLine, lines } = block;
+  if (lines.length < 3) return null; // need header + delimiter + at least one body row
+  const header = lines[0];
+  const delimiter = lines[1];
+  const body = lines.slice(2);
+  const sorted = body.slice().sort((a, b) => {
+    const ca = (splitRowCells(a)[col] || '').trim();
+    const cb = (splitRowCells(b)[col] || '').trim();
+    const na = Number(ca);
+    const nb = Number(cb);
+    let cmp;
+    if (Number.isFinite(na) && Number.isFinite(nb) && ca !== '' && cb !== '') {
+      cmp = na - nb;
+    } else {
+      cmp = ca.localeCompare(cb, undefined, { sensitivity: 'base', numeric: true });
+    }
+    return dir === 'desc' ? -cmp : cmp;
+  });
+  const out = [header, delimiter, ...sorted].join('\n');
+  const next = text.slice(0, startLine) + out + text.slice(endLine);
+  return { text: next, start: startLine, end: startLine };
+}

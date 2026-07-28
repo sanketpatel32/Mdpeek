@@ -16,10 +16,12 @@ import { initAutocomplete } from './views/autocomplete-dropdown.js';
 import { initFileTree, setTreeRoot, setActivePath, refreshTree } from './views/file-tree.js';
 import { initCsvViewer } from './views/csv-viewer.js';
 import { initFolderSearch } from './views/folder-search.js';
+import { initTagPane } from './views/tag-pane.js';
+import { initReferencePane } from './views/reference-pane.js';
 import { initTerminal } from './views/terminal.js';
 import { renderTabs } from './views/tabs.js';
 import { renderIcons } from './lib/icons.js';
-import { toggleTaskLine, taskLineIndex, extractHeadings, buildRelativeImageMarkdown, sortLines } from './lib/editor-logic.js';
+import { toggleTaskLine, taskLineIndex, extractHeadings, buildRelativeImageMarkdown, sortLines, formatTableBlock, sortTableRows } from './lib/editor-logic.js';
 import { docBasename, backlinkQueries, formatBacklinkItems } from './lib/backlinks.js';
 import { extractSpeakerNotes } from './lib/slides.js';
 import { EMOJI_MAP } from './lib/emoji.js';
@@ -28,6 +30,11 @@ import { getTemplates, saveTemplate, deleteTemplate, TEMPLATES_KEY } from './lib
 import { extractDocLinks, classifyLinks } from './lib/link-checker.js';
 import { themeForHour, prefersDarkFromMedia, THEME_MODE_KEY } from './lib/theme-schedule.js';
 import { getDocTheme, setDocTheme, clearDocTheme } from './lib/doc-theme.js';
+import { stripMarkdown } from './lib/strip.js';
+import { computeStats } from './lib/stats.js';
+import { snapshotDoc, pushClosedTab, popClosedTab } from './lib/closed-tabs.js';
+import { smartPaste } from './lib/smart-paste.js';
+import { toSnapshotEntries, formatSnapshotTime } from './lib/snapshots.js';
 // v0.34.1: build-time version for the About + Updates panels. Import is
 // hoisted to module top; the value is written into the DOM early (right after
 // bootMotion) because the Tauri window code further down aborts module
@@ -489,6 +496,9 @@ let _activePdf = null; // controller for the currently-shown PDF (for teardown)
 let _activeExcalidraw = null; // controller for the currently-shown Excalidraw tab
 let _activeImage = null; // controller for the currently-shown annotated image
 let _activeCsv = null; // controller for the currently-shown CSV/TSV table
+// v0.45.0: stack of recently-closed tab snapshots (newest first) for
+// "Reopen closed tab" (Ctrl+Alt+T). Capped at 20 by pushClosedTab.
+let _closedTabs = [];
 
 // Toolbar visibility sync — keeps the header uncluttered by hiding buttons
 // that have no effect in the current context. Called from every renderActive()
@@ -779,6 +789,7 @@ async function renderActive() {
   if (el.reading) el.reading.classList.toggle('hidden', !!doc.plain);
   // v0.44.0: copy-as-HTML, open-in-browser, pin-doc-theme, clear-doc-theme.
   document.getElementById('btn-copy-html')?.classList.toggle('hidden', !!doc.plain);
+  document.getElementById('btn-copy-plaintext')?.classList.toggle('hidden', !!doc.plain);
   document.getElementById('btn-open-browser')?.classList.toggle('hidden', !!doc.plain);
   // Per-doc theme only applies to saved docs (needs a path to key on).
   const hasPath = !!doc.path;
@@ -856,6 +867,12 @@ async function renderActive() {
       outlineEl.classList.toggle('hidden', !want);
       if (want) rebuildEditorOutline();
     }
+    // v0.45.0: restore the stats panel visibility too.
+    if (statsEl) {
+      const wantStats = localStorage.getItem(STATS_KEY) === '1';
+      statsEl.classList.toggle('hidden', !wantStats);
+      if (wantStats) rebuildDocStats();
+    }
     setReadingProgressVisible(false);
   } else {
     el.editMode.classList.add('hidden');
@@ -916,9 +933,11 @@ const palette = initCommandPalette(() => {
     { id: 'forward', label: 'Forward', hint: 'Alt+Right', keywords: 'forward next history navigate', run: goForward },
     { id: 'quick-switch', label: 'Quick switcher (recent files)', hint: 'Ctrl+P', keywords: 'quick switch recent files open', run: () => quickSwitcher.open() },
     { id: 'new', label: 'New tab', hint: 'Ctrl+N', keywords: 'new tab untitled', run: newTab },
+    { id: 'reopen-tab', label: 'Reopen closed tab', hint: 'Ctrl+Alt+T', keywords: 'reopen closed tab recent restore undo', run: reopenClosedTab },
     { id: 'daily', label: 'Open daily note (today\'s .md)', keywords: 'daily note today date journal', run: openDailyNote },
     { id: 'save', label: 'Save', hint: 'Ctrl+S', keywords: 'save write', run: saveActive },
     { id: 'export-html', label: 'Export to HTML', keywords: 'export html self-contained', run: exportHtml },
+    { id: 'export-txt', label: 'Export to plain text (.txt)', keywords: 'export plain text txt strip markdown', run: exportPlainText },
     { id: 'export-pdf', label: 'Export to PDF', keywords: 'export pdf print document', run: exportPdf },
     { id: 'start-presentation', label: 'Start presentation', keywords: 'present slideshow slides deck fullscreen', run: togglePresentation },
     { id: 'start-collab', label: 'Share for live collaboration', keywords: 'collaborate share live pair peer realtime sync', run: openShareModal },
@@ -939,13 +958,18 @@ const palette = initCommandPalette(() => {
     },
     { id: 'copy-rich', label: 'Copy as rich text', hint: 'Ctrl+Shift+C', keywords: 'copy rich html clipboard paste formatted', run: copyAsRichText },
     { id: 'copy-html', label: 'Copy as HTML source', keywords: 'copy html source clipboard paste code cms', run: copyAsHtml },
+    { id: 'copy-plaintext', label: 'Copy as plain text', keywords: 'copy plain text strip markdown clipboard paste notepad', run: copyAsPlainText },
     { id: 'open-in-browser', label: 'Open in browser', keywords: 'open browser external launch chrome firefox edge default', run: openInBrowser },
     { id: 'mode', label: 'Toggle edit / view', hint: 'Ctrl+E', keywords: 'toggle edit view mode', run: toggleMode },
     { id: 'goto-line', label: 'Go to line…', hint: 'Ctrl+G', keywords: 'go to line jump navigate number', run: gotoLine },
     { id: 'sort-asc', label: 'Sort lines A→Z', keywords: 'sort lines ascending alpha arrange order', run: () => sortSelection('asc') },
     { id: 'sort-desc', label: 'Sort lines Z→A', keywords: 'sort lines descending reverse arrange order', run: () => sortSelection('desc') },
+    { id: 'format-table', label: 'Format table', keywords: 'format table align pipes pad cells markdown tidy', run: formatTable },
+    { id: 'sort-table-asc', label: 'Sort table rows ↑ (by column)', keywords: 'sort table rows column ascending', run: () => sortTable('asc') },
+    { id: 'sort-table-desc', label: 'Sort table rows ↓ (by column)', keywords: 'sort table rows column descending', run: () => sortTable('desc') },
     { id: 'goto-heading', label: 'Go to heading…', keywords: 'go to heading jump navigate outline toc h1 h2', run: () => headingPicker.open() },
     { id: 'editor-outline', label: 'Toggle editor outline', keywords: 'editor outline toc headings panel jump navigate', run: toggleEditorOutline },
+    { id: 'doc-stats', label: 'Toggle document statistics', keywords: 'stats statistics words chars sentences paragraphs reading time panel', run: toggleDocStats },
     { id: 'sidebar', label: 'Toggle sidebar (TOC)', hint: 'Ctrl+B', keywords: 'sidebar toc outline', run: toggleSidebar },
     { id: 'find', label: 'Find', hint: 'Ctrl+F', keywords: 'find search', run: () => find.toggle() },
     { id: 'replace', label: 'Find & Replace', hint: 'Ctrl+H', keywords: 'replace substitute find', run: () => find.openReplace() },
@@ -966,7 +990,10 @@ const palette = initCommandPalette(() => {
     { id: 'snippet', label: 'Insert template / snippet', hint: 'Ctrl+Shift+S', keywords: 'snippet template callout table code meeting insert', run: () => snippetPicker.open() },
     { id: 'insert-date', label: 'Insert today\'s date', keywords: 'date time today stamp now insert', run: insertDateAtCursor },
     { id: 'backlinks', label: 'Find backlinks', keywords: 'backlinks links inbound references wiki', run: openBacklinks },
+    { id: 'tag-pane', label: 'Toggle tag pane', keywords: 'tag tags panel filter workspace hashtag', run: toggleTagPane },
+    { id: 'open-beside', label: 'Open doc beside (reference pane)', keywords: 'split side beside reference second doc panel', run: openBeside },
     { id: 'check-links', label: 'Check links (find broken)', keywords: 'check links broken missing dead validate wiki md', run: checkLinks },
+    { id: 'restore-version', label: 'Restore version…', keywords: 'restore version history snapshot backup revert previous', run: restoreSnapshot },
     { id: 'writing-goal', label: 'Set writing goal…', keywords: 'writing goal word count target session words', run: setWritingGoal },
     { id: 'clear-writing-goal', label: 'Clear writing goal', keywords: 'clear remove writing goal word count target', run: clearWritingGoal },
     { id: 'new-from-template', label: 'New from template…', keywords: 'new template create document skeleton starter', run: newFromTemplate },
@@ -982,7 +1009,7 @@ const palette = initCommandPalette(() => {
   const hasDoc = !!doc;
   const collabActive = collab.getStatus().active;
   return cmds.filter((c) => {
-    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks' || c.id === 'sort-asc' || c.id === 'sort-desc' || c.id === 'copy-html' || c.id === 'open-in-browser' || c.id === 'check-links' || c.id === 'writing-goal' || c.id === 'save-as-template' || c.id === 'pin-doc-theme' || c.id === 'clear-doc-theme') && !hasDoc) return false;
+    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-txt' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks' || c.id === 'sort-asc' || c.id === 'sort-desc' || c.id === 'copy-html' || c.id === 'copy-plaintext' || c.id === 'open-in-browser' || c.id === 'check-links' || c.id === 'restore-version' || c.id === 'writing-goal' || c.id === 'save-as-template' || c.id === 'pin-doc-theme' || c.id === 'clear-doc-theme') && !hasDoc) return false;
     if (c.id === 'end-collab' && !collabActive) return false;
     if (c.id === 'start-collab' && collabActive) return false;
     if ((c.id === 'start-collab' || c.id === 'end-collab') && localStorage.getItem('mdpeek-feature-collab') === '0') return false;
@@ -1092,6 +1119,50 @@ const brokenLinkPicker = initQuickSwitcher(
   }
 );
 
+// v0.45.0: Snapshot picker (version history). Items are populated lazily from
+// list_snapshots just before open(); selecting one reads that snapshot's
+// content and opens it in a fresh untitled doc (the live file is NOT
+// overwritten — the user saves explicitly to confirm).
+const snapshotPicker = initQuickSwitcher(
+  () => [],
+  async (item) => {
+    if (!item || !item._ts) return;
+    const doc = store.active();
+    if (!doc || !doc.path) return;
+    try {
+      const content = await invoke('read_snapshot', { path: doc.path, ts: item._ts });
+      store.open({ path: null, content, mode: 'edit' });
+      toast('Snapshot opened in a new tab — save to keep');
+    } catch (e) {
+      toast('Could not read snapshot: ' + fmtErr(e));
+    }
+  }
+);
+
+// v0.45.0: list snapshots for the active doc and open the picker. Requires a
+// saved doc (snapshots are keyed by path).
+async function restoreSnapshot() {
+  const doc = store.active();
+  if (!doc || !doc.path) { toast('Save the doc first to browse its history'); return; }
+  if (!snapshotPicker?.setItems) return;
+  let entries;
+  try {
+    const raw = await invoke('list_snapshots', { path: doc.path });
+    entries = toSnapshotEntries(raw);
+  } catch (e) {
+    toast('Could not list snapshots: ' + fmtErr(e));
+    return;
+  }
+  if (entries.length === 0) { toast('No saved snapshots yet — save the doc to start tracking history'); return; }
+  snapshotPicker.setItems(entries.map((e) => ({
+    label: e.label,
+    hint: e.size,
+    keywords: `${e.label} ${e.size}`,
+    _ts: e.ts,
+  })));
+  snapshotPicker.open();
+}
+
 // Run two parallel `search_in_folder` queries (wiki-link + standard-link
 // forms), dedupe, and open the picker with the results. Requires a saved
 // active doc (to know what to look for) and an open folder (to know where
@@ -1166,6 +1237,21 @@ async function acListTags() {
   }
 }
 
+// v0.45.0: GitHub-compatible slug for in-document heading links. Mirrors the
+// renderer's slugify (lowercase, strip punctuation, whitespace/underscore →
+// hyphen). Used by the heading autocomplete source so the inserted links
+// resolve to the rendered headings' ids.
+function slugifyHeading(text) {
+  const slug = String(text || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  return slug;
+}
+
 async function acGetSources(kind /*, query */) {
   if (kind === 'emoji') return { emojis: EMOJI_MAP };
   if (kind === 'wiki') {
@@ -1177,6 +1263,18 @@ async function acGetSources(kind /*, query */) {
     return { files };
   }
   if (kind === 'tag') return { tags: await acListTags() };
+  // v0.45.0: in-document heading links. Source the headings from the active
+  // doc's editor (view mode has no editor; fall back to doc.content).
+  if (kind === 'heading') {
+    const doc = store.active();
+    if (!doc) return { headings: [] };
+    const text = doc.editor ? doc.editor.getValue() : doc.content || '';
+    // extractHeadings returns { level, text, line }; we add a slug for the
+    // autocomplete value. Reuse the same slugify the renderer does so the
+    // generated links actually resolve.
+    const hs = extractHeadings(text).map((h) => ({ slug: slugifyHeading(h.text), text: h.text, depth: h.level }));
+    return { headings: hs.filter((h) => h.slug) };
+  }
   return {};
 }
 
@@ -1278,6 +1376,16 @@ store.on('change', () => {
   for (const id of navHistory.entries) {
     if (id !== null && !store.docs.find((d) => d.id === id)) {
       navHistory.remove(id);
+    }
+  }
+  // v0.45.0: if the reference pane is open and its source doc was closed,
+  // drop the stale id; otherwise re-render so edits to the source show up.
+  if (_referenceDocId !== null) {
+    if (!store.docs.find((d) => d.id === _referenceDocId)) {
+      _referenceDocId = null;
+      referencePane.close();
+    } else {
+      referencePane.render();
     }
   }
   renderActive().then(() => {
@@ -1439,6 +1547,46 @@ function sortSelection(dir) {
   }
 }
 
+// v0.45.0: format the markdown table the caret is in (align pipes / pad cells).
+function formatTable() {
+  const doc = store.active();
+  if (!doc || doc.mode !== 'edit' || !doc.editor) { toast('Switch to edit mode to format a table'); return; }
+  const { start } = doc.editor.getSelection();
+  const r = formatTableBlock(doc.editor.getValue(), start);
+  if (!r) { toast('Caret is not in a table'); return; }
+  if (r.text === doc.editor.getValue()) return;
+  doc.editor.replaceRange(0, doc.editor.getValue().length, r.text);
+  doc.editor.setState({ start: r.start, end: r.end });
+  doc.content = r.text;
+  store.markDirty(doc.id);
+  persistSoon();
+  scheduleAutoSave();
+}
+
+// v0.45.0: sort the table the caret is in by a column. Prompts for the column
+// index (1-based); falls back to the caret's column when blank.
+function sortTable(dir) {
+  const doc = store.active();
+  if (!doc || doc.mode !== 'edit' || !doc.editor) { toast('Switch to edit mode to sort a table'); return; }
+  const { start } = doc.editor.getSelection();
+  const input = window.prompt(`Sort table by column number (1-based), blank = caret column — ${dir === 'desc' ? 'descending' : 'ascending'}:`);
+  if (input === null) return; // cancelled
+  let col = 0;
+  if (input.trim() !== '') {
+    col = parseInt(input, 10) - 1;
+    if (!Number.isFinite(col) || col < 0) { toast('Invalid column number'); return; }
+  }
+  const r = sortTableRows(doc.editor.getValue(), start, col, dir);
+  if (!r) { toast('Caret is not in a table (or table has no body rows)'); return; }
+  if (r.text === doc.editor.getValue()) return;
+  doc.editor.replaceRange(0, doc.editor.getValue().length, r.text);
+  doc.editor.setState({ start: r.start, end: r.end });
+  doc.content = r.text;
+  store.markDirty(doc.id);
+  persistSoon();
+  scheduleAutoSave();
+}
+
 function newTab() {
   // 'home' (default) opens a welcome-screen tab; an empty untitled view-mode
   // doc naturally renders the welcome screen via renderActive's isEmpty check.
@@ -1451,6 +1599,30 @@ function newTab() {
   } else {
     const plain = fmt === 'text';
     store.open({ path: null, content: '', plain, mode: plain ? 'edit' : modePref });
+  }
+}
+
+// v0.45.0: reopen the most-recently-closed tab. Pops a snapshot off
+// _closedTabs and re-opens it. For a saved file (path !== null) we re-read
+// from disk so external edits show up; if the read fails we fall back to the
+// snapshot content. For an untitled doc we use the snapshot content as-is.
+async function reopenClosedTab() {
+  const { entry, rest } = popClosedTab(_closedTabs);
+  if (!entry) { toast('No recently closed tabs'); return; }
+  _closedTabs = rest;
+  // store.open dedupes by path: if the file is already open, it just switches
+  // to that tab (and we re-push the snapshot so a second Ctrl+Alt+T reopens
+  // the next one). The duplicate check returns the existing doc — fine.
+  if (entry.path) {
+    try {
+      const content = await invoke('read_file', { path: entry.path });
+      await openPath(entry.path, content);
+    } catch {
+      // Read failed (file moved/deleted) — open with the snapshot content.
+      await openPath(entry.path, entry.content);
+    }
+  } else {
+    store.open({ path: null, content: entry.content, plain: entry.plain, code: entry.code, mode: entry.mode || 'edit' });
   }
 }
 
@@ -1490,6 +1662,14 @@ async function closeTab(id) {
       // If the save was cancelled (no path chosen), abort the close.
       if (doc.dirty) return;
     }
+  }
+  // v0.45.0: snapshot the doc for "Reopen closed tab" before we tear it down.
+  // Only snapshot docs worth reopening: a saved path OR non-empty content.
+  // Skip the home screen, blank untitled tabs, and Excalidraw (scene is
+  // JSON; reopening as markdown would be wrong).
+  if ((doc.path || doc.content) && !doc.excalidraw) {
+    const snap = snapshotDoc(doc);
+    if (snap) _closedTabs = pushClosedTab(_closedTabs, snap);
   }
   // Free the editor's event listeners before dropping the doc (the <textarea>
   // is shared; without this, every closed edit-mode tab would leak a listener).
@@ -1535,6 +1715,11 @@ async function closeDocs(ids) {
   for (const id of toClose) {
     const doc = store.docs.find((d) => d.id === id);
     if (!doc) continue;
+    // v0.45.0: snapshot for "Reopen closed tab" (same guard as closeTab).
+    if ((doc.path || doc.content) && !doc.excalidraw) {
+      const snap = snapshotDoc(doc);
+      if (snap) _closedTabs = pushClosedTab(_closedTabs, snap);
+    }
     if (doc.editor) doc.editor.destroy();
     if (_lastRenderedId === id) _lastRenderedId = null;
     store.close(id);
@@ -1601,6 +1786,9 @@ async function saveActive() {
       doc.path = path;
       store.clearDirty(doc.id);
       toast('Saved');
+      // v0.45.0: snapshot for version history (markdown text only; fire-and-
+      // forget — a snapshot miss must never block a save).
+      maybeSnapshot(doc, content);
     } catch (e) {
       if (e !== 'cancelled') toast('Save failed: ' + fmtErr(e));
     }
@@ -1610,9 +1798,20 @@ async function saveActive() {
     await invoke('save_file', { path: doc.path, content });
     store.clearDirty(doc.id);
     toast('Saved');
+    maybeSnapshot(doc, content);
   } catch (e) {
     toast('Save failed: ' + fmtErr(e));
   }
+}
+
+// v0.45.0: write a version-history snapshot for the just-saved doc. Skips
+// non-text docs (Excalidraw scenes, binary). Fire-and-forget — errors are
+// logged but never surface to the user.
+function maybeSnapshot(doc, content) {
+  if (!doc || !doc.path || doc.excalidraw) return;
+  invoke('write_snapshot', { path: doc.path, content }).catch((e) => {
+    console.warn('snapshot failed:', e);
+  });
 }
 
 // ---------- image paste / drop into the editor ----------
@@ -3602,6 +3801,40 @@ async function copyAsHtml() {
   }
 }
 
+// v0.45.0: copy the markdown-stripped plain text (no syntax symbols) so it
+// pastes cleanly into a notepad / chat / form field. Reuses stripMarkdown
+// (the same pipeline wordCount uses).
+async function copyAsPlainText() {
+  const doc = store.active();
+  if (!doc || doc.plain) { toast('Nothing to copy'); return; }
+  if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
+  const plain = stripMarkdown(doc.content).trim();
+  try {
+    await navigator.clipboard.writeText(plain);
+    toast('Copied as plain text');
+  } catch (e) {
+    toast('Copy failed: ' + fmtErr(e));
+  }
+}
+
+// v0.45.0: export the markdown-stripped plain text to a .txt file via a save
+// dialog. Mirrors exportHtml but writes stripped text through save_file_as_text.
+async function exportPlainText() {
+  const doc = store.active();
+  if (!doc || doc.pdf || doc.excalidraw || doc.code || doc.csv) {
+    toast('Export to text is for Markdown documents');
+    return;
+  }
+  if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
+  const plain = stripMarkdown(doc.content).trim();
+  try {
+    await invoke('save_file_as_text', { content: plain });
+    toast('Exported to plain text');
+  } catch (e) {
+    if (e !== 'cancelled') toast('Export failed: ' + fmtErr(e));
+  }
+}
+
 // ---------- open in browser (v0.44.0) ----------
 // Stage the rendered doc as a temp HTML file and hand it to the system browser
 // via the opener plugin. No save dialog — the file lives in the OS temp dir
@@ -4198,6 +4431,87 @@ const folderSearch = initFolderSearch(
   },
 );
 
+// v0.45.0: tag pane. Clicking a tag chip pre-seeds folder-search with `#tag`
+// against the current explorer root. Tags are gathered via acListTags (the
+// same cache the autocomplete uses).
+const tagPane = initTagPane((tag) => {
+  const root = localStorage.getItem('mdpeek-explorer-root');
+  if (!root) { toast('Open a folder first'); return; }
+  // Close the tag pane so the search results are visible.
+  tagPane.close();
+  folderSearch.searchWith(root, `#${tag}`);
+});
+
+async function refreshTagPane() {
+  if (!tagPane?.render) return;
+  const tags = await acListTags();
+  tagPane.render(tags);
+}
+
+async function toggleTagPane() {
+  if (!tagPane?.open) return;
+  // Toggle: if open, close; if closed, refresh + open.
+  const overlay = document.getElementById('tag-pane');
+  if (overlay && !overlay.classList.contains('hidden')) {
+    tagPane.close();
+    return;
+  }
+  const root = localStorage.getItem('mdpeek-explorer-root');
+  if (!root) { toast('Open a folder to gather tags'); return; }
+  await refreshTagPane();
+  tagPane.open();
+}
+
+// v0.45.0: side-by-side reference pane. Keep a second doc rendered read-only
+// beside the active editor. _referenceDocId holds the chosen doc's id; the
+// pane reads it back via getContent so it stays fresh when the doc changes.
+let _referenceDocId = null;
+const referencePane = initReferencePane({
+  getContent: () => {
+    const doc = store.docs.find((d) => d.id === _referenceDocId);
+    if (!doc) return null;
+    const content = doc.mode === 'edit' && doc.editor ? doc.editor.getValue() : doc.content;
+    const name = doc.path ? doc.path.replace(/[\\/]/g, ' / ').split(' / ').pop() : 'Untitled';
+    return { name, content: content || '' };
+  },
+  onNavigate: () => { openReferencePicker(); },
+});
+
+// Picker to choose which open doc to show in the reference pane. Reuses the
+// quick-switcher shape against the open tabs.
+function openReferencePicker() {
+  if (!referencePicker?.setItems) return;
+  const items = store.docs
+    .filter((d) => !d.excalidraw)
+    .map((d) => {
+      const name = d.path ? d.path.replace(/[\\/]/g, ' / ').split(' / ').pop() : 'Untitled';
+      return { label: name, hint: d.id === store.activeId ? 'active' : '', keywords: name, _id: d.id };
+    });
+  if (items.length === 0) { toast('Open a second doc to use as a reference'); return; }
+  referencePicker.setItems(items);
+  referencePicker.open();
+}
+const referencePicker = initQuickSwitcher(
+  () => [],
+  (item) => {
+    if (!item || !item._id) return;
+    _referenceDocId = item._id;
+    referencePane.open();
+  },
+);
+
+function openBeside() {
+  // If a reference doc is already chosen, just toggle the pane; otherwise
+  // open the picker so the user picks one.
+  const overlay = document.getElementById('reference-pane');
+  if (overlay && !overlay.classList.contains('hidden')) { referencePane.close(); return; }
+  if (_referenceDocId && store.docs.find((d) => d.id === _referenceDocId)) {
+    referencePane.open();
+  } else {
+    openReferencePicker();
+  }
+}
+
 async function openFolderForExplorer() {
   try {
     const dir = await invoke('pick_folder');
@@ -4234,16 +4548,9 @@ function toggleExplorer() {
 // each (the standard for mixed CJK/Latin text); Latin words split on
 // whitespace. Reading time assumes 200 wpm.
 function wordCount(text) {
-  const t = (text || '')
-    .replace(/```[\s\S]*?```/g, ' ')   // fenced code blocks
-    .replace(/`[^`]*`/g, ' ')           // inline code
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ') // images
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // links → keep label text
-    .replace(/^#{1,6}\s+/gm, ' ')       // headings
-    .replace(/^\s*[-*+]\s+/gm, ' ')     // list markers
-    .replace(/^\s*\d+\.\s+/gm, ' ')     // numbered lists
-    .replace(/[*_~]+/g, ' ')            // emphasis / strikethrough
-    .replace(/<[^>]+>/g, ' ');          // raw HTML tags
+  // v0.45.0: markdown-stripping regex pipeline factored into src/lib/strip.js
+  // so "Copy as plain text" and the stats panel reuse the same logic.
+  const t = stripMarkdown(text);
   // Latin words = runs of word characters (incl. accented + apostrophes).
   const latin = (t.match(/[\p{L}\p{N}]+(?:['-][\p{L}\p{N}]+)*/gu) || []).length;
   // CJK = each ideograph counts as a word (Hiragana/Katakana/Han/Hangul).
@@ -4317,6 +4624,55 @@ if (outlineEl) {
 // Restore the saved outline state on first render of an edit-mode doc.
 // (Deferred to renderActive via the OUTLINE_KEY check below.)
 
+// --------------------------- doc stats panel (v0.45.0) ---------------------
+// Mirrors the editor-outline aside: a togglable floating panel inside
+// .editor-wrap, rebuilt on every editor change (cheap — pure parse via
+// computeStats). Edit-mode only (view mode already shows the status bar).
+const STATS_KEY = 'mdpeek-doc-stats';
+const statsEl = document.getElementById('doc-stats');
+const statsBody = document.getElementById('doc-stats-body');
+
+function rebuildDocStats() {
+  if (!statsEl || statsEl.classList.contains('hidden')) return;
+  const doc = store.active();
+  if (!doc || doc.mode !== 'edit' || !doc.editor) { statsEl.classList.add('hidden'); return; }
+  const s = computeStats(doc.editor.getValue());
+  const rows = [
+    ['Words', s.words.toLocaleString()],
+    ['Characters', s.chars.toLocaleString()],
+    ['Sentences', s.sentences.toLocaleString()],
+    ['Paragraphs', s.paragraphs.toLocaleString()],
+    ['Avg words / sentence', String(s.avgWordsPerSentence)],
+    ['Long words (6+)', s.longWords.toLocaleString()],
+    ['Reading time', s.readMins > 0 ? `${s.readMins} min` : '—'],
+    ['Speaking time', s.speakMins > 0 ? `${s.speakMins} min` : '—'],
+  ];
+  statsBody.innerHTML = rows
+    .map(([label, value]) => `<div class="stat-label">${escapeHtml(label)}</div><div class="stat-value">${escapeHtml(value)}</div>`)
+    .join('');
+}
+
+function setDocStatsVisible(on) {
+  if (!statsEl) return;
+  statsEl.classList.toggle('hidden', !on);
+  localStorage.setItem(STATS_KEY, on ? '1' : '0');
+  if (on) rebuildDocStats();
+}
+
+function toggleDocStats() {
+  const doc = store.active();
+  if (!doc) { toast('Open a document first'); return; }
+  if (doc.mode !== 'edit') {
+    toast('Switch to edit mode to see statistics');
+    return;
+  }
+  setDocStatsVisible(statsEl?.classList.contains('hidden'));
+}
+
+if (statsEl) {
+  document.getElementById('doc-stats-close')?.addEventListener('click', () => setDocStatsVisible(false));
+}
+
 function updateEditorStatus() {
   if (!el.editorStatus || el.editorStatus.classList.contains('hidden')) return;
   const doc = store.active();
@@ -4324,6 +4680,8 @@ function updateEditorStatus() {
   const { words, chars, readMins } = wordCount(text);
   // v0.44.0: keep the editor outline in sync with edits (cheap — pure parse).
   rebuildEditorOutline();
+  // v0.45.0: keep the stats panel in sync too.
+  rebuildDocStats();
   const savedState = doc && doc.dirty ? 'dirty' : 'saved';
   const savedLabel = doc && doc.dirty ? '· edited' : '· saved';
 
@@ -4632,6 +4990,7 @@ el.save.addEventListener('click', saveActive);
 if (el.export) el.export.addEventListener('click', exportHtml);
 if (el.exportPdf) el.exportPdf.addEventListener('click', exportPdf);
 document.getElementById('btn-copy-html')?.addEventListener('click', copyAsHtml);
+document.getElementById('btn-copy-plaintext')?.addEventListener('click', copyAsPlainText);
 document.getElementById('btn-open-browser')?.addEventListener('click', openInBrowser);
 document.getElementById('btn-pin-doc-theme')?.addEventListener('click', pinCurrentDocTheme);
 document.getElementById('btn-clear-doc-theme')?.addEventListener('click', clearCurrentDocTheme);
@@ -5160,6 +5519,7 @@ const SETTING_KEYS = [
   'mdpeek-tab-size',
   'mdpeek-word-wrap',
   'mdpeek-spellcheck',
+  'mdpeek-smart-paste',
   'mdpeek-image-beside-doc',
   'mdpeek-user-css',
   'mdpeek-reader-toc',
@@ -5238,6 +5598,9 @@ function syncSettingsControls() {
   if (wordWrapCb) wordWrapCb.checked = localStorage.getItem('mdpeek-word-wrap') !== '0';
   const spellcheckCb = document.getElementById('settings-spellcheck');
   if (spellcheckCb) spellcheckCb.checked = localStorage.getItem('mdpeek-spellcheck') === '1';
+  // v0.45.0: smart-paste defaults ON (absence of '0' = on).
+  const smartPasteCb = document.getElementById('settings-smart-paste');
+  if (smartPasteCb) smartPasteCb.checked = localStorage.getItem('mdpeek-smart-paste') !== '0';
 
   // v0.40.0: portable pasted images — save beside the doc + relative link.
   const imageBesideDocCb = document.getElementById('settings-image-beside-doc');
@@ -5549,6 +5912,12 @@ document.getElementById('settings-word-wrap')?.addEventListener('change', (e) =>
 document.getElementById('settings-spellcheck')?.addEventListener('change', (e) => {
   localStorage.setItem('mdpeek-spellcheck', e.target.checked ? '1' : '0');
   applySpellcheck();
+});
+
+// v0.45.0: smart paste — URL→link, HTML→markdown. Default ON ('1' is implied
+// by the absence of '0', so we store '0' only when disabled).
+document.getElementById('settings-smart-paste')?.addEventListener('change', (e) => {
+  localStorage.setItem('mdpeek-smart-paste', e.target.checked ? '1' : '0');
 });
 
 // v0.40.0: pasted/dropped images save beside the doc + use a relative link.
@@ -6001,6 +6370,7 @@ el.editor.addEventListener('paste', (e) => {
   if (!doc || doc.mode !== 'edit' || doc.plain) return;
   const items = e.clipboardData?.items;
   if (!items) return;
+  // Image branch: screenshots / copied pictures → save beside doc + embed.
   for (const item of items) {
     if (item.type.startsWith('image/')) {
       const blob = item.getAsFile();
@@ -6009,6 +6379,27 @@ el.editor.addEventListener('paste', (e) => {
         insertImageFromBlob(blob);
         return;
       }
+    }
+  }
+  // v0.45.0: smart text paste. URL over a selection → markdown link; rich
+  // HTML → markdown. Gated by mdpeek-smart-paste (default on). Falls through
+  // to the browser's default paste when smartPaste returns null.
+  if (localStorage.getItem('mdpeek-smart-paste') === '0') return;
+  const html = e.clipboardData.getData('text/html') || '';
+  const text = e.clipboardData.getData('text/plain') || '';
+  const sel = doc.editor.getSelection();
+  const selText = sel && sel.start !== sel.end ? doc.editor.getValue().slice(sel.start, sel.end) : '';
+  const r = smartPaste({ text, html, sel: { ...sel, text: selText } });
+  if (r) {
+    e.preventDefault();
+    doc.editor.replaceRange(sel.start, sel.end, r.text);
+    doc.editor.setState({ start: r.start, end: r.end });
+    const v = doc.editor.getValue();
+    if (doc.content !== v) {
+      doc.content = v;
+      store.markDirty(doc.id);
+      persistSoon();
+      scheduleAutoSave();
     }
   }
 });
@@ -6261,6 +6652,14 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     e.stopPropagation();
     toggleTypewriter();
+    return;
+  }
+  // v0.45.0: Ctrl+Alt+T → reopen closed tab. (Ctrl+Shift+T is typewriter,
+  // Ctrl+` is terminal, so Alt is the free modifier here.)
+  if ((e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey && (e.key === 'T' || e.key === 't')) {
+    e.preventDefault();
+    e.stopPropagation();
+    reopenClosedTab();
     return;
   }
   // Ctrl+Shift+C → copy as rich text (formatted HTML + plain markdown).

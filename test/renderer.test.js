@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { renderMarkdown, renderCode, expandTocMarker } from '../src/lib/renderer.js';
+import { renderMarkdown, renderCode, expandTocMarker, expandAdmonitions } from '../src/lib/renderer.js';
 
 // Mock the heavy mermaid module so enhanceDom tests are fast and deterministic
 // (don't depend on the real 400KB library loading under load).
@@ -748,5 +748,89 @@ describe('renderMarkdown — definition lists', () => {
     // A colon line with no preceding term line shouldn't become an empty <dl>.
     const html = renderMarkdown(': just a colon line');
     expect(html).not.toContain('<dl>');
+  });
+});
+
+describe('expandAdmonitions — mkDocs !!! syntax (v0.45.0)', () => {
+  it('passes through text with no !!! marker', () => {
+    expect(expandAdmonitions('just a paragraph')).toBe('just a paragraph');
+    expect(expandAdmonitions('')).toBe('');
+  });
+
+  it('rewrites !!! note into a GFM alert blockquote', () => {
+    const md = '!!! note\n    Body line';
+    const out = expandAdmonitions(md);
+    expect(out).toContain('> [!NOTE]');
+    expect(out).toContain('> Body line');
+  });
+
+  it('preserves an optional quoted title', () => {
+    const md = '!!! tip "Pro hint"\n    Use tabs';
+    const out = expandAdmonitions(md);
+    expect(out).toContain('> [!TIP] Pro hint');
+    expect(out).toContain('> Use tabs');
+  });
+
+  it('ends the block at a non-indented line', () => {
+    const md = '!!! warning\n    Inside\nOutside';
+    const out = expandAdmonitions(md);
+    expect(out).toContain('> [!WARNING]');
+    expect(out).toContain('> Inside');
+    // Outside line is NOT prefixed with >
+    expect(out).toContain('\nOutside');
+    expect(out).not.toContain('> Outside');
+  });
+
+  it('maps danger to the CAUTION alert', () => {
+    const out = expandAdmonitions('!!! danger\n    Careful');
+    expect(out).toContain('> [!CAUTION]');
+  });
+
+  it('keeps blank lines within the body as blank blockquote lines', () => {
+    const md = '!!! note\n    Para one\n\n    Para two';
+    const out = expandAdmonitions(md);
+    expect(out).toContain('> Para one');
+    expect(out).toContain('>');
+    expect(out).toContain('> Para two');
+  });
+});
+
+describe('renderMarkdown — admonition end-to-end', () => {
+  it('renders !!! note as a themed alert callout', () => {
+    const html = renderMarkdown('!!! note\n    Hello admonition');
+    expect(html).toContain('markdown-alert');
+    expect(html).toContain('markdown-alert-title');
+    expect(html).toContain('Hello admonition');
+  });
+});
+
+describe('renderMarkdown — image size syntax (v0.45.0)', () => {
+  it('renders a plain image without size attrs (and does not crash on alt)', () => {
+    // Regression: previously the image renderer called an undefined escapeAttr
+    // and threw whenever an image had alt text.
+    const html = renderMarkdown('![my alt](https://x.com/a.png)');
+    expect(html).toContain('<img');
+    expect(html).toContain('alt="my alt"');
+    expect(html).not.toContain('width=');
+  });
+
+  it('renders GitHub "=WxH" title as width/height attrs', () => {
+    const html = renderMarkdown('![alt](https://x.com/a.png "=200x300")');
+    expect(html).toContain('width="200"');
+    expect(html).toContain('height="300"');
+    // The size token is stripped from the title.
+    expect(html).not.toContain('title="=200x300"');
+  });
+
+  it('renders Obsidian "|W" alt as a width attr', () => {
+    const html = renderMarkdown('![alt|300](https://x.com/a.png)');
+    expect(html).toContain('width="300"');
+    expect(html).toContain('alt="alt"');
+  });
+
+  it('escapes quotes in alt text safely', () => {
+    const html = renderMarkdown('![a "b" c](https://x.com/a.png)');
+    expect(html).toContain('&quot;');
+    expect(html).not.toContain('a "b" c');
   });
 });

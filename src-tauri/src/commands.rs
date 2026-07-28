@@ -115,6 +115,24 @@ pub async fn save_file_as_html(content: String) -> Result<String, String> {
     Ok(path_str)
 }
 
+/// Export the active document's markdown-stripped plain text. Shows a save
+/// dialog filtered to .txt; returns the saved path or rejects with "cancelled".
+/// (v0.45.0)
+#[tauri::command]
+pub async fn save_file_as_text(content: String) -> Result<String, String> {
+    let file = rfd::AsyncFileDialog::new()
+        .add_filter("Plain text", &["txt"])
+        .set_file_name("untitled.txt")
+        .save_file()
+        .await
+        .ok_or_else(|| "cancelled".to_string())?;
+
+    let path = file.path().to_path_buf();
+    let path_str = path.display().to_string();
+    fs::write(&path, &content).map_err(|e| e.to_string())?;
+    Ok(path_str)
+}
+
 #[tauri::command]
 pub fn read_file(path: String) -> Result<String, String> {
     // PDFs and images are binary — return empty; the frontend never calls
@@ -869,3 +887,109 @@ fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::
 
 // (The old request/response `run_shell_command` lived here. Removed in v0.23.0
 //  in favor of the real-PTY backend in src/pty.rs — see spawn_terminal.)
+
+// ----------------------------- snapshots (v0.45.0) -------------------------
+// Local version history: each save snapshots the doc's content to a per-path
+// folder under %LOCALAPPDATA%\mdpeek\versions\<hash>\<unix-ms>.md. The folder
+// name is an FNV-1a hash of the absolute path (stable across launches, no
+// crypto needed — it's just a filesystem-safe disambiguator). write_snapshot
+// prunes to the 25 newest per path on every write so storage stays bounded.
+
+/// Resolve the versions root: <appdata>/mdpeek/versions/.
+fn versions_root() -> std::path::PathBuf {
+    let mut path = if let Some(local_app_data) = std::env::var_os("LOCALAPPDATA") {
+        std::path::PathBuf::from(local_app_data)
+    } else if let Some(home) = std::env::var_os("HOME") {
+        std::path::PathBuf::from(home).join(".local").join("share")
+    } else {
+        std::env::temp_dir()
+    };
+    path.push("mdpeek");
+    path.push("versions");
+    path
+}
+
+/// FNV-1a 32-bit hash → lowercase hex. Used only as a stable folder name, so
+/// the small hash width is fine (collisions would just merge two docs'
+/// histories, an acceptable failure for a local-only convenience feature).
+fn fnv1a_hex(s: &str) -> String {
+    let mut h: u32 = 0x811c9dc5;
+    for b in s.as_bytes() {
+        h ^= *b as u32;
+        h = h.wrapping_mul(0x01000193);
+    }
+    format!("{:08x}", h)
+}
+
+#[derive(Serialize)]
+pub struct SnapshotEntry {
+    pub ts: u128,   // unix epoch milliseconds (filename stem)
+    pub size: u64,  // bytes
+}
+
+/// Write a timestamped snapshot of `content` for the doc at `path`. Keeps the
+/// 25 newest snapshots per path (older files are deleted). Returns the number
+/// of snapshots now on disk (handy for a toast). Failures are logged but
+/// non-fatal — a snapshot miss must never block a save.
+#[tauri::command]
+pub fn write_snapshot(path: String, content: String) -> Result<usize, String> {
+    if path.is_empty() {
+        return Err("snapshot needs a path".to_string());
+    }
+    let dir = versions_root().join(fnv1a_hex(&path));
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let file = dir.join(format!("{}.md", ts));
+    fs::write(&file, &content).map_err(|e| e.to_string())?;
+    // Prune to the 25 newest. List entries, sort by filename (timestamp) desc,
+    // delete everything past the cutoff.
+    let mut entries: Vec<std::path::PathBuf> = fs::read_dir(&dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("md"))
+        .collect();
+    entries.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+    const KEEP: usize = 25;
+    for stale in entries.iter().skip(KEEP) {
+        let _ = fs::remove_file(stale);
+    }
+    Ok(entries.len().min(KEEP))
+}
+
+/// List snapshots for the doc at `path`, newest first. Returns an empty vec
+/// when no snapshots exist (e.g. the path was never saved under this build).
+#[tauri::command]
+pub fn list_snapshots(path: String) -> Result<Vec<SnapshotEntry>, String> {
+    if path.is_empty() {
+        return Ok(vec![]);
+    }
+    let dir = versions_root().join(fnv1a_hex(&path));
+    if !dir.exists() {
+        return Ok(vec![]);
+    }
+    let mut entries: Vec<SnapshotEntry> = fs::read_dir(&dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(|e| e.ok())
+        .filter_map(|e| {
+            let p = e.path();
+            let stem = p.file_stem()?.to_string_lossy().parse::<u128>().ok()?;
+            let size = e.metadata().ok()?.len();
+            Some(SnapshotEntry { ts: stem, size })
+        })
+        .collect();
+    entries.sort_by(|a, b| b.ts.cmp(&a.ts));
+    Ok(entries)
+}
+
+/// Read a single snapshot's content back. `ts` is the unix-ms timestamp from
+/// list_snapshots. Returns the file content or an error if it's gone.
+#[tauri::command]
+pub fn read_snapshot(path: String, ts: u128) -> Result<String, String> {
+    let dir = versions_root().join(fnv1a_hex(&path));
+    let file = dir.join(format!("{}.md", ts));
+    fs::read_to_string(&file).map_err(|e| e.to_string())
+}

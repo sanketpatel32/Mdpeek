@@ -166,6 +166,14 @@
   padding: 0.05em 0.2em;
   border-radius: 3px;
 }
+/* v0.45.0: Pandoc subscript/superscript (H~2~O / x^2^). Browsers ship sane
+   defaults (font-size: 0.75em, vertical-align: sub/super); we just nudge the
+   size so it composes cleanly with the body font. */
+.markdown-body sub,
+.markdown-body sup {
+  font-size: 0.75em;
+  line-height: 0;
+}
 .markdown-body img {
   max-width: 100%;
   border-radius: var(--radius);
@@ -210,8 +218,53 @@
   object-fit: contain;
   cursor: zoom-out;
 }
+/* v0.45.0: gallery navigation arrows + counter. The overlay's flex centering
+   keeps the <img> centered; the arrows are pinned to the left/right edges and
+   the counter sits at the bottom-center. Hidden when only one image is shown
+   (renderer clears the counter text in that case; the buttons are harmless
+   but we can leave them — they no-op). */
+.mdpeek-lightbox .lb-prev,
+.mdpeek-lightbox .lb-next {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 120ms ease;
+}
+.mdpeek-lightbox .lb-prev { left: 24px; }
+.mdpeek-lightbox .lb-next { right: 24px; }
+.mdpeek-lightbox .lb-prev:hover,
+.mdpeek-lightbox .lb-next:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+.mdpeek-lightbox .lb-count {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none; /* clicks pass through to the overlay (close) */
+}
 @media (prefers-reduced-motion: reduce) {
   .mdpeek-lightbox { transition: none; }
+  .mdpeek-lightbox .lb-prev,
+  .mdpeek-lightbox .lb-next { transition: none; }
 }
 .markdown-body hr {
   border: none;

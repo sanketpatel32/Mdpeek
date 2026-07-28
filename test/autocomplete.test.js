@@ -142,3 +142,49 @@ describe('acceptSuggestion', () => {
     expect(r.caret).toBe(8);
   });
 });
+
+// v0.45.0: in-document heading links (`](#slug` / `[[#slug`).
+describe('heading-link autocomplete (v0.45.0)', () => {
+  it('detects ](# trigger for a markdown in-doc link', () => {
+    // 'see [Intro](#' — the # is at index 12.
+    expect(detectTrigger('see [Intro](#')).toEqual({ kind: 'heading', query: '', start: 12 });
+  });
+
+  it('detects ](#foo trigger with a partial query', () => {
+    // 'see [Intro](#ins' — the # is at index 12.
+    expect(detectTrigger('see [Intro](#ins')).toEqual({ kind: 'heading', query: 'ins', start: 12 });
+  });
+
+  it('detects [[# trigger for an Obsidian in-doc link', () => {
+    // '[[#' — the # is at index 2.
+    expect(detectTrigger('[[#')).toEqual({ kind: 'heading', query: '', start: 2 });
+  });
+
+  it('does NOT fire on a plain `(http:#` URL', () => {
+    // `(` followed by `#` (no `]` before) isn't an in-doc link.
+    expect(detectTrigger('(http:#frag')).toBeNull();
+  });
+
+  it('does NOT fire on a bare #tag (that is the tag trigger)', () => {
+    // `#foo` not preceded by `](` or `[[` is a tag, not a heading link.
+    expect(detectTrigger('hello #foo')).not.toEqual(expect.objectContaining({ kind: 'heading' }));
+  });
+
+  it('builds candidates matching slug or display text', () => {
+    const headings = [
+      { slug: 'getting-started', text: 'Getting Started', depth: 2 },
+      { slug: 'intro', text: 'Introduction', depth: 1 },
+      { slug: 'advanced', text: 'Advanced Topics', depth: 2 },
+    ];
+    const r = buildCandidates('heading', 'int', { headings });
+    // Matches Introduction (slug 'intro' includes 'int', text includes 'Int').
+    expect(r).toHaveLength(1);
+    expect(r[0]).toEqual({ value: '#intro', display: 'Introduction', hint: 'h1' });
+  });
+
+  it('caps candidates at the limit', () => {
+    const headings = Array.from({ length: 20 }, (_, i) => ({ slug: `h${i}`, text: `H${i}`, depth: 2 }));
+    const r = buildCandidates('heading', '', { headings, limit: 5 });
+    expect(r).toHaveLength(5);
+  });
+});

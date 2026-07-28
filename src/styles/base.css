@@ -1091,6 +1091,78 @@ mark.find-current {
   font-size: 12px;
   text-align: center;
 }
+
+/* v0.45.0: document statistics panel. Same shape as .editor-outline but
+   anchored below it (top: 260px) so both can be open at once without
+   overlapping. The body is a two-column label/value grid. */
+.doc-stats {
+  position: absolute;
+  top: 260px;
+  right: 8px;
+  width: 240px;
+  max-height: calc(100% - 268px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  z-index: 20;
+  overflow: hidden;
+}
+.doc-stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface);
+  user-select: none;
+}
+.doc-stats-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+}
+.doc-stats-close {
+  background: transparent;
+  border: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 12px;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.doc-stats-close:hover {
+  background: var(--surface-hover);
+  color: var(--fg);
+}
+.doc-stats-body {
+  overflow-y: auto;
+  padding: 8px 10px;
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  align-content: start;
+}
+.doc-stats-body .stat-label {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.doc-stats-body .stat-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
 /* Active-line highlight: a thin tinted strip painted behind the textarea on
    the line containing the caret. The position + height are set as CSS vars
    (--active-line-top / --active-line-h) by editor.js on input, scroll, and
@@ -4984,5 +5056,163 @@ body.ws-mode-review .workspace-view .mode-review-only { display: inline-flex; }
 .terminal-mount .xterm-viewport {
   /* Use the app's scrollbar styling rather than xterm's default thin gutter. */
   background-color: transparent !important;
+}
+
+/* v0.45.0: tag pane — a floating side panel listing every #tag in the open
+   folder. Appended to <body> by src/views/tag-pane.js; toggled via the
+   command palette. Clicking a chip pre-seeds folder-search. */
+.tag-pane {
+  position: fixed;
+  top: 48px;            /* below the header */
+  left: 0;
+  bottom: 0;
+  width: 260px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  z-index: 900;         /* above content, below modal (1200) + reader (1150) */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.tag-pane.hidden { display: none; }
+.tag-pane-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface);
+  user-select: none;
+}
+.tag-pane-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+}
+.tag-pane-count {
+  font-size: 11px;
+  color: var(--fg-muted);
+  opacity: 0.7;
+  margin-left: auto;
+}
+.tag-pane-close {
+  background: transparent;
+  border: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 12px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.tag-pane-close:hover { background: var(--surface-hover); color: var(--fg); }
+.tag-pane-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+.tag-pane-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tag-pane-empty {
+  padding: 16px 12px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  text-align: center;
+}
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.tag-chip:hover {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* v0.45.0: reference pane — a floating read-only rendered view of a second
+   document, shown beside the editor. Anchored to the right edge so it doesn't
+   clash with the live preview pane. Appended to <body> by
+   src/views/reference-pane.js. */
+.reference-pane {
+  position: fixed;
+  top: 48px;
+  right: 0;
+  bottom: 0;
+  width: 38%;
+  min-width: 320px;
+  max-width: 640px;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  z-index: 900;            /* above content, below modal (1200) */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.reference-pane.hidden { display: none; }
+.ref-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface);
+  user-select: none;
+}
+.ref-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.ref-actions {
+  display: flex;
+  gap: 2px;
+}
+.ref-actions button {
+  background: transparent;
+  border: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 14px;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ref-actions button:hover { background: var(--surface-hover); color: var(--fg); }
+.ref-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.ref-empty {
+  padding: 24px;
+  color: var(--fg-muted);
+  font-size: 13px;
+  text-align: center;
 }
 

@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-07-28
+
+### Added — 13 more features
+
+A second feature-batch, grouped into rendering polish, editor power, and a few
+larger workspace features. Every feature is additive (no existing behavior
+removed) and verified by a fresh test suite (+166 tests, 33 files, 779 total).
+
+**Markdown rendering**
+
+- **Subscript / superscript** — Pandoc `H~2~O` and `x^2^` syntax now render as
+  `<sub>`/`<sup>`. Subscript uses a marked tokenizer extension; superscript
+  runs as a string-level pre-pass (marked's inline text tokenizer otherwise
+  eats `^` as a plain char). Skips fenced/inline code, and `^…^` containing
+  `$` is left for KaTeX.
+- **`!!! note` admonitions** — mkDocs/Material/Obsidian `!!! type` blocks now
+  render as the same themed callouts the GFM `> [!NOTE]` alerts use. Recognizes
+  the full mkDocs type set (`note`, `tip`, `info`, `warning`, `caution`,
+  `danger`, `success`, …); unknown types fall back to the NOTE icon but keep
+  their keyword in the title.
+- **Image-size syntax** — both GitHub `![alt](src "=200x300")` and Obsidian
+  `![alt|300](src)` now emit `width`/`height` attributes, with the size token
+  stripped from the displayed alt/title.
+- **Copy as plain text + Export to .txt** — copies/exports the
+  markdown-stripped plain text (no syntax symbols). The stripping regex
+  pipeline was factored out of `wordCount` into a shared, tested
+  `stripMarkdown` helper.
+
+**Editor**
+
+- **Reopen closed tab (Ctrl+Alt+T)** — a stack of recently-closed tabs (capped
+  at 20, deduped by path) lets you undo an accidental close, just like every
+  browser/editor.
+- **Table formatter + sort-by-column** — new "Format table" command aligns
+  pipes and pads cells (preserving `:--:` alignment markers); "Sort table
+  rows ↑/↓" sorts body rows by a chosen column (numeric-aware, keeps the
+  header + delimiter rows in place).
+- **Smart paste** — pasting a URL over a selection now makes a markdown link;
+  pasting rich HTML (a copied table, list, or styled text) converts it to
+  markdown. Default-on; toggle in Settings → Editor. Image paste still wins
+  when an image is on the clipboard.
+- **Heading-link autocomplete** — typing `](#` or `[[#` suggests the current
+  doc's heading slugs (matched against both slug and display text).
+- **Image gallery navigation** — the click-to-zoom lightbox now has ‹ › arrow
+  buttons + arrow-key navigation across every image in the doc, with an
+  `i / n` counter pill.
+
+**Workspace**
+
+- **Local version history** — every save now writes a timestamped snapshot to
+  `%LOCALAPPDATA%\mdpeek\versions\`, pruned to the 25 newest per file. The new
+  "Restore version…" command lists snapshots (relative time + size) and opens
+  one in a fresh tab — the live file is never auto-overwritten.
+- **Tag pane** — a side panel listing every `#tag` across the open folder
+  (reuses the existing tag-gathering cache). Click a chip to pre-seed
+  folder-search with `#tag`.
+- **Side-by-side reference pane** — open a second doc rendered read-only
+  beside the active editor ("Open doc beside"). Read-only by design: a fully
+  editable second pane would need a CodeMirror swap. The pane re-renders when
+  its source doc changes and clears if that doc is closed.
+- **Document statistics panel** — a togglable panel with paragraphs, sentences,
+  average sentence length, long-word count, and estimated reading + speaking
+  time, alongside the existing word/char counts.
+
+### Fixed
+
+- **Latent image-renderer crash** — the `image()` renderer called an undefined
+  `escapeAttr` helper, which threw on every image with an alt or title. Now
+  uses the shared `escapeHtml` (correct for attribute values); the local
+  text-only escaper was renamed `escapeText` to disambiguate.
+
 ## [0.44.0] - 2026-07-28
 
 ### Added — Everything from the audit (11 features)
