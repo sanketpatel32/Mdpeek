@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { replaceSubSup, expandSuperscript } from '../src/lib/subsup.js';
+import { replaceSubSup, expandSuperscript, expandSpoilers } from '../src/lib/subsup.js';
 import { renderMarkdown } from '../src/lib/renderer.js';
 
 describe('replaceSubSup — pure helper', () => {
@@ -74,5 +74,50 @@ describe('expandSuperscript — preprocessor', () => {
   });
   it('skips superscript when body looks like math ($)', () => {
     expect(expandSuperscript('a^$x$^')).toBe('a^$x$^');
+  });
+});
+
+// ---------- v0.46.0: spoilers (||secret||) ----------
+describe('expandSpoilers (v0.46.0)', () => {
+  it('passes through text with no || marker', () => {
+    expect(expandSpoilers('just a sentence')).toBe('just a sentence');
+    expect(expandSpoilers('')).toBe('');
+  });
+
+  it('wraps ||secret|| in a spoiler span', () => {
+    expect(expandSpoilers('the ||secret|| is out')).toBe(
+      'the <span class="spoiler">secret</span> is out',
+    );
+  });
+
+  it('wraps multiple adjacent spoilers', () => {
+    expect(expandSpoilers('||a|| ||b||')).toBe(
+      '<span class="spoiler">a</span> <span class="spoiler">b</span>',
+    );
+  });
+
+  it('skips fenced code blocks', () => {
+    const md = '```\n||code||\n```\n||real||';
+    const out = expandSpoilers(md);
+    expect(out).toContain('||code||'); // code untouched
+    expect(out).toContain('<span class="spoiler">real</span>');
+  });
+
+  it('skips inline code spans', () => {
+    expect(expandSpoilers('run `||x||` then ||y||')).toBe(
+      'run `||x||` then <span class="spoiler">y</span>',
+    );
+  });
+
+  it('does NOT match GFM table delimiter rows', () => {
+    // A table row like `| a | b |` has pipes adjacent to the cell text; the
+    // lookbehind/lookahead on `|` keep it from being read as a spoiler.
+    const md = '| a | b |\n|---|---|\n| 1 | 2 |';
+    expect(expandSpoilers(md)).toBe(md);
+  });
+
+  it('renders spoiler end-to-end via renderMarkdown', () => {
+    const html = renderMarkdown('The ||password|| is hidden.');
+    expect(html).toContain('<span class="spoiler">password</span>');
   });
 });

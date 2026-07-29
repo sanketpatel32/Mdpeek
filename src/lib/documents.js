@@ -233,6 +233,34 @@ export class DocumentStore {
     this._emit('change');
   }
 
+  // v0.46.0: Close every non-pinned tab except the given one. Pinned tabs
+  // survive (matching closeDocs semantics). The active tab is preserved; if it
+  // was among the closed, the given tab becomes active. Emits a single change.
+  closeOthers(id) {
+    if (!this.docs.some((d) => d.id === id)) return;
+    const before = this.docs.length;
+    this.docs = this.docs.filter((d) => d.pinned || d.id === id);
+    if (this.docs.length === before) return; // nothing removed
+    if (!this.docs.some((d) => d.id === this.activeId)) this.activeId = id;
+    this._emit('change');
+  }
+
+  // v0.46.0: Close every non-pinned tab AFTER the given one in the tab order.
+  // No-op if the given tab is last. Emits a single change.
+  closeToRight(id) {
+    const idx = this.docs.findIndex((d) => d.id === id);
+    if (idx === -1) return;
+    const before = this.docs.length;
+    // Keep docs[0..idx] plus any pinned docs regardless of position.
+    this.docs = this.docs.filter((d, i) => i <= idx || d.pinned);
+    if (this.docs.length === before) return;
+    if (!this.docs.some((d) => d.id === this.activeId)) {
+      // The active was among the closed — fall back to the anchor tab.
+      this.activeId = id;
+    }
+    this._emit('change');
+  }
+
   // Plain-serializable snapshot for persistence.
   serialize() {
     return {

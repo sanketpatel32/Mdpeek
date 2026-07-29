@@ -23,6 +23,11 @@ import {
   tableCellNav,
   formatTableBlock,
   sortTableRows,
+  transposeChars,
+  joinLine,
+  convertList,
+  selectLine,
+  deriveNoteTitle,
 } from '../src/lib/editor-logic.js';
 
 // helper: apply a logic result to verify text + caret in one assertion
@@ -884,5 +889,152 @@ describe('sortTableRows (v0.45.0)', () => {
   it('returns null for a table with no body rows (header + delimiter only)', () => {
     const md = '| a | b |\n| - | - |';
     expect(sortTableRows(md, 3, 0, 'asc')).toBeNull();
+  });
+});
+
+// ---------- v0.46.0: transpose chars (B1) ----------
+describe('transposeChars (v0.46.0)', () => {
+  it('swaps the two chars around the caret mid-line', () => {
+    // caret between a|b → ba
+    const r = transposeChars('ab', 1);
+    expect(r.text).toBe('ba');
+    expect(r.start).toBe(2);
+  });
+
+  it('swaps the last two chars when caret is at line end', () => {
+    // 'hello' with caret at end (pos 5) → 'helol'
+    const r = transposeChars('hello', 5);
+    expect(r.text).toBe('helol');
+    expect(r.start).toBe(5);
+  });
+
+  it('is a no-op at the start of a line', () => {
+    const r = transposeChars('abc', 0);
+    expect(r.text).toBe('abc');
+  });
+
+  it('is a no-op on a single-char line', () => {
+    const r = transposeChars('a', 1);
+    expect(r.text).toBe('a');
+  });
+
+  it('swaps at the end of a mid-doc line', () => {
+    const text = 'abc\ndef';
+    // caret at end of 'abc' (pos 3, on the \n) → swap last two chars 'bc' → 'cb'
+    const r = transposeChars(text, 3);
+    expect(r.text).toBe('acb\ndef');
+  });
+});
+
+// ---------- v0.46.0: join line (B2) ----------
+describe('joinLine (v0.46.0)', () => {
+  it('joins the current line with the next via a single space', () => {
+    const r = joinLine('hello\nworld', 2);
+    expect(r.text).toBe('hello world');
+    expect(r.start).toBe(6);
+  });
+
+  it('collapses the next line leading whitespace to one space', () => {
+    const r = joinLine('a\n    b', 1);
+    expect(r.text).toBe('a b');
+  });
+
+  it('is a no-op on the last line', () => {
+    const r = joinLine('hello', 2);
+    expect(r.text).toBe('hello');
+  });
+
+  it('trims trailing whitespace on the left part', () => {
+    const r = joinLine('hello   \nworld', 5);
+    expect(r.text).toBe('hello world');
+  });
+});
+
+// ---------- v0.46.0: convert list type (B3) ----------
+describe('convertList (v0.46.0)', () => {
+  it('converts bullets to ordered and renumbers', () => {
+    const r = convertList('- a\n- b\n- c', 0, 100, 'ordered');
+    expect(r.text).toBe('1. a\n2. b\n3. c');
+  });
+
+  it('converts ordered to bullets', () => {
+    const r = convertList('1. a\n2. b', 0, 100, 'bullet');
+    expect(r.text).toBe('- a\n- b');
+  });
+
+  it('auto-detects direction when to=auto', () => {
+    const r1 = convertList('- a\n- b', 0, 100, 'auto');
+    expect(r1.text).toBe('1. a\n2. b');
+    const r2 = convertList('1. a\n2. b', 0, 100, 'auto');
+    expect(r2.text).toBe('- a\n- b');
+  });
+
+  it('normalizes mixed markers to a single kind', () => {
+    const r = convertList('- a\n* b\n+ c', 0, 100, 'ordered');
+    expect(r.text).toBe('1. a\n2. b\n3. c');
+  });
+
+  it('adds the prefix to non-list lines', () => {
+    const r = convertList('plain\ntext', 0, 100, 'bullet');
+    expect(r.text).toBe('- plain\n- text');
+  });
+
+  it('preserves indentation on sub-items', () => {
+    const r = convertList('- a\n  - sub', 0, 100, 'ordered');
+    expect(r.text).toBe('1. a\n  2. sub');
+  });
+});
+
+// ---------- v0.46.0: select line (B4) ----------
+describe('selectLine (v0.46.0)', () => {
+  it('selects the whole caret line on first press', () => {
+    const r = selectLine('hello\nworld', 2);
+    expect(r.start).toBe(0);
+    expect(r.end).toBe(5);
+  });
+
+  it('extends to the next line on repeat', () => {
+    const text = 'aaa\nbbb\nccc';
+    // indices: 'aaa'=0-2, \n=3, 'bbb'=4-6, \n=7, 'ccc'=8-10
+    // first press at pos 2 (line 'aaa') → select [0,3)
+    const first = selectLine(text, 2, { anchor: 2, extend: false });
+    expect(first.start).toBe(0);
+    expect(first.end).toBe(3); // \n after 'aaa'
+    // repeat: anchor stays at 2, current pos at 3 → extend end to next \n (7)
+    const repeat = selectLine(text, first.end, { anchor: 2, extend: true });
+    expect(repeat.start).toBe(0);
+    expect(repeat.end).toBe(7); // \n after 'bbb'
+  });
+
+  it('does not extend past EOF', () => {
+    const text = 'aaa\nbbb'; // 'aaa'=0-2, \n=3, 'bbb'=4-6 (no trailing \n)
+    const first = selectLine(text, 1, { anchor: 1, extend: false });
+    expect(first.end).toBe(3); // \n after 'aaa'
+    const repeat = selectLine(text, first.end, { anchor: 1, extend: true });
+    // No line after 'bbb' → end is text.length (7)
+    expect(repeat.end).toBe(7);
+  });
+});
+
+// ---------- v0.46.0: derive note title (B5) ----------
+describe('deriveNoteTitle (v0.46.0)', () => {
+  it('uses the first ATX heading text', () => {
+    expect(deriveNoteTitle('# My Title\nbody')).toBe('My Title');
+  });
+
+  it('falls back to the first non-empty line', () => {
+    expect(deriveNoteTitle('first line here\nsecond')).toBe('first line here');
+  });
+
+  it('returns Untitled for empty input', () => {
+    expect(deriveNoteTitle('')).toBe('Untitled');
+    expect(deriveNoteTitle('   \n  ')).toBe('Untitled');
+  });
+
+  it('truncates long titles', () => {
+    const long = 'A'.repeat(100);
+    const out = deriveNoteTitle(long);
+    expect(out.length).toBe(60);
+    expect(out.endsWith('…')).toBe(true);
   });
 });

@@ -516,4 +516,47 @@ describe('DocumentStore', () => {
     expect(store.docs[1].plain).toBe(false);
     expect(store.docs[1].mode).toBe('view');
   });
+
+  // ---------- v0.46.0: closeOthers / closeToRight ----------
+  it('closeOthers keeps the anchor and pinned tabs, removes the rest', () => {
+    const a = store.open({ path: '/a.md', content: 'a' });
+    const b = store.open({ path: '/b.md', content: 'b' });
+    const c = store.open({ path: '/c.md', content: 'c' });
+    store.setPinned(a.id, true); // a is pinned, survives
+    store.closeOthers(b.id);
+    expect(store.docs.map((d) => d.id)).toEqual([a.id, b.id]);
+  });
+
+  it('closeOthers activates the anchor if the active was closed', () => {
+    const a = store.open({ path: '/a.md', content: 'a' });
+    const b = store.open({ path: '/b.md', content: 'b' });
+    store.activeId = a.id; // active will be removed
+    store.closeOthers(b.id);
+    expect(store.activeId).toBe(b.id);
+  });
+
+  it('closeToRight removes only tabs after the anchor', () => {
+    const a = store.open({ path: '/a.md', content: 'a' });
+    const b = store.open({ path: '/b.md', content: 'b' });
+    const c = store.open({ path: '/c.md', content: 'c' });
+    store.closeToRight(a.id); // closes b and c
+    expect(store.docs.map((d) => d.id)).toEqual([a.id]);
+  });
+
+  it('closeToRight is a no-op when the anchor is last', () => {
+    const a = store.open({ path: '/a.md', content: 'a' });
+    const b = store.open({ path: '/b.md', content: 'b' });
+    const before = store.docs.length;
+    store.closeToRight(b.id);
+    expect(store.docs.length).toBe(before);
+  });
+
+  it('closeToRight preserves pinned tabs even after the anchor', () => {
+    const a = store.open({ path: '/a.md', content: 'a' });
+    const b = store.open({ path: '/b.md', content: 'b' });
+    const c = store.open({ path: '/c.md', content: 'c' });
+    store.setPinned(c.id, true); // pinned, sits first; b is unpinned after a
+    store.closeToRight(a.id);
+    expect(store.docs.map((d) => d.id)).toEqual([c.id, a.id]);
+  });
 });

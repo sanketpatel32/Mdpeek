@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { renderMarkdown, renderCode, expandTocMarker, expandAdmonitions } from '../src/lib/renderer.js';
+import { renderMarkdown, renderCode, expandTocMarker, expandAdmonitions, expandCollapsible } from '../src/lib/renderer.js';
 
 // Mock the heavy mermaid module so enhanceDom tests are fast and deterministic
 // (don't depend on the real 400KB library loading under load).
@@ -801,6 +801,49 @@ describe('renderMarkdown — admonition end-to-end', () => {
     expect(html).toContain('markdown-alert');
     expect(html).toContain('markdown-alert-title');
     expect(html).toContain('Hello admonition');
+  });
+});
+
+describe('expandCollapsible — mkDocs ??? syntax (v0.46.0)', () => {
+  it('passes through text with no ??? marker', () => {
+    expect(expandCollapsible('just a paragraph')).toBe('just a paragraph');
+    expect(expandCollapsible('')).toBe('');
+  });
+
+  it('emits a collapsed <details> with the type as default summary', () => {
+    const out = expandCollapsible('??? note\n    Hidden body');
+    expect(out).toContain('<details');
+    expect(out).not.toContain('<details open');
+    expect(out).toContain('<summary>');
+    expect(out).toContain('note');
+    expect(out).toContain('Hidden body');
+    expect(out).toContain('</details>');
+  });
+
+  it('emits an open <details> with ???+ and a quoted title', () => {
+    const out = expandCollapsible('???+ tip "Expand me"\n    Body line');
+    // The `open` attribute sits after the class attr: `<details class="…" open>`.
+    expect(out).toMatch(/<details[^>]* open/);
+    expect(out).toContain('Expand me');
+    expect(out).toContain('Body line');
+  });
+
+  it('preserves multi-line indented bodies', () => {
+    const md = '??? note\n    First\n    Second';
+    const out = expandCollapsible(md);
+    expect(out).toContain('First');
+    expect(out).toContain('Second');
+  });
+});
+
+describe('renderMarkdown — collapsible end-to-end (v0.46.0)', () => {
+  it('renders ??? as a native <details> block', () => {
+    const html = renderMarkdown('??? note "Click"\n    Secret content');
+    expect(html).toContain('<details');
+    expect(html).toContain('<summary>');
+    expect(html).toContain('Click');
+    expect(html).toContain('Secret content');
+    expect(html).toContain('</details>');
   });
 });
 

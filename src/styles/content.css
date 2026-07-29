@@ -174,6 +174,76 @@
   font-size: 0.75em;
   line-height: 0;
 }
+/* v0.46.0: Markdown Extra abbreviations. Browsers natively tooltip the title
+   on hover; the dotted underline signals the term is defined. */
+.markdown-body abbr[title] {
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+/* v0.46.0: Collapsible mkDocs `???` admonitions render as native <details>.
+   Styled to echo the GFM alert callouts (bordered surface) without colliding
+   with them. The summary carries the alert icon + title. */
+.markdown-body details.mdpeek-collapsible {
+  margin: 1em 0;
+  padding: 0.75em 1em;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.markdown-body details.mdpeek-collapsible > summary {
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+/* Keep the native disclosure triangle off (we rely on the summary text); show
+   a marker only when collapsed so the affordance reads as "click to expand". */
+.markdown-body details.mdpeek-collapsible > summary::-webkit-details-marker { display: none; }
+.markdown-body details.mdpeek-collapsible:not([open]) > summary::before {
+  content: '▸';
+  color: var(--fg-muted);
+}
+.markdown-body details.mdpeek-collapsible[open] > summary { margin-bottom: 0.5em; }
+.markdown-body details.mdpeek-collapsible > summary svg { color: var(--accent); }
+/* v0.46.0: Task-list progress header ("✓ n/m" + bar) injected above each task
+   list by enhanceTaskProgress. Reads like a project tracker. */
+.markdown-body .task-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  margin: 0.4em 0 0.2em 1.5em; /* line up with the list bullet column */
+  font-size: 0.85em;
+  color: var(--fg-muted);
+}
+.markdown-body .task-progress-track {
+  width: 120px;
+  height: 6px;
+  background: var(--surface-hover);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.markdown-body .task-progress-bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width var(--dur-1) var(--ease);
+}
+.markdown-body .task-progress-count { font-variant-numeric: tabular-nums; }
+/* v0.46.0: Discord-style spoilers. The text is masked by setting the text
+   color to the surface color; clicking toggles `.revealed` to reveal it. */
+.markdown-body .spoiler {
+  background: var(--surface-hover);
+  color: transparent;
+  border-radius: 3px;
+  padding: 0 0.2em;
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--dur-1) var(--ease);
+}
+.markdown-body .spoiler.revealed { color: inherit; }
 .markdown-body img {
   max-width: 100%;
   border-radius: var(--radius);

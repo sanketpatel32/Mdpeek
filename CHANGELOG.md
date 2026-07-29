@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-07-28
+
+### Added — 11 more features
+
+A third feature-batch, again grouped into rendering polish, editor power, and
+workspace niceties. Every feature is additive (no existing behavior removed)
+and verified by a fresh test suite (+59 tests, 838 total). One planned feature
+(scrollspy) turned out to already exist — it was dropped from this batch after
+verification.
+
+**Markdown rendering**
+
+- **Abbreviations** — Markdown Extra `*[ABBR]: expansion` reference syntax now
+  renders `<abbr title="…">` with a native hover tooltip. Whole-word
+  occurrences are wrapped via a string-level pre-pass that skips fenced/inline
+  code and link destinations, and longest keys match first so `AB`/`ABC`
+  coexist cleanly.
+- **Collapsible `???` admonitions** — mkDocs/Material `??? note "Title"`
+  (collapsed) and `???+ note "Title"` (open) render as native `<details>`/
+  `<summary>` pairs, themed to echo the GFM alert callouts. A sibling to the
+  non-collapsible `!!!` syntax; the two don't collide.
+- **Task-list progress indicator** — every GFM task list now shows a "n/m"
+  counter and a progress bar above it, recomputed on each render. Reads like a
+  mini project tracker inline in your notes.
+- **Spoilers** — Discord/Reddit `||secret||` syntax renders as a click-to-reveal
+  redacted span. Implemented as a string-level pre-pass (marked's inline text
+  tokenizer eats `|`, same reason as superscript); the body guard keeps GFM
+  table delimiter rows from being mistaken for spoilers.
+
+**Editor**
+
+- **Transpose characters (Ctrl+T)** — classic Unix-editing keybind: swaps the
+  two characters around the caret (or the last two when at line end).
+- **Join lines (Ctrl+J)** — joins the current line with the next, collapsing
+  the next line's leading whitespace to a single space.
+- **Convert list type** — new "Convert list → bullets" / "→ numbered" commands
+  toggle selected line(s) between `- `/`* `/`+ ` and `1. ` markers, renumbering
+  ordered lists sequentially and preserving indentation.
+- **Select current line (Ctrl+L)** — first press selects the whole caret line;
+  a second press within 1.5s extends the selection one line down.
+- **Extract selection to new note** — cuts the selection into a new untitled
+  markdown tab and leaves a markdown link to it in place of the selection.
+  Great for refactoring long notes into linked sub-notes.
+
+**Workspace**
+
+- **Close other / Close to the right (palette)** — the tab context menu already
+  had these; they're now also reachable from the command palette (Close other
+  tabs, Close tabs to the right, Close all tabs) for keyboard users.
+- **Document insights panel** — the stats side panel gains a "Word insights"
+  subsection: top-8 words (stopwords filtered), unique-word count, lexical
+  diversity (unique/total), and the longest sentence. Backed by a new tested
+  `computeInsights` helper.
+
 ## [0.45.0] - 2026-07-28
 
 ### Added — 13 more features

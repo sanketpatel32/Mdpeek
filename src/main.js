@@ -21,7 +21,7 @@ import { initReferencePane } from './views/reference-pane.js';
 import { initTerminal } from './views/terminal.js';
 import { renderTabs } from './views/tabs.js';
 import { renderIcons } from './lib/icons.js';
-import { toggleTaskLine, taskLineIndex, extractHeadings, buildRelativeImageMarkdown, sortLines, formatTableBlock, sortTableRows } from './lib/editor-logic.js';
+import { toggleTaskLine, taskLineIndex, extractHeadings, buildRelativeImageMarkdown, sortLines, formatTableBlock, sortTableRows, convertList, deriveNoteTitle } from './lib/editor-logic.js';
 import { docBasename, backlinkQueries, formatBacklinkItems } from './lib/backlinks.js';
 import { extractSpeakerNotes } from './lib/slides.js';
 import { EMOJI_MAP } from './lib/emoji.js';
@@ -31,7 +31,7 @@ import { extractDocLinks, classifyLinks } from './lib/link-checker.js';
 import { themeForHour, prefersDarkFromMedia, THEME_MODE_KEY } from './lib/theme-schedule.js';
 import { getDocTheme, setDocTheme, clearDocTheme } from './lib/doc-theme.js';
 import { stripMarkdown } from './lib/strip.js';
-import { computeStats } from './lib/stats.js';
+import { computeStats, computeInsights } from './lib/stats.js';
 import { snapshotDoc, pushClosedTab, popClosedTab } from './lib/closed-tabs.js';
 import { smartPaste } from './lib/smart-paste.js';
 import { toSnapshotEntries, formatSnapshotTime } from './lib/snapshots.js';
@@ -934,6 +934,9 @@ const palette = initCommandPalette(() => {
     { id: 'quick-switch', label: 'Quick switcher (recent files)', hint: 'Ctrl+P', keywords: 'quick switch recent files open', run: () => quickSwitcher.open() },
     { id: 'new', label: 'New tab', hint: 'Ctrl+N', keywords: 'new tab untitled', run: newTab },
     { id: 'reopen-tab', label: 'Reopen closed tab', hint: 'Ctrl+Alt+T', keywords: 'reopen closed tab recent restore undo', run: reopenClosedTab },
+    { id: 'close-others', label: 'Close other tabs', keywords: 'close others tabs keep active only', run: () => { const d = store.active(); if (d) ctxAction('close-others', d.id); } },
+    { id: 'close-right', label: 'Close tabs to the right', keywords: 'close right tabs after', run: () => { const d = store.active(); if (d) ctxAction('close-right', d.id); } },
+    { id: 'close-all', label: 'Close all tabs', keywords: 'close all tabs every', run: () => ctxAction('close-all', store.active()?.id) },
     { id: 'daily', label: 'Open daily note (today\'s .md)', keywords: 'daily note today date journal', run: openDailyNote },
     { id: 'save', label: 'Save', hint: 'Ctrl+S', keywords: 'save write', run: saveActive },
     { id: 'export-html', label: 'Export to HTML', keywords: 'export html self-contained', run: exportHtml },
@@ -967,6 +970,9 @@ const palette = initCommandPalette(() => {
     { id: 'format-table', label: 'Format table', keywords: 'format table align pipes pad cells markdown tidy', run: formatTable },
     { id: 'sort-table-asc', label: 'Sort table rows ↑ (by column)', keywords: 'sort table rows column ascending', run: () => sortTable('asc') },
     { id: 'sort-table-desc', label: 'Sort table rows ↓ (by column)', keywords: 'sort table rows column descending', run: () => sortTable('desc') },
+    { id: 'convert-list-bullet', label: 'Convert list → bullets', keywords: 'convert list bullet unordered dash asterisk', run: () => convertListSelection('bullet') },
+    { id: 'convert-list-ordered', label: 'Convert list → numbered', keywords: 'convert list ordered numbered ol', run: () => convertListSelection('ordered') },
+    { id: 'extract-note', label: 'Extract selection to new note', keywords: 'extract selection new note refactor link', run: extractSelectionToNote },
     { id: 'goto-heading', label: 'Go to heading…', keywords: 'go to heading jump navigate outline toc h1 h2', run: () => headingPicker.open() },
     { id: 'editor-outline', label: 'Toggle editor outline', keywords: 'editor outline toc headings panel jump navigate', run: toggleEditorOutline },
     { id: 'doc-stats', label: 'Toggle document statistics', keywords: 'stats statistics words chars sentences paragraphs reading time panel', run: toggleDocStats },
@@ -1585,6 +1591,58 @@ function sortTable(dir) {
   store.markDirty(doc.id);
   persistSoon();
   scheduleAutoSave();
+}
+
+// v0.46.0: convert the selected line(s) between bullet and ordered list
+// markers. `to` is 'bullet' | 'ordered' | 'auto' (auto flips based on the first
+// marked line). Mirrors sortSelection's shape.
+function convertListSelection(to) {
+  const doc = store.active();
+  if (!doc || doc.mode !== 'edit' || !doc.editor) {
+    toast('Switch to edit mode to convert a list');
+    return;
+  }
+  const { start, end } = doc.editor.getSelection();
+  const r = convertList(doc.editor.getValue(), start, end, to);
+  if (r.text === doc.editor.getValue()) return;
+  doc.editor.replaceRange(0, doc.editor.getValue().length, r.text);
+  doc.editor.setState({ start: r.start, end: r.end });
+  if (doc.content !== r.text) {
+    doc.content = r.text;
+    store.markDirty(doc.id);
+    persistSoon();
+    scheduleAutoSave();
+  }
+}
+
+// v0.46.0: extract the selection into a new untitled markdown note and leave a
+// markdown link to it in place of the selection. The new tab's title is derived
+// from the extracted content (first heading / first line). Useful for
+// refactoring long notes into linked sub-notes.
+function extractSelectionToNote() {
+  const doc = store.active();
+  if (!doc || doc.mode !== 'edit' || !doc.editor) {
+    toast('Switch to edit mode to extract a note');
+    return;
+  }
+  const { start, end } = doc.editor.getSelection();
+  if (start === end) { toast('Select the text to extract first'); return; }
+  const text = doc.editor.getValue();
+  const selection = text.slice(start, end);
+  const title = deriveNoteTitle(selection);
+  // Open a new markdown tab with the extracted content, in edit mode.
+  store.open({ path: null, content: selection, mode: 'edit' });
+  // Replace the selection in the source doc with a link. The link points at
+  // the derived title (the user will save the new tab under a matching name).
+  const link = `[${title}](${title.replace(/\s+/g, '%20')}.md)`;
+  const next = text.slice(0, start) + link + text.slice(end);
+  doc.editor.replaceRange(0, doc.editor.getValue().length, next);
+  doc.editor.setState({ start, end: start + link.length });
+  doc.content = next;
+  store.markDirty(doc.id);
+  persistSoon();
+  scheduleAutoSave();
+  toast(`Extracted to new note: ${title}`);
 }
 
 function newTab() {
@@ -4636,7 +4694,8 @@ function rebuildDocStats() {
   if (!statsEl || statsEl.classList.contains('hidden')) return;
   const doc = store.active();
   if (!doc || doc.mode !== 'edit' || !doc.editor) { statsEl.classList.add('hidden'); return; }
-  const s = computeStats(doc.editor.getValue());
+  const text = doc.editor.getValue();
+  const s = computeStats(text);
   const rows = [
     ['Words', s.words.toLocaleString()],
     ['Characters', s.chars.toLocaleString()],
@@ -4647,9 +4706,25 @@ function rebuildDocStats() {
     ['Reading time', s.readMins > 0 ? `${s.readMins} min` : '—'],
     ['Speaking time', s.speakMins > 0 ? `${s.speakMins} min` : '—'],
   ];
+  // v0.46.0: word-insights subsection — top words + lexical diversity. Gated on
+  // the mdpeek-doc-insights setting (default on).
+  const wantInsights = localStorage.getItem('mdpeek-doc-insights') !== '0';
+  let insightsHtml = '';
+  if (wantInsights) {
+    const ins = computeInsights(text, { topN: 8 });
+    const topChips = ins.topWords
+      .map(({ word, n }) => `<span class="stat-chip">${escapeHtml(word)} <em>${n}</em></span>`)
+      .join('');
+    insightsHtml =
+      `<div class="stat-section-title">Word insights</div>` +
+      `<div class="stat-chips">${topChips || '<span class="stat-empty">No words yet</span>'}</div>` +
+      `<div class="stat-label">Unique words</div><div class="stat-value">${ins.uniqueWords.toLocaleString()}</div>` +
+      `<div class="stat-label">Lexical diversity</div><div class="stat-value">${ins.lexicalDiversity}</div>` +
+      `<div class="stat-label">Longest sentence</div><div class="stat-value">${ins.longestSentence} words</div>`;
+  }
   statsBody.innerHTML = rows
     .map(([label, value]) => `<div class="stat-label">${escapeHtml(label)}</div><div class="stat-value">${escapeHtml(value)}</div>`)
-    .join('');
+    .join('') + insightsHtml;
 }
 
 function setDocStatsVisible(on) {

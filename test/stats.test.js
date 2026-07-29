@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeStats } from '../src/lib/stats.js';
+import { computeStats, computeInsights } from '../src/lib/stats.js';
 
 describe('computeStats', () => {
   it('counts words and chars for a simple sentence', () => {
@@ -56,5 +56,54 @@ describe('computeStats', () => {
     const s = computeStats('one two three. four five six.');
     expect(s.sentences).toBe(2);
     expect(s.avgWordsPerSentence).toBe(3);
+  });
+});
+
+// ---------- v0.46.0: document insights ----------
+describe('computeInsights (v0.46.0)', () => {
+  it('counts word frequency, highest first', () => {
+    const r = computeInsights('cat dog cat bird cat dog');
+    expect(r.topWords[0]).toEqual({ word: 'cat', n: 3 });
+    expect(r.topWords[1]).toEqual({ word: 'dog', n: 2 });
+    expect(r.topWords[2]).toEqual({ word: 'bird', n: 1 });
+  });
+
+  it('filters out common English stopwords', () => {
+    // 'the' / 'is' are stopwords; 'guitar' is the real subject.
+    const r = computeInsights('the guitar is the best guitar');
+    const words = r.topWords.map((t) => t.word);
+    expect(words).toContain('guitar');
+    expect(words).not.toContain('the');
+    expect(words).not.toContain('is');
+  });
+
+  it('counts unique words', () => {
+    const r = computeInsights('apple banana apple cherry');
+    // unique latin words: apple, banana, cherry → 3
+    expect(r.uniqueWords).toBe(3);
+  });
+
+  it('computes lexical diversity as a 0–1 ratio', () => {
+    // 'a a a b' → 2 unique / 4 total = 0.5
+    const r = computeInsights('cat cat cat dog');
+    expect(r.lexicalDiversity).toBe(0.5);
+  });
+
+  it('finds the longest sentence by word count', () => {
+    const r = computeInsights('short. this is a longer sentence with more words.');
+    expect(r.longestSentence).toBe(8);
+  });
+
+  it('handles empty input', () => {
+    const r = computeInsights('');
+    expect(r.topWords).toEqual([]);
+    expect(r.uniqueWords).toBe(0);
+    expect(r.lexicalDiversity).toBe(0);
+    expect(r.longestSentence).toBe(0);
+  });
+
+  it('respects the topN limit', () => {
+    const r = computeInsights('cat dog bird fish horse cow', { topN: 3 });
+    expect(r.topWords.length).toBe(3);
   });
 });

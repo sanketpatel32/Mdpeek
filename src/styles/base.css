@@ -1163,6 +1163,41 @@ mark.find-current {
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
+/* v0.46.0: word-insights subsection (top words as chips + diversity stats). */
+.doc-stats-body .stat-section-title {
+  grid-column: 1 / -1;
+  margin-top: 0.5em;
+  padding-top: 0.5em;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+}
+.doc-stats-body .stat-chips {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 0.25em;
+}
+.doc-stats-body .stat-chip {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: var(--surface-hover);
+  color: var(--fg-secondary);
+}
+.doc-stats-body .stat-chip em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--accent);
+  margin-left: 3px;
+}
+.doc-stats-body .stat-empty {
+  font-size: 11px;
+  color: var(--fg-muted);
+}
 /* Active-line highlight: a thin tinted strip painted behind the textarea on
    the line containing the caret. The position + height are set as CSS vars
    (--active-line-top / --active-line-h) by editor.js on input, scroll, and

@@ -13,6 +13,9 @@ import {
   moveLines,
   toggleComment,
   tableCellNav,
+  transposeChars,
+  joinLine,
+  selectLine,
 } from '../lib/editor-logic.js';
 
 // Wire a textarea to a live-preview target with debounced re-render, plus the
@@ -26,6 +29,10 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
   let timer = null;
   const listeners = []; // [target, type, fn] — cleaned up in destroy()
   let typewriter = false; // when true, the active line stays vertically centered
+  // v0.46.0: Ctrl+L select-line repeat detection. Tracks the last press time
+  // and the selection anchor so a second Ctrl+L within 1.5s extends downward.
+  let _lastSelectLineAt = 0;
+  let _selectLineAnchor = null;
 
   // Older releases used this class to hide the textarea text and show a second
   // highlighted copy underneath. Always clear stale state so the native
@@ -323,6 +330,41 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
       e.stopPropagation();
       const dir = e.key === 'ArrowUp' ? -1 : 1;
       applyResult(moveLines(textarea.value, s, en, dir));
+      return;
+    }
+    // Ctrl+T → transpose characters around the caret (B1, v0.46.0). Classic
+    // Unix-editing keybind; no-op at line start. Only fires when there's no
+    // selection (transpose is a caret operation).
+    if (ctrl && !e.shiftKey && (e.key === 't' || e.key === 'T') && s === en) {
+      e.preventDefault();
+      e.stopPropagation();
+      applyResult(transposeChars(textarea.value, s));
+      return;
+    }
+    // Ctrl+J → join current line with the next (B2, v0.46.0). No-op on the
+    // last line. Caret lands at the join point.
+    if (ctrl && !e.shiftKey && e.key === 'j' && s === en) {
+      e.preventDefault();
+      e.stopPropagation();
+      applyResult(joinLine(textarea.value, s));
+      return;
+    }
+    // Ctrl+L → select the current line (B4, v0.46.0). First press selects the
+    // whole line; repeat within 1.5s extends the selection one line down.
+    if (ctrl && !e.shiftKey && (e.key === 'l' || e.key === 'L')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const now = Date.now();
+      const isRepeat = _lastSelectLineAt && (now - _lastSelectLineAt < 1500) && _selectLineAnchor != null;
+      if (isRepeat) {
+        const r = selectLine(textarea.value, en, { anchor: _selectLineAnchor, extend: true });
+        textarea.setSelectionRange(r.start, r.end);
+      } else {
+        const r = selectLine(textarea.value, s, { anchor: s, extend: false });
+        textarea.setSelectionRange(r.start, r.end);
+        _selectLineAnchor = r.start;
+      }
+      _lastSelectLineAt = now;
       return;
     }
 

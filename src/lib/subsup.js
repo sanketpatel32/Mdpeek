@@ -81,6 +81,40 @@ export function markedSubSup() {
   };
 }
 
+// v0.46.0: Discord/Reddit spoilers — `||secret||` → redacted, click-to-reveal.
+//
+// Like `^` for superscript, `|` is NOT in marked's GFM inline-text stop-set
+// (`[\\<!\\[`*~_]`), so a tokenizer extension never fires — marked eats
+// `||x||` as plain text. We use a string-level pre-pass instead, mirroring
+// `expandSuperscript` exactly (fence-split, skip fenced/inline code).
+//
+// The body regex `(?<!\|)\|\|([^\n|]+)\|\|(?!\|)` requires:
+//   - no `|` adjacent to the opening/closing `||` (prevents matching the
+//     pipe-delimiter rows of a GFM table — `| a | b |` is never a spoiler),
+//   - a body with no newline and no `|` (single-line, no nested pipes).
+//
+// Pure + DOM-free so it can be unit-tested in isolation.
+export function expandSpoilers(md) {
+  if (!md || md.indexOf('||') === -1) return md;
+  const fenceRe = /```[\s\S]*?```|`[^`\n]*`/g;
+  const out = [];
+  let last = 0;
+  let m;
+  while ((m = fenceRe.exec(md)) !== null) {
+    out.push(spoilerReplace(md.slice(last, m.index)));
+    out.push(m[0]); // preserve code verbatim
+    last = m.index + m[0].length;
+  }
+  out.push(spoilerReplace(md.slice(last)));
+  return out.join('');
+}
+
+// Apply the spoiler replacement to a single code-free span. The lookbehind/
+// lookahead on `|` keep table-delimiter rows (`|---|`) from matching.
+function spoilerReplace(s) {
+  return s.replace(/(?<!\|)\|\|([^\n|]+)\|\|(?!\|)/g, '<span class="spoiler">$1</span>');
+}
+
 function buildSubExt() {
   // Body must be non-empty, single-line, not contain `~`, and start with a
   // non-space + non-`~` char (keeps `~~strikethrough~~` from being misread;

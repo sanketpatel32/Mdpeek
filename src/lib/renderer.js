@@ -12,9 +12,10 @@ import markedFootnote from 'marked-footnote';
 import { markedEmojiExt } from './emoji.js';
 import { markedHighlightExt } from './highlight.js';
 import { markedDefinitionLists } from './definition-lists.js';
-import { markedSubSup, expandSuperscript } from './subsup.js';
+import { markedSubSup, expandSuperscript, expandSpoilers } from './subsup.js';
 import { parseImageSize } from './image-size.js';
 import { escapeHtml } from './escape.js';
+import { extractAbbreviations, applyAbbreviations } from './abbreviations.js';
 
 // Local escapeText — escapes only & < > (NOT quotes). Used for TEXT CONTENT
 // (code block bodies, mermaid source). Deliberately different from the shared
@@ -211,6 +212,67 @@ export function expandAdmonitions(md) {
   }
   return out.join('\n');
 }
+
+// v0.46.0: mkDocs/Material collapsible admonitions.
+//
+//   ??? note "Click me"      → collapsed by default
+//   ???+ note "Click me"     → open by default
+//
+// followed by an indented body, become a native <details>/<summary> pair with
+// the body rendered as normal markdown. The summary carries the mapped GFM
+// alert icon (same icon set as `!!!` admonitions). The body markdown is
+// rendered inline by marked because we emit it inside the <details> wrapper
+// as a raw HTML block (marked passes raw HTML through).
+//
+// This is a sibling of `!!!` (non-collapsible). The syntaxes don't collide:
+// `!!!` is always-on, `???` is collapsible.
+//
+// Gated on `???` so zero cost otherwise. Mirrors expandAdmonitions exactly:
+// optional `"title"` (defaults to the type keyword), indented body, trailing
+// blank lines left for the surrounding doc.
+export function expandCollapsible(md) {
+  if (!md || md.indexOf('???') === -1) return md;
+  const lines = md.split('\n');
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    // `???` (collapsed) or `???+` (open), then a type keyword, then optional
+    // quoted title.
+    const m = lines[i].match(/^(\?\?\?)(\+)?\s+([A-Za-z][\w-]*)(?:\s+"([^"]*)")?\s*$/);
+    if (!m) { out.push(lines[i]); i++; continue; }
+    const open = m[2] === '+';
+    const kind = m[3];
+    const title = m[4] || kind;
+    const alertType = alertTypeFor(kind);
+    const icon = ALERT_TYPES[alertType] || '';
+    // Collect the indented body (same rule as expandAdmonitions).
+    i++;
+    const body = [];
+    let blanks = [];
+    while (i < lines.length) {
+      const line = lines[i];
+      if (/^\s*$/.test(line)) { blanks.push(line); i++; continue; }
+      const bodyM = line.match(/^( {1,8}|\t)(.*)$/);
+      if (!bodyM) break;
+      for (const b of blanks) body.push('');
+      blanks = [];
+      body.push(bodyM[2]);
+      i++;
+    }
+    for (const b of blanks) out.push(b);
+    // Emit the raw HTML block. marked passes well-formed raw HTML through, and
+    // the body lines (now dedented) re-parse as markdown inside the block.
+    const openAttr = open ? ' open' : '';
+    const bodyHtml = body.join('\n');
+    out.push(`<details class="mdpeek-collapsible"${openAttr}><summary>${icon}${title}</summary>`);
+    out.push('');
+    out.push(bodyHtml);
+    out.push('');
+    out.push('</details>');
+  }
+  return out.join('\n');
+}
+
 // GitHub-compatible slug: lowercase, spaces→hyphens, strip everything that
 // isn't alphanumeric or hyphen. Empty result → null (caller falls back).
 function slugify(text) {
@@ -443,25 +505,40 @@ export function renderMarkdown(md) {
 
   // Reset slug dedupe so each render is self-contained.
   _slugCounts = new Map();
+  // v0.46.0: Markdown Extra abbreviation references. Pull the `*[KEY]: exp`
+  // definitions out first (they're removed from the source), then wrap whole-
+  // word occurrences of each key. Gated on `*[` so zero cost otherwise.
+  const { md: abbrCleaned, abbrs } = extractAbbreviations(input);
   // Rewrite mkDocs `!!! type` admonitions into GFM `> [!TYPE]` alerts so the
   // existing blockquote callout renderer themes them. Must run BEFORE the
   // other pre-passes (the `>` prefix we emit could confuse them otherwise).
-  const admExpanded = expandAdmonitions(input);
+  const admExpanded = expandAdmonitions(abbrCleaned);
+  // v0.46.0: Expand mkDocs collapsible `???` admonitions into <details> raw
+  // HTML blocks. Runs after `!!!` (non-collapsible) so the two don't interact.
+  const collExpanded = expandCollapsible(admExpanded);
   // Expand any [[toc]] markers into an inline heading list BEFORE wiki-link
   // preprocessing (otherwise [[toc]] would be rewritten as a wiki-link).
-  const tocExpanded = expandTocMarker(admExpanded);
+  const tocExpanded = expandTocMarker(collExpanded);
   // Expand Pandoc-style superscript `x^2^` → `x<sup>2</sup>` BEFORE marked.
   // Necessary because marked's GFM inline text tokenizer eats `^` as a plain
   // char (it's not in the text stop-set), so a tokenizer extension never
   // gets a chance. Subscript `~` is handled by a marked extension instead
   // (marked stops at `~`). Skips fenced/inline code.
   const supExpanded = expandSuperscript(tocExpanded);
+  // v0.46.0: Expand Discord-style spoilers `||secret||` → <span class="spoiler">.
+  // Runs after superscript (same fence-split reason); gated on `||`.
+  const spoilerExpanded = expandSpoilers(supExpanded);
   // Preprocess Obsidian-style wiki-links: [[Target]] → [Target](Target.md)
   // and [[Target|Display]] → [Display](Target.md). Done before marked so the
   // result is a standard markdown link rendered like any other. Code blocks
   // and inline code are skipped to avoid mangling code that contains [[ ]].
-  const processed = preprocessWikiLinks(supExpanded);
-  const raw = marked.parse(processed, { async: false });
+  const processed = preprocessWikiLinks(spoilerExpanded);
+  // v0.46.0: Apply abbreviation wrapping AFTER all preprocessing (so the
+  // definition-removal and other transforms have run) but BEFORE marked.parse
+  // (so marked sees the <abbr> tags as raw HTML and passes them through). The
+  // wrapper skips fenced/inline code and link destinations.
+  const abbrApplied = abbrs.size > 0 ? applyAbbreviations(processed, abbrs) : processed;
+  const raw = marked.parse(abbrApplied, { async: false });
   const html = DOMPurify.sanitize(raw);
   cacheSet(input, html);
   return html;
@@ -633,6 +710,8 @@ export async function enhanceDom(container, {
   enhanceAnchors(container);
   enhanceImages(container);
   enhanceTaskCheckboxes(container);
+  enhanceTaskProgress(container);
+  enhanceSpoilers(container);
   if (renderFolding) enhanceFolding(container);
   // Kick off dynamic language registration for any fenced langs we don't yet
   // have. Non-blocking — this render stays as-is; the next render picks them up.
@@ -651,6 +730,51 @@ function enhanceTaskCheckboxes(container) {
     if (cb.hasAttribute('disabled')) cb.removeAttribute('disabled');
     if (!cb.hasAttribute('role')) cb.setAttribute('role', 'checkbox');
     if (!cb.hasAttribute('tabindex')) cb.setAttribute('tabindex', '0');
+  });
+}
+
+// v0.46.0: Insert a "✓ n/m" progress header above each GFM task list. Walks
+// every <ul> whose first <li> holds a task checkbox, counts checked/total, and
+// prepends a `.task-progress` div. Idempotent across re-renders (skips any <ul>
+// that already has a `.task-progress` as its previous sibling). The counts
+// recompute on the next re-render after a checkbox toggle (the toggle handler
+// in main.js mutates the source and triggers a re-render).
+function enhanceTaskProgress(container) {
+  const lists = container.querySelectorAll('ul');
+  lists.forEach((ul) => {
+    // Only task lists: the first <li> must contain a task checkbox.
+    const firstLi = ul.querySelector('li');
+    if (!firstLi) return;
+    const firstBox = firstLi.querySelector('input[type="checkbox"]');
+    if (!firstBox) return;
+    // Idempotency: skip if a progress header is already in place.
+    if (ul.previousElementSibling && ul.previousElementSibling.classList.contains('task-progress')) return;
+    const boxes = ul.querySelectorAll('input[type="checkbox"]');
+    const total = boxes.length;
+    if (total === 0) return;
+    const done = Array.from(boxes).filter((b) => b.checked).length;
+    const pct = Math.round((done / total) * 100);
+    const header = document.createElement('div');
+    header.className = 'task-progress';
+    header.innerHTML =
+      `<div class="task-progress-track"><div class="task-progress-bar" style="width:${pct}%"></div></div>` +
+      `<span class="task-progress-count">${done}/${total}</span>`;
+    ul.parentNode.insertBefore(header, ul);
+  });
+}
+
+// v0.46.0: Wire click-to-reveal on `||spoiler||` spans (rendered as
+// `<span class="spoiler">`). One delegated listener per container; toggling
+// `.revealed` unmasks the text via CSS. Idempotent (sets a data flag so a
+// second enhanceDom on the same container doesn't double-bind).
+function enhanceSpoilers(container) {
+  const spoilers = container.querySelectorAll('.spoiler');
+  if (spoilers.length === 0) return;
+  if (container.__spoilerWired) return;
+  container.__spoilerWired = true;
+  container.addEventListener('click', (e) => {
+    const sp = e.target.closest('.spoiler');
+    if (sp && container.contains(sp)) sp.classList.toggle('revealed');
   });
 }
 

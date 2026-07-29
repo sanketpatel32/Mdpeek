@@ -793,3 +793,135 @@ export function sortTableRows(text, pos, col = 0, dir = 'asc') {
   const next = text.slice(0, startLine) + out + text.slice(endLine);
   return { text: next, start: startLine, end: startLine };
 }
+
+// ----------------------- v0.46.0 editor helpers --------------------------
+
+// B1: Transpose (swap) the two characters on either side of the caret.
+// Classic Unix-editing Ctrl+T behavior:
+//   - caret mid-line → swap chars at pos-1 and pos, leave caret at pos+1,
+//   - caret at end of line → swap the last two chars (pos-2/pos-1), caret at
+//     end of line,
+//   - caret at start of line/doc → no-op (nothing to swap on the left).
+// `pos` is a caret position (start === end).
+export function transposeChars(text, pos) {
+  if (!text) return { text, start: pos, end: pos };
+  const lineStart = text.lastIndexOf('\n', pos - 1) + 1;
+  const col = pos - lineStart;
+  // Need at least 2 chars on this line to the left of (or around) the caret.
+  if (col <= 0) {
+    // At the start of a line: no left char. No-op.
+    return { text, start: pos, end: pos };
+  }
+  // At end of line (caret on the \n or at the line's last char): swap the last
+  // two chars of the line. Otherwise swap the chars flanking the caret.
+  const atLineEnd = pos >= text.length || text[pos] === '\n';
+  const a = atLineEnd ? pos - 2 : pos - 1;
+  const b = atLineEnd ? pos - 1 : pos;
+  if (a < lineStart) return { text, start: pos, end: pos }; // single-char line
+  const out = text.slice(0, a) + text[b] + text[a] + text.slice(b + 1);
+  const caret = atLineEnd ? pos : pos + 1;
+  return { text: out, start: caret, end: caret };
+}
+
+// B2: Join the current line with the next: drop the newline between them,
+// collapse the next line's leading whitespace to a single space, and collapse
+// any resulting double space. No-op on the last line. Caret lands at the join
+// point (where the newline was).
+export function joinLine(text, pos) {
+  if (!text) return { text, start: pos, end: pos };
+  const lineEnd = text.indexOf('\n', pos);
+  if (lineEnd === -1) return { text, start: pos, end: pos }; // last line
+  const nextStart = lineEnd + 1;
+  let nextEnd = text.indexOf('\n', nextStart);
+  if (nextEnd === -1) nextEnd = text.length;
+  const leftPart = text.slice(0, lineEnd).replace(/\s+$/, '');
+  const trimmedNext = text.slice(nextStart, nextEnd).replace(/^\s+/, '');
+  // Join with a single space when both sides have content; empty joiner otherwise.
+  const joiner = leftPart && trimmedNext ? ' ' : '';
+  const out = leftPart + joiner + trimmedNext + text.slice(nextEnd);
+  const caret = leftPart.length + joiner.length;
+  return { text: out, start: caret, end: caret };
+}
+
+// B3: Convert the selected line(s) between bullet (`- `/`* `/`+ `) and ordered
+// (`1. `) list markers. `to` is 'bullet' or 'ordered'. Mirrors toggleLinePrefix:
+// operates on every touched line. Ordered output is renumbered sequentially;
+// bullet output normalizes any marker to `- `. Non-list lines gain the prefix.
+// Indent is preserved (sub-lists keep their leading spaces).
+export function convertList(text, start, end, to = 'bullet') {
+  if (!text) return { text, start, end };
+  const [lineStart] = lineRange(text, Math.min(start, end));
+  const blockEnd = Math.max(start, end);
+  const block = text.slice(lineStart, blockEnd);
+  const lines = block.split('\n');
+  // Detect what the block currently is by inspecting the first line's marker.
+  const bulletRe = /^(\s*)([-*+])\s+/;
+  const orderedRe = /^(\s*)(\d+)\.\s+/;
+  // Decide direction if `to` isn't explicit: bullets → ordered, else → bullets.
+  const firstMarked = lines.find((l) => bulletRe.test(l) || orderedRe.test(l));
+  const currentlyBullet = firstMarked ? bulletRe.test(firstMarked) : false;
+  const target = to === 'auto' ? (currentlyBullet ? 'ordered' : 'bullet') : to;
+
+  let counter = 1;
+  const replaced = lines.map((l) => {
+    const b = l.match(bulletRe);
+    const o = l.match(orderedRe);
+    const indent = (b || o) ? (b || o)[1] : (l.match(/^(\s*)/)?.[1] || '');
+    const content = (b || o) ? l.slice((b || o)[0].length) : l.trimStart();
+    if (target === 'ordered') {
+      return `${indent}${counter++}. ${content}`;
+    }
+    return `${indent}- ${content}`;
+  }).join('\n');
+
+  const out = text.slice(0, lineStart) + replaced + text.slice(blockEnd);
+  return { text: out, start: lineStart, end: lineStart + replaced.length };
+}
+
+// B4: Compute a selection that covers the whole caret line. When `extend` is
+// true, the end is pushed to the end of the next line instead (for repeated
+// Ctrl+L). `anchor` is the user's original selection anchor so extension stays
+// anchored at the top. Returns { start, end } only (text is unchanged).
+//
+// Call shape for the editor view:
+//   first Ctrl+L  → selectLine(text, pos, { anchor: pos, extend: false })
+//   repeat        → selectLine(text, currentEnd, { anchor, extend: true })
+export function selectLine(text, pos, { anchor = null, extend = false } = {}) {
+  if (!text) return { start: 0, end: 0 };
+  const base = extend && anchor != null ? Math.max(anchor, pos) : pos;
+  const lineStart = text.lastIndexOf('\n', base - 1) + 1;
+  let lineEnd = text.indexOf('\n', base);
+  if (lineEnd === -1) lineEnd = text.length;
+  // When extending, push the end to the end of the FOLLOWING line (so the
+  // selection grows by one full line each press).
+  if (extend && lineEnd < text.length) {
+    const nextEnd = text.indexOf('\n', lineEnd + 1);
+    lineEnd = nextEnd === -1 ? text.length : nextEnd;
+  }
+  const start = extend && anchor != null ? Math.min(anchor, lineStart) : lineStart;
+  return { start, end: lineEnd };
+}
+
+// B5: Derive a sensible title for an extracted note from its content. Prefers
+// the first ATX heading's text, then the first non-empty line (truncated to
+// 60 chars), finally "Untitled". Pure helper (no DOM).
+export function deriveNoteTitle(text) {
+  if (!text || !text.trim()) return 'Untitled';
+  const lines = text.split('\n');
+  // First ATX heading.
+  for (const ln of lines) {
+    const m = ln.match(/^#{1,6}\s+(.+?)\s*#*\s*$/);
+    if (m) return truncate(m[1]);
+  }
+  // First non-empty, non-front-matter line.
+  for (const ln of lines) {
+    const t = ln.trim();
+    if (t && !t.startsWith('---') && !t.startsWith('+++')) return truncate(t);
+  }
+  return 'Untitled';
+}
+
+function truncate(s, max = 60) {
+  const t = String(s).trim();
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+}
