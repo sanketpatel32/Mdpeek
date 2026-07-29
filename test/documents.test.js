@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DocumentStore, createDocument, isPlainPath, isCodePath, isImagePath, isCsvPath, langFromPath, langForEdit } from '../src/lib/documents.js';
+import { DocumentStore, createDocument, isPlainPath, isCodePath, isImagePath, isCsvPath, isExcalidrawPath, isTLDrawPath, langFromPath, langForEdit } from '../src/lib/documents.js';
 
 describe('createDocument', () => {
   it('creates a doc with defaults', () => {
@@ -248,6 +248,57 @@ describe('createDocument (code flag)', () => {
     const d = createDocument({ path: null, content: 'x = 1', code: true });
     expect(d.code).toBe(true);
     expect(d.mode).toBe('view');
+  });
+});
+
+// ---------- v0.47.0: TLDraw canvas flag ----------
+describe('isTLDrawPath (v0.47.0)', () => {
+  it('matches .tldr (case-insensitive) and rejects near-misses', () => {
+    expect(isTLDrawPath('/notes/board.tldr')).toBe(true);
+    expect(isTLDrawPath('C:\\drawings\\PLAN.TLDR')).toBe(true);
+    expect(isTLDrawPath('/notes/board.tldraw')).toBe(false); // wrong ext
+    expect(isTLDrawPath('/notes/board.excalidraw')).toBe(false);
+    expect(isTLDrawPath(null)).toBe(false);
+    expect(isTLDrawPath('')).toBe(false);
+  });
+});
+
+describe('createDocument — tldraw flag (v0.47.0)', () => {
+  it('derives the flag from a .tldr path and forces view mode', () => {
+    const d = createDocument({ path: '/b.tldr', content: '{"schema":{}}' });
+    expect(d.tldraw).toBe(true);
+    expect(d.mode).toBe('view'); // canvases are always interactive (no edit/view toggle)
+    expect(d.content).toBe('{"schema":{}}'); // JSON content survives (not blanked like images)
+    expect(d.excalidraw).toBe(false);
+    expect(d.code).toBe(false);
+    expect(d.csv).toBe(false);
+  });
+
+  it('honors an explicit tldraw:true override without a path (new-tab-format)', () => {
+    const d = createDocument({ path: null, content: '', tldraw: true });
+    expect(d.tldraw).toBe(true);
+    expect(d.mode).toBe('view');
+  });
+
+  it('excludes TLDraw from csv/code detection', () => {
+    // A .tldr path must NOT also be classified as csv or code.
+    const d = createDocument({ path: '/data.tldr', content: '{}' });
+    expect(d.tldraw).toBe(true);
+    expect(d.csv).toBe(false);
+    expect(d.code).toBe(false);
+  });
+});
+
+describe('DocumentStore — tldraw serialize/restore (v0.47.0)', () => {
+  it('round-trips the tldraw flag through serialize/restore', () => {
+    const store = new DocumentStore();
+    store.open({ path: null, content: '{"x":1}', tldraw: true });
+    const snap = store.serialize();
+    expect(snap.docs[0].tldraw).toBe(true);
+    const store2 = new DocumentStore();
+    store2.restore(snap);
+    expect(store2.docs[0].tldraw).toBe(true);
+    expect(store2.docs[0].mode).toBe('view');
   });
 });
 

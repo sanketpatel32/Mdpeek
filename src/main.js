@@ -8,6 +8,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { showDocument, buildToc } from './views/viewer.js';
 import { showPdf } from './views/pdf-viewer.js';
 import { showExcalidraw } from './views/excalidraw-viewer.js';
+import { showTLDraw } from './views/tldraw-viewer.js';
 import { showImage } from './views/image-viewer.js';
 import { initEditor } from './views/editor.js';
 import { initFindBar } from './views/find-bar.js';
@@ -61,7 +62,7 @@ import {
   nextWidth, prevWidth, nextFont, prevFont, nextTheme, nextFontFamily,
   readingTimeLabel, loadReaderPrefs,
 } from './lib/reading.js';
-import { DocumentStore, isPdfPath, isImagePath, isExcalidrawPath, langFromPath, langForEdit } from './lib/documents.js';
+import { DocumentStore, isPdfPath, isImagePath, isExcalidrawPath, isTLDrawPath, langFromPath, langForEdit } from './lib/documents.js';
 import { renderMarkdown, renderCode, renderCsv, parseCsv, prepareCodeLang, enhanceDom } from './lib/renderer.js';
 import { saveSession, loadSession, loadRecents, addRecent, removeRecent, saveRecents } from './lib/persistence.js';
 import { NavHistory } from './lib/nav-history.js';
@@ -494,6 +495,7 @@ let _lastRenderedId = null;
 let _renderGen = 0; // monotonic counter — guards async loads against stale tabs
 let _activePdf = null; // controller for the currently-shown PDF (for teardown)
 let _activeExcalidraw = null; // controller for the currently-shown Excalidraw tab
+let _activeTLDraw = null; // controller for the currently-shown TLDraw tab (v0.47.0)
 let _activeImage = null; // controller for the currently-shown annotated image
 let _activeCsv = null; // controller for the currently-shown CSV/TSV table
 // v0.45.0: stack of recently-closed tab snapshots (newest first) for
@@ -512,7 +514,7 @@ function syncToolbarForDoc(doc) {
   // Save: only editable docs (markdown / plain / code in any mode). Hide on
   // the welcome screen and for read-only viewers (PDF / image / csv /
   // excalidraw) — there's nothing to write back to disk for those.
-  const editable = !!doc && !doc.pdf && !doc.image && !doc.csv && !doc.excalidraw;
+  const editable = !!doc && !doc.pdf && !doc.image && !doc.csv && !doc.excalidraw && !doc.tldraw;
   el.save.classList.toggle('hidden', !editable);
 }
 
@@ -565,6 +567,12 @@ async function renderActive() {
       _activeExcalidraw.destroy();
       _activeExcalidraw = null;
     }
+    // v0.47.0: Tear down the outgoing TLDraw tab (unmounts React). TLDraw has
+    // no collab binding to detach — collab is Excalidraw-only this release.
+    if (_activeTLDraw) {
+      _activeTLDraw.destroy();
+      _activeTLDraw = null;
+    }
     // Tear down the outgoing CSV viewer (removes its event listeners).
     if (_activeCsv) {
       _activeCsv.destroy();
@@ -595,7 +603,7 @@ async function renderActive() {
   // No doc, or an empty untouched Untitled tab in VIEW mode → show the welcome
   // screen. If the user explicitly switched to edit mode, show the editor even
   // for an empty untitled tab so they can start writing.
-  const isEmpty = !doc || (doc.path === null && doc.content === '' && doc.mode === 'view' && !doc.pdf && !doc.excalidraw && !doc.code && !doc.csv);
+  const isEmpty = !doc || (doc.path === null && doc.content === '' && doc.mode === 'view' && !doc.pdf && !doc.excalidraw && !doc.tldraw && !doc.code && !doc.csv);
   if (isEmpty) {
     el.editMode.classList.add('hidden');
     el.editMode.classList.remove('plain');
@@ -663,6 +671,39 @@ async function renderActive() {
     setReadingProgressVisible(false);
     _activeImage = showImage(el.document, doc.path);
     if (doc.scrollY) el.document.scrollTop = doc.scrollY;
+    return;
+  }
+
+  // v0.47.0: TLDraw — full canvas editor, no edit toggle, no TOC, no Share
+  // (collab is deferred; TLDraw tabs hide the button). Mirrors the Excalidraw
+  // branch below but with the TLDraw viewer + controller.
+  if (doc.tldraw) {
+    el.editMode.classList.add('hidden');
+    el.mode.classList.add('hidden');
+    el.draw.classList.add('hidden');
+    el.export.classList.add('hidden');
+    if (el.exportPdf) el.exportPdf.classList.add('hidden');
+    if (el.present) el.present.classList.add('hidden');
+    if (el.reading) el.reading.classList.add('hidden');
+    // No collab for TLDraw this release — always hide Share.
+    if (el.share) el.share.classList.add('hidden');
+    el.viewMode.classList.remove('hidden');
+    el.toc.innerHTML = '';
+    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'markdown-body');
+    setReadingProgressVisible(false);
+    // showTLDraw is async and lazy-loads React + the TLDraw SDK. The onSave
+    // callback writes the .tldr scene JSON back to doc.content (debounced).
+    showTLDraw(el.document, doc.content, (json) => {
+      doc.content = json;
+      store.markDirty(doc.id);
+      persistSoon();
+    }, document.documentElement.dataset.theme).then((ctrl) => {
+      if (gen !== _renderGen) {
+        ctrl.destroy();
+      } else {
+        _activeTLDraw = ctrl;
+      }
+    }).catch((e) => toast('Could not open TLDraw: ' + fmtErr(e)));
     return;
   }
 
@@ -814,7 +855,7 @@ async function renderActive() {
   // Apply it not just for .txt files (doc.plain) but for ANY non-markdown
   // doc that ends up in edit mode (e.g. code files like .js/.py/.rs). The
   // preview pane only renders markdown, so showing it for code is misleading.
-  const isMarkdown = !doc.plain && !doc.code && !doc.csv && !doc.pdf && !doc.image && !doc.excalidraw;
+  const isMarkdown = !doc.plain && !doc.code && !doc.csv && !doc.pdf && !doc.image && !doc.excalidraw && !doc.tldraw;
   el.editMode.classList.toggle('plain', !isMarkdown);
 
   if (doc.mode === 'edit') {
@@ -909,6 +950,7 @@ const find = initFindBar({
     if (!d) return 'view';
     if (d.pdf) return 'pdf';
     if (d.excalidraw) return 'excalidraw';
+    if (d.tldraw) return 'tldraw';
     if (d.code) return d.mode;
     return d.mode;
   },
@@ -1311,7 +1353,7 @@ function insertSnippetIntoEditor(doc, textToInsert) {
 // inline; view-mode appends. Mirrors the snippet insert path.
 function insertDateAtCursor() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.image || doc.csv) {
+  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.image || doc.csv) {
     toast('Switch to a Markdown document first');
     return;
   }
@@ -1436,7 +1478,7 @@ async function openPath(path, content, opts = {}) {
   // PDFs are read-only binary — no file-watcher (the text-based watcher would
   // choke on bytes, and live-reload isn't meaningful for a PDF).
   // Excalidraw files are JSON but the canvas manages its own state — skip watcher.
-  if (!isPdfPath(path) && !isExcalidrawPath(path)) await rewatch(path);
+  if (!isPdfPath(path) && !isExcalidrawPath(path) && !isTLDrawPath(path)) await rewatch(path);
 }
 
 // Open a file from a search result and jump to a specific line. Reads the
@@ -1452,7 +1494,7 @@ async function openPathAndJump(path, line, query) {
     // After openPath schedules the line jump, also kick off the find bar for
     // markdown view-mode docs so in-document matches are highlighted.
     const doc = store.active();
-    if (doc && !doc.code && !doc.csv && !doc.pdf && !doc.image && !doc.excalidraw && doc.mode === 'view' && query) {
+    if (doc && !doc.code && !doc.csv && !doc.pdf && !doc.image && !doc.excalidraw && !doc.tldraw && doc.mode === 'view' && query) {
       // Wait one tick so renderActive has run.
       setTimeout(() => {
         if (find && query) find.open(query, { caseSensitive: false, focus: false });
@@ -1652,6 +1694,8 @@ function newTab() {
   const modePref = localStorage.getItem('mdpeek-new-tab-mode') || 'view';
   if (fmt === 'excalidraw') {
     store.open({ path: null, content: '', excalidraw: true });
+  } else if (fmt === 'tldraw') {
+    store.open({ path: null, content: '', tldraw: true });
   } else if (fmt === 'home') {
     store.open({ path: null, content: '', mode: 'view' });
   } else {
@@ -1723,9 +1767,9 @@ async function closeTab(id) {
   }
   // v0.45.0: snapshot the doc for "Reopen closed tab" before we tear it down.
   // Only snapshot docs worth reopening: a saved path OR non-empty content.
-  // Skip the home screen, blank untitled tabs, and Excalidraw (scene is
+  // Skip the home screen, blank untitled tabs, and canvases (scene is
   // JSON; reopening as markdown would be wrong).
-  if ((doc.path || doc.content) && !doc.excalidraw) {
+  if ((doc.path || doc.content) && !doc.excalidraw && !doc.tldraw) {
     const snap = snapshotDoc(doc);
     if (snap) _closedTabs = pushClosedTab(_closedTabs, snap);
   }
@@ -1774,7 +1818,7 @@ async function closeDocs(ids) {
     const doc = store.docs.find((d) => d.id === id);
     if (!doc) continue;
     // v0.45.0: snapshot for "Reopen closed tab" (same guard as closeTab).
-    if ((doc.path || doc.content) && !doc.excalidraw) {
+    if ((doc.path || doc.content) && !doc.excalidraw && !doc.tldraw) {
       const snap = snapshotDoc(doc);
       if (snap) _closedTabs = pushClosedTab(_closedTabs, snap);
     }
@@ -1836,6 +1880,11 @@ async function saveActive() {
     const json = _activeExcalidraw.getSceneJSON();
     if (json) doc.content = json;
   }
+  // v0.47.0: same force-flush for TLDraw (the store listener save is debounced).
+  if (doc.tldraw && _activeTLDraw) {
+    const json = _activeTLDraw.getSceneJSON();
+    if (json) doc.content = json;
+  }
   const { content } = doc;
 
   if (!doc.path) {
@@ -1866,7 +1915,7 @@ async function saveActive() {
 // non-text docs (Excalidraw scenes, binary). Fire-and-forget — errors are
 // logged but never surface to the user.
 function maybeSnapshot(doc, content) {
-  if (!doc || !doc.path || doc.excalidraw) return;
+  if (!doc || !doc.path || doc.excalidraw || doc.tldraw) return;
   invoke('write_snapshot', { path: doc.path, content }).catch((e) => {
     console.warn('snapshot failed:', e);
   });
@@ -2004,7 +2053,7 @@ async function exportHljsCss() {
 
 async function exportHtml() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.code || doc.csv) {
+  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.csv) {
     toast('Export to HTML is for Markdown documents');
     return;
   }
@@ -2034,7 +2083,7 @@ async function exportHtml() {
 // as seen on screen.
 async function exportPdf() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.code || doc.image || doc.csv) {
+  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.image || doc.csv) {
     toast('Export to PDF is for Markdown documents');
     return;
   }
@@ -2078,7 +2127,7 @@ function toggleMode() {
   if (doc.plain) return; // plain-text docs have no preview to toggle to
   if (doc.pdf) return;   // PDFs are read-only — no edit mode
   if (doc.image) return; // Images are read-only — no edit mode
-  if (doc.excalidraw) return; // Excalidraw is always interactive — no edit/view toggle
+  if (doc.excalidraw || doc.tldraw) return; // canvases are always interactive — no edit/view toggle
   if (doc.csv) return;        // CSVs are read-only table views — no edit mode
   // Capture content before switching out of edit mode.
   if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
@@ -2154,6 +2203,7 @@ function applyThemeVisuals(next) {
   // Propagate theme to the active Excalidraw tab (if any) so the canvas
   // matches the app's light/dark mode.
   if (_activeExcalidraw) _activeExcalidraw.setTheme(next);
+  if (_activeTLDraw) _activeTLDraw.setTheme(next);
   // Propagate theme to every open terminal so xterm.js recolors to match.
   try { if (terminal?.setTheme) terminal.setTheme(); } catch (e) { console.error('terminal setTheme:', e); }
 }
@@ -2203,7 +2253,7 @@ function togglePresentation() {
 
 function enterPresentation() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.code || doc.image || doc.csv) {
+  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.image || doc.csv) {
     toast('Presentation is for Markdown documents');
     return;
   }
@@ -2386,7 +2436,7 @@ function refreshReaderMeta() {
 
 async function enterReading() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.code || doc.image || doc.csv) {
+  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.image || doc.csv) {
     toast('Reading mode is for Markdown documents');
     return;
   }
@@ -3879,7 +3929,7 @@ async function copyAsPlainText() {
 // dialog. Mirrors exportHtml but writes stripped text through save_file_as_text.
 async function exportPlainText() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.code || doc.csv) {
+  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.csv) {
     toast('Export to text is for Markdown documents');
     return;
   }
@@ -3899,7 +3949,7 @@ async function exportPlainText() {
 // under mdpeek/ and is overwritten on the next open.
 async function openInBrowser() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.code || doc.csv) {
+  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.csv) {
     toast('Open in browser is for Markdown documents');
     return;
   }
@@ -4086,7 +4136,7 @@ function updateNavButtons() {
 // ---------- sidebar (TOC) toggle & visibility ----------
 function syncSidebarVisibility() {
   const doc = store.active();
-  const hasToc = doc && !doc.pdf && !doc.excalidraw && !doc.code && !doc.csv && !doc.plain && doc.mode === 'view';
+  const hasToc = doc && !doc.pdf && !doc.excalidraw && !doc.tldraw && !doc.code && !doc.csv && !doc.plain && doc.mode === 'view';
   
   if (!hasToc) {
     el.toc.classList.add('collapsed');
@@ -4101,7 +4151,7 @@ function syncSidebarVisibility() {
 
 function toggleSidebar() {
   const doc = store.active();
-  const hasToc = doc && !doc.pdf && !doc.excalidraw && !doc.code && !doc.csv && !doc.plain && doc.mode === 'view';
+  const hasToc = doc && !doc.pdf && !doc.excalidraw && !doc.tldraw && !doc.code && !doc.csv && !doc.plain && doc.mode === 'view';
   if (!hasToc) return;
 
   const collapsed = el.toc.classList.toggle('collapsed');
@@ -6181,7 +6231,7 @@ document.addEventListener('click', (e) => {
 function isInternalDocLink(href) {
   if (!href) return false;
   if (/^(https?:|mailto:|tel:|sms:|file:|data:|javascript:)/i.test(href)) return false;
-  return /\.(md|markdown|mdx|txt|pdf|excalidraw)$/i.test(href) || !href.includes('.');
+  return /\.(md|markdown|mdx|txt|pdf|excalidraw|tldr)$/i.test(href) || !href.includes('.');
 }
 
 // Resolve `href` relative to the active doc's folder and open it as a tab.

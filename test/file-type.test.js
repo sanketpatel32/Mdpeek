@@ -48,6 +48,11 @@ describe('fileTypeClass', () => {
     expect(fileTypeClass('log')).toBe('txt');
   });
 
+  it('maps the TLDraw extension to td (v0.47.0)', () => {
+    expect(fileTypeClass('tldr')).toBe('td');
+    expect(fileTypeClass('TLDR')).toBe('td'); // case-insensitive
+  });
+
   it('is case-insensitive', () => {
     expect(fileTypeClass('MD')).toBe('md');
     expect(fileTypeClass('JSON')).toBe('code');
@@ -99,6 +104,12 @@ describe('getFileIconHtml', () => {
     expect(unknown).toContain('<svg');
     expect(unknown).not.toContain('md');
     expect(unknown).not.toContain('pdf');
+  });
+
+  it('renders a TLDraw glyph for the td class (v0.47.0)', () => {
+    const html = getFileIconHtml('td');
+    expect(html).toContain('<svg');
+    expect(html).toContain('file-icon td');
   });
 });
 

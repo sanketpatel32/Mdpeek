@@ -22,6 +22,7 @@ pub async fn open_file() -> Result<OpenResult, String> {
         .add_filter("PDF", &["pdf"])
         .add_filter("Images", &["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif"])
         .add_filter("Excalidraw", &["excalidraw"])
+        .add_filter("TLDraw", &["tldr"])
         .add_filter("All files", &["*"])
         .pick_file()
         .await
@@ -309,7 +310,7 @@ const SEARCH_BINARY_EXTS: &[&str] = &[
     "exe", "dll", "so", "dylib", "class", "jar", "wasm", "o", "a",
     "mp3", "mp4", "mov", "avi", "mkv", "ogg", "wav", "flac", "webm",
     "woff", "woff2", "ttf", "otf", "eot",
-    "excalidraw", "ipynb",
+    "excalidraw", "tldr", "ipynb",
     "db", "sqlite", "sqlite3", "pak",
 ];
 

@@ -23,6 +23,7 @@ export function fileTypeClass(ext) {
   if (['txt', 'log'].includes(ext)) return 'txt';
   if (['pdf'].includes(ext)) return 'pdf';
   if (['excalidraw'].includes(ext)) return 'ex';
+  if (['tldr'].includes(ext)) return 'td';
   if (['csv', 'tsv'].includes(ext)) return 'csv';
   if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp'].includes(ext)) return 'img';
   // Anything with a known language icon is treated as code.
@@ -58,6 +59,11 @@ export function getFileIconHtml(cls, extraClass = '') {
   }
   if (cls === 'ex') {
     return `<svg class="file-icon ex${extra}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="10" height="10" rx="1"/><circle cx="15" cy="15" r="5"/><path d="M13 8h5v5"/></svg>`;
+  }
+  if (cls === 'td') {
+    // v0.47.0: TLDraw glyph — an infinite-canvas board (rounded square with a
+    // horizon line + a node), visually distinct from the Excalidraw glyph.
+    return `<svg class="file-icon td${extra}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15l5-4 4 3 4-5 5 4"/><circle cx="9" cy="8" r="1.4"/></svg>`;
   }
   if (cls === 'txt') {
     return `<svg class="file-icon txt${extra}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="15" x2="14" y2="15"/></svg>`;

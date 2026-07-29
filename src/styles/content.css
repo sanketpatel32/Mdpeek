@@ -894,6 +894,30 @@
   height: 100%;
 }
 
+/* v0.47.0: TLDraw host — same fill-the-pane treatment as Excalidraw. The
+   selector uses the runtime-added `.tldraw-host` class alone (not
+   `.markdown-body.tldraw-host`) because the render branch strips
+   `markdown-body` from #document before mounting. The inner `.tldraw-wrap`
+   (emitted by the viewer) flexes to fill the pane; TLDraw's own `.tl-canvas`
+   handles scrolling/zoom inside it. */
+.tldraw-host {
+  padding: 0;
+  margin: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.tldraw-host > div,
+.tldraw-host .tldraw-wrap {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+}
+
 /* ----------------------------- code viewer ------------------------------- */
 /* Non-markdown source files render as a read-only syntax-highlighted <pre>.
    Always monospace (regardless of the document font pref — code wants mono),

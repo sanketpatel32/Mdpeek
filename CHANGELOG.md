@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-07-29
+
+### Added — TLDraw support
+
+TLDraw (the open-source infinite-canvas whiteboard) is now a first-class document
+type alongside Excalidraw. Open/edit/save `.tldr` files, theme-aware, with its
+own "New tab format" option. Collaboration is Excalidraw+markdown only this
+release (TLDraw's sync engine is incompatible with the app's Yjs transport) —
+TLDraw tabs hide the Share button.
+
+**Canvas**
+
+- **TLDraw diagrams** — the TLDraw SDK v5 (`tldraw@^5.2.5`) is lazy-loaded only
+  when a TLDraw tab opens (zero cost to the entry chunk otherwise, same strategy
+  as Excalidraw). Drawings persist as JSON snapshots in `.tldr` files; the store
+  listener + 1s debounce mirrors Excalidraw's auto-save. Theme follows the app
+  (light/dark).
+- **`.tldr` file type** — registered at the OS level (double-click opens in
+  mdpeek), in the Open dialog filter, and in folder-search (excluded from grep
+  so JSON scenes don't pollute results). A dedicated board glyph distinguishes
+  TLDraw tabs from Excalidraw.
+
+**Editor / workspace**
+
+- **New tab format: TLDraw** — Settings → General → New tab format now offers
+  TLDraw alongside Home/Markdown/Plain Text/Excalidraw.
+
+Verified by the full test suite (+7 tests, 845 total). The TLDraw viewer itself
+is DOM/React orchestration (smoke-tested, like the Excalidraw viewer); the
+pure-logic layer (`isTLDrawPath`, doc flag, serialize/restore, file-type
+classification) is unit-tested.
+
 ## [0.46.0] - 2026-07-28
 
 ### Added — 11 more features
