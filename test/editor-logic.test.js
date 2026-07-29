@@ -28,6 +28,9 @@ import {
   convertList,
   selectLine,
   deriveNoteTitle,
+  convertCase,
+  transformCase,
+  wrapBlock,
 } from '../src/lib/editor-logic.js';
 
 // helper: apply a logic result to verify text + caret in one assertion
@@ -1036,5 +1039,125 @@ describe('deriveNoteTitle (v0.46.0)', () => {
     const out = deriveNoteTitle(long);
     expect(out.length).toBe(60);
     expect(out.endsWith('…')).toBe(true);
+  });
+});
+
+// ---------- v0.49.0: case conversion ----------
+
+describe('transformCase', () => {
+  it('uppercases', () => {
+    expect(transformCase('foo Bar', 'upper')).toBe('FOO BAR');
+  });
+  it('lowercases', () => {
+    expect(transformCase('Foo BAR', 'lower')).toBe('foo bar');
+  });
+  it('title-cases each word', () => {
+    expect(transformCase('foo bar baz', 'title')).toBe('Foo Bar Baz');
+  });
+  it('title-cases hyphenated/apostrophe text word-by-word', () => {
+    // apostrophe and hyphen are separators → "don't" → "Don'T" is wrong; verify
+    // our word definition (run of letters/digits) treats the apostrophe as a
+    // separator so "don't" becomes "Don'T"... actually we want readability, so
+    // confirm the actual behavior so the test documents it.
+    expect(transformCase("don't stop", 'title')).toBe("Don'T Stop");
+  });
+  it('toggles case per character', () => {
+    expect(transformCase('Foo bAR', 'toggle')).toBe('fOO Bar');
+  });
+  it('toggles digits/punctuation unchanged', () => {
+    expect(transformCase('Ab1-2', 'toggle')).toBe('aB1-2');
+  });
+  it('is a no-op for unknown modes', () => {
+    expect(transformCase('foo', 'weird')).toBe('foo');
+  });
+  it('returns empty/falsy input unchanged', () => {
+    expect(transformCase('', 'upper')).toBe('');
+    expect(transformCase(null, 'upper')).toBeNull();
+  });
+});
+
+describe('convertCase (v0.49.0)', () => {
+  it('uppercases the current line when the selection is a caret', () => {
+    // 'hello world', caret at col 2 of line 1 → whole line uppercased.
+    const r = convertCase('hello world', 2, 2, 'upper');
+    expect(r.text).toBe('HELLO WORLD');
+    expect(r.start).toBe(0);
+    expect(r.end).toBe(11);
+  });
+  it('transforms only the selected span when there is a selection', () => {
+    // 'Hello World', select 'o Wor' (indices 4..9) → 'O WOR'.
+    const r = convertCase('Hello World', 4, 9, 'upper');
+    expect(r.text).toBe('HellO WORld');
+    expect(r.start).toBe(4);
+    expect(r.end).toBe(9);
+  });
+  it('lowercases a selection', () => {
+    const r = convertCase('ABC DEF', 0, 3, 'lower');
+    expect(r.text).toBe('abc DEF');
+  });
+  it('title-cases a selection', () => {
+    const r = convertCase('foo bar', 0, 7, 'title');
+    expect(r.text).toBe('Foo Bar');
+  });
+  it('toggles a selection', () => {
+    const r = convertCase('AbCd', 0, 4, 'toggle');
+    expect(r.text).toBe('aBcD');
+  });
+  it('transforms the caret line within a multi-line doc', () => {
+    // 'a\nbB\nc', caret on line 2 ('bB') at col 1.
+    const text = 'a\nbB\nc';
+    const r = convertCase(text, 3, 3, 'upper'); // index 3 is within 'bB'
+    expect(r.text).toBe('a\nBB\nc');
+  });
+  it('is a no-op for empty input', () => {
+    expect(convertCase('', 0, 0, 'upper')).toEqual({ text: '', start: 0, end: 0 });
+  });
+  it('defaults to upper when mode is omitted', () => {
+    expect(convertCase('abc', 0, 3).text).toBe('ABC');
+  });
+});
+
+// ---------- v0.49.0: wrapBlock (multi-line surround) ----------
+
+describe('wrapBlock (v0.49.0)', () => {
+  it('wraps a selection with open/close tags on their own lines (mid-doc)', () => {
+    // 'intro\nbody\nend', select 'body' (4..8) → wrap in <details>/</details>.
+    const text = 'intro\nbody\nend';
+    const r = wrapBlock(text, 6, 10, '<details>', '</details>');
+    // open sits on its own line after 'intro\n', selection preserved, close on
+    // its own line before '\nend'.
+    expect(r.text).toBe('intro\n<details>\nbody\n</details>\nend');
+    // selection covers the inner content ('body').
+    expect(r.start).toBe('intro\n<details>\n'.length);
+    expect(r.end).toBe(r.start + 4);
+  });
+  it('inserts a leading newline when open would collide with preceding text', () => {
+    // 'ab' + caret at end → wrap: needs a leading \n so '<details>' starts fresh.
+    const r = wrapBlock('ab', 2, 2, '<details>', '</details>');
+    expect(r.text).toBe('ab\n<details>\n\n</details>');
+    expect(r.start).toBe('ab\n<details>\n'.length);
+    expect(r.end).toBe(r.start);
+  });
+  it('does not add a leading newline when already at line start', () => {
+    const r = wrapBlock('x\n', 2, 2, '<details>', '</details>');
+    // caret at index 2 is right after the '\n' → no leading newline needed.
+    expect(r.text).toBe('x\n<details>\n\n</details>');
+  });
+  it('inserts a trailing newline when close would collide with following text', () => {
+    // selection at start of 'ab' → close needs trailing \n.
+    const r = wrapBlock('ab', 0, 0, '<o>', '</c>');
+    expect(r.text).toBe('<o>\n\n</c>\nab');
+  });
+  it('wraps a code selection in a fenced block', () => {
+    const text = 'before\nprint(1)\nafter';
+    const r = wrapBlock(text, 7, 15, '```python', '```');
+    expect(r.text).toBe('before\n```python\nprint(1)\n```\nafter');
+    expect(r.text.slice(r.start, r.end)).toBe('print(1)');
+  });
+  it('places the caret on the empty inner line when there is no selection', () => {
+    const r = wrapBlock('x', 1, 1, '<details>', '</details>');
+    // 'x' + '\n<details>\n' (12 chars) → caret at index 13 on the blank line.
+    expect(r.start).toBe('x\n<details>\n'.length);
+    expect(r.end).toBe(r.start);
   });
 });

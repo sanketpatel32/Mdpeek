@@ -10,11 +10,13 @@ import { showPdf } from './views/pdf-viewer.js';
 import { showExcalidraw } from './views/excalidraw-viewer.js';
 import { showTLDraw } from './views/tldraw-viewer.js';
 import { showImage } from './views/image-viewer.js';
+import { showNotebook } from './views/notebook-viewer.js';
+import { showMedia } from './views/media-viewer.js';
 import { initEditor } from './views/editor.js';
 import { initFindBar } from './views/find-bar.js';
 import { initCommandPalette, initQuickSwitcher, initSnippetPicker } from './views/command-palette.js';
 import { initAutocomplete } from './views/autocomplete-dropdown.js';
-import { initFileTree, setTreeRoot, setActivePath, refreshTree } from './views/file-tree.js';
+import { initFileTree, setTreeRoot, refreshTree, revealPath } from './views/file-tree.js';
 import { initCsvViewer } from './views/csv-viewer.js';
 import { initFolderSearch } from './views/folder-search.js';
 import { initTagPane } from './views/tag-pane.js';
@@ -22,7 +24,7 @@ import { initReferencePane } from './views/reference-pane.js';
 import { initTerminal } from './views/terminal.js';
 import { renderTabs } from './views/tabs.js';
 import { renderIcons } from './lib/icons.js';
-import { toggleTaskLine, taskLineIndex, extractHeadings, buildRelativeImageMarkdown, sortLines, formatTableBlock, sortTableRows, convertList, deriveNoteTitle } from './lib/editor-logic.js';
+import { toggleTaskLine, taskLineIndex, extractHeadings, buildRelativeImageMarkdown, sortLines, formatTableBlock, sortTableRows, convertList, deriveNoteTitle, convertCase, wrapSelection, wrapBlock, toggleLinePrefix } from './lib/editor-logic.js';
 import { docBasename, backlinkQueries, formatBacklinkItems } from './lib/backlinks.js';
 import { extractSpeakerNotes } from './lib/slides.js';
 import { EMOJI_MAP } from './lib/emoji.js';
@@ -62,9 +64,12 @@ import {
   nextWidth, prevWidth, nextFont, prevFont, nextTheme, nextFontFamily,
   readingTimeLabel, loadReaderPrefs,
 } from './lib/reading.js';
-import { DocumentStore, isPdfPath, isImagePath, isExcalidrawPath, isTLDrawPath, langFromPath, langForEdit } from './lib/documents.js';
+import { DocumentStore, isPdfPath, isImagePath, isExcalidrawPath, isTLDrawPath, isNotebookPath, isMediaPath, langFromPath, langForEdit } from './lib/documents.js';
 import { renderMarkdown, renderCode, renderCsv, parseCsv, prepareCodeLang, enhanceDom } from './lib/renderer.js';
 import { saveSession, loadSession, loadRecents, addRecent, removeRecent, saveRecents } from './lib/persistence.js';
+// v0.49.0: named workspace sessions. Aliased to avoid clashing with the
+// persistence module's saveSession (the auto-session saver used at line ~1000).
+import { getSessions as getNamedSessions, saveSession as saveNamedSession, deleteSession as deleteNamedSession } from './lib/sessions.js';
 import { NavHistory } from './lib/nav-history.js';
 import { escapeHtml } from './lib/escape.js';
 import { getIconForPath, relativeTime } from './lib/file-type.js';
@@ -497,6 +502,8 @@ let _activePdf = null; // controller for the currently-shown PDF (for teardown)
 let _activeExcalidraw = null; // controller for the currently-shown Excalidraw tab
 let _activeTLDraw = null; // controller for the currently-shown TLDraw tab (v0.47.0)
 let _activeImage = null; // controller for the currently-shown annotated image
+let _activeNotebook = null; // controller for the currently-shown Jupyter notebook (v0.49.0)
+let _activeMedia = null; // controller for the currently-shown audio/video (v0.49.0)
 let _activeCsv = null; // controller for the currently-shown CSV/TSV table
 // v0.45.0: stack of recently-closed tab snapshots (newest first) for
 // "Reopen closed tab" (Ctrl+Alt+T). Capped at 20 by pushClosedTab.
@@ -518,7 +525,7 @@ function syncToolbarForDoc(doc) {
   // save-as via Ctrl+S — and that now offers the right extension, v0.48.0 F1).
   const isCanvas = !!doc && (doc.excalidraw || doc.tldraw);
   const canvasSaveable = isCanvas && !!doc.path;
-  const editable = !!doc && !doc.pdf && !doc.image && !doc.csv && (!isCanvas || canvasSaveable);
+  const editable = !!doc && !doc.pdf && !doc.image && !doc.csv && !doc.notebook && !doc.media && (!isCanvas || canvasSaveable);
   el.save.classList.toggle('hidden', !editable);
 }
 
@@ -587,6 +594,16 @@ async function renderActive() {
       _activeImage.destroy();
       _activeImage = null;
     }
+    // v0.49.0: Tear down the outgoing notebook viewer.
+    if (_activeNotebook) {
+      _activeNotebook.destroy();
+      _activeNotebook = null;
+    }
+    // v0.49.0: Tear down the outgoing media viewer (pauses playback).
+    if (_activeMedia) {
+      _activeMedia.destroy();
+      _activeMedia = null;
+    }
     // Hide the draw toolbar when leaving a PDF tab.
     el.pdfDrawToolbar.classList.add('hidden');
     // Reset draw tool button states.
@@ -607,7 +624,7 @@ async function renderActive() {
   // No doc, or an empty untouched Untitled tab in VIEW mode → show the welcome
   // screen. If the user explicitly switched to edit mode, show the editor even
   // for an empty untitled tab so they can start writing.
-  const isEmpty = !doc || (doc.path === null && doc.content === '' && doc.mode === 'view' && !doc.pdf && !doc.excalidraw && !doc.tldraw && !doc.code && !doc.csv);
+  const isEmpty = !doc || (doc.path === null && doc.content === '' && doc.mode === 'view' && !doc.pdf && !doc.excalidraw && !doc.tldraw && !doc.code && !doc.csv && !doc.notebook && !doc.media);
   if (isEmpty) {
     el.editMode.classList.add('hidden');
     el.editMode.classList.remove('plain');
@@ -638,7 +655,7 @@ async function renderActive() {
     if (el.share) el.share.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'markdown-body');
+    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body');
     setReadingProgressVisible(false);
     // showPdf is async and lazy-loads pdf.js. Store the controller so we can
     // tear it down on tab switch.
@@ -670,10 +687,53 @@ async function renderActive() {
     if (el.share) el.share.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'markdown-body');
+    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body');
     el.document.classList.add('image-viewer');
     setReadingProgressVisible(false);
     _activeImage = showImage(el.document, doc.path);
+    if (doc.scrollY) el.document.scrollTop = doc.scrollY;
+    return;
+  }
+
+  // v0.49.0: Jupyter notebook (.ipynb) — read-only cell view (markdown via
+  // renderMarkdown, code/outputs via renderCode). No edit toggle, no TOC. The
+  // notebook JSON rides doc.content like CSV/code; showNotebook parses it.
+  if (doc.notebook) {
+    el.editMode.classList.add('hidden');
+    el.mode.classList.add('hidden');
+    el.draw.classList.add('hidden');
+    el.export.classList.add('hidden');
+    if (el.exportPdf) el.exportPdf.classList.add('hidden');
+    if (el.present) el.present.classList.add('hidden');
+    if (el.reading) el.reading.classList.add('hidden');
+    if (el.share) el.share.classList.add('hidden');
+    el.viewMode.classList.remove('hidden');
+    el.toc.innerHTML = '';
+    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body');
+    el.document.classList.add('notebook-viewer');
+    setReadingProgressVisible(false);
+    _activeNotebook = showNotebook(el.document, doc.content);
+    if (doc.scrollY) el.document.scrollTop = doc.scrollY;
+    return;
+  }
+
+  // v0.49.0: Audio/video — read-only player via <audio>/<video>. Binary, loaded
+  // via the asset protocol (same as images). No edit toggle, no TOC.
+  if (doc.media) {
+    el.editMode.classList.add('hidden');
+    el.mode.classList.add('hidden');
+    el.draw.classList.add('hidden');
+    el.export.classList.add('hidden');
+    if (el.exportPdf) el.exportPdf.classList.add('hidden');
+    if (el.present) el.present.classList.add('hidden');
+    if (el.reading) el.reading.classList.add('hidden');
+    if (el.share) el.share.classList.add('hidden');
+    el.viewMode.classList.remove('hidden');
+    el.toc.innerHTML = '';
+    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body');
+    el.document.classList.add('media-viewer');
+    setReadingProgressVisible(false);
+    _activeMedia = showMedia(el.document, doc.path);
     if (doc.scrollY) el.document.scrollTop = doc.scrollY;
     return;
   }
@@ -693,7 +753,7 @@ async function renderActive() {
     if (el.share) el.share.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'markdown-body');
+    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body');
     setReadingProgressVisible(false);
     // showTLDraw is async and lazy-loads React + the TLDraw SDK. The onSave
     // callback writes the .tldr scene JSON back to doc.content (debounced).
@@ -726,7 +786,7 @@ async function renderActive() {
     if (el.share) el.share.classList.toggle('hidden', collab.getStatus().active);
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'markdown-body');
+    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body');
     setReadingProgressVisible(false);
     // showExcalidraw is async and lazy-loads React + Excalidraw. The onSave
     // callback writes the scene JSON back to doc.content (debounced) so the
@@ -768,7 +828,7 @@ async function renderActive() {
     el.pdfDrawToolbar.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'markdown-body', 'image-viewer', 'code-viewer');
+    el.document.classList.remove('has-welcome', 'markdown-body', 'image-viewer', 'code-viewer', 'notebook-viewer', 'media-viewer');
     el.document.classList.add('csv-viewer');
     setReadingProgressVisible(false);
     const tsv = /\.tsv$/i.test(doc.path || '');
@@ -859,7 +919,7 @@ async function renderActive() {
   // Apply it not just for .txt files (doc.plain) but for ANY non-markdown
   // doc that ends up in edit mode (e.g. code files like .js/.py/.rs). The
   // preview pane only renders markdown, so showing it for code is misleading.
-  const isMarkdown = !doc.plain && !doc.code && !doc.csv && !doc.pdf && !doc.image && !doc.excalidraw && !doc.tldraw;
+  const isMarkdown = !doc.plain && !doc.code && !doc.csv && !doc.pdf && !doc.image && !doc.excalidraw && !doc.tldraw && !doc.notebook && !doc.media;
   el.editMode.classList.toggle('plain', !isMarkdown);
 
   if (doc.mode === 'edit') {
@@ -956,7 +1016,9 @@ const find = initFindBar({
     // v0.48.0: canvases (TLDraw/Excalidraw) are a single non-searchable mode.
     // The find bar short-circuits for 'canvas' so it doesn't walk the canvas
     // library's internal UI DOM and inject <mark> into React-managed nodes.
-    if (d.excalidraw || d.tldraw) return 'canvas';
+    // v0.49.0: notebooks + media are also non-text-searchable (notebook DOM
+    // mixes rendered markdown with code gutters/outputs; media has no text).
+    if (d.excalidraw || d.tldraw || d.notebook || d.media) return 'canvas';
     if (d.code) return d.mode;
     return d.mode;
   },
@@ -973,10 +1035,15 @@ const find = initFindBar({
 // command lazily checks the current state (e.g. no "save" when no doc), so we
 // don't need to recompute the list on every open — getCommands() filters at
 // call time. Labels are matched fuzzily; keywords give silent ranking boosts.
-const palette = initCommandPalette(() => {
+// v0.49.0: the command list is a named function so both the command palette
+// and the "Show keyboard shortcuts" cheat-sheet can read it (the cheat-sheet
+// surfaces every command that carries a `hint`).
+function getCommands() {
   const cmds = [
     { id: 'open', label: 'Open file', hint: 'Ctrl+O', keywords: 'open file load', run: openFileDialog },
     { id: 'open-folder', label: 'Open folder in explorer', hint: 'Ctrl+Shift+E', keywords: 'open folder explorer tree workspace project', run: openFolderForExplorer },
+    { id: 'save-workspace', label: 'Save workspace as…', keywords: 'save workspace session tabs project', run: saveCurrentWorkspace },
+    { id: 'open-workspace', label: 'Open workspace…', keywords: 'open switch workspace session tabs project', run: () => { workspacePicker.setItems(getWorkspacePickerItems()); workspacePicker.open(); } },
     { id: 'back', label: 'Back', hint: 'Alt+Left', keywords: 'back previous history navigate', run: goBack },
     { id: 'forward', label: 'Forward', hint: 'Alt+Right', keywords: 'forward next history navigate', run: goForward },
     { id: 'quick-switch', label: 'Quick switcher (recent files)', hint: 'Ctrl+P', keywords: 'quick switch recent files open', run: () => quickSwitcher.open() },
@@ -1020,12 +1087,17 @@ const palette = initCommandPalette(() => {
     { id: 'sort-table-desc', label: 'Sort table rows ↓ (by column)', keywords: 'sort table rows column descending', run: () => sortTable('desc') },
     { id: 'convert-list-bullet', label: 'Convert list → bullets', keywords: 'convert list bullet unordered dash asterisk', run: () => convertListSelection('bullet') },
     { id: 'convert-list-ordered', label: 'Convert list → numbered', keywords: 'convert list ordered numbered ol', run: () => convertListSelection('ordered') },
+    { id: 'case-upper', label: 'UPPERCASE selection', keywords: 'convert case upper uppercase capitals', run: () => convertCaseSelection('upper') },
+    { id: 'case-lower', label: 'lowercase selection', keywords: 'convert case lower lowercase', run: () => convertCaseSelection('lower') },
+    { id: 'case-title', label: 'Title Case selection', keywords: 'convert case title capitalize words', run: () => convertCaseSelection('title') },
+    { id: 'case-toggle', label: 'tOGGLE cASE selection', keywords: 'convert case toggle swap invert', run: () => convertCaseSelection('toggle') },
+    { id: 'wrap-with', label: 'Wrap with…', keywords: 'wrap surround kbd details code quote block fence', run: () => wrapPicker.open() },
     { id: 'extract-note', label: 'Extract selection to new note', keywords: 'extract selection new note refactor link', run: extractSelectionToNote },
     { id: 'goto-heading', label: 'Go to heading…', keywords: 'go to heading jump navigate outline toc h1 h2', run: () => headingPicker.open() },
     { id: 'editor-outline', label: 'Toggle editor outline', keywords: 'editor outline toc headings panel jump navigate', run: toggleEditorOutline },
     { id: 'doc-stats', label: 'Toggle document statistics', keywords: 'stats statistics words chars sentences paragraphs reading time panel', run: toggleDocStats },
     { id: 'sidebar', label: 'Toggle sidebar (TOC)', hint: 'Ctrl+B', keywords: 'sidebar toc outline', run: toggleSidebar },
-    { id: 'find', label: 'Find', hint: 'Ctrl+F', keywords: 'find search', run: () => { const d = store.active(); if (d && (d.excalidraw || d.tldraw)) { toast('Find isn\'t available on canvas tabs'); return; } find.toggle(); } },
+    { id: 'find', label: 'Find', hint: 'Ctrl+F', keywords: 'find search', run: () => { const d = store.active(); if (d && (d.excalidraw || d.tldraw || d.notebook || d.media)) { toast('Find isn\'t available on this tab type'); return; } find.toggle(); } },
     { id: 'replace', label: 'Find & Replace', hint: 'Ctrl+H', keywords: 'replace substitute find', run: () => find.openReplace() },
     { id: 'focus', label: 'Focus mode', hint: 'F11', keywords: 'focus zen distraction', run: toggleFocus },
     { id: 'reading', label: 'Reading mode', hint: 'Ctrl+Shift+R', keywords: 'reader immersive distraction safari pocket book', run: toggleReading },
@@ -1035,6 +1107,7 @@ const palette = initCommandPalette(() => {
     { id: 'zoom-reset', label: 'Reset zoom', hint: 'Ctrl+0', keywords: 'zoom reset 100', run: zoomReset },
     { id: 'theme', label: 'Cycle theme', keywords: 'theme color light dark cycle', run: cycleTheme },
     { id: 'settings', label: 'Open settings', keywords: 'settings preferences options', run: openSettings },
+    { id: 'show-shortcuts', label: 'Show keyboard shortcuts', keywords: 'shortcuts keybindings hotkeys cheat sheet help', run: () => shortcutsPicker.open() },
     { id: 'kanban', label: 'Open Kanban board', hint: 'Ctrl+Shift+K', keywords: 'kanban board tasks todo done progress workspace', run: openKanban },
     { id: 'ws-calendar', label: 'Open Calendar', keywords: 'calendar month daily notes journal date', run: () => { openKanban(); setWorkspaceMode('calendar'); } },
     { id: 'ws-tasks', label: 'Open Tasks inbox', keywords: 'tasks inbox checklist todo scan notes checkboxes', run: () => { openKanban(); setWorkspaceMode('tasks'); } },
@@ -1063,7 +1136,7 @@ const palette = initCommandPalette(() => {
   const hasDoc = !!doc;
   const collabActive = collab.getStatus().active;
   return cmds.filter((c) => {
-    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-txt' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks' || c.id === 'sort-asc' || c.id === 'sort-desc' || c.id === 'copy-html' || c.id === 'copy-plaintext' || c.id === 'open-in-browser' || c.id === 'check-links' || c.id === 'restore-version' || c.id === 'writing-goal' || c.id === 'save-as-template' || c.id === 'pin-doc-theme' || c.id === 'clear-doc-theme') && !hasDoc) return false;
+    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-txt' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks' || c.id === 'sort-asc' || c.id === 'sort-desc' || c.id === 'copy-html' || c.id === 'copy-plaintext' || c.id === 'open-in-browser' || c.id === 'check-links' || c.id === 'restore-version' || c.id === 'writing-goal' || c.id === 'save-as-template' || c.id === 'pin-doc-theme' || c.id === 'clear-doc-theme' || c.id === 'case-upper' || c.id === 'case-lower' || c.id === 'case-title' || c.id === 'case-toggle' || c.id === 'wrap-with') && !hasDoc) return false;
     if (c.id === 'end-collab' && !collabActive) return false;
     if (c.id === 'start-collab' && collabActive) return false;
     if ((c.id === 'start-collab' || c.id === 'end-collab') && localStorage.getItem('mdpeek-feature-collab') === '0') return false;
@@ -1073,7 +1146,19 @@ const palette = initCommandPalette(() => {
     if (c.id === 'daily' && localStorage.getItem('mdpeek-feature-daily') === '0') return false;
     return true;
   });
-});
+}
+
+const palette = initCommandPalette(getCommands);
+
+// v0.49.0: "Show keyboard shortcuts" cheat-sheet. A read-only picker seeded with
+// every command that carries a `hint` (≈22 entries), rendered as label + the
+// shortcut chip. Searchable (type "save" → Ctrl+S). onConfirm re-opens the
+// palette so the user can run the chosen command — turns the cheat-sheet into a
+// two-step launcher (look up the shortcut, then either use it or pick it).
+const shortcutsPicker = initQuickSwitcher(
+  () => getCommands().filter((c) => c.hint).map((c) => ({ label: c.label, hint: c.hint, keywords: (c.label + ' ' + c.hint + ' ' + (c.keywords || '')) })),
+  (_item) => { /* read-only — dismiss; the user looked up the shortcut */ }
+);
 
 // ---------- snippet picker (Ctrl+Shift+S) ----------
 const SNIPPET_ITEMS = [
@@ -1102,6 +1187,20 @@ const snippetPicker = initSnippetPicker(
       insertSnippetIntoEditor(doc, item.text);
     }
   }
+);
+
+// v0.49.0: "Wrap with…" picker. Lists inline/block/line surround options; on
+// confirm, applies the chosen wrap to the current selection via
+// wrapSelectionApply. Each item carries a `_kind` consumed by the apply helper.
+const WRAP_ITEMS = [
+  { label: 'Keyboard key', hint: '<kbd>', _kind: 'kbd' },
+  { label: 'Collapsible details', hint: '<details>', _kind: 'details' },
+  { label: 'Code fence', hint: '```', _kind: 'code' },
+  { label: 'Blockquote', hint: '> ', _kind: 'quote' },
+];
+const wrapPicker = initQuickSwitcher(
+  () => WRAP_ITEMS.map((w) => ({ label: w.label, hint: w.hint, keywords: w.label + ' ' + w.hint, _kind: w._kind })),
+  (item) => { if (item._kind) wrapSelectionApply(item._kind); }
 );
 
 // v0.38.0: jump-to-heading picker. Reads the active doc's source fresh on each
@@ -1359,7 +1458,7 @@ function insertSnippetIntoEditor(doc, textToInsert) {
 // inline; view-mode appends. Mirrors the snippet insert path.
 function insertDateAtCursor() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.image || doc.csv) {
+  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.image || doc.csv || doc.notebook || doc.media) {
     toast('Switch to a Markdown document first');
     return;
   }
@@ -1422,6 +1521,11 @@ store.on('change', () => {
     if (!_navWalking) navHistory.navigate(activeId);
     _lastActiveId = activeId;
     updateNavButtons();
+    // v0.49.0: reveal the newly-active file in the tree (expand its ancestors,
+    // highlight + scroll it). Fixes a latent bug where tab-switch never updated
+    // the tree highlight. Fire-and-forget; revealPath is no-op without a root.
+    const d = store.active();
+    if (d && d.path) revealPath(d.path);
   } else if (activeId === null) {
     // Last tab closed; reset last-seen so the next open() pushes correctly.
     _lastActiveId = null;
@@ -1472,8 +1576,9 @@ async function openPath(path, content, opts = {}) {
   store.open({ path, content });
   // Record in the recents list (welcome screen) — only real files, not untitled.
   if (path) addRecent(path);
-  // Highlight the open file in the explorer sidebar (if visible + in tree).
-  if (path) setActivePath(path);
+  // v0.49.0: Reveal the open file in the explorer sidebar — expand ancestors,
+  // highlight, and scroll into view (not just highlight). No-op without a root.
+  if (path) revealPath(path);
   // Stash the requested line so the post-render hook can scroll to it once
   // renderActive finishes (the store 'change' event fires synchronously inside
   // store.open above, but renderActive itself runs as a microtask via .catch).
@@ -1484,7 +1589,8 @@ async function openPath(path, content, opts = {}) {
   // PDFs are read-only binary — no file-watcher (the text-based watcher would
   // choke on bytes, and live-reload isn't meaningful for a PDF).
   // Excalidraw files are JSON but the canvas manages its own state — skip watcher.
-  if (!isPdfPath(path) && !isExcalidrawPath(path) && !isTLDrawPath(path)) await rewatch(path);
+  // Media (audio/video) is read-only and binary — skip it too (v0.49.0).
+  if (!isPdfPath(path) && !isExcalidrawPath(path) && !isTLDrawPath(path) && !isMediaPath(path)) await rewatch(path);
 }
 
 // Open a file from a search result and jump to a specific line. Reads the
@@ -1500,7 +1606,7 @@ async function openPathAndJump(path, line, query) {
     // After openPath schedules the line jump, also kick off the find bar for
     // markdown view-mode docs so in-document matches are highlighted.
     const doc = store.active();
-    if (doc && !doc.code && !doc.csv && !doc.pdf && !doc.image && !doc.excalidraw && !doc.tldraw && doc.mode === 'view' && query) {
+    if (doc && !doc.code && !doc.csv && !doc.pdf && !doc.image && !doc.excalidraw && !doc.tldraw && !doc.notebook && !doc.media && doc.mode === 'view' && query) {
       // Wait one tick so renderActive has run.
       setTimeout(() => {
         if (find && query) find.open(query, { caseSensitive: false, focus: false });
@@ -1663,6 +1769,162 @@ function convertListSelection(to) {
   }
 }
 
+// v0.49.0: convert the case of the selection (or current line for a caret).
+// `mode` ∈ 'upper' | 'lower' | 'title' | 'toggle'. Palette-only.
+function convertCaseSelection(mode) {
+  const doc = store.active();
+  if (!doc || doc.mode !== 'edit' || !doc.editor) {
+    toast('Switch to edit mode to convert case');
+    return;
+  }
+  const { start, end } = doc.editor.getSelection();
+  const r = convertCase(doc.editor.getValue(), start, end, mode);
+  if (r.text === doc.editor.getValue()) return;
+  doc.editor.replaceRange(0, doc.editor.getValue().length, r.text);
+  doc.editor.setState({ start: r.start, end: r.end });
+  if (doc.content !== r.text) {
+    doc.content = r.text;
+    store.markDirty(doc.id);
+    persistSoon();
+    scheduleAutoSave();
+  }
+}
+
+// v0.49.0: wrap the selection with a chosen surround. `kind` ∈
+// 'kbd' | 'details' | 'code' | 'quote'. kbd is inline (wrapSelection); details
+// and code are multi-line blocks (wrapBlock); quote reuses toggleLinePrefix.
+// Reaches the editor via the same apply path as the other selection ops.
+function wrapSelectionApply(kind) {
+  const doc = store.active();
+  if (!doc || doc.mode !== 'edit' || !doc.editor) {
+    toast('Switch to edit mode to wrap text');
+    return;
+  }
+  const { start, end } = doc.editor.getSelection();
+  const value = doc.editor.getValue();
+  let r;
+  if (kind === 'kbd') {
+    r = wrapSelection(value, start, end, '<kbd>', '</kbd>');
+  } else if (kind === 'details') {
+    r = wrapBlock(value, start, end, '<details>', '</details>');
+  } else if (kind === 'code') {
+    r = wrapBlock(value, start, end, '```', '```');
+  } else if (kind === 'quote') {
+    r = toggleLinePrefix(value, start, end, '> ');
+  } else {
+    return;
+  }
+  if (!r || r.text === value) return;
+  doc.editor.replaceRange(0, value.length, r.text);
+  doc.editor.setState({ start: r.start, end: r.end });
+  if (doc.content !== r.text) {
+    doc.content = r.text;
+    store.markDirty(doc.id);
+    persistSoon();
+    scheduleAutoSave();
+  }
+}
+
+// v0.49.0: named workspace sessions — save/restore a tab set + the open folder.
+// The snapshot is the existing store.serialize() shape (production-perfect for
+// this); we pair it with the explorer root + visibility so a session captures
+// the full workspace, not just tabs.
+
+// Prompt for a name and save the current workspace (open tabs + folder) as a
+// named session. Upserts by name. No-op if the user cancels the prompt.
+function saveCurrentWorkspace() {
+  const name = window.prompt('Save workspace as:', 'workspace');
+  if (name === null) return; // cancelled
+  const trimmed = (name || '').trim();
+  if (!trimmed) { toast('Name cannot be empty'); return; }
+  const root = localStorage.getItem('mdpeek-explorer-root') || null;
+  const explorerVisible = localStorage.getItem('mdpeek-explorer-visible') !== '0';
+  saveNamedSession(localStorage, trimmed, {
+    root,
+    explorerVisible,
+    snapshot: store.serialize(),
+  });
+  toast('Workspace saved: ' + trimmed);
+}
+
+// Re-read on-disk file contents for a snapshot's docs (mirroring the cold-start
+// restore flow), then store.restore. Untitled tabs pass through; binary types
+// (pdf/image/media) restore from path alone; missing files keep last-known
+// content. Async; resolves once the tabs are restored.
+async function applyWorkspaceSnapshot(snapshot) {
+  if (!snapshot || !Array.isArray(snapshot.docs)) return;
+  const candidates = snapshot.docs.filter((s) => {
+    if (s.path === null && (s.content === '' || s.content == null) && !s.dirty && !s.pinned) return false;
+    return true;
+  });
+  const restored = await Promise.all(
+    candidates.map(async (s) => {
+      if (!s.path) return s;
+      if (isPdfPath(s.path) || isImagePath(s.path) || isMediaPath(s.path)) return { ...s, content: '' };
+      try {
+        const content = await invoke('read_file', { path: s.path });
+        return { ...s, content };
+      } catch {
+        return s; // file gone since save — keep last-known content
+      }
+    }),
+  );
+  if (restored.length > 0) {
+    store.restore({ docs: restored, activeId: snapshot.activeId });
+  } else {
+    // Empty workspace — clear to a single fresh state so the welcome screen shows.
+    store.docs.slice().forEach((d) => store.close(d.id));
+  }
+}
+
+// Switch to a saved workspace: set the explorer root + visibility, then restore
+// the tab set. Async; failures toast and abort.
+async function openWorkspaceByName(name) {
+  const sess = getNamedSessions(localStorage).find((s) => s.name === name);
+  if (!sess) { toast('Workspace not found: ' + name); return; }
+  // Restore the folder first so revealPath has a root to work against.
+  if (sess.root) {
+    localStorage.setItem('mdpeek-explorer-root', sess.root);
+    setTreeRoot(sess.root);
+  }
+  // Sync explorer visibility with the saved state.
+  const wantVisible = !!sess.explorerVisible;
+  const isVisible = !el.fileTree.classList.contains('hidden');
+  if (wantVisible !== isVisible) toggleExplorer();
+  await applyWorkspaceSnapshot(sess.snapshot);
+  toast('Workspace opened: ' + name);
+}
+
+async function deleteWorkspaceByName(name) {
+  deleteNamedSession(localStorage, name);
+  toast('Workspace deleted: ' + name);
+  // Refresh the picker so it reflects the removal.
+  workspacePicker.setItems(getWorkspacePickerItems());
+}
+
+// ---------- workspace picker ----------
+// Lists saved workspaces (to switch to or delete) + a "Save current as…" entry.
+function getWorkspacePickerItems() {
+  const sessions = getNamedSessions(localStorage);
+  const items = sessions.map((s) => ({
+    label: s.name,
+    hint: s.root ? basename(s.root) : 'no folder',
+    keywords: s.name + ' ' + (s.root || ''),
+    _action: 'open',
+    _name: s.name,
+  }));
+  items.push({ label: '— Save current workspace as…', hint: '', keywords: 'save new workspace session', _action: 'save' });
+  return items;
+}
+const workspacePicker = initQuickSwitcher(
+  getWorkspacePickerItems,
+  async (item) => {
+    if (!item) return;
+    if (item._action === 'save') { saveCurrentWorkspace(); return; }
+    if (item._action === 'open' && item._name) { await openWorkspaceByName(item._name); }
+  },
+);
+
 // v0.46.0: extract the selection into a new untitled markdown note and leave a
 // markdown link to it in place of the selection. The new tab's title is derived
 // from the extracted content (first heading / first line). Useful for
@@ -1773,9 +2035,9 @@ async function closeTab(id) {
   }
   // v0.45.0: snapshot the doc for "Reopen closed tab" before we tear it down.
   // Only snapshot docs worth reopening: a saved path OR non-empty content.
-  // Skip the home screen, blank untitled tabs, and canvases (scene is
-  // JSON; reopening as markdown would be wrong).
-  if ((doc.path || doc.content) && !doc.excalidraw && !doc.tldraw) {
+  // Skip the home screen, blank untitled tabs, canvases (scene is JSON;
+  // reopening as markdown would be wrong), notebooks (JSON), and media.
+  if ((doc.path || doc.content) && !doc.excalidraw && !doc.tldraw && !doc.notebook && !doc.media) {
     const snap = snapshotDoc(doc);
     if (snap) _closedTabs = pushClosedTab(_closedTabs, snap);
   }
@@ -1927,7 +2189,7 @@ async function saveActive() {
 // non-text docs (Excalidraw scenes, binary). Fire-and-forget — errors are
 // logged but never surface to the user.
 function maybeSnapshot(doc, content) {
-  if (!doc || !doc.path || doc.excalidraw || doc.tldraw) return;
+  if (!doc || !doc.path || doc.excalidraw || doc.tldraw || doc.notebook || doc.media) return;
   invoke('write_snapshot', { path: doc.path, content }).catch((e) => {
     console.warn('snapshot failed:', e);
   });
@@ -2065,7 +2327,7 @@ async function exportHljsCss() {
 
 async function exportHtml() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.csv) {
+  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.csv || doc.notebook || doc.media) {
     toast('Export to HTML is for Markdown documents');
     return;
   }
@@ -2095,7 +2357,7 @@ async function exportHtml() {
 // as seen on screen.
 async function exportPdf() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.image || doc.csv) {
+  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.image || doc.csv || doc.notebook || doc.media) {
     toast('Export to PDF is for Markdown documents');
     return;
   }
@@ -2140,6 +2402,8 @@ function toggleMode() {
   if (doc.pdf) return;   // PDFs are read-only — no edit mode
   if (doc.image) return; // Images are read-only — no edit mode
   if (doc.excalidraw || doc.tldraw) return; // canvases are always interactive — no edit/view toggle
+  if (doc.notebook) return; // notebooks are read-only cell views (v0.49.0)
+  if (doc.media) return;    // audio/video are read-only players (v0.49.0)
   if (doc.csv) return;        // CSVs are read-only table views — no edit mode
   // Capture content before switching out of edit mode.
   if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
@@ -2265,7 +2529,7 @@ function togglePresentation() {
 
 function enterPresentation() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.image || doc.csv) {
+  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.image || doc.csv || doc.notebook || doc.media) {
     toast('Presentation is for Markdown documents');
     return;
   }
@@ -2448,7 +2712,7 @@ function refreshReaderMeta() {
 
 async function enterReading() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.image || doc.csv) {
+  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.image || doc.csv || doc.notebook || doc.media) {
     toast('Reading mode is for Markdown documents');
     return;
   }
@@ -3941,7 +4205,7 @@ async function copyAsPlainText() {
 // dialog. Mirrors exportHtml but writes stripped text through save_file_as_text.
 async function exportPlainText() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.csv) {
+  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.csv || doc.notebook || doc.media) {
     toast('Export to text is for Markdown documents');
     return;
   }
@@ -3961,7 +4225,7 @@ async function exportPlainText() {
 // under mdpeek/ and is overwritten on the next open.
 async function openInBrowser() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.csv) {
+  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.csv || doc.notebook || doc.media) {
     toast('Open in browser is for Markdown documents');
     return;
   }
@@ -4148,7 +4412,7 @@ function updateNavButtons() {
 // ---------- sidebar (TOC) toggle & visibility ----------
 function syncSidebarVisibility() {
   const doc = store.active();
-  const hasToc = doc && !doc.pdf && !doc.excalidraw && !doc.tldraw && !doc.code && !doc.csv && !doc.plain && doc.mode === 'view';
+  const hasToc = doc && !doc.pdf && !doc.excalidraw && !doc.tldraw && !doc.code && !doc.csv && !doc.plain && !doc.notebook && !doc.media && doc.mode === 'view';
   
   if (!hasToc) {
     el.toc.classList.add('collapsed');
@@ -4163,7 +4427,7 @@ function syncSidebarVisibility() {
 
 function toggleSidebar() {
   const doc = store.active();
-  const hasToc = doc && !doc.pdf && !doc.excalidraw && !doc.tldraw && !doc.code && !doc.csv && !doc.plain && doc.mode === 'view';
+  const hasToc = doc && !doc.pdf && !doc.excalidraw && !doc.tldraw && !doc.code && !doc.csv && !doc.plain && !doc.notebook && !doc.media && doc.mode === 'view';
   if (!hasToc) return;
 
   const collapsed = el.toc.classList.toggle('collapsed');
@@ -4264,6 +4528,12 @@ function showTreeCtxMenu(row, e) {
     searchBtn?.classList.add('hidden');
     searchSep?.classList.add('hidden');
   }
+  // v0.49.0: "New file…" / "New folder…" only make sense on directories.
+  // Toggle the two items + their trailing separator together.
+  const newEls = el.treeCtxMenu.querySelectorAll('.tree-ctx-new');
+  const newSep = el.treeCtxMenu.querySelector('.tree-ctx-new-sep');
+  newEls.forEach((b) => b.classList.toggle('hidden', !isDir));
+  newSep?.classList.toggle('hidden', !isDir);
   // Clamp so the menu never overflows the window edge (same trick as tab menu).
   el.treeCtxMenu.classList.remove('hidden');
   const rect = el.treeCtxMenu.getBoundingClientRect();
@@ -4331,6 +4601,19 @@ async function treeCtxAction(action) {
   const target = _treeCtxTarget;
   if (!target) return;
   const { path, kind } = target;
+  // v0.49.0: New file / New folder — only valid on a directory target. The
+  // directory itself (when right-clicked) is the container; a file target
+  // wouldn't show these items (showTreeCtxMenu hides them).
+  if (action === 'new-file') {
+    if (kind !== 'dir' || !path) return;
+    await createInTree(path, false);
+    return;
+  }
+  if (action === 'new-folder') {
+    if (kind !== 'dir' || !path) return;
+    await createInTree(path, true);
+    return;
+  }
   if (action === 'cut') {
     if (!path) return;
     _clipboard = { path, op: 'cut' };
@@ -4389,6 +4672,32 @@ async function pasteInto(dstDir) {
     toast(op === 'cut' ? 'Moved' : 'Copied', { onClick: null });
   } catch (e) {
     toast('Paste failed: ' + fmtErr(e));
+  }
+}
+
+// v0.49.0: Create a new file or folder inside `dir`. Prompts for a name, then
+// invokes the Rust create_path command. On success, refreshes the tree; for a
+// new file, also opens it in a tab so the user can start editing immediately.
+async function createInTree(dir, isDir) {
+  const kindLabel = isDir ? 'folder' : 'file';
+  const name = window.prompt(`New ${kindLabel} name:`, isDir ? 'untitled' : 'untitled.md');
+  if (name === null) return; // cancelled
+  const trimmed = (name || '').trim();
+  if (!trimmed) { toast('Name cannot be empty'); return; }
+  // Reject path separators — the name must be a single path segment.
+  if (/[\\/]/.test(trimmed)) { toast('Name cannot contain a path separator'); return; }
+  const fullPath = (dir.endsWith('\\') || dir.endsWith('/') ? dir + trimmed : dir + '\\' + trimmed);
+  try {
+    await invoke('create_path', { path: fullPath, isDir });
+    refreshTree();
+    toast(isDir ? 'Folder created' : 'File created');
+    // New file → open it immediately so the user can start typing. New folder
+    // → just leave it created (expanding the parent reveals it via refreshTree).
+    if (!isDir) {
+      try { await openPath(fullPath, ''); } catch (e) { /* open is best-effort */ }
+    }
+  } catch (e) {
+    toast('Create failed: ' + fmtErr(e));
   }
 }
 
@@ -6626,8 +6935,9 @@ window.addEventListener('keydown', (e) => {
   } else if (k === 'f') {
     e.preventDefault();
     // v0.48.0: canvases aren't text-searchable — skip the find bar entirely.
+    // v0.49.0: notebooks + media likewise aren't text-searchable.
     const d = store.active();
-    if (d && (d.excalidraw || d.tldraw)) { toast('Find isn\'t available on canvas tabs'); return; }
+    if (d && (d.excalidraw || d.tldraw || d.notebook || d.media)) { toast('Find isn\'t available on this tab type'); return; }
     find.toggle();
   } else if (k === 'h') {
     // Ctrl+H = find & replace. No-op in view/PDF mode (find bar handles that).
@@ -7073,10 +7383,10 @@ const DROP_BINARY_RE = /\.(mp[34]|webm|mov|avi|m4[av]|ogg|wav|flac|zip|7z|rar|ta
 async function openDroppedPath(path) {
   const name = path.split(/[\\/]/).pop() || path;
   try {
-    // Images + PDFs are binary but natively supported — skip the binary
-    // rejection and load with empty content (the viewers use the asset
-    // protocol to read bytes directly).
-    const isSupportedBinary = isPdfPath(name) || isImagePath(name);
+    // Images, PDFs, and audio/video are binary but natively supported — skip
+    // the binary rejection and load with empty content (the viewers use the
+    // asset protocol to read bytes directly).
+    const isSupportedBinary = isPdfPath(name) || isImagePath(name) || isMediaPath(name);
     if (DROP_BINARY_RE.test(name) && !isSupportedBinary) {
       toast('Not a supported file: ' + name);
       return;
@@ -7129,7 +7439,7 @@ window.addEventListener('drop', async (e) => {
   el.dropzone.classList.add('hidden');
   for (const file of Array.from(files)) {
     try {
-      const isSupportedBinary = isPdfPath(file.name) || isImagePath(file.name);
+      const isSupportedBinary = isPdfPath(file.name) || isImagePath(file.name) || isMediaPath(file.name);
       if (DROP_BINARY_RE.test(file.name) && !isSupportedBinary) {
         toast('Not a supported file: ' + file.name);
         continue;
@@ -7172,6 +7482,15 @@ listen('file-changed', (event) => {
       const tsv = /\.tsv$/i.test(doc.path || '');
       el.document.innerHTML = renderCsv(event.payload, { tsv });
       _activeCsv = initCsvViewer(el.document, parseCsv(event.payload, tsv));
+    }
+    return;
+  }
+  // v0.49.0: Notebooks are JSON text like CSV — re-parse + re-render on change.
+  if (doc.notebook) {
+    doc.content = event.payload;
+    if (store.active()?.id === doc.id) {
+      if (_activeNotebook) { _activeNotebook.destroy(); _activeNotebook = null; }
+      _activeNotebook = showNotebook(el.document, doc.content);
     }
     return;
   }
@@ -7333,8 +7652,9 @@ applyUserCss();
       const restored = await Promise.all(
         candidates.map(async (s) => {
           if (!s.path) return s; // untitled — content was persisted directly
-          // PDFs and images restore from path alone — no content re-read (binary).
-          if (isPdfPath(s.path) || isImagePath(s.path)) return { ...s, content: '' };
+          // PDFs, images, and audio/video restore from path alone — no content
+          // re-read (binary). Notebooks are JSON text and DO re-read.
+          if (isPdfPath(s.path) || isImagePath(s.path) || isMediaPath(s.path)) return { ...s, content: '' };
           try {
             const content = await invoke('read_file', { path: s.path });
             return { ...s, content };

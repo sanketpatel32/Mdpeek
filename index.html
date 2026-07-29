@@ -414,6 +414,9 @@
          Populated dynamically per right-click — Paste and Search are shown
          conditionally; Paste is disabled when the clipboard is empty. -->
     <div id="tree-ctx-menu" class="ctx-menu hidden" role="menu">
+      <button class="ctx-item tree-ctx-new hidden" data-action="new-file" role="menuitem">New file…</button>
+      <button class="ctx-item tree-ctx-new hidden" data-action="new-folder" role="menuitem">New folder…</button>
+      <div class="ctx-sep tree-ctx-new-sep hidden"></div>
       <button class="ctx-item" data-action="cut" role="menuitem">Cut <span class="ctx-hint">Ctrl+X</span></button>
       <button class="ctx-item" data-action="copy" role="menuitem">Copy <span class="ctx-hint">Ctrl+C</span></button>
       <button class="ctx-item" data-action="paste" role="menuitem" disabled>Paste <span class="ctx-hint">Ctrl+V</span></button>

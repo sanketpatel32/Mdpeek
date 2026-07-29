@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-07-30
+
+### Added — new document types, editor power-ups, file-explorer actions, workspace sessions
+
+A batch spanning four themes, all built on existing modules and conventions —
+no architectural rework.
+
+**New document types**
+
+- **Jupyter `.ipynb` notebook viewer** — `.ipynb` files now open as a read-only
+  cell view: markdown cells render via the existing markdown pipeline, code
+  cells (with their outputs — text, base64 images, error tracebacks) render via
+  the existing code-highlighter. Handles both nbformat 3 and 4. The notebook
+  JSON rides `doc.content` like CSV/code; a corrupt or empty file shows a
+  friendly error banner instead of a blank canvas. Notebooks are now greppable
+  in folder search.
+- **Audio/video media viewer** — `.mp3`/`.wav`/`.ogg`/`.flac`/`.m4a`/`.aac` play
+  via `<audio controls>`; `.mp4`/`.webm`/`.mov`/`.avi`/`.m4v`/`.mkv` via
+  `<video controls>`. Binary (like images), streamed via the asset protocol.
+  Both new types have their own file icons and OS file associations.
+
+**Editor power-ups**
+
+- **Case conversion** — four palette commands transform the selection (or the
+  current line for a caret): UPPERCASE, lowercase, Title Case, and tOGGLE cASE.
+- **"Wrap with…" picker** — surround the selection with `<kbd>`, a collapsible
+  `<details>` block, a fenced code block, or a blockquote, from one palette
+  entry. Inline wrappers reuse the existing wrap primitive; the multi-line
+  block wrappers are a new `wrapBlock` helper.
+
+**File explorer**
+
+- **New file / New folder** in the tree's context menu — right-click a folder
+  to create a new file (opened immediately for editing) or subfolder. Backed by
+  a new `create_path` Rust command that never overwrites and trashes nothing.
+- **Auto-reveal the active file** — switching tabs now expands the active
+  file's ancestor directories (even ones never opened before), highlights its
+  row, and scrolls it into view. Also fixes a latent bug where switching tabs
+  never updated the tree highlight at all.
+
+**Workspace & UX**
+
+- **Named workspace sessions** — save the current set of open tabs + the open
+  folder as a named workspace ("work", "personal", …) and switch between them
+  from the palette. Captures and restores the full tab set (re-reading file
+  contents from disk on open) plus the explorer root and sidebar visibility.
+- **"Show keyboard shortcuts" cheat-sheet** — a searchable, read-only list of
+  every command that has a shortcut, auto-generated from the command data.
+  Type "save" to find Ctrl+S, etc.
+
+### Tests
+
+- +74 unit tests (`parseNotebook`, `ancestorsUnder`, `convertCase`/`transformCase`/`wrapBlock`,
+  `isNotebookPath`/`isMediaPath`, named-sessions store helpers). 919 total, all green.
+
 ## [0.48.0] - 2026-07-29
 
 ### Fixed — TLDraw & Excalidraw hardening

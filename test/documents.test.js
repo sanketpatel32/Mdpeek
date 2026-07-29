@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DocumentStore, createDocument, isPlainPath, isCodePath, isImagePath, isCsvPath, isExcalidrawPath, isTLDrawPath, langFromPath, langForEdit } from '../src/lib/documents.js';
+import { DocumentStore, createDocument, isPlainPath, isCodePath, isImagePath, isCsvPath, isExcalidrawPath, isTLDrawPath, isNotebookPath, isMediaPath, ancestorsUnder, langFromPath, langForEdit } from '../src/lib/documents.js';
 
 describe('createDocument', () => {
   it('creates a doc with defaults', () => {
@@ -609,5 +609,87 @@ describe('DocumentStore', () => {
     store.setPinned(c.id, true); // pinned, sits first; b is unpinned after a
     store.closeToRight(a.id);
     expect(store.docs.map((d) => d.id)).toEqual([c.id, a.id]);
+  });
+});
+
+// ---------- v0.49.0: notebook + media predicates ----------
+
+describe('isNotebookPath (v0.49.0)', () => {
+  it('matches .ipynb', () => {
+    expect(isNotebookPath('/a/notebook.ipynb')).toBe(true);
+    expect(isNotebookPath('C:\\proj\\n.ipynb')).toBe(true);
+  });
+  it('is case-insensitive', () => {
+    expect(isNotebookPath('/a/n.IPYNB')).toBe(true);
+  });
+  it('rejects non-notebook extensions', () => {
+    expect(isNotebookPath('/a/n.py')).toBe(false);
+    expect(isNotebookPath('/a/n.json')).toBe(false);
+  });
+  it('rejects empty/null', () => {
+    expect(isNotebookPath(null)).toBe(false);
+    expect(isNotebookPath('')).toBe(false);
+  });
+});
+
+describe('isMediaPath (v0.49.0)', () => {
+  it('matches audio extensions', () => {
+    expect(isMediaPath('/a/song.mp3')).toBe(true);
+    expect(isMediaPath('/a/song.wav')).toBe(true);
+    expect(isMediaPath('/a/song.ogg')).toBe(true);
+    expect(isMediaPath('/a/song.flac')).toBe(true);
+    expect(isMediaPath('/a/song.m4a')).toBe(true);
+    expect(isMediaPath('/a/song.aac')).toBe(true);
+  });
+  it('matches video extensions', () => {
+    expect(isMediaPath('/a/clip.mp4')).toBe(true);
+    expect(isMediaPath('/a/clip.webm')).toBe(true);
+    expect(isMediaPath('/a/clip.mov')).toBe(true);
+    expect(isMediaPath('/a/clip.avi')).toBe(true);
+    expect(isMediaPath('/a/clip.m4v')).toBe(true);
+    expect(isMediaPath('/a/clip.mkv')).toBe(true);
+  });
+  it('rejects non-media', () => {
+    expect(isMediaPath('/a/file.md')).toBe(false);
+    expect(isMediaPath('/a/file.png')).toBe(false);
+  });
+  it('rejects empty/null', () => {
+    expect(isMediaPath(null)).toBe(false);
+    expect(isMediaPath('')).toBe(false);
+  });
+});
+
+// ---------- v0.49.0: ancestorsUnder (file-tree auto-reveal) ----------
+
+describe('ancestorsUnder (v0.49.0)', () => {
+  it('returns the ancestor dirs top-down (unix separators)', () => {
+    expect(ancestorsUnder('/proj/src/lib/foo.js', '/proj'))
+      .toEqual(['/proj/src', '/proj/src/lib']);
+  });
+  it('returns the ancestor dirs top-down (windows separators)', () => {
+    expect(ancestorsUnder('C:\\proj\\src\\lib\\foo.js', 'C:\\proj'))
+      .toEqual(['C:\\proj\\src', 'C:\\proj\\src\\lib']);
+  });
+  it('returns [] when the file is directly inside root (no intermediate ancestors)', () => {
+    expect(ancestorsUnder('/proj/foo.js', '/proj')).toEqual([]);
+  });
+  it('returns [] when path is not under root', () => {
+    expect(ancestorsUnder('/other/foo.js', '/proj')).toEqual([]);
+  });
+  it('returns [] for empty inputs', () => {
+    expect(ancestorsUnder('', '/proj')).toEqual([]);
+    expect(ancestorsUnder('/proj/foo.js', '')).toEqual([]);
+  });
+  it('tolerates a trailing separator on root', () => {
+    expect(ancestorsUnder('/proj/src/foo.js', '/proj/'))
+      .toEqual(['/proj/src']);
+  });
+  it('preserves the leading separator on unix absolute paths', () => {
+    expect(ancestorsUnder('/proj/src/lib/foo.js', '/proj'))
+      .toEqual(['/proj/src', '/proj/src/lib']);
+  });
+  it('treats root case-insensitively (drive letter)', () => {
+    expect(ancestorsUnder('c:\\proj\\src\\foo.js', 'C:\\proj'))
+      .toEqual(['c:\\proj\\src']);
   });
 });

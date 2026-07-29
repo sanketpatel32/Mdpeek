@@ -147,6 +147,45 @@ export function wrapSelection(text, start, end, before, after = before) {
   return { text: out, start: start + before.length, end: start + before.length };
 }
 
+// v0.49.0: Wrap the selection in a MULTI-LINE block (open/close tags each on
+// their own line), e.g. `<details>...</details>` or a fenced code block. Unlike
+// wrapSelection (inline `before`/`after` strings), the open/close are placed on
+// fresh lines around the selection so the result reads as a proper block:
+//
+//   <open>
+//   <selection>
+//   </close>
+//
+// Behavior:
+//   - Selection present → wrap it; the selection (including its content) is
+//     preserved verbatim between the tags. If the open line would collide with
+//     preceding text, a leading newline is inserted; same for the close + a
+//     trailing newline so the block stands alone.
+//   - No selection (caret) → insert empty `open\n\nclose` with the caret on the
+//     blank middle line ready to type.
+// `open` and `close` are the full tag/fence lines WITHOUT trailing newlines.
+// Returns { text, start, end } covering the inner content (the selection or the
+// empty middle line), so the caller restores the selection there.
+export function wrapBlock(text, start, end, open, close) {
+  const hasSel = start !== end;
+  const sel = text.slice(start, end);
+  // Decide whether we need leading/trailing newlines to isolate the block.
+  const needLeadingNl = start > 0 && text[start - 1] !== '\n';
+  const needTrailingNl = end < text.length && text[end] !== '\n';
+  const lead = needLeadingNl ? '\n' : '';
+  const trail = needTrailingNl ? '\n' : '';
+  const inserted = `${lead}${open}\n${sel}\n${close}${trail}`;
+  const out = text.slice(0, start) + inserted + text.slice(end);
+  // Inner content sits between the open line and the close line.
+  const innerStart = start + lead.length + open.length + 1; // +1 for the \n after open
+  const innerEnd = innerStart + sel.length;
+  if (hasSel) {
+    return { text: out, start: innerStart, end: innerEnd };
+  }
+  // No selection: caret sits on the empty inner line (innerStart === innerEnd).
+  return { text: out, start: innerStart, end: innerStart };
+}
+
 // Insert a Markdown link `[text](url)` at the selection (Ctrl+K).
 // - Selection present → wrap it as the link text, place caret in the URL.
 // - No selection → insert `[](url)` with caret in the empty text slot.
@@ -453,6 +492,60 @@ export function sortLines(text, start, end, dir = 'asc') {
   // Place the caret at the end of the sorted block.
   const newCaret = blkStart + sorted.length - (hadTrailingNl ? 1 : 0);
   return { text: out, start: newCaret, end: newCaret };
+}
+
+// v0.49.0: Convert the case of the selection (or the current line when the
+// selection is a caret). `mode` is 'upper' | 'lower' | 'title' | 'toggle'.
+//   - caret (start === end) → transform the current line (intuitive for case)
+//   - selection             → transform just the selected text
+// The returned selection covers the transformed span. No-op on empty input.
+// Title case capitalizes the first letter of each word (a "word" is a run of
+// letters/digits); non-word separators are preserved. Toggle swaps per-char
+// upper↔lower. Palette-only (no keybind) — invoked via convertCaseSelection.
+export function convertCase(text, start, end, mode = 'upper') {
+  if (!text) return { text, start, end };
+  const s = Math.min(start, end);
+  const e = Math.max(start, end);
+  // Caret → operate on the whole current line; selection → operate on the span.
+  let blkStart, blkEnd;
+  if (s === e) {
+    [blkStart, blkEnd] = lineRange2(text, s, e);
+  } else {
+    blkStart = s;
+    blkEnd = e;
+  }
+  const block = text.slice(blkStart, blkEnd);
+  const transformed = transformCase(block, mode);
+  if (transformed === block) return { text, start, end };
+  const out = text.slice(0, blkStart) + transformed + text.slice(blkEnd);
+  return { text: out, start: blkStart, end: blkStart + transformed.length };
+}
+
+// Pure case transform of a string. Exported for direct unit testing.
+//   transformCase('foo Bar', 'upper')  → 'FOO BAR'
+//   transformCase('foo Bar', 'lower')  → 'foo bar'
+//   transformCase('foo bar', 'title')  → 'Foo Bar'
+//   transformCase('Foo bAR', 'toggle') → 'fOO Bar'
+//   transformCase('foo bar', 'weird')  → 'foo bar'  (unknown mode → no-op)
+export function transformCase(str, mode) {
+  if (!str) return str;
+  if (mode === 'upper') return str.toUpperCase();
+  if (mode === 'lower') return str.toLowerCase();
+  if (mode === 'toggle') {
+    let out = '';
+    for (const ch of str) {
+      const up = ch.toUpperCase();
+      out += ch === up ? ch.toLowerCase() : up;
+    }
+    return out;
+  }
+  if (mode === 'title') {
+    // Capitalize the first letter of each word run; lowercase the rest. A "word"
+    // is a run of letters/digits so apostrophes/punct act as separators and
+    // are passed through unchanged.
+    return str.replace(/(\p{L}|\p{N})([\p{L}\p{N}]*)/gu, (_m, head, tail) => head.toUpperCase() + tail.toLowerCase());
+  }
+  return str; // unknown mode → no-op
 }
 
 // Toggle an HTML comment (`<!-- ... -->`) around the selection. Markdown has

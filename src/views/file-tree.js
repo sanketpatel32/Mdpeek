@@ -9,6 +9,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { getIconForPath } from '../lib/file-type.js';
+import { ancestorsUnder } from '../lib/documents.js';
 
 let _root = null;          // absolute path of the open folder, or null
 let _container = null;     // the DOM element we render into
@@ -43,6 +44,41 @@ export function setActivePath(path) {
   if (!path) return;
   const row = _container.querySelector(`.tree-row[data-path="${cssEscape(path)}"]`);
   if (row) row.classList.add('active');
+}
+
+// v0.49.0: Reveal a file in the tree: expand every ancestor directory (so a
+// deeply-nested file's row actually exists in the DOM even if its parents were
+// never opened), highlight it as active, and scroll it into view. No-op when
+// no root is open or the path isn't under it. Safe to await; failures (e.g. a
+// vanished ancestor) are swallowed — the tree simply won't expand that branch.
+//
+// Also fixes a latent bug: previously switching tabs didn't call setActivePath
+// at all, so the tree highlight went stale until a fresh openPath. Callers now
+// route tab-switches through revealPath, which subsumes setActivePath.
+export async function revealPath(path) {
+  if (!_root || !path) { setActivePath(path); return; }
+  // Compute the ancestor dirs (root excluded) from root→down to the file's
+  // parent. Each must be expanded for the file's row to exist in the DOM.
+  const ancestors = ancestorsUnder(path, _root);
+  for (const dir of ancestors) {
+    if (_expanded.has(dir)) continue; // already open — its children are loaded
+    // Find the dir's row (it exists because the previous ancestor was just
+    // expanded, or it's a top-level entry). If it's missing, stop — the file
+    // can't be reached down this branch.
+    const row = _container.querySelector(`.tree-row[data-path="${cssEscape(dir)}"]`);
+    if (!row) break;
+    try {
+      await expandDir(row, dir);
+    } catch {
+      break; // list_dir failed — leave the branch collapsed
+    }
+  }
+  setActivePath(path);
+  // Scroll the now-visible row into view (cheap; mirrors tabs/command-palette).
+  const row = _container.querySelector(`.tree-row[data-path="${cssEscape(path)}"]`);
+  if (row && typeof row.scrollIntoView === 'function') {
+    row.scrollIntoView({ block: 'nearest' });
+  }
 }
 
 export function refreshTree() {

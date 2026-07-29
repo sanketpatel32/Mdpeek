@@ -21,6 +21,9 @@ pub async fn open_file() -> Result<OpenResult, String> {
         ])
         .add_filter("PDF", &["pdf"])
         .add_filter("Images", &["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif"])
+        .add_filter("Audio", &["mp3", "wav", "ogg", "flac", "m4a", "aac"])
+        .add_filter("Video", &["mp4", "webm", "mov", "avi", "m4v", "mkv"])
+        .add_filter("Jupyter Notebook", &["ipynb"])
         .add_filter("Excalidraw", &["excalidraw"])
         .add_filter("TLDraw", &["tldr"])
         .add_filter("All files", &["*"])
@@ -30,13 +33,18 @@ pub async fn open_file() -> Result<OpenResult, String> {
 
     let path = file.path().to_path_buf();
     let path_str = path.display().to_string();
-    // PDFs and images are binary — return empty content; the frontend loads
-    // them via the asset protocol instead of through `content`.
+    // PDFs, images, and audio/video are binary — return empty content; the
+    // frontend loads them via the asset protocol instead of through `content`.
+    // Notebooks (.ipynb) are JSON text and ride `content` like CSV/code.
     let lower = path_str.to_lowercase();
     let is_binary = lower.ends_with(".pdf")
         || lower.ends_with(".png") || lower.ends_with(".jpg") || lower.ends_with(".jpeg")
         || lower.ends_with(".gif") || lower.ends_with(".webp") || lower.ends_with(".svg")
-        || lower.ends_with(".bmp") || lower.ends_with(".ico") || lower.ends_with(".avif");
+        || lower.ends_with(".bmp") || lower.ends_with(".ico") || lower.ends_with(".avif")
+        || lower.ends_with(".mp3") || lower.ends_with(".wav") || lower.ends_with(".ogg")
+        || lower.ends_with(".flac") || lower.ends_with(".m4a") || lower.ends_with(".aac")
+        || lower.ends_with(".mp4") || lower.ends_with(".webm") || lower.ends_with(".mov")
+        || lower.ends_with(".avi") || lower.ends_with(".m4v") || lower.ends_with(".mkv");
     let content = if is_binary {
         String::new()
     } else {
@@ -149,10 +157,13 @@ pub async fn save_file_as_text(content: String) -> Result<String, String> {
 
 #[tauri::command]
 pub fn read_file(path: String) -> Result<String, String> {
-    // PDFs and images are binary — return empty; the frontend never calls
-    // this for them (session restore skips the re-read), but guard anyway.
+    // PDFs, images, and audio/video are binary — return empty; the frontend
+    // never calls this for them (session restore skips the re-read), but guard
+    // anyway. Notebooks (.ipynb) are JSON text and read normally.
     const BINARY_EXTS: &[&str] = &[
         ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico", ".avif",
+        ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac",
+        ".mp4", ".webm", ".mov", ".avi", ".m4v", ".mkv",
     ];
     let lower = path.to_lowercase();
     if BINARY_EXTS.iter().any(|ext| lower.ends_with(ext)) {
@@ -321,9 +332,9 @@ const SEARCH_BINARY_EXTS: &[&str] = &[
     "pdf", "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif",
     "zip", "gz", "tar", "tgz", "rar", "7z", "bz2", "xz",
     "exe", "dll", "so", "dylib", "class", "jar", "wasm", "o", "a",
-    "mp3", "mp4", "mov", "avi", "mkv", "ogg", "wav", "flac", "webm",
+    "mp3", "mp4", "mov", "avi", "mkv", "ogg", "wav", "flac", "webm", "m4a", "aac", "m4v",
     "woff", "woff2", "ttf", "otf", "eot",
-    "excalidraw", "tldr", "ipynb",
+    "excalidraw", "tldr",
     "db", "sqlite", "sqlite3", "pak",
 ];
 
@@ -734,6 +745,31 @@ pub async fn delete_path(path: String) -> Result<(), String> {
     }
     // trash::delete works on both files and directories; no need to distinguish.
     trash::delete(&path).map_err(|e| format!("Failed to move to trash: {}", e))
+}
+
+/// Create a new empty file (`is_dir = false`) or directory (`is_dir = true`)
+/// at the given absolute path. Fails if the path already exists (we never
+/// overwrite). The parent directory is created if missing. Returns the path.
+/// v0.49.0: backs the file-tree "New file" / "New folder" context-menu items.
+#[tauri::command]
+pub async fn create_path(path: String, is_dir: bool) -> Result<String, String> {
+    let p = std::path::Path::new(&path);
+    if p.exists() {
+        return Err(format!("Already exists: {}", path));
+    }
+    // Create the parent directory if it's missing (rare — the tree only offers
+    // "new" inside an existing expanded dir, but be safe).
+    if let Some(parent) = p.parent() {
+        if let Err(e) = fs::create_dir_all(parent) {
+            return Err(format!("Failed to create parent directory: {}", e));
+        }
+    }
+    if is_dir {
+        fs::create_dir(&path).map_err(|e| format!("Failed to create folder: {}", e))?;
+    } else {
+        fs::write(&path, "").map_err(|e| format!("Failed to create file: {}", e))?;
+    }
+    Ok(path)
 }
 
 /// Rename / move a single file or directory to a new full path. Fails if the

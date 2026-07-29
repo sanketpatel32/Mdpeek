@@ -1188,6 +1188,160 @@
 }
 
 
+/* ---------- Notebook viewer (.ipynb) — v0.49.0 ----------
+   Read-only cell layout. Markdown cells reuse the markdown-body styles; code
+   cells reuse the code-viewer gutter/highlighting. The cell "card" framing
+   and prompt gutters are notebook-specific. */
+.notebook-viewer {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  overflow: auto;
+}
+.notebook-doc {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 24px 24px 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.nb-cell {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+.nb-cell .markdown-body {
+  padding: 14px 18px;
+  /* Notebook markdown cells shouldn't show the doc-level max-width twice. */
+  max-width: none;
+}
+.nb-raw-pre {
+  margin: 0;
+  padding: 14px 18px;
+  font-family: var(--font-mono, monospace);
+  font-size: 13px;
+  color: var(--fg-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.nb-code {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  grid-template-areas: "in input" "out out";
+}
+.nb-prompt {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  color: var(--fg-muted);
+  padding: 12px 8px 0 12px;
+  user-select: none;
+  text-align: right;
+}
+.nb-prompt-in { grid-area: in; }
+.nb-code-input {
+  grid-area: input;
+  /* The code-viewer-inner is a flex row; constrain it so it doesn't stretch. */
+  min-width: 0;
+}
+.nb-code-input .code-viewer-inner {
+  border: none;
+  border-radius: 0;
+}
+.nb-output {
+  grid-column: 2;
+  border-top: 1px solid var(--border-subtle);
+  padding: 8px 18px;
+  font-size: 13px;
+}
+.nb-output pre {
+  margin: 0;
+  font-family: var(--font-mono, monospace);
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.nb-output-stream pre { color: var(--fg-muted); }
+.nb-output-stderr pre { color: #d33; }
+.nb-output-error {
+  background: rgba(220, 50, 47, 0.08);
+}
+.nb-output-error pre { color: #b00; }
+.nb-output-data {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  align-items: start;
+}
+.nb-prompt-out {
+  padding-top: 8px;
+}
+.nb-output-img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  border-radius: var(--radius-sm);
+}
+.notebook-error {
+  /* Reuses the .pdf-error affordance. */
+}
+
+/* ---------- Media viewer (audio/video) — v0.49.0 ---------- */
+.media-viewer {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  overflow: auto;
+}
+.media-viewer-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 32px 24px 64px;
+}
+.media-video-el {
+  max-width: 100%;
+  max-height: calc(100vh - 140px);
+  border-radius: var(--radius-md);
+  background: #000;
+  box-shadow: var(--shadow-md);
+}
+.media-audio-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: min(560px, 100%);
+  padding: 36px 32px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+.media-audio-icon {
+  width: 56px;
+  height: 56px;
+  color: var(--accent, #4a90d9);
+}
+.media-audio-icon svg { width: 100%; height: 100%; }
+.media-audio-name {
+  font-size: 14px;
+  color: var(--fg);
+  text-align: center;
+  word-break: break-word;
+  font-weight: 500;
+}
+.media-audio-el {
+  width: 100%;
+}
+
+
 /* ---------- Print stylesheet (Export to PDF) ----------
    Triggered by exportPdf() in main.js via window.print(). Hides all app
    chrome so only the rendered markdown prints. The OS print dialog provides

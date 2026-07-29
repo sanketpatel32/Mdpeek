@@ -24,6 +24,8 @@ export function fileTypeClass(ext) {
   if (['pdf'].includes(ext)) return 'pdf';
   if (['excalidraw'].includes(ext)) return 'ex';
   if (['tldr'].includes(ext)) return 'td';
+  if (['ipynb'].includes(ext)) return 'nb'; // v0.49.0: Jupyter notebook
+  if (['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac', 'mp4', 'webm', 'mov', 'avi', 'm4v', 'mkv'].includes(ext)) return 'media'; // v0.49.0: audio/video
   if (['csv', 'tsv'].includes(ext)) return 'csv';
   if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp'].includes(ext)) return 'img';
   // Anything with a known language icon is treated as code.
@@ -71,6 +73,14 @@ export function getFileIconHtml(cls, extraClass = '') {
   if (cls === 'csv') {
     // Table grid glyph — distinguishes .csv/.tsv from generic code.
     return `<svg class="file-icon csv${extra}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>`;
+  }
+  if (cls === 'nb') {
+    // v0.49.0: Jupyter notebook glyph — stacked cells (markdown + code bars).
+    return `<svg class="file-icon nb${extra}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="7" y1="6.5" x2="13" y2="6.5"/><line x1="7" y1="14" x2="17" y2="14"/><line x1="7" y1="17.5" x2="14" y2="17.5"/></svg>`;
+  }
+  if (cls === 'media') {
+    // v0.49.0: audio/video glyph — a play triangle inside a frame.
+    return `<svg class="file-icon media${extra}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><polygon points="10,9 16,12 10,15" fill="currentColor" stroke="none"/></svg>`;
   }
   // Default fallback icon
   return `<svg class="file-icon${extra}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;

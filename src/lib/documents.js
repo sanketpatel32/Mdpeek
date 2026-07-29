@@ -37,11 +37,68 @@ export function isImagePath(path) {
   return !!path && /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i.test(path);
 }
 
+// v0.49.0: A doc is a "notebook" when it's a Jupyter .ipynb file. The file is
+// JSON text (nbformat 3/4) — it rides doc.content like CSV/code, and the viewer
+// parses + renders cells (markdown via renderMarkdown, code/outputs via
+// renderCode). Read-only, like code/CSV.
+export function isNotebookPath(path) {
+  return !!path && /\.ipynb$/i.test(path);
+}
+
+// v0.49.0: A doc is "media" when it's an audio/video file we can play via
+// <audio>/<video>. Binary (like images) — bytes never ride doc.content; the
+// viewer streams via the asset protocol.
+export function isMediaPath(path) {
+  return !!path && /\.(mp3|wav|ogg|flac|m4a|aac|mp4|webm|mov|avi|m4v|mkv)$/i.test(path);
+}
+
 // A doc is "csv" when it's a .csv or .tsv — rendered as a sortable, filterable
 // table by renderCsv(). Treated as a distinct type (not code) so it doesn't
 // fall into the highlight.js path.
 export function isCsvPath(path) {
   return !!path && /\.(csv|tsv)$/i.test(path);
+}
+
+// v0.49.0: Compute the chain of ancestor directories of `path` that sit UNDER
+// `root` (root excluded), ordered from the top-most (root's direct child) down
+// to `path`'s immediate parent. Used by the file-tree auto-reveal: each
+// ancestor in turn must be expanded so the file's row becomes visible.
+//
+//   ancestorsUnder('C:\\proj\\src\\lib\\foo.js', 'C:\\proj')
+//     → ['C:\\proj\\src', 'C:\\proj\\src\\lib']
+//
+// Returns [] when path isn't under root, or when path is directly inside root
+// (no intermediate ancestors). Handles both \\ and / separators. The output
+// preserves the separator style of `path` (so the results match the native
+// disk paths the file tree keys its _expanded set + data-path attrs on).
+// Pure → tested.
+export function ancestorsUnder(path, root) {
+  if (!path || !root) return [];
+  // Split on runs of either separator, then drop empty segments so a leading
+  // separator (unix absolute: "/proj" → ['', 'proj']) and a trailing separator
+  // on root ("/proj/" → ['proj']) don't inflate the segment counts. Drive
+  // letters stay attached to their first segment (e.g. "C:" stays with "proj").
+  const splitSegs = (p) => p.split(/[\\/]+/).filter((s) => s !== '');
+  const segs = splitSegs(path);
+  const rootSegs = splitSegs(root);
+  if (segs.length <= rootSegs.length) return [];
+  // Verify path is actually under root (segment-wise; case-insensitive so a
+  // different drive-letter case still matches).
+  const under = rootSegs.every((rs, i) => rs.toLowerCase() === (segs[i] || '').toLowerCase());
+  if (!under) return [];
+  // Re-join with the separator `path` uses natively (so results match the disk
+  // paths the file-tree keys its _expanded set + data-path attrs on). When path
+  // mixes separators, prefer backslash (Windows native).
+  const sep = path.includes('\\') ? '\\' : '/';
+  // Preserve a leading separator if `path` had one (unix absolute paths).
+  const leading = /^[\\/]/.test(path) ? sep : '';
+  const out = [];
+  // Ancestors are the dirs UNDER root, i.e. slices ending at index
+  // rootSegs.length+1 .. segs.length-1 (exclusive of the file's own segment).
+  for (let i = rootSegs.length + 1; i < segs.length; i++) {
+    out.push(leading + segs.slice(0, i).join(sep));
+  }
+  return out;
 }
 
 // A doc is a "code" file when its extension is a known text/code/config type
@@ -124,7 +181,7 @@ export function langForEdit(doc) {
   return 'markdown';                    // markdown files + untitled default
 }
 
-export function createDocument({ path = null, content = '', mode = 'view', plain, excalidraw, tldraw, code, csv, pinned = false, shared = false } = {}) {
+export function createDocument({ path = null, content = '', mode = 'view', plain, excalidraw, tldraw, code, csv, notebook, media, pinned = false, shared = false } = {}) {
   // `plain` override lets a fresh Untitled tab be plain text without a .txt
   // path (used by the new-tab-format preference). When omitted, plainness is
   // derived from the path as before.
@@ -133,18 +190,22 @@ export function createDocument({ path = null, content = '', mode = 'view', plain
   const isImage = isImagePath(path);
   const isExcalidraw = excalidraw !== undefined ? excalidraw : isExcalidrawPath(path);
   const isTldraw = tldraw !== undefined ? tldraw : isTLDrawPath(path);
-  const isCsv = csv !== undefined ? csv : (!isPlain && !isPdf && !isImage && !isExcalidraw && !isTldraw && isCsvPath(path));
-  const isCode = code !== undefined ? code : (!isPlain && !isPdf && !isImage && !isExcalidraw && !isTldraw && !isCsv && isCodePath(path));
+  const isNotebook = notebook !== undefined ? notebook : (!isPlain && !isPdf && !isImage && !isExcalidraw && !isTldraw && isNotebookPath(path));
+  const isMedia = media !== undefined ? media : (!isPlain && !isPdf && !isImage && !isExcalidraw && !isTldraw && !isNotebook && isMediaPath(path));
+  const isCsv = csv !== undefined ? csv : (!isPlain && !isPdf && !isImage && !isExcalidraw && !isTldraw && !isNotebook && !isMedia && isCsvPath(path));
+  const isCode = code !== undefined ? code : (!isPlain && !isPdf && !isImage && !isExcalidraw && !isTldraw && !isNotebook && !isMedia && !isCsv && isCodePath(path));
   return {
     id: newId(),
     path, // string | null (null = Untitled, not yet saved)
-    content: (isPdf || isImage) ? '' : content, // PDF + image bytes never ride this field
-    mode: isPlain ? 'edit' : ((isPdf || isImage || isExcalidraw || isTldraw || isCode || isCsv) ? 'view' : mode),
+    content: (isPdf || isImage || isMedia) ? '' : content, // PDF + image + media bytes never ride this field
+    mode: isPlain ? 'edit' : ((isPdf || isImage || isExcalidraw || isTldraw || isNotebook || isMedia || isCode || isCsv) ? 'view' : mode),
     plain: isPlain, // true = no markdown preview, full-width editor
     pdf: isPdf, // true = rendered via pdf.js, read-only
     image: isImage, // true = rendered via <img>, read-only
     excalidraw: isExcalidraw, // true = Excalidraw canvas tab
     tldraw: isTldraw, // true = TLDraw canvas tab (v0.47.0)
+    notebook: isNotebook, // true = Jupyter .ipynb, rendered as cells (v0.49.0)
+    media: isMedia, // true = audio/video, played via <audio>/<video> (v0.49.0)
     code: isCode, // true = rendered read-only with syntax highlighting
     csv: isCsv, // true = rendered as a sortable/filterable table
     pinned: !!pinned, // true = pinned to the left of the tab strip, survives bulk-close
@@ -176,7 +237,7 @@ export class DocumentStore {
     return this.docs.find((d) => d.id === this.activeId) || null;
   }
 
-  open({ path = null, content = '', plain, mode, excalidraw, tldraw, code, csv, pinned, shared } = {}) {
+  open({ path = null, content = '', plain, mode, excalidraw, tldraw, code, csv, notebook, media, pinned, shared } = {}) {
     // Duplicate check: files on disk (path != null) open once.
     if (path !== null) {
       const existing = this.docs.find((d) => d.path === path);
@@ -185,7 +246,7 @@ export class DocumentStore {
         return existing;
       }
     }
-    const doc = createDocument({ path, content, plain, mode, excalidraw, tldraw, code, csv, pinned, shared });
+    const doc = createDocument({ path, content, plain, mode, excalidraw, tldraw, code, csv, notebook, media, pinned, shared });
     this.docs.push(doc);
     this.activeId = doc.id;
     this._emit('change');
@@ -298,6 +359,8 @@ export class DocumentStore {
           image: d.image || false,
           excalidraw: d.excalidraw || false,
           tldraw: d.tldraw || false,
+          notebook: d.notebook || false,
+          media: d.media || false,
           code: d.code || false,
           csv: d.csv || false,
           pinned: d.pinned || false,
@@ -319,20 +382,24 @@ export class DocumentStore {
         const image = d.image !== undefined ? !!d.image : isImagePath(path);
         const excalidraw = d.excalidraw !== undefined ? !!d.excalidraw : isExcalidrawPath(path);
         const tldraw = d.tldraw !== undefined ? !!d.tldraw : isTLDrawPath(path);
-        const csv = d.csv !== undefined ? !!d.csv : (!plain && !pdf && !image && !excalidraw && !tldraw && isCsvPath(path));
-        const code = d.code !== undefined ? !!d.code : (!plain && !pdf && !image && !excalidraw && !tldraw && !csv && isCodePath(path));
+        const notebook = d.notebook !== undefined ? !!d.notebook : (!plain && !pdf && !image && !excalidraw && !tldraw && isNotebookPath(path));
+        const media = d.media !== undefined ? !!d.media : (!plain && !pdf && !image && !excalidraw && !tldraw && !notebook && isMediaPath(path));
+        const csv = d.csv !== undefined ? !!d.csv : (!plain && !pdf && !image && !excalidraw && !tldraw && !notebook && !media && isCsvPath(path));
+        const code = d.code !== undefined ? !!d.code : (!plain && !pdf && !image && !excalidraw && !tldraw && !notebook && !media && !csv && isCodePath(path));
         const pinned = d.pinned !== undefined ? !!d.pinned : false;
         return {
           id: typeof d.id === 'string' ? d.id : newId(),
           path,
-          content: (pdf || image) ? '' : d.content,
-          // plain docs are always in edit mode; PDFs/images/canvases/code/csv are always view; markdown honors the snapshot.
-          mode: plain ? 'edit' : ((pdf || image || excalidraw || tldraw || code || csv) ? 'view' : d.mode === 'edit' ? 'edit' : 'view'),
+          content: (pdf || image || media) ? '' : d.content,
+          // plain docs are always in edit mode; PDFs/images/canvases/notebooks/media/code/csv are always view; markdown honors the snapshot.
+          mode: plain ? 'edit' : ((pdf || image || excalidraw || tldraw || notebook || media || code || csv) ? 'view' : d.mode === 'edit' ? 'edit' : 'view'),
           plain,
           pdf,
           image,
           excalidraw,
           tldraw,
+          notebook,
+          media,
           code,
           csv,
           pinned,
