@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-07-29
+
+### Fixed — TLDraw & Excalidraw hardening
+
+An end-to-end audit of the TLDraw integration surfaced two concrete data-loss
+paths and several rough edges shared with Excalidraw. All are fixed here. Most
+fixes improve **both** canvases.
+
+**Data safety**
+
+- **Save-as now offers the right file type** — saving an untitled TLDraw
+  (or Excalidraw) tab via Ctrl+S previously opened a Markdown-only dialog
+  defaulting to `untitled.md`; accepting it wrote the scene JSON as `.md`,
+  which reopened as a broken markdown doc and corrupted on further saves. The
+  `save_file_as` command now takes a `kind` and branches the dialog: TLDraw
+  tabs get a `.tldr` filter + `untitled.tldr` default; Excalidraw tabs get
+  `.excalidraw`. Text docs are unchanged.
+- **A `.tldr` that fails to load no longer risks being overwritten with blank** —
+  if a saved scene can't be loaded (newer TLDraw schema, corruption), the
+  viewer now shows a visible error banner and, critically, `flush()` returns
+  the original file content verbatim instead of re-serializing the empty
+  store. So a Ctrl+S on a failed-load tab preserves the file rather than
+  destroying it.
+
+**Polish**
+
+- **Theme changes no longer remount the TLDraw canvas** — toggling theme on a
+  TLDraw tab previously unmounted and remounted the whole React/TLDraw tree
+  (flicker + re-ran the snapshot load). `colorScheme` is now held in React
+  state and updated in place, matching how Excalidraw handles theme.
+- **Find is disabled on canvas tabs** — Ctrl+F on a TLDraw/Excalidraw tab used
+  to walk the canvas library's internal UI text nodes and inject `<mark>` into
+  its React-managed DOM. Canvas tabs now report a non-searchable `'canvas'`
+  mode; Ctrl+F / the Find command show a toast instead.
+- **Save button visible for saved canvas tabs** — the toolbar hid Save for all
+  canvas tabs even though Ctrl+S worked. A saved `.tldr`/`.excalidraw` now
+  shows the Save button (unsaved canvas tabs still hide it, since they use
+  save-as).
+
+Verified by the full test suite (845 tests; the fixes are DOM/React
+orchestration + a Rust command signature, smoke-tested per the existing canvas
+convention).
+
 ## [0.47.1] - 2026-07-29
 
 ### Fixed — TLDraw didn't work in 0.47.0

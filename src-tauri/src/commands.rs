@@ -85,10 +85,23 @@ pub fn write_temp_html(content: String, suggested_name: Option<String>) -> Resul
 }
 
 #[tauri::command]
-pub async fn save_file_as(content: String) -> Result<String, String> {
-    let file = rfd::AsyncFileDialog::new()
-        .add_filter("Markdown", &["md", "markdown"])
-        .set_file_name("untitled.md")
+pub async fn save_file_as(content: String, kind: Option<String>) -> Result<String, String> {
+    // v0.48.0: branch the dialog filter + default filename on the doc kind so a
+    // canvas tab (TLDraw/Excalidraw) can't be accidentally saved as `.md` —
+    // which would reopen as a markdown doc and corrupt the scene JSON.
+    let mut dialog = rfd::AsyncFileDialog::new();
+    match kind.as_deref() {
+        Some("tldraw") => {
+            dialog = dialog.add_filter("TLDraw", &["tldr"]).set_file_name("untitled.tldr");
+        }
+        Some("excalidraw") => {
+            dialog = dialog.add_filter("Excalidraw", &["excalidraw"]).set_file_name("untitled.excalidraw");
+        }
+        _ => {
+            dialog = dialog.add_filter("Markdown", &["md", "markdown"]).set_file_name("untitled.md");
+        }
+    }
+    let file = dialog
         .save_file()
         .await
         .ok_or_else(|| "cancelled".to_string())?;

@@ -511,10 +511,14 @@ let _closedTabs = [];
 // gated separately by syncSidebarVisibility(). This helper only handles the
 // doc-specific actions that weren't already toggled inline in each branch.
 function syncToolbarForDoc(doc) {
-  // Save: only editable docs (markdown / plain / code in any mode). Hide on
-  // the welcome screen and for read-only viewers (PDF / image / csv /
-  // excalidraw) — there's nothing to write back to disk for those.
-  const editable = !!doc && !doc.pdf && !doc.image && !doc.csv && !doc.excalidraw && !doc.tldraw;
+  // Save: editable docs (markdown / plain / code in any mode), PLUS saved
+  // canvas tabs (.tldr / .excalidraw with a path) since Ctrl+S genuinely
+  // flushes their scene to disk. Hidden on the welcome screen, for read-only
+  // viewers (PDF / image / csv), and for UNSAVED canvas tabs (which use
+  // save-as via Ctrl+S — and that now offers the right extension, v0.48.0 F1).
+  const isCanvas = !!doc && (doc.excalidraw || doc.tldraw);
+  const canvasSaveable = isCanvas && !!doc.path;
+  const editable = !!doc && !doc.pdf && !doc.image && !doc.csv && (!isCanvas || canvasSaveable);
   el.save.classList.toggle('hidden', !editable);
 }
 
@@ -949,8 +953,10 @@ const find = initFindBar({
     const d = store.active();
     if (!d) return 'view';
     if (d.pdf) return 'pdf';
-    if (d.excalidraw) return 'excalidraw';
-    if (d.tldraw) return 'tldraw';
+    // v0.48.0: canvases (TLDraw/Excalidraw) are a single non-searchable mode.
+    // The find bar short-circuits for 'canvas' so it doesn't walk the canvas
+    // library's internal UI DOM and inject <mark> into React-managed nodes.
+    if (d.excalidraw || d.tldraw) return 'canvas';
     if (d.code) return d.mode;
     return d.mode;
   },
@@ -1019,7 +1025,7 @@ const palette = initCommandPalette(() => {
     { id: 'editor-outline', label: 'Toggle editor outline', keywords: 'editor outline toc headings panel jump navigate', run: toggleEditorOutline },
     { id: 'doc-stats', label: 'Toggle document statistics', keywords: 'stats statistics words chars sentences paragraphs reading time panel', run: toggleDocStats },
     { id: 'sidebar', label: 'Toggle sidebar (TOC)', hint: 'Ctrl+B', keywords: 'sidebar toc outline', run: toggleSidebar },
-    { id: 'find', label: 'Find', hint: 'Ctrl+F', keywords: 'find search', run: () => find.toggle() },
+    { id: 'find', label: 'Find', hint: 'Ctrl+F', keywords: 'find search', run: () => { const d = store.active(); if (d && (d.excalidraw || d.tldraw)) { toast('Find isn\'t available on canvas tabs'); return; } find.toggle(); } },
     { id: 'replace', label: 'Find & Replace', hint: 'Ctrl+H', keywords: 'replace substitute find', run: () => find.openReplace() },
     { id: 'focus', label: 'Focus mode', hint: 'F11', keywords: 'focus zen distraction', run: toggleFocus },
     { id: 'reading', label: 'Reading mode', hint: 'Ctrl+Shift+R', keywords: 'reader immersive distraction safari pocket book', run: toggleReading },
@@ -1890,7 +1896,12 @@ async function saveActive() {
 
   if (!doc.path) {
     try {
-      const path = await invoke('save_file_as', { content });
+      // v0.48.0: pass the doc kind so the save-as dialog offers the right
+      // filter + default extension (.tldr / .excalidraw) for canvas tabs —
+      // otherwise a TLDraw/Excalidraw scene would be saved as .md and reopen
+      // as a broken markdown doc.
+      const kind = doc.tldraw ? 'tldraw' : doc.excalidraw ? 'excalidraw' : undefined;
+      const path = await invoke('save_file_as', { content, kind });
       doc.path = path;
       store.clearDirty(doc.id);
       toast('Saved');
@@ -6614,6 +6625,9 @@ window.addEventListener('keydown', (e) => {
     toggleSidebar();
   } else if (k === 'f') {
     e.preventDefault();
+    // v0.48.0: canvases aren't text-searchable — skip the find bar entirely.
+    const d = store.active();
+    if (d && (d.excalidraw || d.tldraw)) { toast('Find isn\'t available on canvas tabs'); return; }
     find.toggle();
   } else if (k === 'h') {
     // Ctrl+H = find & replace. No-op in view/PDF mode (find bar handles that).

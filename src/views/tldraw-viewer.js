@@ -2,10 +2,15 @@
 //
 // Mounts the TLDraw SDK v5 (`tldraw` package) into a DOM container and exposes
 // a controller object with the same shape main.js expects from the Excalidraw
-// controller: { setTheme, getSceneJSON, destroy }. Collaboration methods are
-// intentionally absent — TLDraw collab is deferred (it uses a different sync
+// controller: { setTheme, getSceneJSON, flush, destroy }. Collaboration methods
+// are intentionally absent — TLDraw collab is deferred (it uses a different sync
 // engine than the app's Yjs/Excalidraw setup), so TLDraw tabs hide the Share
 // button and never bind collab.
+//
+// THEME (v0.48.0): colorScheme is held in React useState inside TLDrawRoot, so a
+// theme change re-renders the <Tldraw> element IN PLACE (prop update) rather than
+// unmounting + remounting the whole React tree. The previous design re-called
+// root.render() on every theme toggle, which flickered and re-ran onMount.
 //
 // PERSISTENCE — how we save/load `.tldr` files in v5:
 //
@@ -22,6 +27,12 @@
 //   snapshot via `editor.loadSnapshot(...)` in `onMount`. The EDITOR-LEVEL
 //   method runs the full migration + default-prop pipeline first, so the
 //   records are normalized before the store sees them.
+//
+//   LOAD FAILURE (v0.48.0): if loadSnapshot throws (e.g. a `.tldr` from a newer
+//   TLDraw version whose schema can't migrate), we surface a visible error
+//   banner AND set `loadFailed`. While loadFailed, flush()/getSceneJSON() return
+//   the ORIGINAL file content verbatim — never the empty re-serialized store —
+//   so a Ctrl+S can't silently overwrite the user's real drawing with blank.
 //
 // All heavy deps (React, ReactDOM, the TLDraw SDK, TLDraw's CSS) are
 // dynamic-imported on first open and cached, so TLDraw adds zero cost to the
@@ -73,21 +84,20 @@ export async function showTLDraw(container, initialData, onSave, initialAppTheme
 
     container.innerHTML = '';
 
-    // Parse the saved snapshot once (getSnapshot-shaped JSON). Kept as a plain
-    // object; loaded into the editor after mount via the editor method (which
-    // runs migrations). null/blank/unparseable → start from an empty canvas.
+    // Parse the saved snapshot once. null/blank/unparseable → blank canvas.
     let parsedSnapshot = null;
     if (initialData && typeof initialData === 'string' && initialData.trim()) {
       try { parsedSnapshot = JSON.parse(initialData); } catch { /* blank */ }
     }
 
-    // Latest serialized scene JSON, kept in sync by the store listener so
-    // getSceneJSON()/flush() return current content even mid-debounce. Seeded
-    // with the loaded content so a flush before the first edit returns it.
-    let latestJson = (initialData && typeof initialData === 'string') ? initialData : '';
+    // Shared mutable state between the React tree and the imperative controller.
+    // These are closed-over by both the component definitions below and the
+    // returned controller, so setTheme/flush can reach into the live editor.
+    let latestJson = '';                 // last serialized scene (never seeded with raw initialData — see F2)
     let saveTimer = null;
     let editorRef = null;
-    let snapshotLoaded = false;
+    let loadFailed = false;              // true if loadSnapshot threw → flush preserves the original file
+    let setSchemeRef = null;             // captured setState from TLDrawRoot (set by the component on mount)
 
     // Serialize the editor's current state to a JSON string. Shared by the
     // debounced auto-save and the synchronous flush(). Uses getSnapshot (the
@@ -101,42 +111,6 @@ export async function showTLDraw(container, initialData, onSave, initialAppTheme
         console.error('TLDraw serialize failed:', e);
         return latestJson || '';
       }
-    }
-
-    // Called once TLDraw has mounted and handed us the Editor instance. We load
-    // the saved snapshot here via the editor-level method (runs migrations +
-    // applies shape-prop defaults — the snapshot prop and store-level load both
-    // validate records strictly and would throw on missing defaulted props).
-    // `snapshotLoaded` guards against re-loading on theme re-renders.
-    function handleMount(editor) {
-      editorRef = editor;
-      if (!snapshotLoaded) {
-        snapshotLoaded = true;
-        if (parsedSnapshot) {
-          try {
-            editor.loadSnapshot(parsedSnapshot);
-          } catch (e) {
-            console.error('TLDraw loadSnapshot failed:', e);
-          }
-        }
-      }
-    }
-
-    let currentTheme = tldrawThemeFor(initialAppTheme);
-
-    function renderTLDraw() {
-      root.render(
-        React.createElement(
-          'div',
-          { className: 'tldraw-wrap' },
-          React.createElement(
-            Tldraw,
-            // No `store`/`snapshot` prop — mount fresh, load via onMount.
-            { colorScheme: currentTheme, onMount: handleMount },
-            React.createElement(AutoSaver),
-          ),
-        ),
-      );
     }
 
     // The auto-saver: a child of <Tldraw> so it can read the editor from React
@@ -159,9 +133,45 @@ export async function showTLDraw(container, initialData, onSave, initialAppTheme
       return null;
     }
 
+    // TLDrawRoot: holds colorScheme in useState so theme changes update the
+    // <Tldraw> prop IN PLACE (no remount). Captures the setState into
+    // setSchemeRef so the controller's setTheme can call it. Also runs the
+    // one-time snapshot load + failure handling in onMount.
+    function TLDrawRoot() {
+      const [scheme, setScheme] = React.useState(tldrawThemeFor(initialAppTheme));
+      React.useEffect(() => { setSchemeRef = setScheme; }, [setScheme]);
+
+      const handleMount = React.useCallback((editor) => {
+        editorRef = editor;
+        if (parsedSnapshot) {
+          try {
+            editor.loadSnapshot(parsedSnapshot);
+          } catch (e) {
+            // Schema mismatch (e.g. a .tldr from a newer TLDraw version) or
+            // corrupt snapshot. Surface a banner and mark loadFailed so flush
+            // preserves the original file instead of writing a blank canvas.
+            console.error('TLDraw loadSnapshot failed:', e);
+            loadFailed = true;
+            showLoadError(container, initialData);
+          }
+        }
+      }, []);
+
+      return React.createElement(
+        'div',
+        { className: 'tldraw-wrap' },
+        React.createElement(
+          Tldraw,
+          // No `store`/`snapshot` prop — mount fresh, load via onMount.
+          { colorScheme: scheme, onMount: handleMount },
+          React.createElement(AutoSaver),
+        ),
+      );
+    }
+
     const root = ReactDOMClient.createRoot(container);
     try {
-      renderTLDraw();
+      root.render(React.createElement(TLDrawRoot));
     } catch (renderErr) {
       try { root.unmount(); } catch {}
       throw renderErr;
@@ -169,20 +179,19 @@ export async function showTLDraw(container, initialData, onSave, initialAppTheme
 
     return {
       setTheme(appTheme) {
-        const next = tldrawThemeFor(appTheme);
-        if (next === currentTheme) return;
-        currentTheme = next;
-        renderTLDraw();
+        // In-place re-render via the captured setState — no unmount/remount.
+        if (setSchemeRef) setSchemeRef(tldrawThemeFor(appTheme));
       },
       getSceneJSON() {
-        // Synchronous read of the last serialized scene. The debounced listener
-        // keeps this current; main.js calls flush() on save/close to guarantee
-        // no edits are lost to the debounce window.
+        // If load failed, return the original file content verbatim so a flush
+        // never overwrites it with the empty store's serialization.
+        if (loadFailed) return (initialData && typeof initialData === 'string') ? initialData : '';
         return latestJson || '';
       },
       flush() {
         // Force-serialize now so save/close captures edits inside the debounce
-        // window. Returns the latest JSON string.
+        // window. On loadFailed, preserve the original file (see getSceneJSON).
+        if (loadFailed) return (initialData && typeof initialData === 'string') ? initialData : '';
         if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
         return editorRef ? serialize(editorRef) : (latestJson || '');
       },
@@ -205,4 +214,18 @@ export async function showTLDraw(container, initialData, onSave, initialAppTheme
       destroy() {},
     };
   }
+}
+
+// Replace the canvas with an error banner explaining the file couldn't be
+// loaded. The original file on disk is untouched (flush preserves it).
+function showLoadError(container, initialData) {
+  // Only show if there was real saved content (a brand-new blank tab has
+  // nothing to "fail to load" meaningfully).
+  if (!initialData || !initialData.trim()) return;
+  try {
+    container.innerHTML =
+      `<div class="pdf-error">This .tldr file couldn't be loaded — it may be` +
+      ` from a newer TLDraw version or be corrupt. The file on disk is unchanged.` +
+      `<br><br>Do not edit and save this tab; that would replace the original.</div>`;
+  } catch { /* container may be gone during teardown */ }
 }

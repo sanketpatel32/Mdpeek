@@ -202,8 +202,19 @@ function wireOnce() {
 function run() {
   clearMarks();
   clearPdfHighlights();
-  const doc = ctx.getDocument();
   const mode = ctx.getMode();
+  // v0.48.0: canvas tabs (TLDraw/Excalidraw) aren't text-searchable — the
+  // drawing lives in a React-managed canvas, not the DOM. Short-circuit so we
+  // never walk the canvas library's internal UI nodes or inject <mark> into
+  // its React tree.
+  if (mode === 'canvas') {
+    matchIdx = -1;
+    matches = [];
+    updateCount();
+    input.classList.toggle('no-match', query !== '');
+    return;
+  }
+  const doc = ctx.getDocument();
   if (mode === 'edit') {
     runEdit();
   } else if (mode === 'pdf') {
