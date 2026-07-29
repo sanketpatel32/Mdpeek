@@ -894,28 +894,28 @@
   height: 100%;
 }
 
-/* v0.47.0: TLDraw host — same fill-the-pane treatment as Excalidraw. The
-   selector uses the runtime-added `.tldraw-host` class alone (not
-   `.markdown-body.tldraw-host`) because the render branch strips
-   `markdown-body` from #document before mounting. The inner `.tldraw-wrap`
-   (emitted by the viewer) flexes to fill the pane; TLDraw's own `.tl-canvas`
-   handles scrolling/zoom inside it. */
-.tldraw-host {
-  padding: 0;
+/* v0.47.0: TLDraw host. TLDraw's root `.tl-container` is `width/height: 100%`
+   (static layout), so it needs an ancestor with a CONCRETE resolved height.
+   #document's normal height comes from being a `flex:1; overflow:auto` child of
+   #view-mode — but `height:100%` on this host resolves against an auto-height
+   flex parent and collapses to 0, producing a blank canvas. The fix: take the
+   host out of the flex chain with `position:absolute; inset:0` so it fills the
+   `position:relative` #view-mode box directly. The `#document.tldraw-host`
+   selector matches the specificity of the base `#document` rule so it wins. */
+#document.tldraw-host {
+  position: absolute;
+  inset: 0;
   margin: 0;
-  height: 100%;
-  width: 100%;
+  padding: 0;
+  flex: none;
   overflow: hidden;
-  position: relative;
-  display: flex;
-  flex-direction: column;
 }
-.tldraw-host > div,
-.tldraw-host .tldraw-wrap {
-  flex: 1;
-  min-height: 0;
-  height: 100%;
+#document.tldraw-host > div,
+#document.tldraw-host .tldraw-wrap {
+  position: absolute;
+  inset: 0;
   width: 100%;
+  height: 100%;
 }
 
 /* ----------------------------- code viewer ------------------------------- */

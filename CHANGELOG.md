@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.47.1] - 2026-07-29
+
+### Fixed — TLDraw didn't work in 0.47.0
+
+The TLDraw integration shipped in 0.47.0 was broken on two counts; both are
+fixed here.
+
+- **Blank canvas** — TLDraw's root container is `width/height: 100%` (static
+  layout), so it needs an ancestor with a concrete resolved height. The host
+  was `height: 100%` of an auto-height flex parent, which collapsed to 0px and
+  rendered an empty pane. Fixed: the `.tldraw-host` now uses
+  `position: absolute; inset: 0` so it fills the document pane directly, out of
+  the flex chain (the id+class selector beats the base `#document` rule).
+- **Validation crash on save/reopen** — loading a saved `.tldr` via the
+  `snapshot` prop validates each shape record strictly on insertion and rejects
+  snapshots whose `props` omit defaulted fields (`scale`, `isLocked`, …), which
+  `getSnapshot()` strips:
+  `At shape(type = geo).props.scale: Expected number, got undefined`.
+  Fixed: the viewer now mounts a fresh canvas and loads the saved snapshot via
+  `editor.loadSnapshot()` in `onMount` — the editor-level method runs the full
+  migration + default-prop pipeline before records reach the store. A `flush()`
+  method was added so Ctrl+S force-captures edits inside the debounce window.
+
 ## [0.47.0] - 2026-07-29
 
 ### Added — TLDraw support

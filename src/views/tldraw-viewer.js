@@ -7,15 +7,21 @@
 // engine than the app's Yjs/Excalidraw setup), so TLDraw tabs hide the Share
 // button and never bind collab.
 //
-// Why a fresh implementation instead of sharing code with excalidraw-viewer.js?
-// The two SDKs have incompatible persistence models:
-//   - Excalidraw: an `onChange(elements, appState, files)` prop + a
-//     `serializeAsJSON()` helper over a flat element array.
-//   - TLDraw v5:  no `onChange` prop at all. You subscribe to the store inside
-//     a child component via `useEditor()` + `editor.store.listen(...)`, and
-//     serialize via `getSnapshot(editor.store)`.
-// The shape is different enough that a shared abstraction would be more code
-// than the two concrete viewers.
+// PERSISTENCE — how we save/load `.tldr` files in v5:
+//
+//   SAVE: subscribe to `editor.store` via `.listen()`; on change (debounced 1s)
+//   capture the snapshot with `getSnapshot(editor.store)` and JSON.stringify it.
+//   `getSnapshot` is the read side and works fine.
+//
+//   LOAD: do NOT pass the saved snapshot via the `snapshot` prop, and do NOT use
+//   the `loadSnapshot(store, ...)` free function — both validate each record
+//   strictly on insertion and reject snapshots whose shape `props` omit
+//   defaulted fields (e.g. geo shapes with no `scale`), throwing:
+//     "At shape(type = geo).props.scale: Expected number, got undefined"
+//   Instead mount a fresh `<Tldraw>` (no store/snapshot) and load the saved
+//   snapshot via `editor.loadSnapshot(...)` in `onMount`. The EDITOR-LEVEL
+//   method runs the full migration + default-prop pipeline first, so the
+//   records are normalized before the store sees them.
 //
 // All heavy deps (React, ReactDOM, the TLDraw SDK, TLDraw's CSS) are
 // dynamic-imported on first open and cached, so TLDraw adds zero cost to the
@@ -45,11 +51,11 @@ const SAVE_DELAY = 1000;
 // Mount TLDraw into `container` (the #document article element).
 //
 //   container       — the DOM host (gets the `tldraw-host` class)
-//   initialData     — saved .tldr scene JSON string (parsed; blank if empty)
-//   onSave(json)    — debounced callback fired with the serialized snapshot
+//   initialData     — saved scene JSON string (getSnapshot output)
+//   onSave(json)    — debounced callback fired with the serialized scene
 //   initialAppTheme — the app theme name (used to pick light/dark)
 //
-// Returns a controller: { setTheme, getSceneJSON, destroy }.
+// Returns a controller: { setTheme, getSceneJSON, flush, destroy }.
 export async function showTLDraw(container, initialData, onSave, initialAppTheme) {
   container.innerHTML = '<div class="pdf-loading">Loading TLDraw…</div>';
   container.classList.add('tldraw-host');
@@ -65,52 +71,57 @@ export async function showTLDraw(container, initialData, onSave, initialAppTheme
     const ReactDOMClient = ReactDOMMod.default;
     const { Tldraw, useEditor, getSnapshot } = TLDrawMod;
 
-    // Parse the saved snapshot. A .tldr file is JSON.stringify(getSnapshot()),
-    // i.e. { schema, document: { store, schema, assets }, session? }. If it's
-    // missing/blank/corrupt we start from a fresh empty canvas.
-    let parsedSnapshot = null;
-    if (initialData && typeof initialData === 'string' && initialData.trim()) {
-      try { parsedSnapshot = JSON.parse(initialData); } catch { /* blank canvas */ }
-    }
     container.innerHTML = '';
 
-    // Latest snapshot string, kept in sync by the store listener so
-    // getSceneJSON() can force-flush on save/close even before the debounce
-    // fires. Closure-scoped so the controller below can read it.
-    let latestJson = initialData && typeof initialData === 'string' ? initialData : '';
-    let saveTimer = null;
-
-    // The auto-saver: a child of <Tldraw> so it can read the editor from React
-    // context via useEditor(). On mount it subscribes to store changes; every
-    // change resets the debounce timer and, when it fires, serializes the
-    // snapshot and calls onSave. Returns null (renders nothing).
-    function AutoSaver() {
-      const editor = useEditor();
-      React.useEffect(() => {
-        if (!editor) return;
-        // `listen` fires on every store mutation (shape add/move/delete, page
-        // change, asset upload, etc.). `diff` would let us skip no-ops, but the
-        // debounce already collapses bursts — a per-diff filter isn't worth it.
-        const cleanup = editor.store.listen(() => {
-          if (saveTimer) clearTimeout(saveTimer);
-          saveTimer = setTimeout(() => {
-            try {
-              const snap = getSnapshot(editor.store);
-              latestJson = JSON.stringify(snap);
-              if (onSave) onSave(latestJson);
-            } catch (e) {
-              console.error('TLDraw serialize failed:', e);
-            }
-          }, SAVE_DELAY);
-        });
-        return cleanup;
-      }, [editor]);
-      return null;
+    // Parse the saved snapshot once (getSnapshot-shaped JSON). Kept as a plain
+    // object; loaded into the editor after mount via the editor method (which
+    // runs migrations). null/blank/unparseable → start from an empty canvas.
+    let parsedSnapshot = null;
+    if (initialData && typeof initialData === 'string' && initialData.trim()) {
+      try { parsedSnapshot = JSON.parse(initialData); } catch { /* blank */ }
     }
 
-    // The TLDraw host fills the pane. We need an explicit-size wrapper div
-    // (TLDraw requires a sized parent); the .tldraw-host CSS makes `container`
-    // full-height and this inner div flexes to fill it.
+    // Latest serialized scene JSON, kept in sync by the store listener so
+    // getSceneJSON()/flush() return current content even mid-debounce. Seeded
+    // with the loaded content so a flush before the first edit returns it.
+    let latestJson = (initialData && typeof initialData === 'string') ? initialData : '';
+    let saveTimer = null;
+    let editorRef = null;
+    let snapshotLoaded = false;
+
+    // Serialize the editor's current state to a JSON string. Shared by the
+    // debounced auto-save and the synchronous flush(). Uses getSnapshot (the
+    // read side of the format the editor.loadSnapshot method consumes).
+    function serialize(editor) {
+      try {
+        const snap = getSnapshot(editor.store);
+        latestJson = JSON.stringify(snap);
+        return latestJson;
+      } catch (e) {
+        console.error('TLDraw serialize failed:', e);
+        return latestJson || '';
+      }
+    }
+
+    // Called once TLDraw has mounted and handed us the Editor instance. We load
+    // the saved snapshot here via the editor-level method (runs migrations +
+    // applies shape-prop defaults — the snapshot prop and store-level load both
+    // validate records strictly and would throw on missing defaulted props).
+    // `snapshotLoaded` guards against re-loading on theme re-renders.
+    function handleMount(editor) {
+      editorRef = editor;
+      if (!snapshotLoaded) {
+        snapshotLoaded = true;
+        if (parsedSnapshot) {
+          try {
+            editor.loadSnapshot(parsedSnapshot);
+          } catch (e) {
+            console.error('TLDraw loadSnapshot failed:', e);
+          }
+        }
+      }
+    }
+
     let currentTheme = tldrawThemeFor(initialAppTheme);
 
     function renderTLDraw() {
@@ -120,12 +131,32 @@ export async function showTLDraw(container, initialData, onSave, initialAppTheme
           { className: 'tldraw-wrap' },
           React.createElement(
             Tldraw,
-            { snapshot: parsedSnapshot || undefined, colorScheme: currentTheme },
-            // Child renders inside Tldraw's context so useEditor() works.
+            // No `store`/`snapshot` prop — mount fresh, load via onMount.
+            { colorScheme: currentTheme, onMount: handleMount },
             React.createElement(AutoSaver),
           ),
         ),
       );
+    }
+
+    // The auto-saver: a child of <Tldraw> so it can read the editor from React
+    // context via useEditor(). On mount it subscribes to store changes; every
+    // change resets the debounce timer and, when it fires, serializes and calls
+    // onSave. Returns null (renders nothing).
+    function AutoSaver() {
+      const editor = useEditor();
+      React.useEffect(() => {
+        if (!editor) return;
+        const cleanup = editor.store.listen(() => {
+          if (saveTimer) clearTimeout(saveTimer);
+          saveTimer = setTimeout(() => {
+            const json = serialize(editor);
+            if (onSave) onSave(json);
+          }, SAVE_DELAY);
+        });
+        return cleanup;
+      }, [editor]);
+      return null;
     }
 
     const root = ReactDOMClient.createRoot(container);
@@ -144,9 +175,16 @@ export async function showTLDraw(container, initialData, onSave, initialAppTheme
         renderTLDraw();
       },
       getSceneJSON() {
-        // Prefer the live editor snapshot (accurate even mid-debounce); fall
-        // back to the last serialized string if the editor isn't ready yet.
+        // Synchronous read of the last serialized scene. The debounced listener
+        // keeps this current; main.js calls flush() on save/close to guarantee
+        // no edits are lost to the debounce window.
         return latestJson || '';
+      },
+      flush() {
+        // Force-serialize now so save/close captures edits inside the debounce
+        // window. Returns the latest JSON string.
+        if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+        return editorRef ? serialize(editorRef) : (latestJson || '');
       },
       destroy() {
         if (saveTimer) clearTimeout(saveTimer);
@@ -163,6 +201,7 @@ export async function showTLDraw(container, initialData, onSave, initialAppTheme
     return {
       setTheme() {},
       getSceneJSON() { return ''; },
+      flush() { return ''; },
       destroy() {},
     };
   }

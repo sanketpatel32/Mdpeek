@@ -1880,9 +1880,10 @@ async function saveActive() {
     const json = _activeExcalidraw.getSceneJSON();
     if (json) doc.content = json;
   }
-  // v0.47.0: same force-flush for TLDraw (the store listener save is debounced).
+  // v0.47.0: force-flush the TLDraw scene synchronously so Ctrl+S captures any
+  // edits inside the debounce window (the store listener save is debounced 1s).
   if (doc.tldraw && _activeTLDraw) {
-    const json = _activeTLDraw.getSceneJSON();
+    const json = _activeTLDraw.flush();
     if (json) doc.content = json;
   }
   const { content } = doc;
