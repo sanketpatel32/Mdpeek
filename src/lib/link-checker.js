@@ -29,7 +29,9 @@ function isLocal(target) {
 //   'Foo'           → 'Foo'
 //   'sub/Foo.md'    → 'Foo'
 //   'Foo.md'        → 'Foo'
-function basename(target) {
+// v0.50.0: exported so src/lib/graph.js can reuse the same normalization when
+// resolving link targets to known note nodes.
+export function basename(target) {
   if (!target) return '';
   const slash = Math.max(target.lastIndexOf('/'), target.lastIndexOf('\\'));
   let file = slash >= 0 ? target.slice(slash + 1) : target;

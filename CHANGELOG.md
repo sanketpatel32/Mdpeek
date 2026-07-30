@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-07-29
+
+### Added — graph view, readability scoring, find-in-folder
+
+A note-graph visualisation leads this release, plus a readability score in the
+stats panel and a first-class shortcut for searching across the open folder.
+All three reuse existing modules (link extraction, stats, the folder-search
+view) rather than introducing new dependencies.
+
+**Note graph view**
+
+- **See how your notes connect.** A new **Graph** tab in the Workspace hub reads
+  every markdown note under the open folder, builds a node/edge map from the
+  existing link parser (`[[wiki]]` and `[text](file.md)` links), and renders an
+  interactive SVG. Node size scales with how many links a note has; unlinked
+  notes are dimmed. Click a node to open the note and close the hub. Use the
+  Refresh button to re-scan after editing notes.
+- The layout is a deterministic degree-weighted circle (the most-connected note
+  sits centre, the rest on concentric rings) — no force-directed simulation, so
+  it's stable and instant. Backed by a new pure, unit-tested `src/lib/graph.js`
+  (`buildGraph` + `circleLayout`) and a new recursive `walk_notes` Rust command.
+- Gated by a **Graph view** checkbox in Settings → Features.
+
+**Readability score**
+
+- **A Readability subsection in the document-statistics panel** (edit mode)
+  shows the Flesch Reading Ease score (with a plain-language label — "Easy",
+  "Standard", "Difficult"…), the Flesch-Kincaid U.S. grade level, average
+  syllables per word, and a count of complex (3+ syllable) words. Toggle it via
+  the **Toggle readability score** command. Backed by a new pure, unit-tested
+  `src/lib/readability.js`.
+
+**Find in folder**
+
+- **Search across every file in the open folder** with `Ctrl+Shift+F` or the
+  **Find in folder…** command — a first-class entry point to the content search
+  (grep) that already powered backlinks and tags. Requires a folder to be open
+  in the explorer.
+
+### Tests
+- `test/graph.test.js` (20 tests) — `buildGraph` edge extraction, self-loop
+  filtering, orphan counting, degree math, malformed-content tolerance;
+  `circleLayout` determinism + bounds.
+- `test/readability.test.js` (23 tests) — `countSyllables` heuristic, Flesch
+  formulas, label bands, markdown/CJK handling.
+- Existing 919 tests stay green (962 total).
+
 ## [0.49.1] - 2026-07-29
 
 ### Fixed — error containment at the edges

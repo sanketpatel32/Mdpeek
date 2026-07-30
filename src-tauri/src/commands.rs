@@ -518,6 +518,56 @@ pub fn search_in_folder(
     })
 }
 
+/// Recursively walk `root` and return absolute paths of every markdown note
+/// (`.md`/`.markdown`/`.mdx`). v0.50.0 graph view uses this to enumerate the
+/// note set in one IPC call (there is no recursive `list_dir`). Reuses the
+/// `search_in_folder` walk rules: explicit-stack traversal, skips dotfiles +
+/// `SEARCH_SKIP_DIRS` (node_modules, target, dist, build, __pycache__).
+/// Caps at 5000 files to bound work on huge trees; remaining files are dropped.
+#[tauri::command]
+pub fn walk_notes(root: String) -> Result<Vec<String>, String> {
+    const MAX_NOTES: usize = 5000;
+    let mut notes: Vec<String> = Vec::new();
+    let mut stack: Vec<std::path::PathBuf> = vec![std::path::PathBuf::from(&root)];
+    while let Some(dir) = stack.pop() {
+        let entries = match fs::read_dir(&dir) {
+            Ok(e) => e,
+            Err(_) => continue, // skip unreadable directories silently
+        };
+        for entry in entries.flatten() {
+            if notes.len() >= MAX_NOTES {
+                break;
+            }
+            let file_name = entry.file_name();
+            let name = file_name.to_string_lossy().to_string();
+            // Same dotfile skip rule as list_dir / search_in_folder.
+            if name.starts_with('.') {
+                continue;
+            }
+            let meta = match entry.metadata() {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+            if meta.is_dir() {
+                if SEARCH_SKIP_DIRS.contains(&name.as_str()) {
+                    continue;
+                }
+                stack.push(entry.path());
+                continue;
+            }
+            // Only markdown notes (case-insensitive on the extension).
+            let lower = name.to_lowercase();
+            if lower.ends_with(".md") || lower.ends_with(".markdown") || lower.ends_with(".mdx") {
+                notes.push(entry.path().display().to_string());
+            }
+        }
+    }
+    // Sort for deterministic ordering (the graph sorts again in JS by degree,
+    // but a stable input order keeps the walk itself reproducible).
+    notes.sort();
+    Ok(notes)
+}
+
 // ---------------------------------------------------------------------------
 // Batch file I/O for project-wide find & replace.
 // These are thin I/O commands — no substitution logic lives here (that stays

@@ -1198,6 +1198,12 @@ mark.find-current {
   font-size: 11px;
   color: var(--fg-muted);
 }
+/* v0.50.0: muted hint inside a stat value (e.g. the readability ease label). */
+.doc-stats-body .stat-hint {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
 /* Active-line highlight: a thin tinted strip painted behind the textarea on
    the line containing the caret. The position + height are set as CSS vars
    (--active-line-top / --active-line-h) by editor.js on input, scroll, and
@@ -3900,7 +3906,8 @@ body.kanban-mode #kanban-view { display: flex; }
 /* The other panels get comfortable padding. */
 .workspace-panel[data-mode="calendar"],
 .workspace-panel[data-mode="tasks"],
-.workspace-panel[data-mode="review"] {
+.workspace-panel[data-mode="review"],
+.workspace-panel[data-mode="graph"] {
   padding: 20px 24px;
 }
 
@@ -3908,11 +3915,13 @@ body.kanban-mode #kanban-view { display: flex; }
 .workspace-view .mode-board-only,
 .workspace-view .mode-calendar-only,
 .workspace-view .mode-tasks-only,
-.workspace-view .mode-review-only { display: none; }
+.workspace-view .mode-review-only,
+.workspace-view .mode-graph-only { display: none; }
 body.ws-mode-board .workspace-view .mode-board-only,
 body.ws-mode-calendar .workspace-view .mode-calendar-only,
 body.ws-mode-tasks .workspace-view .mode-tasks-only,
-body.ws-mode-review .workspace-view .mode-review-only { display: inline-flex; }
+body.ws-mode-review .workspace-view .mode-review-only,
+body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 
 /* ---- Pomodoro header pill (mirrors #collab-status) ---- */
 .pomo-status {
@@ -4180,6 +4189,36 @@ body.ws-mode-review .workspace-view .mode-review-only { display: inline-flex; }
 }
 .review-done h3 { font-size: 20px; margin: 0 0 8px; }
 .review-done p { color: var(--fg-muted); font-size: 13px; margin: 0; }
+
+/* ---- Graph view (v0.50.0) ---- */
+.graph-shell { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; height: 100%; }
+.graph-header { text-align: center; margin-bottom: 12px; }
+.graph-summary { font-size: 13px; color: var(--fg-muted); }
+.graph-canvas { width: 100%; flex: 1; min-height: 420px; display: block; }
+/* Edges: subtle lines so the nodes read as the figure. */
+.graph-edge { stroke: var(--border); stroke-width: 1; }
+/* Nodes: filled circles, accent-coloured; orphan notes are dimmed. */
+.graph-node circle {
+  fill: var(--accent);
+  stroke: var(--bg);
+  stroke-width: 1.5;
+  cursor: pointer;
+  transition: r 0.12s var(--ease-out);
+}
+.graph-node-orphan circle { fill: color-mix(in srgb, var(--fg-muted) 55%, transparent); }
+.graph-node text {
+  font-size: 11px;
+  fill: var(--fg-muted);
+  text-anchor: middle;
+  pointer-events: none;
+  /* Keep labels readable without dominating — truncate via CSS where long. */
+  user-select: none;
+}
+.graph-node:hover circle {
+  fill: var(--accent-strong, var(--accent));
+  stroke-width: 2.5;
+}
+.graph-node:hover text { fill: var(--fg); font-weight: 600; }
 
 
 /* Settings Header Bar: title on left, Reset to default and Close (✕) on right */

@@ -188,6 +188,7 @@ pub fn run() {
             commands::pick_folder,
             commands::list_dir,
             commands::search_in_folder,
+            commands::walk_notes,
             commands::delete_path,
             commands::rename_path,
             commands::copy_path,

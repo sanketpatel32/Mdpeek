@@ -494,6 +494,7 @@
             <button class="workspace-tab" data-mode="calendar" role="tab" aria-selected="false" type="button">Calendar</button>
             <button class="workspace-tab" data-mode="tasks" role="tab" aria-selected="false" type="button">Tasks</button>
             <button class="workspace-tab" data-mode="review" role="tab" aria-selected="false" type="button">Review</button>
+            <button class="workspace-tab" data-mode="graph" role="tab" aria-selected="false" type="button">Graph</button>
           </div>
           <div id="kanban-progress-bar-wrap" class="kanban-progress-wrap" title="Completion progress">
             <div id="kanban-progress-bar" class="kanban-progress-bar" style="width: 0%;"></div>
@@ -565,6 +566,16 @@
             <span id="review-summary" class="review-summary">—</span>
           </div>
           <div id="review-stage" class="review-stage"><!-- JS-rendered card --></div>
+        </div>
+      </div>
+
+      <!-- Graph view (v0.50.0): note-link map of the open folder. -->
+      <div class="workspace-panel" data-mode="graph">
+        <div class="graph-shell">
+          <div class="graph-header">
+            <span id="graph-summary" class="graph-summary">—</span>
+          </div>
+          <svg id="graph-svg" class="graph-canvas" role="img" aria-label="Note graph"></svg>
         </div>
       </div>
     </div>
@@ -1098,6 +1109,16 @@
                   </div>
                   <label class="setting-toggle">
                     <input type="checkbox" id="settings-feature-review" />
+                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+                  </label>
+                </div>
+                <div class="setting-row">
+                  <div class="setting-text">
+                    <div class="setting-label">Graph view</div>
+                    <div class="setting-desc">Visual map of how the notes in your folder link to each other</div>
+                  </div>
+                  <label class="setting-toggle">
+                    <input type="checkbox" id="settings-feature-graph" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>

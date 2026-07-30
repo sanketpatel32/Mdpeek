@@ -24,7 +24,9 @@ const PICKER_HTML = (placeholder) => `
 // user confirms. The returned { open, close, setItems } controls visibility
 // and (for pickers that populate lazily, e.g. backlinks) lets the caller swap
 // in a fresh item list before opening.
-function makePicker({ placeholder, getItems, onSelect, id }) {
+// v0.50.0: exported so main.js can build ad-hoc pickers (e.g. the document
+// overview / heading cloud) without a dedicated wrapper per use case.
+export function makePicker({ placeholder, getItems, onSelect, id }) {
   const overlay = document.createElement('div');
   overlay.id = id;
   overlay.className = 'modal-overlay palette-overlay hidden';

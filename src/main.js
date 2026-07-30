@@ -14,7 +14,7 @@ import { showNotebook } from './views/notebook-viewer.js';
 import { showMedia } from './views/media-viewer.js';
 import { initEditor } from './views/editor.js';
 import { initFindBar } from './views/find-bar.js';
-import { initCommandPalette, initQuickSwitcher, initSnippetPicker } from './views/command-palette.js';
+import { initCommandPalette, initQuickSwitcher, initSnippetPicker, makePicker } from './views/command-palette.js';
 import { initAutocomplete } from './views/autocomplete-dropdown.js';
 import { initFileTree, setTreeRoot, refreshTree, revealPath } from './views/file-tree.js';
 import { initCsvViewer } from './views/csv-viewer.js';
@@ -31,10 +31,12 @@ import { EMOJI_MAP } from './lib/emoji.js';
 import { goalProgress, formatGoalChip, GOAL_KEY, SESSION_KEY } from './lib/writing-goal.js';
 import { getTemplates, saveTemplate, deleteTemplate, TEMPLATES_KEY } from './lib/templates.js';
 import { extractDocLinks, classifyLinks } from './lib/link-checker.js';
+import { buildGraph, circleLayout } from './lib/graph.js';
 import { themeForHour, prefersDarkFromMedia, THEME_MODE_KEY } from './lib/theme-schedule.js';
 import { getDocTheme, setDocTheme, clearDocTheme } from './lib/doc-theme.js';
 import { stripMarkdown } from './lib/strip.js';
 import { computeStats, computeInsights } from './lib/stats.js';
+import { computeReadability } from './lib/readability.js';
 import { snapshotDoc, pushClosedTab, popClosedTab } from './lib/closed-tabs.js';
 import { smartPaste } from './lib/smart-paste.js';
 import { toSnapshotEntries, formatSnapshotTime } from './lib/snapshots.js';
@@ -317,6 +319,9 @@ const el = {
   // Review
   reviewSummary: document.getElementById('review-summary'),
   reviewStage: document.getElementById('review-stage'),
+  // Graph (v0.50.0)
+  graphSvg: document.getElementById('graph-svg'),
+  graphSummary: document.getElementById('graph-summary'),
   // Pomodoro
   pomoStatus: document.getElementById('pomo-status'),
   pomoDot: document.getElementById('pomo-dot'),
@@ -1130,6 +1135,7 @@ function getCommands() {
     { id: 'goto-heading', label: 'Go to heading…', keywords: 'go to heading jump navigate outline toc h1 h2', run: () => headingPicker.open() },
     { id: 'editor-outline', label: 'Toggle editor outline', keywords: 'editor outline toc headings panel jump navigate', run: toggleEditorOutline },
     { id: 'doc-stats', label: 'Toggle document statistics', keywords: 'stats statistics words chars sentences paragraphs reading time panel', run: toggleDocStats },
+    { id: 'doc-readability', label: 'Toggle readability score', keywords: 'readability flesch kincaid grade level score writing difficulty', run: toggleReadability },
     { id: 'sidebar', label: 'Toggle sidebar (TOC)', hint: 'Ctrl+B', keywords: 'sidebar toc outline', run: toggleSidebar },
     { id: 'find', label: 'Find', hint: 'Ctrl+F', keywords: 'find search', run: () => { const d = store.active(); if (d && (d.excalidraw || d.tldraw || d.notebook || d.media)) { toast('Find isn\'t available on this tab type'); return; } find.toggle(); } },
     { id: 'replace', label: 'Find & Replace', hint: 'Ctrl+H', keywords: 'replace substitute find', run: () => find.openReplace() },
@@ -1146,11 +1152,13 @@ function getCommands() {
     { id: 'ws-calendar', label: 'Open Calendar', keywords: 'calendar month daily notes journal date', run: () => { openKanban(); setWorkspaceMode('calendar'); } },
     { id: 'ws-tasks', label: 'Open Tasks inbox', keywords: 'tasks inbox checklist todo scan notes checkboxes', run: () => { openKanban(); setWorkspaceMode('tasks'); } },
     { id: 'ws-review', label: 'Review flashcards', keywords: 'review flashcards spaced repetition srs study cards qa', run: () => { openKanban(); setWorkspaceMode('review'); } },
+    { id: 'ws-graph', label: 'Open Graph', keywords: 'graph backlinks network nodes links connections map notes', run: () => { openKanban(); setWorkspaceMode('graph'); } },
     { id: 'pomo-start', label: 'Start Pomodoro', keywords: 'pomodoro timer focus 25 minute', run: pomoToggleRun },
     { id: 'terminal', label: 'Toggle terminal', hint: 'Ctrl+`', keywords: 'terminal powershell shell cmd console cli', run: () => terminal.toggle() },
     { id: 'snippet', label: 'Insert template / snippet', hint: 'Ctrl+Shift+S', keywords: 'snippet template callout table code meeting insert', run: () => snippetPicker.open() },
     { id: 'insert-date', label: 'Insert today\'s date', keywords: 'date time today stamp now insert', run: insertDateAtCursor },
     { id: 'backlinks', label: 'Find backlinks', keywords: 'backlinks links inbound references wiki', run: openBacklinks },
+    { id: 'find-in-folder', label: 'Find in folder…', hint: 'Ctrl+Shift+F', keywords: 'find search folder grep workspace content files across project', run: findInFolder },
     { id: 'tag-pane', label: 'Toggle tag pane', keywords: 'tag tags panel filter workspace hashtag', run: toggleTagPane },
     { id: 'open-beside', label: 'Open doc beside (reference pane)', keywords: 'split side beside reference second doc panel', run: openBeside },
     { id: 'check-links', label: 'Check links (find broken)', keywords: 'check links broken missing dead validate wiki md', run: checkLinks },
@@ -3369,16 +3377,17 @@ function closeKanban() {
 }
 
 // =====================================================================
-// WORKSPACE HUB (v0.33.0) — Board · Calendar · Tasks · Review
+// WORKSPACE HUB (v0.33.0) — Board · Calendar · Tasks · Review · Graph (v0.50.0)
 // =====================================================================
 
-const VALID_MODES = ['board', 'calendar', 'tasks', 'review'];
+const VALID_MODES = ['board', 'calendar', 'tasks', 'review', 'graph'];
 // Per-mode, hide toolbar controls that don't apply.
 const MODE_ONLY = {
   board:   ['#kanban-clear-done-btn', '#kanban-progress-bar-wrap', '#kanban-stats'],
   tasks:   ['#kanban-search-input', '.workspace-tabs + *', '#workspace-refresh-btn'],
   calendar: [],
   review:  ['#workspace-refresh-btn'],
+  graph:   ['#workspace-refresh-btn', '#kanban-search-input'],
 };
 
 let _wsMode = 'board';
@@ -3410,12 +3419,12 @@ function setWorkspaceMode(mode, opts = {}) {
   // Hide tabs whose feature flag is off.
   document.querySelectorAll('.workspace-tab').forEach((t) => {
     const m = t.dataset.mode;
-    const flagMap = { board: 'kanban', calendar: 'calendar', tasks: 'tasks', review: 'review' };
+    const flagMap = { board: 'kanban', calendar: 'calendar', tasks: 'tasks', review: 'review', graph: 'graph' };
     t.style.display = featureOn(flagMap[m]) ? '' : 'none';
   });
 
   // Toolbar button visibility per mode.
-  const showRefresh = (mode === 'tasks' || mode === 'review');
+  const showRefresh = (mode === 'tasks' || mode === 'review' || mode === 'graph');
   if (el.workspaceRefresh) el.workspaceRefresh.classList.toggle('hidden', !showRefresh);
   const showClearDone = mode === 'board';
   const clearBtn = document.getElementById('kanban-clear-done-btn');
@@ -3430,6 +3439,7 @@ function setWorkspaceMode(mode, opts = {}) {
   if (mode === 'calendar') renderCalendar();
   else if (mode === 'tasks') renderTasks();
   else if (mode === 'review') renderReview();
+  else if (mode === 'graph') renderGraph();
 }
 
 // ---------- Calendar ----------
@@ -3757,6 +3767,119 @@ function rateCard(rating) {
   renderReviewCard();
   const dueCount = Math.max(0, _reviewQueue.length - _reviewIndex);
   if (el.reviewSummary) el.reviewSummary.textContent = `${dueCount} card${dueCount === 1 ? '' : 's'} due`;
+}
+
+// ---------- Graph view (v0.50.0) ----------
+// Reads every markdown note under the explorer root, builds a node/edge model
+// via buildGraph (pure, in src/lib/graph.js — reuses extractDocLinks), lays it
+// out with circleLayout, and renders an interactive SVG. Clicking a node opens
+// the note and closes the hub (mirrors Tasks/Review). Cached until Refresh.
+let _graphCache = null; // { files, at } — invalidated by Refresh + tree changes
+
+async function renderGraph() {
+  const svg = el.graphSvg;
+  if (!svg) return;
+  const root = localStorage.getItem('mdpeek-explorer-root');
+  // Empty state when there's no folder open.
+  if (!root) {
+    svg.innerHTML = '';
+    if (el.graphSummary) el.graphSummary.textContent = 'Open a folder to see its note graph.';
+    return;
+  }
+  if (el.graphSummary) el.graphSummary.textContent = 'Building graph…';
+  try {
+    // Enumerate notes recursively (walk_notes), then batch-read contents.
+    // read_files_batch isolates per-file errors so one unreadable note is skipped,
+    // not fatal. Cached so re-entering the Graph tab is instant until Refresh.
+    let files;
+    if (_graphCache) {
+      files = _graphCache.files;
+    } else {
+      const paths = await invoke('walk_notes', { root });
+      if (!paths || paths.length === 0) {
+        _graphCache = { files: [], at: Date.now() };
+        files = [];
+      } else {
+        const reads = await invoke('read_files_batch', { paths });
+        files = reads
+          .filter((r) => r && r.content != null)
+          .map((r) => ({ path: r.path, content: r.content }));
+        _graphCache = { files, at: Date.now() };
+      }
+    }
+    if (files.length === 0) {
+      svg.innerHTML = '';
+      if (el.graphSummary) el.graphSummary.textContent = 'No markdown notes in this folder.';
+      return;
+    }
+    const { nodes, edges, orphans } = buildGraph(files);
+    // Render into the SVG's measured box. Defer one frame if it has no size yet
+    // (just-shown panel) so circleLayout has real dimensions to work with.
+    const draw = () => drawGraph(svg, nodes, edges, orphans);
+    const box = svg.getBoundingClientRect();
+    if (box.width === 0 || box.height === 0) requestAnimationFrame(draw);
+    else draw();
+    if (el.graphSummary) {
+      const eCount = edges.length;
+      el.graphSummary.textContent =
+        `${nodes.length} note${nodes.length === 1 ? '' : 's'} · ${eCount} link${eCount === 1 ? '' : 's'}` +
+        (orphans > 0 ? ` · ${orphans} unlinked` : '');
+    }
+  } catch (e) {
+    console.error('graph render:', e);
+    svg.innerHTML = '';
+    if (el.graphSummary) el.graphSummary.textContent = 'Could not build graph: ' + fmtErr(e);
+  }
+}
+
+// Render the node/edge model into an SVG element. Edges first (so nodes paint
+// over them), then nodes as <circle> + <text> groups with a data-node-id for
+// the delegated click handler. Sizes scale with the canvas; node radius grows
+// with degree so hubs stand out.
+function drawGraph(svg, nodes, edges, orphans) {
+  const box = svg.getBoundingClientRect();
+  const width = Math.max(200, box.width);
+  const height = Math.max(200, box.height);
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  const positions = circleLayout(nodes, width, height);
+  const maxDeg = nodes.reduce((m, n) => Math.max(m, n.degree), 0);
+  const minDim = Math.min(width, height);
+  const baseR = Math.max(6, minDim / 70);
+  // Escape for SVG text content + attributes.
+  const esc = (s) => String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  // Edges: straight lines between connected nodes.
+  const edgeSvg = edges.map((e) => {
+    const a = positions.get(e.from);
+    const b = positions.get(e.to);
+    if (!a || !b) return '';
+    return `<line class="graph-edge" x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" />`;
+  }).join('');
+  // Nodes: degree scales radius (0..maxDeg → baseR..baseR×2).
+  const nodeSvg = nodes.map((n) => {
+    const p = positions.get(n.id);
+    if (!p) return '';
+    const r = maxDeg > 0 ? baseR + (n.degree / maxDeg) * baseR : baseR;
+    const cls = n.degree === 0 ? 'graph-node graph-node-orphan' : 'graph-node';
+    return (
+      `<g class="${cls}" data-node-id="${esc(n.id)}" data-path="${esc(n.path)}">` +
+      `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r.toFixed(1)}" />` +
+      `<text x="${p.x.toFixed(1)}" y="${(p.y + r + 12).toFixed(1)}">${esc(n.label)}</text>` +
+      `</g>`
+    );
+  }).join('');
+  svg.innerHTML = edgeSvg + nodeSvg;
+}
+
+// Delegated click handler: open the clicked note + close the hub. Bound once
+// on init (see the workspace event wiring near the other delegated handlers).
+function onGraphClick(e) {
+  const g = e.target.closest('[data-node-id]');
+  if (!g) return;
+  const path = g.getAttribute('data-path');
+  if (!path) return;
+  openPath(path).catch((err) => toast('Could not open note: ' + fmtErr(err)));
+  closeKanban();
 }
 
 // ---------- Pomodoro ----------
@@ -4905,6 +5028,15 @@ const tagPane = initTagPane((tag) => {
   folderSearch.searchWith(root, `#${tag}`);
 });
 
+// v0.50.0: Find-in-folder — a first-class entry point to the content search
+// (grep) that already powers backlinks + tags. Surfaces it as a palette command
+// + Ctrl+Shift+F. Reuses folderSearch.searchWith, so zero new search logic.
+function findInFolder() {
+  const root = localStorage.getItem('mdpeek-explorer-root');
+  if (!root) { toast('Open a folder first'); return; }
+  folderSearch.searchWith(root, '');
+}
+
 async function refreshTagPane() {
   if (!tagPane?.render) return;
   const tags = await acListTags();
@@ -5127,9 +5259,38 @@ function rebuildDocStats() {
       `<div class="stat-label">Lexical diversity</div><div class="stat-value">${ins.lexicalDiversity}</div>` +
       `<div class="stat-label">Longest sentence</div><div class="stat-value">${ins.longestSentence} words</div>`;
   }
+  // v0.50.0: readability subsection — Flesch Reading Ease + grade level. Gated
+  // on the mdpeek-doc-readability setting (default on).
+  const wantReadability = localStorage.getItem('mdpeek-doc-readability') !== '0';
+  let readabilityHtml = '';
+  if (wantReadability && s.words > 0) {
+    const r = computeReadability(text);
+    readabilityHtml =
+      `<div class="stat-section-title">Readability</div>` +
+      `<div class="stat-label">Reading ease</div><div class="stat-value">${r.fleschEase} <em class="stat-hint">(${escapeHtml(r.label)})</em></div>` +
+      `<div class="stat-label">Grade level</div><div class="stat-value">${r.gradeLevel}</div>` +
+      `<div class="stat-label">Avg syllables / word</div><div class="stat-value">${r.avgSyllables}</div>` +
+      `<div class="stat-label">Complex words (3+ syl)</div><div class="stat-value">${r.complexWords.toLocaleString()}</div>`;
+  }
   statsBody.innerHTML = rows
     .map(([label, value]) => `<div class="stat-label">${escapeHtml(label)}</div><div class="stat-value">${escapeHtml(value)}</div>`)
-    .join('') + insightsHtml;
+    .join('') + insightsHtml + readabilityHtml;
+}
+
+// v0.50.0: toggle the readability subsection of the stats panel.
+function toggleReadability() {
+  const doc = store.active();
+  if (!doc) { toast('Open a document first'); return; }
+  if (doc.mode !== 'edit') {
+    toast('Switch to edit mode to see statistics');
+    return;
+  }
+  const currentlyOn = localStorage.getItem('mdpeek-doc-readability') !== '0';
+  localStorage.setItem('mdpeek-doc-readability', currentlyOn ? '0' : '1');
+  // Ensure the stats panel is open so the toggle is visible.
+  if (statsEl?.classList.contains('hidden')) setDocStatsVisible(true);
+  else rebuildDocStats();
+  toast(currentlyOn ? 'Readability score hidden' : 'Readability score shown');
 }
 
 function setDocStatsVisible(on) {
@@ -5538,10 +5699,12 @@ if (el.workspaceRefresh) {
     _tasksNoteScan = null;
     _reviewScan = null;
     _calCacheKey = null; _calCache = null;
+    _graphCache = null;
     toast('Re-scanning notes…');
     if (_wsMode === 'tasks') renderTasks();
     else if (_wsMode === 'review') renderReview();
     else if (_wsMode === 'calendar') renderCalendar();
+    else if (_wsMode === 'graph') renderGraph();
   });
 }
 
@@ -5637,6 +5800,11 @@ if (el.reviewStage) {
       renderReviewCard();
     }
   });
+}
+
+// Graph node click → open the note + close the hub (v0.50.0).
+if (el.graphSvg) {
+  el.graphSvg.addEventListener('click', onGraphClick);
 }
 
 // Pomodoro pill
@@ -6112,7 +6280,7 @@ function syncSettingsControls() {
   }
 
   // Feature flags synchronization
-  const features = ['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily', 'pomodoro', 'calendar', 'tasks', 'review', 'autocomplete'];
+  const features = ['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily', 'pomodoro', 'calendar', 'tasks', 'review', 'autocomplete', 'graph'];
   features.forEach((feat) => {
     const cb = document.getElementById(`settings-feature-${feat}`);
     if (cb) cb.checked = localStorage.getItem(`mdpeek-feature-${feat}`) !== '0';
@@ -6430,7 +6598,7 @@ document.getElementById('settings-autosave').addEventListener('change', (e) => {
 });
 
 // Feature flags change handlers
-['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily', 'pomodoro', 'calendar', 'tasks', 'review', 'autocomplete'].forEach((feat) => {
+['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily', 'pomodoro', 'calendar', 'tasks', 'review', 'autocomplete', 'graph'].forEach((feat) => {
   const cb = document.getElementById(`settings-feature-${feat}`);
   if (cb) {
     cb.addEventListener('change', (e) => {
@@ -7166,6 +7334,14 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     e.stopPropagation();
     snippetPicker.open();
+    return;
+  }
+  // Ctrl+Shift+F → find-in-folder content search (v0.50.0). Conventional
+  // project-search shortcut; no conflict (plain Ctrl+F is in-document find).
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'F' || e.key === 'f')) {
+    e.preventDefault();
+    e.stopPropagation();
+    findInFolder();
     return;
   }
   // Ctrl+` → toggle integrated terminal drawer.
