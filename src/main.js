@@ -40,6 +40,8 @@ import { computeReadability } from './lib/readability.js';
 import { snapshotDoc, pushClosedTab, popClosedTab } from './lib/closed-tabs.js';
 import { smartPaste } from './lib/smart-paste.js';
 import { toSnapshotEntries, formatSnapshotTime } from './lib/snapshots.js';
+import { initDiffViewer } from './views/diff-viewer.js';
+import { notifyOs, osNotificationsEnabled, setOsNotificationsEnabled } from './lib/notify.js';
 // v0.34.1: build-time version for the About + Updates panels. Import is
 // hoisted to module top; the value is written into the DOM early (right after
 // bootMotion) because the Tauri window code further down aborts module
@@ -417,6 +419,16 @@ function showViewerError(container, kind, e) {
     `<strong>Couldn't open this ${kind}.</strong><br>` +
     `<span>${fmtErr(e)}</span>` +
     `</div>`;
+}
+
+// v0.51.0: User-facing signal that works when the app is minimized to tray.
+// Fires an OS notification (if the user opted in via Settings) AND always shows
+// an in-app toast, so the signal is never lost. This is the single chokepoint —
+// call this instead of toast() for events a backgrounded user should learn about
+// (Pomodoro completion, file-changed-while-unsaved, export done).
+function notify(title, body) {
+  notifyOs({ title, body }).catch(() => false); // never let this reject
+  toast(body ? `${title}: ${body}` : title);
 }
 
 function toast(msg, opts = {}) {
@@ -1163,6 +1175,7 @@ function getCommands() {
     { id: 'open-beside', label: 'Open doc beside (reference pane)', keywords: 'split side beside reference second doc panel', run: openBeside },
     { id: 'check-links', label: 'Check links (find broken)', keywords: 'check links broken missing dead validate wiki md', run: checkLinks },
     { id: 'restore-version', label: 'Restore version…', keywords: 'restore version history snapshot backup revert previous', run: restoreSnapshot },
+    { id: 'diff-version', label: 'Compare version…', keywords: 'compare diff version history snapshot changes side by side', run: diffVersion },
     { id: 'writing-goal', label: 'Set writing goal…', keywords: 'writing goal word count target session words', run: setWritingGoal },
     { id: 'clear-writing-goal', label: 'Clear writing goal', keywords: 'clear remove writing goal word count target', run: clearWritingGoal },
     { id: 'new-from-template', label: 'New from template…', keywords: 'new template create document skeleton starter', run: newFromTemplate },
@@ -1178,7 +1191,7 @@ function getCommands() {
   const hasDoc = !!doc;
   const collabActive = collab.getStatus().active;
   return cmds.filter((c) => {
-    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-txt' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks' || c.id === 'sort-asc' || c.id === 'sort-desc' || c.id === 'copy-html' || c.id === 'copy-plaintext' || c.id === 'open-in-browser' || c.id === 'check-links' || c.id === 'restore-version' || c.id === 'writing-goal' || c.id === 'save-as-template' || c.id === 'pin-doc-theme' || c.id === 'clear-doc-theme' || c.id === 'case-upper' || c.id === 'case-lower' || c.id === 'case-title' || c.id === 'case-toggle' || c.id === 'wrap-with') && !hasDoc) return false;
+    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-txt' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks' || c.id === 'sort-asc' || c.id === 'sort-desc' || c.id === 'copy-html' || c.id === 'copy-plaintext' || c.id === 'open-in-browser' || c.id === 'check-links' || c.id === 'restore-version' || c.id === 'diff-version' || c.id === 'writing-goal' || c.id === 'save-as-template' || c.id === 'pin-doc-theme' || c.id === 'clear-doc-theme' || c.id === 'case-upper' || c.id === 'case-lower' || c.id === 'case-title' || c.id === 'case-toggle' || c.id === 'wrap-with') && !hasDoc) return false;
     if (c.id === 'end-collab' && !collabActive) return false;
     if (c.id === 'start-collab' && collabActive) return false;
     if ((c.id === 'start-collab' || c.id === 'end-collab') && localStorage.getItem('mdpeek-feature-collab') === '0') return false;
@@ -1356,6 +1369,65 @@ async function restoreSnapshot() {
     _ts: e.ts,
   })));
   snapshotPicker.open();
+}
+
+// v0.51.0: snapshot diff viewer. Compare a saved snapshot against the current
+// doc content side-by-side. "Use this version" writes the snapshot text into
+// the active editor (marking it dirty so the user confirms with a save).
+const diffViewer = initDiffViewer();
+const diffVersionPicker = initQuickSwitcher(
+  () => [],
+  async (item) => {
+    if (!item || !item._ts) return;
+    const doc = store.active();
+    if (!doc || !doc.path || !doc.editor) return;
+    try {
+      const snap = await invoke('read_snapshot', { path: doc.path, ts: item._ts });
+      // Show current on the left, snapshot on the right so "Use this version"
+      // adopts the snapshot (the version the user is reviewing).
+      diffViewer.open({
+        title: 'Compare versions',
+        oldContent: doc.editor.getValue(),
+        newContent: snap,
+        oldLabel: 'Current',
+        newLabel: `Snapshot ${item.label}`,
+        onApply: (newText) => {
+          const d = store.active();
+          if (!d || !d.editor) return;
+          d.editor.setValue(newText);
+          store.markDirty(d.id);
+          persistSoon();
+          scheduleAutoSave();
+          toast('Snapshot applied — save to confirm');
+        },
+      });
+    } catch (e) {
+      toast('Could not read snapshot: ' + fmtErr(e));
+    }
+  }
+);
+
+// List snapshots + open the diff picker (mirrors restoreSnapshot's flow).
+async function diffVersion() {
+  const doc = store.active();
+  if (!doc || !doc.path) { toast('Save the doc first to browse its history'); return; }
+  if (!diffVersionPicker?.setItems) return;
+  let entries;
+  try {
+    const raw = await invoke('list_snapshots', { path: doc.path });
+    entries = toSnapshotEntries(raw);
+  } catch (e) {
+    toast('Could not list snapshots: ' + fmtErr(e));
+    return;
+  }
+  if (entries.length === 0) { toast('No saved snapshots yet — save the doc to start tracking history'); return; }
+  diffVersionPicker.setItems(entries.map((e) => ({
+    label: e.label,
+    hint: e.size,
+    keywords: `${e.label} ${e.size}`,
+    _ts: e.ts,
+  })));
+  diffVersionPicker.open();
 }
 
 // Run two parallel `search_in_folder` queries (wiki-link + standard-link
@@ -2385,7 +2457,7 @@ async function exportHtml() {
     `${bodyHtml}\n</body>\n</html>`;
   try {
     await invoke('save_file_as_html', { content: full });
-    toast('Exported to HTML');
+    notify('Export complete', `${title}.html`);
   } catch (e) {
     if (e !== 'cancelled') toast('Export failed: ' + fmtErr(e));
   }
@@ -2425,6 +2497,9 @@ async function exportPdf() {
   const cleanup = () => {
     document.body.classList.remove('printing');
     window.removeEventListener('afterprint', cleanup);
+    // v0.51.0: notify once the print/save dialog closes (the user has either
+    // saved a PDF or cancelled — either way the slow op is done).
+    notify('PDF export finished', basename(doc.path || 'document'));
     // Restore the user's prior edit mode once the dialog is dismissed.
     if (priorMode === 'edit') {
       doc.mode = 'edit';
@@ -3914,7 +3989,7 @@ function pomoStartTicker() {
     _pomoState = r.state;
     pomoSave(_pomoState);
     if (r.finished) {
-      toast(`${pomoPhaseLabel(r.completed)} complete!`);
+      notify('Pomodoro', `${pomoPhaseLabel(r.completed)} complete!`);
       // Auto-start the next phase? Keep it opt-in: stay paused until user resumes.
     }
     pomoSyncUi();
@@ -4370,7 +4445,7 @@ async function exportPlainText() {
   const plain = stripMarkdown(doc.content).trim();
   try {
     await invoke('save_file_as_text', { content: plain });
-    toast('Exported to plain text');
+    notify('Export complete', `${basename(doc.path || 'untitled')}.txt`);
   } catch (e) {
     if (e !== 'cancelled') toast('Export failed: ' + fmtErr(e));
   }
@@ -6254,6 +6329,10 @@ function syncSettingsControls() {
   const imageBesideDocCb = document.getElementById('settings-image-beside-doc');
   if (imageBesideDocCb) imageBesideDocCb.checked = localStorage.getItem('mdpeek-image-beside-doc') !== '0';
 
+  // v0.51.0: OS notifications — opt-in (default off).
+  const osNotifyCb = document.getElementById('settings-os-notifications');
+  if (osNotifyCb) osNotifyCb.checked = osNotificationsEnabled();
+
   // v0.41.0: custom CSS textarea + reader-TOC toggle state.
   const userCssTa = document.getElementById('settings-user-css');
   if (userCssTa) userCssTa.value = localStorage.getItem('mdpeek-user-css') || '';
@@ -6560,6 +6639,17 @@ document.getElementById('settings-word-wrap')?.addEventListener('change', (e) =>
 document.getElementById('settings-spellcheck')?.addEventListener('change', (e) => {
   localStorage.setItem('mdpeek-spellcheck', e.target.checked ? '1' : '0');
   applySpellcheck();
+});
+
+// v0.51.0: OS notifications — opt-in. Enabling proactively requests the OS
+// permission so the prompt fires here (not deferred to the first notification).
+document.getElementById('settings-os-notifications')?.addEventListener('change', (e) => {
+  setOsNotificationsEnabled(e.target.checked);
+  if (e.target.checked) {
+    // Fire the permission request immediately; ignore the result (the first
+    // real notifyOs() call re-checks + re-requests if needed).
+    notifyOs({ title: 'mdpeek', body: 'Desktop notifications are on' }).catch(() => {});
+  }
 });
 
 // v0.45.0: smart paste — URL→link, HTML→markdown. Default ON ('1' is implied
@@ -7744,7 +7834,7 @@ listen('file-changed', (event) => {
       // Don't clobber unsaved edits — if the user is mid-edit, keep their work
       // and notify them instead of silently discarding it.
       if (doc.dirty) {
-        toast('File changed on disk — your unsaved edits were kept');
+        notify('File changed on disk', `${basename(doc.path)} was edited externally — your unsaved edits were kept`);
         return;
       }
       doc.editor.setValue(event.payload);

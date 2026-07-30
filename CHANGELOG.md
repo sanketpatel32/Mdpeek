@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-07-29
+
+### Added — desktop notifications + snapshot diff view
+
+Two features that round out existing subsystems: OS notifications for the
+events that matter when the app is backgrounded, and a real diff view so
+version history is actually reviewable.
+
+**Desktop (OS) notifications**
+
+- **Native notifications for background events.** Pomodoro phase completion,
+  finished exports (HTML/PDF/text), and files changed on disk while you have
+  unsaved edits now fire OS notifications (with sound + action-center entry),
+  not just in-app toasts that are invisible when minimized to tray. Opt-in via
+  **Settings → General → Desktop notifications** — enabling it prompts for the
+  OS permission up front. Backed by `tauri-plugin-notification` and a new
+  fail-safe wrapper (`src/lib/notify.js`) that degrades silently to a toast if
+  the permission is denied or the plugin is unavailable.
+
+**Snapshot diff view**
+
+- **Compare a saved version against the current document.** The new
+  **Compare version…** command lists a doc's snapshots; picking one opens a
+  side-by-side diff (current on the left, snapshot on the right, scroll-synced,
+  with `+`/`−` line tinting and a `+N −M` summary). Click **Use this version**
+  to adopt the snapshot's text into the editor (marked dirty — save to confirm).
+  Backed by a new pure LCS line-diff (`src/lib/diff.js`) + a new modal viewer
+  (`src/views/diff-viewer.js`). The existing **Restore version…** (open whole
+  snapshot) is unchanged.
+
+### Tests
+- `test/diff.test.js` (16 tests) — LCS diff: identical/add/del/mixed/empty,
+  trailing-newline handling, interleaved changes, stat counts.
+- `test/notify.test.js` (14 tests) — opt-in gate, permission flow, denied,
+  error-swallowing, default title.
+- Existing 962 tests stay green (992 total).
+
 ## [0.50.0] - 2026-07-29
 
 ### Added — graph view, readability scoring, find-in-folder

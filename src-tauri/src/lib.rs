@@ -115,6 +115,7 @@ pub fn run() {
 
     builder
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(WatcherState::default())
         .manage(initial)
         .manage(initial_url)

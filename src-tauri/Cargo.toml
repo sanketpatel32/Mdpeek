@@ -21,6 +21,8 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["protocol-asset", "tray-icon", "image-png"] }
 tauri-plugin-opener = "2"
 tauri-plugin-updater = "2"
+# v0.51.0: native OS notifications (Pomodoro-end, export-done, file-changed).
+tauri-plugin-notification = "2"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 # Custom URL scheme (mdpeek://) for invite-link collaboration. Registers the
 # scheme with Windows at install time and emits `open-url` events to the
