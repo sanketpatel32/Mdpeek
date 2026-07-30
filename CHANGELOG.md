@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.49.1] - 2026-07-29
+
+### Fixed — error containment at the edges
+
+A stability audit of `main.js`. The Rust backend (zero `unwrap`/`expect`) and
+the persistence layer (already degrades gracefully on corrupt localStorage)
+were sound; the gaps were all in *containing* failures so one bad operation
+can't break a whole subsystem. Every change below is error-path-only — the
+happy path is unchanged.
+
+- **A malformed document no longer leaves its tab blank.** The image, notebook,
+  media, and CSV viewer branches in `renderActive()` called their viewers
+  inline. The text-based ones (`showNotebook`, `parseCsv`/`renderCsv`) do real
+  parsing, so a malformed file threw synchronously and rejected the whole
+  `renderActive()` promise — the tab never painted. Each is now wrapped in
+  try/catch that renders the shared `.pdf-error` banner (the same affordance
+  PDF/Excalidraw/TLDraw use on a failed load) via a new `showViewerError()`
+  helper.
+- **8 fire-and-forget `renderActive()` calls now log on failure instead of
+  producing unhandled rejections.** The render calls in close-tab, close-others,
+  snippet-append, collab edit-mode switch, review-checkbox toggle, daily-note
+  open/create, and remove-recent had no `.catch()`, so a render throw became a
+  silent unhandled rejection with no fallback. (The remaining call sites already
+  caught or awaited.)
+- **Live-reload survives a corrupt-on-disk change.** The `file-changed`
+  listener's trailing `.catch()` only covered *registration* failure; a throw
+  inside the callback (malformed CSV/notebook re-parsed on reload, or an
+  unexpectedly-shaped event payload) escaped entirely and silently stopped
+  live-reload working for that document. The body is now wrapped in try/catch,
+  with inner guards on the CSV/notebook reload paths that show an error banner
+  instead of throwing.
+- **One unreadable file no longer aborts a drag-and-drop batch.** The
+  `tauri://drag-drop` loop awaited each path sequentially with no per-path
+  guard, so a single unreadable file (permissions, vanished mid-drop) threw and
+  skipped opening the rest. Each path is now caught independently with a toast.
+
 ## [0.49.0] - 2026-07-30
 
 ### Added — new document types, editor power-ups, file-explorer actions, workspace sessions

@@ -400,6 +400,20 @@ function fmtErr(e) {
   return e.message || String(e);
 }
 
+// Render a viewer-load failure into a container using the shared .pdf-error
+// banner affordance (same look PDF/Excalidraw/TLDraw/notebook use on a failed
+// load). Used by the sync viewer branches in renderActive() so a malformed doc
+// shows a visible error instead of throwing and rejecting the whole render
+// (which would leave the tab blank). `kind` labels the doc type in the message.
+function showViewerError(container, kind, e) {
+  container.classList.add('markdown-body');
+  container.innerHTML =
+    `<div class="pdf-error">` +
+    `<strong>Couldn't open this ${kind}.</strong><br>` +
+    `<span>${fmtErr(e)}</span>` +
+    `</div>`;
+}
+
 function toast(msg, opts = {}) {
   el.toast.textContent = msg;
   el.toast.classList.remove('hidden');
@@ -690,7 +704,12 @@ async function renderActive() {
     el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body');
     el.document.classList.add('image-viewer');
     setReadingProgressVisible(false);
-    _activeImage = showImage(el.document, doc.path);
+    try {
+      _activeImage = showImage(el.document, doc.path);
+    } catch (e) {
+      console.error('[mdpeek] image viewer load failed:', e);
+      showViewerError(el.document, 'image', e);
+    }
     if (doc.scrollY) el.document.scrollTop = doc.scrollY;
     return;
   }
@@ -712,7 +731,12 @@ async function renderActive() {
     el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body');
     el.document.classList.add('notebook-viewer');
     setReadingProgressVisible(false);
-    _activeNotebook = showNotebook(el.document, doc.content);
+    try {
+      _activeNotebook = showNotebook(el.document, doc.content);
+    } catch (e) {
+      console.error('[mdpeek] notebook viewer load failed:', e);
+      showViewerError(el.document, 'notebook', e);
+    }
     if (doc.scrollY) el.document.scrollTop = doc.scrollY;
     return;
   }
@@ -733,7 +757,12 @@ async function renderActive() {
     el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body');
     el.document.classList.add('media-viewer');
     setReadingProgressVisible(false);
-    _activeMedia = showMedia(el.document, doc.path);
+    try {
+      _activeMedia = showMedia(el.document, doc.path);
+    } catch (e) {
+      console.error('[mdpeek] media viewer load failed:', e);
+      showViewerError(el.document, 'media file', e);
+    }
     if (doc.scrollY) el.document.scrollTop = doc.scrollY;
     return;
   }
@@ -832,9 +861,14 @@ async function renderActive() {
     el.document.classList.add('csv-viewer');
     setReadingProgressVisible(false);
     const tsv = /\.tsv$/i.test(doc.path || '');
-    el.document.innerHTML = renderCsv(doc.content, { tsv });
-    const parsedRows = parseCsv(doc.content, tsv);
-    _activeCsv = initCsvViewer(el.document, parsedRows);
+    try {
+      el.document.innerHTML = renderCsv(doc.content, { tsv });
+      const parsedRows = parseCsv(doc.content, tsv);
+      _activeCsv = initCsvViewer(el.document, parsedRows);
+    } catch (e) {
+      console.error('[mdpeek] csv viewer load failed:', e);
+      showViewerError(el.document, 'CSV/TSV file', e);
+    }
     if (doc.scrollY) el.document.scrollTop = doc.scrollY;
     return;
   }
@@ -1450,7 +1484,7 @@ function insertSnippetIntoEditor(doc, textToInsert) {
     doc.editor.replaceRange(sel.start, sel.end, textToInsert);
   } else {
     doc.content += '\n\n' + textToInsert;
-    renderActive();
+    renderActive().catch((e) => console.error('[mdpeek] snippet append render:', e));
   }
 }
 
@@ -2052,7 +2086,7 @@ async function closeTab(id) {
   // the listener (e.g. a stale _lastRenderedId short-circuit).
   if (store.docs.length === 0) {
     newTab();
-    if (!store.active()) renderActive();
+    if (!store.active()) renderActive().catch((e) => console.error('[mdpeek] close-all render:', e));
   } else if (store.active()) {
     await rewatch(store.active().path);
   }
@@ -2096,7 +2130,7 @@ async function closeDocs(ids) {
   }
   if (store.docs.length === 0) {
     newTab();
-    if (!store.active()) renderActive();
+    if (!store.active()) renderActive().catch((e) => console.error('[mdpeek] close-others render:', e));
   } else if (store.active()) {
     await rewatch(store.active().path);
   }
@@ -3046,7 +3080,7 @@ function openShareModal() {
       // read-only view).
       if (doc.mode !== 'edit') {
         doc.mode = 'edit';
-        renderActive();
+        renderActive().catch((e) => console.error('[mdpeek] collab edit-mode render:', e));
       }
       // After renderActive rebuilds the editor, bind it on the next tick.
       // Guard with active-check in case endSession ran in between.
@@ -3602,7 +3636,7 @@ async function togglePreviewCheckbox(itemIndex) {
     try { await invoke('save_file', { path: doc.path, content: next }); store.clearDirty(doc.id); }
     catch (e) { console.error('checkbox save:', e); /* leave dirty */ }
   }
-  renderActive();
+  renderActive().catch((e) => console.error('[mdpeek] checkbox render:', e));
 }
 
 // ---------- Review / spaced repetition ----------
@@ -4070,7 +4104,7 @@ async function openDailyNote() {
     const content = await invoke('read_file', { path });
     await openPath(path, content);
     store.active().mode = 'edit';
-    renderActive();
+    renderActive().catch((e) => console.error('[mdpeek] daily note open render:', e));
     return;
   } catch (e) {
     // File doesn't exist (or unreadable) → fall through to create.
@@ -4081,7 +4115,7 @@ async function openDailyNote() {
     await invoke('save_file', { path, content: starter });
     await openPath(path, starter);
     store.active().mode = 'edit';
-    renderActive();
+    renderActive().catch((e) => console.error('[mdpeek] daily note create render:', e));
     toast(`Created ${stamp}.md`);
   } catch (e) {
     toast('Could not create daily note: ' + fmtErr(e));
@@ -4734,10 +4768,10 @@ async function deleteFromTree(path) {
     }
     if (store.docs.length === 0) {
       newTab();
-      if (!store.active()) renderActive();
+      if (!store.active()) renderActive().catch((e) => console.error('[mdpeek] remove-recent render:', e));
     } else if (store.active()) {
       await rewatch(store.active().path);
-      renderActive();
+      renderActive().catch((e) => console.error('[mdpeek] remove-recent render:', e));
     }
     // Strip the path from recents (file or folder) + anything underneath it.
     const remaining = loadRecents().filter((r) => !r.path || (r.path !== path && !isPathUnder(r.path, path)));
@@ -7410,8 +7444,16 @@ listen('tauri://drag-drop', async (event) => {
   el.dropzone.classList.add('hidden');
   const paths = event?.payload?.paths;
   if (!Array.isArray(paths) || paths.length === 0) return;
+  // Per-path guard: one unreadable file (permissions, vanished mid-drop) must
+  // not abort opening the rest of the dropped batch.
   for (const p of paths) {
-    await openDroppedPath(p);
+    try {
+      await openDroppedPath(p);
+    } catch (e) {
+      console.error('[mdpeek] drop open failed for', p, e);
+      const base = String(p).split(/[\\/]/).pop() || String(p);
+      toast('Could not open: ' + base);
+    }
   }
 }).catch((e) => console.error('drag-drop listener failed:', e));
 
@@ -7458,65 +7500,83 @@ window.addEventListener('drop', async (e) => {
 });
 
 // ---------- live reload (file changed on disk) — update active doc ----------
-// listen() returns a promise; if registration fails we log instead of letting
-// it reject silently at startup.
+// The trailing .catch only covers listener *registration* failure. The body
+// itself is wrapped in try/catch because a corrupt-on-disk change (malformed
+// CSV/JSON notebook, a parseCsv/renderCsv throw) would otherwise escape as an
+// unhandled error and silently stop live-reload working for that doc.
 listen('file-changed', (event) => {
-  const doc = store.active();
-  if (!doc || !doc.path) return;
-  // PDFs are binary + read-only — the text watcher isn't used for them
-  // (openPath skips rewatch), but guard anyway in case an event leaks through.
-  if (doc.pdf) return;
-  // Code files in view mode: re-render the syntax highlighted view on disk change.
-  if (doc.code && doc.mode === 'view') {
-    doc.content = event.payload;
-    if (store.active()?.id === doc.id) {
-      el.document.innerHTML = renderCode(event.payload, langFromPath(doc.path));
-    }
-    return;
-  }
-  // CSV/TSV files: re-render the table and re-init the viewer on disk change.
-  if (doc.csv) {
-    doc.content = event.payload;
-    if (store.active()?.id === doc.id) {
-      if (_activeCsv) { _activeCsv.destroy(); _activeCsv = null; }
-      const tsv = /\.tsv$/i.test(doc.path || '');
-      el.document.innerHTML = renderCsv(event.payload, { tsv });
-      _activeCsv = initCsvViewer(el.document, parseCsv(event.payload, tsv));
-    }
-    return;
-  }
-  // v0.49.0: Notebooks are JSON text like CSV — re-parse + re-render on change.
-  if (doc.notebook) {
-    doc.content = event.payload;
-    if (store.active()?.id === doc.id) {
-      if (_activeNotebook) { _activeNotebook.destroy(); _activeNotebook = null; }
-      _activeNotebook = showNotebook(el.document, doc.content);
-    }
-    return;
-  }
-  doc.content = event.payload;
-  if (doc.mode === 'view') {
-    const id = doc.id;
-    showDocument(el.document, event.payload)
-      .then(() => {
-        // Bail if the user switched tabs during the (slow) mermaid render —
-        // don't write TOC/find state into a now-different active doc.
-        if (store.active()?.id !== id) return;
-        buildToc(el.document);
-        updateActiveTocLink();
-        // The re-render wiped any <mark> highlights; re-apply if the find bar
-        // is open so the user doesn't see their search disappear.
-        if (find) find.refresh();
-      })
-      .catch((e) => toast('Reload failed: ' + fmtErr(e)));
-  } else if (doc.editor) {
-    // Don't clobber unsaved edits — if the user is mid-edit, keep their work
-    // and notify them instead of silently discarding it.
-    if (doc.dirty) {
-      toast('File changed on disk — your unsaved edits were kept');
+  try {
+    const doc = store.active();
+    if (!doc || !doc.path) return;
+    // PDFs are binary + read-only — the text watcher isn't used for them
+    // (openPath skips rewatch), but guard anyway in case an event leaks through.
+    if (doc.pdf) return;
+    // Code files in view mode: re-render the syntax highlighted view on disk change.
+    if (doc.code && doc.mode === 'view') {
+      doc.content = event.payload;
+      if (store.active()?.id === doc.id) {
+        el.document.innerHTML = renderCode(event.payload, langFromPath(doc.path));
+      }
       return;
     }
-    doc.editor.setValue(event.payload);
+    // CSV/TSV files: re-render the table and re-init the viewer on disk change.
+    if (doc.csv) {
+      doc.content = event.payload;
+      if (store.active()?.id === doc.id) {
+        if (_activeCsv) { _activeCsv.destroy(); _activeCsv = null; }
+        const tsv = /\.tsv$/i.test(doc.path || '');
+        try {
+          el.document.innerHTML = renderCsv(event.payload, { tsv });
+          _activeCsv = initCsvViewer(el.document, parseCsv(event.payload, tsv));
+        } catch (e) {
+          console.error('[mdpeek] csv reload failed:', e);
+          showViewerError(el.document, 'CSV/TSV file', e);
+        }
+      }
+      return;
+    }
+    // v0.49.0: Notebooks are JSON text like CSV — re-parse + re-render on change.
+    if (doc.notebook) {
+      doc.content = event.payload;
+      if (store.active()?.id === doc.id) {
+        if (_activeNotebook) { _activeNotebook.destroy(); _activeNotebook = null; }
+        try {
+          _activeNotebook = showNotebook(el.document, doc.content);
+        } catch (e) {
+          console.error('[mdpeek] notebook reload failed:', e);
+          showViewerError(el.document, 'notebook', e);
+        }
+      }
+      return;
+    }
+    doc.content = event.payload;
+    if (doc.mode === 'view') {
+      const id = doc.id;
+      showDocument(el.document, event.payload)
+        .then(() => {
+          // Bail if the user switched tabs during the (slow) mermaid render —
+          // don't write TOC/find state into a now-different active doc.
+          if (store.active()?.id !== id) return;
+          buildToc(el.document);
+          updateActiveTocLink();
+          // The re-render wiped any <mark> highlights; re-apply if the find bar
+          // is open so the user doesn't see their search disappear.
+          if (find) find.refresh();
+        })
+        .catch((e) => toast('Reload failed: ' + fmtErr(e)));
+    } else if (doc.editor) {
+      // Don't clobber unsaved edits — if the user is mid-edit, keep their work
+      // and notify them instead of silently discarding it.
+      if (doc.dirty) {
+        toast('File changed on disk — your unsaved edits were kept');
+        return;
+      }
+      doc.editor.setValue(event.payload);
+    }
+  } catch (e) {
+    // A throw anywhere above (e.g. event.payload shaped unexpectedly) must not
+    // kill the listener for future events — log and carry on.
+    console.error('[mdpeek] file-changed handler failed:', e);
   }
 }).catch((e) => console.error('file-changed listener failed:', e));
 
