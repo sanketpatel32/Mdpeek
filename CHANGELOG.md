@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-07-31
+
+### Added — prose highlights (visual readability)
+
+The readability score (v0.50.0) tells you *that* a document is hard to read;
+this release shows you *where*. A visual overlay that points at the jargon and
+the dense paragraphs right in the rendered text.
+
+- **Underline hard words and tint hard paragraphs.** Run **Toggle prose
+  highlights** (Ctrl+Shift+P) and the rendered view (and Reading Mode)
+  underlines every 3+-syllable word with a dotted line and tints paragraphs
+  that read as difficult — those where sentences run long *and* the complex-word
+  ratio is high. Toggle off to read. Code blocks, inline code, tables, and alert
+  callouts are left untouched; only real prose is marked.
+- Reuses the existing `countSyllables` heuristic so "complex" means the same
+  thing here as it does in the stats panel's "Complex words (3+ syl)" metric.
+  Backed by a new pure, DOM-free, unit-tested `src/lib/prose.js`
+  (`isComplexWord` / `findComplexWords` / `isDenseParagraph`) wired in as a new
+  `enhanceProseHighlights` step in `enhanceDom`. Distinct from the
+  `==highlight==` `<mark>`: a dotted underline (tip-green) rather than a yellow
+  background, so the two never read as the same affordance.
+- Opt-in (default off) and gated by a **Prose highlights** feature flag
+  (Settings → Features). Idempotent across re-renders.
+
+### Tests
+- `test/prose.test.js` (16 tests) — `isComplexWord` (3+ syllables, hyphenated/
+  apostrophe words, rejects numbers/CJK/punctuation, safe on empty),
+  `findComplexWords` (offset correctness, skips non-Latin, non-overlapping,
+  consistency with `isComplexWord`), `isDenseParagraph` (dense flag, word-floor
+  guard, long-but-simple not flagged, run-on flagged, CJK/empty safe).
+- `test/prose-dom.test.js` (8 tests) — the `enhanceProseHighlights` DOM pass:
+  wrapping, default-off, inline-element preservation, code/table/callout skips,
+  `.prose-dense` add + not-on-short, idempotency.
+- Existing 1030 tests stay green (1054 total).
+
+## [0.52.0] - 2026-07-31
+
+### Added — visual Markdown table editor
+
+Markdown tables are the fiddliest thing to edit by hand — adding a column
+forces re-padding every row, alignment markers (`:--:`) are error-prone, and
+reordering rows/columns is a chore. mdpeek already navigated, sorted, and
+formatted tables; this release adds a full **visual grid editor**.
+
+- **Edit a GFM table without touching the pipes.** Put the caret inside a
+  Markdown table and run **Edit table visually…** (Ctrl+Shift+P) to open a
+  modal grid. Edit cell text directly, add/remove/move rows and columns, and
+  cycle per-column alignment (none / left / center / right). **Use this
+  version** rewrites the table block in the source with correct padding and
+  alignment markers — the surrounding text is untouched, and the doc is marked
+  dirty. Navigate cells with Tab, the arrow keys, and Enter (Enter on the last
+  row appends a new one). Esc closes without changes.
+- Reuses the table-parsing primitives already in `editor-logic.js`
+  (`detectTableBlock` is now exported for sharing) so "is the caret in a
+  table?" agrees with the existing Format/Sort table commands. Backed by a new
+  pure, DOM-free, unit-tested `src/lib/table.js` (parse/emit + row/column/
+  alignment ops) and a new modal `src/views/table-editor.js`.
+- Gated by a **Table editor** feature flag (Settings → Features, default on);
+  the palette entry only appears when the caret is actually inside a table.
+
+### Tests
+- `test/table.test.js` (31 tests) — parseTable (null cases, alignment read-back,
+  escaped-pipe preservation, ragged-row normalization, block offsets),
+  emitTable (determinism, min-3-dash delimiters, alignment markers, escaped
+  pipes), all ops (add/remove/move rows & columns, setAlign, setCell), and a
+  parse→op→emit→parse invariant cycle.
+- `test/table-editor.test.js` (7 tests) — DOM smoke for the modal: rendering,
+  cell seeding, onApply emit, row remove, alignment cycling, +row append,
+  no-model guard.
+- Existing 992 tests stay green (1030 total).
+
 ## [0.51.0] - 2026-07-29
 
 ### Added — desktop notifications + snapshot diff view

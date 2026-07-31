@@ -8,11 +8,18 @@ function codeLineNumbersOn() {
   catch { return false; }
 }
 
+// v0.53.0: prose highlights (complex-word underlines + dense-paragraph tint)
+// are opt-in. Read fresh each render so the toggle takes effect on re-render.
+function proseHighlightsOn() {
+  try { return localStorage.getItem('mdpeek-prose-highlights') === '1'; }
+  catch { return false; }
+}
+
 // Renders `content` (markdown string) into `el`. Returns a promise that resolves
 // after mermaid diagrams are enhanced.
 export async function showDocument(el, content) {
   el.innerHTML = renderMarkdown(content);
-  await enhanceDom(el, { lineNumbers: codeLineNumbersOn() });
+  await enhanceDom(el, { lineNumbers: codeLineNumbersOn(), proseHighlights: proseHighlightsOn() });
 }
 
 // Builds a table of contents from h1-h3 inside `root` and injects it into the

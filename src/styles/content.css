@@ -166,6 +166,30 @@
   padding: 0.05em 0.2em;
   border-radius: 3px;
 }
+/* v0.53.0: Prose highlights (opt-in via the "Toggle prose highlights" command).
+   .prose-complex underlines 3+-syllable words; .prose-dense tints a whole
+   paragraph that reads as difficult. Distinct from the ==highlight== <mark>
+   above: a dotted underline (tip-green) instead of a yellow background, so the
+   two never read as the same affordance. Disabled under reduced-motion-free
+   prefs only for the tint, not the underline (the underline carries the info). */
+.markdown-body mark.prose-complex {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--alert-tip, #1a7f37);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+.markdown-body p.prose-dense {
+  background: color-mix(in srgb, var(--alert-tip, #1a7f37) 6%, transparent);
+  border-left: 3px solid color-mix(in srgb, var(--alert-tip, #1a7f37) 40%, transparent);
+  padding-left: 10px;
+  margin-left: -13px;
+  border-radius: 2px;
+}
 /* v0.45.0: Pandoc subscript/superscript (H~2~O / x^2^). Browsers ship sane
    defaults (font-size: 0.75em, vertical-align: sub/super); we just nudge the
    size so it composes cleanly with the body font. */

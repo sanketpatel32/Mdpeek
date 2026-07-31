@@ -41,6 +41,8 @@ import { snapshotDoc, pushClosedTab, popClosedTab } from './lib/closed-tabs.js';
 import { smartPaste } from './lib/smart-paste.js';
 import { toSnapshotEntries, formatSnapshotTime } from './lib/snapshots.js';
 import { initDiffViewer } from './views/diff-viewer.js';
+import { initTableEditor } from './views/table-editor.js';
+import { parseTable } from './lib/table.js';
 import { notifyOs, osNotificationsEnabled, setOsNotificationsEnabled } from './lib/notify.js';
 // v0.34.1: build-time version for the About + Updates panels. Import is
 // hoisted to module top; the value is written into the DOM early (right after
@@ -1089,6 +1091,17 @@ const find = initFindBar({
 // v0.49.0: the command list is a named function so both the command palette
 // and the "Show keyboard shortcuts" cheat-sheet can read it (the cheat-sheet
 // surfaces every command that carries a `hint`).
+
+// v0.52.0: is the caret currently inside a GFM table? Powers the
+// "Edit table visually…" palette entry's availability. Cheap + pure (parseTable
+// is DOM-free); called per palette open, not per keystroke.
+function caretInTable() {
+  const doc = store.active();
+  if (!doc || doc.mode !== 'edit' || !doc.editor) return false;
+  const { start } = doc.editor.getSelection();
+  return !!parseTable(doc.editor.getValue(), start);
+}
+
 function getCommands() {
   const cmds = [
     { id: 'open', label: 'Open file', hint: 'Ctrl+O', keywords: 'open file load', run: openFileDialog },
@@ -1134,6 +1147,7 @@ function getCommands() {
     { id: 'sort-asc', label: 'Sort lines A→Z', keywords: 'sort lines ascending alpha arrange order', run: () => sortSelection('asc') },
     { id: 'sort-desc', label: 'Sort lines Z→A', keywords: 'sort lines descending reverse arrange order', run: () => sortSelection('desc') },
     { id: 'format-table', label: 'Format table', keywords: 'format table align pipes pad cells markdown tidy', run: formatTable },
+    { id: 'edit-table', label: 'Edit table visually…', keywords: 'edit table grid visual rows columns align cells add remove move markdown', run: editTableVisually },
     { id: 'sort-table-asc', label: 'Sort table rows ↑ (by column)', keywords: 'sort table rows column ascending', run: () => sortTable('asc') },
     { id: 'sort-table-desc', label: 'Sort table rows ↓ (by column)', keywords: 'sort table rows column descending', run: () => sortTable('desc') },
     { id: 'convert-list-bullet', label: 'Convert list → bullets', keywords: 'convert list bullet unordered dash asterisk', run: () => convertListSelection('bullet') },
@@ -1148,6 +1162,7 @@ function getCommands() {
     { id: 'editor-outline', label: 'Toggle editor outline', keywords: 'editor outline toc headings panel jump navigate', run: toggleEditorOutline },
     { id: 'doc-stats', label: 'Toggle document statistics', keywords: 'stats statistics words chars sentences paragraphs reading time panel', run: toggleDocStats },
     { id: 'doc-readability', label: 'Toggle readability score', keywords: 'readability flesch kincaid grade level score writing difficulty', run: toggleReadability },
+    { id: 'toggle-prose-highlights', label: 'Toggle prose highlights', keywords: 'prose highlights readability hard complex words sentences difficult writing underline', run: toggleProseHighlights },
     { id: 'sidebar', label: 'Toggle sidebar (TOC)', hint: 'Ctrl+B', keywords: 'sidebar toc outline', run: toggleSidebar },
     { id: 'find', label: 'Find', hint: 'Ctrl+F', keywords: 'find search', run: () => { const d = store.active(); if (d && (d.excalidraw || d.tldraw || d.notebook || d.media)) { toast('Find isn\'t available on this tab type'); return; } find.toggle(); } },
     { id: 'replace', label: 'Find & Replace', hint: 'Ctrl+H', keywords: 'replace substitute find', run: () => find.openReplace() },
@@ -1191,7 +1206,7 @@ function getCommands() {
   const hasDoc = !!doc;
   const collabActive = collab.getStatus().active;
   return cmds.filter((c) => {
-    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-txt' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks' || c.id === 'sort-asc' || c.id === 'sort-desc' || c.id === 'copy-html' || c.id === 'copy-plaintext' || c.id === 'open-in-browser' || c.id === 'check-links' || c.id === 'restore-version' || c.id === 'diff-version' || c.id === 'writing-goal' || c.id === 'save-as-template' || c.id === 'pin-doc-theme' || c.id === 'clear-doc-theme' || c.id === 'case-upper' || c.id === 'case-lower' || c.id === 'case-title' || c.id === 'case-toggle' || c.id === 'wrap-with') && !hasDoc) return false;
+    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-txt' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks' || c.id === 'sort-asc' || c.id === 'sort-desc' || c.id === 'copy-html' || c.id === 'copy-plaintext' || c.id === 'open-in-browser' || c.id === 'check-links' || c.id === 'restore-version' || c.id === 'diff-version' || c.id === 'writing-goal' || c.id === 'save-as-template' || c.id === 'pin-doc-theme' || c.id === 'clear-doc-theme' || c.id === 'case-upper' || c.id === 'case-lower' || c.id === 'case-title' || c.id === 'case-toggle' || c.id === 'wrap-with' || c.id === 'edit-table' || c.id === 'toggle-prose-highlights') && !hasDoc) return false;
     if (c.id === 'end-collab' && !collabActive) return false;
     if (c.id === 'start-collab' && collabActive) return false;
     if ((c.id === 'start-collab' || c.id === 'end-collab') && localStorage.getItem('mdpeek-feature-collab') === '0') return false;
@@ -1199,6 +1214,11 @@ function getCommands() {
     if (c.id === 'start-presentation' && localStorage.getItem('mdpeek-feature-present') === '0') return false;
     if (c.id === 'snippet' && localStorage.getItem('mdpeek-feature-snippets') === '0') return false;
     if (c.id === 'daily' && localStorage.getItem('mdpeek-feature-daily') === '0') return false;
+    // v0.52.0: visual table editor — feature flag + only when caret is in a table.
+    if (c.id === 'edit-table' && localStorage.getItem('mdpeek-feature-table-editor') === '0') return false;
+    if (c.id === 'edit-table' && !caretInTable()) return false;
+    // v0.53.0: prose highlights — feature flag.
+    if (c.id === 'toggle-prose-highlights' && localStorage.getItem('mdpeek-feature-prose-highlights') === '0') return false;
     return true;
   });
 }
@@ -1375,6 +1395,7 @@ async function restoreSnapshot() {
 // doc content side-by-side. "Use this version" writes the snapshot text into
 // the active editor (marking it dirty so the user confirms with a save).
 const diffViewer = initDiffViewer();
+const tableEditor = initTableEditor();
 const diffVersionPicker = initQuickSwitcher(
   () => [],
   async (item) => {
@@ -1836,6 +1857,35 @@ function formatTable() {
   persistSoon();
   scheduleAutoSave();
 }
+
+// v0.52.0: open a visual grid editor for the table under the caret. On
+// confirm the edited table block replaces just the table's range in the
+// source (the surrounding text is untouched), then the doc is marked dirty.
+function editTableVisually() {
+  const doc = store.active();
+  if (!doc || doc.mode !== 'edit' || !doc.editor) { toast('Switch to edit mode to edit a table'); return; }
+  const { start } = doc.editor.getSelection();
+  const m = parseTable(doc.editor.getValue(), start);
+  if (!m) { toast('Caret is not inside a table'); return; }
+  // Capture the block range up front; parseTable owns these offsets, but we
+  // pass a clone to the modal so in-place edits can't shift the write-back.
+  const startLine = m.startLine;
+  const endLine = m.endLine;
+  tableEditor.open({
+    model: m,
+    onApply: (md) => {
+      const d = store.active();
+      if (!d || !d.editor) return;
+      d.editor.replaceRange(startLine, endLine, md);
+      d.content = d.editor.getValue();
+      store.markDirty(d.id);
+      persistSoon();
+      scheduleAutoSave();
+      toast('Table updated');
+    },
+  });
+}
+
 
 // v0.45.0: sort the table the caret is in by a column. Prompts for the column
 // index (1-based); falls back to the caret's column when blank.
@@ -2844,7 +2894,7 @@ async function enterReading() {
   // badges/gutter) exactly as the normal view does.
   el.readerArticle.innerHTML = renderMarkdown(doc.content);
   try {
-    await enhanceDom(el.readerArticle, { lineNumbers: codeLineNumbersPref() });
+    await enhanceDom(el.readerArticle, { lineNumbers: codeLineNumbersPref(), proseHighlights: proseHighlightsPref() });
   } catch (e) {
     console.error('[mdpeek] reader enhanceDom:', e);
   }
@@ -2987,6 +3037,13 @@ function readerCycleFontFamily() {
 // modules for the code-line-numbers flag. Mirrors viewer.js's read.
 function codeLineNumbersPref() {
   try { return localStorage.getItem('mdpeek-code-line-numbers') === '1'; }
+  catch { return false; }
+}
+
+// v0.53.0: prose highlights toggle for reading mode (mirrors viewer.js's
+// proseHighlightsOn). Opt-in; read fresh each render.
+function proseHighlightsPref() {
+  try { return localStorage.getItem('mdpeek-prose-highlights') === '1'; }
   catch { return false; }
 }
 
@@ -5368,6 +5425,19 @@ function toggleReadability() {
   toast(currentlyOn ? 'Readability score hidden' : 'Readability score shown');
 }
 
+// v0.53.0: toggle the visual prose-highlights overlay on the rendered view.
+// Opt-in (default off). Re-renders the active doc so the change shows at once
+// (mirrors the code-line-numbers toggle). A no-op toast in edit mode, since
+// the overlay only applies to the rendered view / reading mode.
+function toggleProseHighlights() {
+  const doc = store.active();
+  if (!doc) { toast('Open a document first'); return; }
+  const currentlyOn = localStorage.getItem('mdpeek-prose-highlights') === '1';
+  localStorage.setItem('mdpeek-prose-highlights', currentlyOn ? '0' : '1');
+  renderActive().catch((err) => console.error('[mdpeek] prose-highlights re-render:', err));
+  toast(currentlyOn ? 'Prose highlights off' : 'Prose highlights on');
+}
+
 function setDocStatsVisible(on) {
   if (!statsEl) return;
   statsEl.classList.toggle('hidden', !on);
@@ -6359,7 +6429,7 @@ function syncSettingsControls() {
   }
 
   // Feature flags synchronization
-  const features = ['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily', 'pomodoro', 'calendar', 'tasks', 'review', 'autocomplete', 'graph'];
+  const features = ['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily', 'pomodoro', 'calendar', 'tasks', 'review', 'autocomplete', 'graph', 'table-editor', 'prose-highlights'];
   features.forEach((feat) => {
     const cb = document.getElementById(`settings-feature-${feat}`);
     if (cb) cb.checked = localStorage.getItem(`mdpeek-feature-${feat}`) !== '0';
@@ -6688,7 +6758,7 @@ document.getElementById('settings-autosave').addEventListener('change', (e) => {
 });
 
 // Feature flags change handlers
-['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily', 'pomodoro', 'calendar', 'tasks', 'review', 'autocomplete', 'graph'].forEach((feat) => {
+['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily', 'pomodoro', 'calendar', 'tasks', 'review', 'autocomplete', 'graph', 'table-editor', 'prose-highlights'].forEach((feat) => {
   const cb = document.getElementById(`settings-feature-${feat}`);
   if (cb) {
     cb.addEventListener('change', (e) => {

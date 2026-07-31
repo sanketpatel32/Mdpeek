@@ -5386,4 +5386,103 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   border-top: 1px solid var(--border);
 }
 
+/* ---- v0.52.0: Visual table editor modal ------------------------------- */
+.te-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  animation: overlay-in 160ms var(--ease);
+}
+.te-modal {
+  width: min(900px, calc(100vw - 48px));
+  height: min(80vh, 720px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: modal-in 200ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+.te-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.te-title { font-weight: 600; font-size: 15px; }
+.te-close {
+  background: none; border: none; cursor: pointer; font-size: 16px;
+  color: var(--fg-muted); padding: 4px 8px; border-radius: var(--radius);
+}
+.te-close:hover { background: var(--surface-hover); color: var(--fg); }
+.te-scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+}
+/* A table row is itself a grid: one row-control slot + one per column. The
+   column-control strip uses the same column tracks so controls line up with
+   the cells beneath them. The grid-template-columns is set inline per render
+   based on the live column count. */
+.te-cols {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 6px;
+  position: sticky;
+  top: -16px;
+  z-index: 1;
+}
+.te-body { display: flex; flex-direction: column; gap: 6px; }
+.te-row { display: grid; gap: 6px; }
+.te-row-head .te-cell { font-weight: 600; }
+.te-col-ctl {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+.te-col-ctl .te-align { font-family: var(--font-mono, ui-monospace, monospace); }
+.te-row-ctl {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--fg-muted);
+}
+.te-row-ctl-head { justify-content: center; }
+.te-cell {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  outline: none;
+}
+.te-cell:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.te-ico { padding: 2px 6px; font-size: 12px; line-height: 1; }
+.te-danger:hover { color: var(--danger); }
+.te-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+.te-spacer { flex: 1; }
+.te-actions .tool-btn { min-width: 0; }
+
+
 

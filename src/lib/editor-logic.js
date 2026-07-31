@@ -741,7 +741,9 @@ function cellContentStart(text, [cs, ce]) {
 // lines) surrounding the caret. Returns { startLine, endLine, lines } where
 // lines is the array of table-row strings (without their newlines), or null
 // when the caret is not inside a table. Used by formatTableBlock + sortTableRows.
-function detectTableBlock(text, pos) {
+// v0.52.0: exported so src/lib/table.js (visual table editor) can reuse the
+// same block detection instead of re-implementing it.
+export function detectTableBlock(text, pos) {
   const lineStart = text.lastIndexOf('\n', pos - 1) + 1;
   // Walk backwards to the first non-table line.
   let s = lineStart;

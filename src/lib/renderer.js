@@ -16,6 +16,7 @@ import { markedSubSup, expandSuperscript, expandSpoilers } from './subsup.js';
 import { parseImageSize } from './image-size.js';
 import { escapeHtml } from './escape.js';
 import { extractAbbreviations, applyAbbreviations } from './abbreviations.js';
+import { findComplexWords, isDenseParagraph } from './prose.js';
 
 // Local escapeText — escapes only & < > (NOT quotes). Used for TEXT CONTENT
 // (code block bodies, mermaid source). Deliberately different from the shared
@@ -704,6 +705,7 @@ export async function enhanceDom(container, {
   mermaid: renderMermaid = true,
   folding: renderFolding = true,
   lineNumbers = false,
+  proseHighlights = false,
 } = {}) {
   if (typeof window === 'undefined') return;
   enhanceCodeBlocks(container, { lineNumbers });
@@ -712,6 +714,7 @@ export async function enhanceDom(container, {
   enhanceTaskCheckboxes(container);
   enhanceTaskProgress(container);
   enhanceSpoilers(container);
+  if (proseHighlights) enhanceProseHighlights(container);
   if (renderFolding) enhanceFolding(container);
   // Kick off dynamic language registration for any fenced langs we don't yet
   // have. Non-blocking — this render stays as-is; the next render picks them up.
@@ -760,6 +763,59 @@ function enhanceTaskProgress(container) {
       `<div class="task-progress-track"><div class="task-progress-bar" style="width:${pct}%"></div></div>` +
       `<span class="task-progress-count">${done}/${total}</span>`;
     ul.parentNode.insertBefore(header, ul);
+  });
+}
+
+// v0.53.0: Highlight hard-to-read prose. Walks rendered paragraphs, wraps each
+// 3+-syllable word in <mark class="prose-complex"> and adds .prose-dense to
+// whole paragraphs that read as difficult. Skips code blocks, tables, and
+// alert callouts so only real prose is marked. Idempotent across re-renders.
+function enhanceProseHighlights(container) {
+  if (!container || container.__proseWired) return;
+  container.__proseWired = true;
+  const paras = container.querySelectorAll('p');
+  paras.forEach((p) => {
+    // Skip paragraphs that aren't running prose.
+    if (p.closest('pre')) return; // fenced/inline code
+    if (p.closest('table')) return; // table cells
+    if (p.closest('blockquote.markdown-alert')) return; // callouts
+    // Whole-paragraph density tint.
+    if (isDenseParagraph(p.textContent)) p.classList.add('prose-dense');
+    // Wrap complex words. We walk text nodes and rebuild each one with text +
+    // <mark> fragments, so existing inline elements (<a>, <strong>, <code>)
+    // are left intact — only the text inside them is wrapped. Skip text nodes
+    // already inside a <code> or a prior prose <mark>.
+    const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        if (node.parentElement && node.parentElement.closest('code, mark.prose-complex, .prose-skip')) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    const targets = [];
+    let n;
+    while ((n = walker.nextNode())) targets.push(n);
+    for (const node of targets) {
+      const text = node.nodeValue;
+      const matches = findComplexWords(text);
+      if (matches.length === 0) continue;
+      // Build replacement fragments: plain text between matches + a <mark> for
+      // each match. Offsets are into the original text, so slicing is exact.
+      const frag = document.createDocumentFragment();
+      let cursor = 0;
+      for (const { start, end } of matches) {
+        if (start > cursor) frag.appendChild(document.createTextNode(text.slice(cursor, start)));
+        const mark = document.createElement('mark');
+        mark.className = 'prose-complex';
+        mark.textContent = text.slice(start, end);
+        frag.appendChild(mark);
+        cursor = end;
+      }
+      if (cursor < text.length) frag.appendChild(document.createTextNode(text.slice(cursor)));
+      node.parentNode.replaceChild(frag, node);
+    }
   });
 }
 
