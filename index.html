@@ -1022,6 +1022,21 @@
             <!-- Features (Feature Flags) -->
             <div class="settings-panel hidden" data-cat="features">
               <div class="setting-card">
+                <!-- v0.54.0: Minimal mode — the master switch. When on, every
+                     feature below is hidden and greyed out; the app returns to a
+                     pure featherlight reader/editor. One switch rules them all. -->
+                <div class="setting-row setting-row-minimal">
+                  <div class="setting-text">
+                    <div class="setting-label">Minimal mode</div>
+                    <div class="setting-desc">Hide all non-core features for a featherlight reader/editor. New installs start here. Turn off to customize individual features below.</div>
+                  </div>
+                  <label class="setting-toggle">
+                    <input type="checkbox" id="settings-minimal-mode" />
+                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+                  </label>
+                </div>
+                <p class="minimal-note hidden">Minimal mode is on — turn it off to customize individual features.</p>
+                <div class="setting-card setting-card-features">
                 <div class="setting-row">
                   <div class="setting-text">
                     <div class="setting-label">Live Collaboration</div>
@@ -1161,6 +1176,7 @@
                     <input type="checkbox" id="settings-feature-prose-highlights" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
+                </div>
                 </div>
               </div>
             </div>

@@ -10,8 +10,13 @@ function codeLineNumbersOn() {
 
 // v0.53.0: prose highlights (complex-word underlines + dense-paragraph tint)
 // are opt-in. Read fresh each render so the toggle takes effect on re-render.
+// v0.54.0: short-circuit under Minimal mode so the overlay never renders even
+// if the plain key was left '1' from before Minimal was turned on.
 function proseHighlightsOn() {
-  try { return localStorage.getItem('mdpeek-prose-highlights') === '1'; }
+  try {
+    if (localStorage.getItem('mdpeek-minimal-mode') === '1') return false;
+    return localStorage.getItem('mdpeek-prose-highlights') === '1';
+  }
   catch { return false; }
 }
 

@@ -43,6 +43,7 @@ import { toSnapshotEntries, formatSnapshotTime } from './lib/snapshots.js';
 import { initDiffViewer } from './views/diff-viewer.js';
 import { initTableEditor } from './views/table-editor.js';
 import { parseTable } from './lib/table.js';
+import { MINIMAL_SUPPRESSED, minimalModeOn as _minimalModeOn, isFeatureOn } from './lib/minimal.js';
 import { notifyOs, osNotificationsEnabled, setOsNotificationsEnabled } from './lib/notify.js';
 // v0.34.1: build-time version for the About + Updates panels. Import is
 // hoisted to module top; the value is written into the DOM early (right after
@@ -187,10 +188,11 @@ function renderWelcome() {
             <span>New Note</span>
             <kbd>Ctrl+N</kbd>
           </button>
+          ${featureOn('daily') ? `
           <button class="welcome-action" data-action="daily" type="button">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             <span>Today's Note</span>
-          </button>
+          </button>` : ''}
           <button class="welcome-action" data-action="open-folder" type="button">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.69.9H18a2 2 0 0 1 2 2v2"/></svg>
             <span>Open Folder</span>
@@ -1092,6 +1094,15 @@ const find = initFindBar({
 // and the "Show keyboard shortcuts" cheat-sheet can read it (the cheat-sheet
 // surfaces every command that carries a `hint`).
 
+// v0.54.0: command ids that are non-core but aren't individually feature-flag-
+// gated in the palette filter below (the workspace sub-modes open via openKanban,
+// which is itself gated; pomodoro/terminal/readability/stats have no flag read
+// in the filter). Minimal mode hides these in one clause.
+const MINIMAL_NONCORE_COMMANDS = new Set([
+  'ws-calendar', 'ws-tasks', 'ws-review', 'ws-graph',
+  'pomo-start', 'terminal', 'doc-readability', 'doc-stats',
+]);
+
 // v0.52.0: is the caret currently inside a GFM table? Powers the
 // "Edit table visually…" palette entry's availability. Cheap + pure (parseTable
 // is DOM-free); called per palette open, not per keystroke.
@@ -1209,16 +1220,20 @@ function getCommands() {
     if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-txt' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks' || c.id === 'sort-asc' || c.id === 'sort-desc' || c.id === 'copy-html' || c.id === 'copy-plaintext' || c.id === 'open-in-browser' || c.id === 'check-links' || c.id === 'restore-version' || c.id === 'diff-version' || c.id === 'writing-goal' || c.id === 'save-as-template' || c.id === 'pin-doc-theme' || c.id === 'clear-doc-theme' || c.id === 'case-upper' || c.id === 'case-lower' || c.id === 'case-title' || c.id === 'case-toggle' || c.id === 'wrap-with' || c.id === 'edit-table' || c.id === 'toggle-prose-highlights') && !hasDoc) return false;
     if (c.id === 'end-collab' && !collabActive) return false;
     if (c.id === 'start-collab' && collabActive) return false;
-    if ((c.id === 'start-collab' || c.id === 'end-collab') && localStorage.getItem('mdpeek-feature-collab') === '0') return false;
-    if (c.id === 'kanban' && localStorage.getItem('mdpeek-feature-kanban') === '0') return false;
-    if (c.id === 'start-presentation' && localStorage.getItem('mdpeek-feature-present') === '0') return false;
-    if (c.id === 'snippet' && localStorage.getItem('mdpeek-feature-snippets') === '0') return false;
-    if (c.id === 'daily' && localStorage.getItem('mdpeek-feature-daily') === '0') return false;
+    if ((c.id === 'start-collab' || c.id === 'end-collab') && !featureOn('collab')) return false;
+    if (c.id === 'kanban' && !featureOn('kanban')) return false;
+    if (c.id === 'start-presentation' && !featureOn('present')) return false;
+    if (c.id === 'snippet' && !featureOn('snippets')) return false;
+    if (c.id === 'daily' && !featureOn('daily')) return false;
     // v0.52.0: visual table editor — feature flag + only when caret is in a table.
-    if (c.id === 'edit-table' && localStorage.getItem('mdpeek-feature-table-editor') === '0') return false;
+    if (c.id === 'edit-table' && !featureOn('table-editor')) return false;
     if (c.id === 'edit-table' && !caretInTable()) return false;
     // v0.53.0: prose highlights — feature flag.
-    if (c.id === 'toggle-prose-highlights' && localStorage.getItem('mdpeek-feature-prose-highlights') === '0') return false;
+    if (c.id === 'toggle-prose-highlights' && !featureOn('prose-highlights')) return false;
+    // v0.54.0: Minimal mode hides the remaining non-core commands that aren't
+    // individually feature-flag-gated above (workspace sub-modes, pomodoro,
+    // terminal, readability/stats overlays). One clause rules them all.
+    if (minimalModeOn() && MINIMAL_NONCORE_COMMANDS.has(c.id)) return false;
     return true;
   });
 }
@@ -3042,8 +3057,14 @@ function codeLineNumbersPref() {
 
 // v0.53.0: prose highlights toggle for reading mode (mirrors viewer.js's
 // proseHighlightsOn). Opt-in; read fresh each render.
+// v0.54.0: also short-circuit under Minimal mode — the feature flag already
+// hides the toggle command, but this guarantees the overlay never renders even
+// if the plain key was left '1' from before Minimal was turned on.
 function proseHighlightsPref() {
-  try { return localStorage.getItem('mdpeek-prose-highlights') === '1'; }
+  try {
+    if (minimalModeOn()) return false;
+    return localStorage.getItem('mdpeek-prose-highlights') === '1';
+  }
   catch { return false; }
 }
 
@@ -3491,6 +3512,13 @@ function clearDoneKanbanTasks() {
 
 function openKanban() {
   if (!el.kanbanView) return;
+  // v0.54.0: the single chokepoint for every hub opener (More-menu button,
+  // Ctrl+Shift+K, palette 'kanban'/'ws-*', pomodoro pill click). featureOn
+  // returns false under Minimal mode, so the whole Workspace hub is sealed.
+  if (!featureOn('kanban')) {
+    toast('Minimal mode is on — turn it off in Settings to use the Workspace hub');
+    return;
+  }
   // v0.33.0: the Kanban surface is now the Workspace hub. Default to the last
   // mode (or Board) so reopen feels stable.
   const saved = localStorage.getItem('mdpeek-workspace-mode');
@@ -3524,8 +3552,20 @@ const MODE_ONLY = {
 
 let _wsMode = 'board';
 
+// v0.54.0: Minimal mode — a single switch that suppresses every non-core
+// feature + its UI, returning mdpeek to a featherlight reader/editor. The
+// whole feature hinges on featureOn being Minimal-aware: every existing call
+// site (applyFeatureFlags, the palette filter, keyboard handlers, the pomodoro
+// pill render, autocomplete) already reads through featureOn or its flag, so
+// suppression propagates from this one predicate instead of being patched at
+// 14 sites. The pure logic (MINIMAL_SUPPRESSED + minimalModeOn + isFeatureOn)
+// lives in src/lib/minimal.js so it's unit-testable; here we bind it to
+// localStorage via thin local wrappers that the rest of main.js already calls.
+function minimalModeOn() {
+  return _minimalModeOn();
+}
 function featureOn(name) {
-  return localStorage.getItem(`mdpeek-feature-${name}`) !== '0';
+  return isFeatureOn(name);
 }
 
 /** Switch the active Workspace tab. Renders the target panel if needed. */
@@ -6435,6 +6475,11 @@ function syncSettingsControls() {
     if (cb) cb.checked = localStorage.getItem(`mdpeek-feature-${feat}`) !== '0';
   });
 
+  // v0.54.0: Minimal mode master toggle — sync its checkbox + grey out the
+  // individual feature rows beneath it when Minimal is on (so the UI reads as
+  // "one switch rules them all", not 14 things to untick).
+  syncMinimalMode();
+
   // Windows Explorer context menu setting check (hide on non-Windows)
   const isWindows = navigator.userAgent.includes('Windows') || navigator.platform.indexOf('Win') > -1;
   const ctxRow = document.getElementById('setting-row-context-menu');
@@ -6452,11 +6497,15 @@ function syncSettingsControls() {
 }
 
 function applyFeatureFlags() {
-  const collabEnabled = localStorage.getItem('mdpeek-feature-collab') !== '0';
-  const kanbanEnabled = localStorage.getItem('mdpeek-feature-kanban') !== '0';
-  const terminalEnabled = localStorage.getItem('mdpeek-feature-terminal') !== '0';
-  const presentEnabled = localStorage.getItem('mdpeek-feature-present') !== '0';
-  const dailyEnabled = localStorage.getItem('mdpeek-feature-daily') !== '0';
+  // v0.54.0: read through featureOn (not the raw flag) so Minimal mode — which
+  // makes featureOn return false for non-core features — suppresses these
+  // surfaces automatically without per-flag patches here.
+  const collabEnabled = featureOn('collab');
+  const kanbanEnabled = featureOn('kanban');
+  const terminalEnabled = featureOn('terminal');
+  const presentEnabled = featureOn('present');
+  const dailyEnabled = featureOn('daily');
+  const pomoEnabled = featureOn('pomodoro');
 
   if (el.share) el.share.style.display = collabEnabled ? '' : 'none';
   if (el.collabStatus && !collabEnabled) el.collabStatus.classList.add('hidden');
@@ -6465,6 +6514,31 @@ function applyFeatureFlags() {
   if (el.terminal) el.terminal.style.display = terminalEnabled ? '' : 'none';
   if (el.present) el.present.style.display = presentEnabled ? '' : 'none';
   if (el.daily) el.daily.style.display = dailyEnabled ? '' : 'none';
+  // v0.54.0: pomodoro pill was previously only gated in its render fn; hide it
+  // centrally too so Minimal mode clears it immediately on toggle.
+  if (el.pomoStatus && !pomoEnabled) el.pomoStatus.classList.add('hidden');
+
+  applyMinimalChrome();
+}
+
+// v0.54.0: the visual reset hook for Minimal mode. Toggling body.minimal-mode
+// lets CSS hide anything not caught by element-level display rules, and is the
+// single class flipped by the Settings toggle + boot default-on.
+function applyMinimalChrome() {
+  const on = minimalModeOn();
+  document.body.classList.toggle('minimal-mode', on);
+}
+
+// v0.54.0: sync the Minimal-mode checkbox + grey out the individual feature
+// rows beneath it. Called on settings open and after the toggle changes.
+function syncMinimalMode() {
+  const on = minimalModeOn();
+  const cb = document.getElementById('settings-minimal-mode');
+  if (cb) cb.checked = on;
+  const card = document.querySelector('.setting-card-features');
+  if (card) card.classList.toggle('features-disabled', on);
+  const note = document.querySelector('.minimal-note');
+  if (note) note.classList.toggle('hidden', !on);
 }
 
 function setSegActive(setting, value) {
@@ -6770,6 +6844,20 @@ document.getElementById('settings-autosave').addEventListener('change', (e) => {
     });
   }
 });
+
+// v0.54.0: Minimal mode master toggle. One switch rules them all: re-apply
+// every feature surface + chrome, re-render the active doc, and sync the
+// grey-out state of the individual feature rows beneath it.
+const minimalCb = document.getElementById('settings-minimal-mode');
+if (minimalCb) {
+  minimalCb.addEventListener('change', (e) => {
+    localStorage.setItem('mdpeek-minimal-mode', e.target.checked ? '1' : '0');
+    applyFeatureFlags();          // hide/show all feature surfaces
+    renderActive().catch((err) => console.error('[mdpeek] minimal re-render:', err));
+    syncMinimalMode();            // grey-out + note
+    toast(e.target.checked ? 'Minimal mode on — non-core features hidden' : 'Minimal mode off — features restored');
+  });
+}
 
 // Explorer context menu — toggle Windows right-click options dynamically.
 const ctxMenuEl = document.getElementById('settings-context-menu');
@@ -8026,6 +8114,16 @@ applyReadingComfort();
 applyLineNumbers();
 applyWordWrap();
 applySpellcheck();
+// v0.54.0: first-run default — new installs (no prior session) start in
+// Minimal mode for a featherlight first impression. Existing users, who have
+// a saved session, keep whatever they'd set (key unset = off) and discover the
+// toggle in Settings → Features. Run before applyFeatureFlags so the very
+// first paint is already minimal for newcomers.
+try {
+  const minimalUnset = localStorage.getItem('mdpeek-minimal-mode') === null;
+  const freshInstall = loadSession() == null;
+  if (minimalUnset && freshInstall) localStorage.setItem('mdpeek-minimal-mode', '1');
+} catch (e) { /* localStorage unavailable — non-fatal */ }
 applyFeatureFlags();
 applyUserCss();
 

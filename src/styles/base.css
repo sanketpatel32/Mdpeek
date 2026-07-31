@@ -5484,5 +5484,37 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 .te-spacer { flex: 1; }
 .te-actions .tool-btn { min-width: 0; }
 
+/* ---- v0.54.0: Minimal mode ---------------------------------------------
+   The visual reset hook toggled by applyMinimalChrome(). Most non-core UI is
+   already hidden by applyFeatureFlags() setting display:none on the buttons;
+   this block is the defensive net that catches anything those element rules
+   miss (status pills, the kanban-mode overlay if open mid-toggle) so the app
+   reads as a pure reader/editor. Harmless when Minimal is off. */
+body.minimal-mode #pomo-status,
+body.minimal-mode #collab-status { display: none !important; }
+
+/* Settings: grey out + disable the individual feature rows when Minimal is on,
+   so the master toggle reads as authoritative. The .setting-card-features wraps
+   the per-feature checkboxes (added in index.html). */
+.setting-card-features.features-disabled .setting-row {
+  opacity: 0.45;
+  pointer-events: none;
+}
+.setting-card-features.features-disabled input { cursor: not-allowed; }
+/* The minimal master row itself stays interactive — it's outside the disabled card. */
+.minimal-note {
+  margin: 4px 0 14px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  font-style: italic;
+}
+.minimal-note.hidden { display: none; }
+.setting-row-minimal {
+  /* Visually set the master toggle apart from the per-feature rows below it. */
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 14px;
+}
+
 
 

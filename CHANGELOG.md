@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-07-31
+
+### Added — Minimal mode
+
+mdpeek had grown ~14 opt-in features. Each was individually togglable, but there
+was no "make it all go away" switch, and the app had drifted from its
+*featherlight Markdown viewer* soul. Minimal mode is that switch: **ON = a pure
+reader/editor; OFF = every feature you've enabled comes back.** Nothing is
+deleted — it's a reversible visibility toggle, not a cut.
+
+- **One switch rules them all.** Settings → Features now leads with a **Minimal
+  mode** master toggle. When on, the 14 individual feature checkboxes grey out
+  and every non-core surface disappears: the terminal drawer, the Workspace hub
+  (board/calendar/tasks/review/graph), Pomodoro, collaboration, presentation
+  mode, snippets, daily notes, autocomplete, the table editor, prose highlights,
+  the readability score, and OS notifications. What remains is the document job —
+  open/read/edit/save, tabs, file explorer, find & replace, TOC, reading mode,
+  themes. The whole hub is sealed at a single chokepoint (`openKanban`), so no
+  command, shortcut, or status pill leaks through.
+- **New installs start in Minimal mode** for a featherlight first impression;
+  existing users keep their setup and discover the toggle in Settings.
+- The whole feature hinges on one authoritative, Minimal-aware predicate
+  (`featureOn`) in a new pure, unit-tested `src/lib/minimal.js`, so suppression
+  propagates from the root instead of being patched at 14 sites. A `body.minimal-
+  mode` class is the visual reset hook.
+
+This is a perceived-weight reduction (code stays, the binary is unchanged),
+exactly what the product asks for: *chrome recedes.*
+
+### Tests
+- `test/minimal.test.js` (23 tests) — `minimalModeOn` (unset/`'1'`/`'0'`/broken
+  storage), `isFeatureOn` suppresses all 14 non-core features under Minimal and
+  respects each per-feature flag when off, toggling restores a feature,
+  `MINIMAL_SUPPRESSED` contains exactly the 14 names and excludes core.
+- Existing 1054 tests stay green (1077 total).
+
 ## [0.53.0] - 2026-07-31
 
 ### Added — prose highlights (visual readability)
