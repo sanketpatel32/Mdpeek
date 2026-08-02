@@ -442,16 +442,31 @@ function notify(title, body) {
 }
 
 function toast(msg, opts = {}) {
+  // Auto-detect severity from message content so existing call sites get
+  // visual differentiation without each passing a type.
+  if (!opts.type) {
+    const l = msg.toLowerCase();
+    if (/^(saved|copied|exported|inserted|created|deleted|renamed|moved|downloaded|link copied|done|complete)/.test(l)) opts.type = 'success';
+    else if (/(fail|could not|error|invalid|unable|not found|too large)/.test(l)) opts.type = 'error';
+  }
+  // Errors stay visible longer — the user needs time to read them.
+  const timeout = opts.type === 'error' ? 4500 : TOAST_TIMEOUT_MS;
   el.toast.textContent = msg;
+  el.toast.classList.remove('success', 'error', 'warn', 'leaving');
+  if (opts.type) el.toast.classList.add(opts.type);
   el.toast.classList.remove('hidden');
   el.toast.style.cursor = opts.onClick ? 'pointer' : 'default';
   el.toast.onclick = opts.onClick || null;
   clearTimeout(toast._t);
   if (!opts.persistent) {
     toast._t = setTimeout(() => {
-      el.toast.classList.add('hidden');
+      el.toast.classList.add('leaving');
       el.toast.onclick = null;
-    }, TOAST_TIMEOUT_MS);
+      setTimeout(() => {
+        el.toast.classList.add('hidden');
+        el.toast.classList.remove('leaving', 'success', 'error', 'warn');
+      }, 200);
+    }, timeout);
   }
 }
 

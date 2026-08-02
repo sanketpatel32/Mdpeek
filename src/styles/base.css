@@ -1703,15 +1703,25 @@ mark.find-current {
   position: fixed;
   bottom: 24px;
   left: 50%;
+  transform: translateX(-50%);
+  max-width: min(400px, 90vw);
+  text-align: center;
   background: var(--bg-elevated);
   color: var(--fg);
   border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
   border-radius: var(--radius);
   padding: 10px 18px;
   font-size: 13px;
   box-shadow: var(--shadow-lg);
   z-index: 60;
   animation: toast-in 360ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.toast.success { border-left-color: var(--success); }
+.toast.error   { border-left-color: var(--danger); }
+.toast.warn    { border-left-color: var(--alert-warning); }
+.toast.leaving {
+  animation: toast-out 200ms ease-in forwards;
 }
 @keyframes toast-in {
   from {
@@ -1721,6 +1731,16 @@ mark.find-current {
   to {
     opacity: 1;
     transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px) scale(0.97);
   }
 }
 
@@ -5703,8 +5723,5 @@ body.minimal-mode #collab-status { display: none !important; }
 .wf-count { color: var(--fg-secondary); font-variant-numeric: tabular-nums; text-align: right; font-weight: 600; }
 .wf-empty { padding: 32px 16px; text-align: center; color: var(--fg-muted); font-size: 13px; }
 .wf-empty.hidden { display: none; }
-
-
-
 
 
