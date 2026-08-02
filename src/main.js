@@ -5789,7 +5789,7 @@ function updateActiveTocLink() {
     const activeLink = el.toc.querySelector(`a[href="#${activeHeading.id}"]`);
     if (activeLink) {
       activeLink.classList.add('active');
-      activeLink.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      activeLink.scrollIntoView({ block: 'nearest', behavior: 'auto' });
     }
   }
 }
@@ -7382,12 +7382,17 @@ el.tabStrip.addEventListener('wheel', (e) => {
 // Document scroll: update the reading-progress bar. rAF-throttled so the
 // listener stays cheap on long docs.
 let _progressRaf = 0;
+let _tocLast = 0;
 el.document.addEventListener('scroll', () => {
   if (_progressRaf) return;
   _progressRaf = requestAnimationFrame(() => {
     _progressRaf = 0;
     updateReadingProgress();
-    updateActiveTocLink();
+    const now = performance.now();
+    if (now - _tocLast >= 150) {
+      _tocLast = now;
+      updateActiveTocLink();
+    }
   });
 }, { passive: true });
 
