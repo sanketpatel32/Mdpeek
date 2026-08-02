@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "mdpeek",
-  "version": "0.56.0",
+  "version": "0.57.0",
   "identifier": "com.mdpeek.app",
   "build": {
     "frontendDist": "../dist",
@@ -27,14 +27,18 @@
       "assetProtocol": {
         "enable": true,
         "scope": {
-          "allow": ["**"]
+          "allow": [
+            "**"
+          ]
         }
       }
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -44,56 +48,84 @@
     ],
     "fileAssociations": [
       {
-        "ext": ["md", "markdown", "mdx"],
+        "ext": [
+          "md",
+          "markdown",
+          "mdx"
+        ],
         "name": "Markdown",
         "description": "Markdown document",
         "role": "Viewer",
         "mimeType": "text/markdown"
       },
       {
-        "ext": ["txt"],
+        "ext": [
+          "txt"
+        ],
         "name": "Plain Text",
         "description": "Plain text document",
         "role": "Viewer",
         "mimeType": "text/plain"
       },
       {
-        "ext": ["pdf"],
+        "ext": [
+          "pdf"
+        ],
         "name": "PDF",
         "description": "PDF document",
         "role": "Viewer",
         "mimeType": "application/pdf"
       },
       {
-        "ext": ["excalidraw"],
+        "ext": [
+          "excalidraw"
+        ],
         "name": "Excalidraw",
         "description": "Excalidraw canvas",
         "role": "Viewer",
         "mimeType": "application/json"
       },
       {
-        "ext": ["tldr"],
+        "ext": [
+          "tldr"
+        ],
         "name": "TLDraw",
         "description": "TLDraw canvas",
         "role": "Viewer",
         "mimeType": "application/json"
       },
       {
-        "ext": ["ipynb"],
+        "ext": [
+          "ipynb"
+        ],
         "name": "Jupyter Notebook",
         "description": "Jupyter notebook",
         "role": "Viewer",
         "mimeType": "application/x-ipynb+json"
       },
       {
-        "ext": ["mp3", "wav", "ogg", "flac", "m4a", "aac"],
+        "ext": [
+          "mp3",
+          "wav",
+          "ogg",
+          "flac",
+          "m4a",
+          "aac"
+        ],
         "name": "Audio",
         "description": "Audio file",
         "role": "Viewer",
         "mimeType": "audio/*"
       },
       {
-        "ext": ["mp4", "webm", "mov", "avi", "m4v", "mkv"],
+        "ext": [
+          "mp4",
+          "webm",
+          "mov",
+          "avi",
+          "m4v",
+          "mkv"
+        ],
         "name": "Video",
         "description": "Video file",
         "role": "Viewer",
@@ -117,7 +149,9 @@
     },
     "deep-link": {
       "desktop": {
-        "schemes": ["mdpeek"]
+        "schemes": [
+          "mdpeek"
+        ]
       }
     }
   }

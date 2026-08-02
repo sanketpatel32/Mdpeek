@@ -12,6 +12,7 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { escapeHtml } from '../lib/escape.js';
 import { classifyPasswordError } from '../lib/pdf-auth.js';
+import { clampPage, calculateActivePage, calculateZoomScale } from '../lib/pdf-nav.js';
 
 // Render scale relative to the app's zoom level.
 function getScale(container) {
@@ -145,6 +146,41 @@ export async function showPdf(container, filePath) {
     }
     if (destroyed) return { destroy: () => {} };
     container.innerHTML = '';
+
+    // v0.57.0: Top PDF Toolbar — Page Jump, Prev/Next controls
+    const toolbar = document.createElement('div');
+    toolbar.className = 'pdf-toolbar';
+    toolbar.innerHTML = ''
+      + '<div class="pdf-toolbar-group">'
+      +   '<button type="button" class="pdf-toolbar-btn pdf-prev-btn" title="Previous Page">‹ Prev</button>'
+      +   '<span class="pdf-page-count">Page <input type="number" class="pdf-page-input" value="1" min="1" max="' + pdfDoc.numPages + '" /> / ' + pdfDoc.numPages + '</span>'
+      +   '<button type="button" class="pdf-toolbar-btn pdf-next-btn" title="Next Page">Next ›</button>'
+      + '</div>'
+      + '<div class="pdf-toolbar-group">'
+      +   '<span class="pdf-page-count">' + pdfDoc.numPages + ' pages</span>'
+      + '</div>';
+    container.appendChild(toolbar);
+
+    const pageInput = toolbar.querySelector('.pdf-page-input');
+    const prevBtn = toolbar.querySelector('.pdf-prev-btn');
+    const nextBtn = toolbar.querySelector('.pdf-next-btn');
+
+    const scrollToPage = (pageNum) => {
+      const targetPage = clampPage(pageNum, pdfDoc.numPages);
+      const targetEl = container.querySelector('.pdf-page[data-page-num="' + targetPage + '"]');
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        pageInput.value = String(targetPage);
+      }
+    };
+
+    pageInput.addEventListener('change', () => scrollToPage(pageInput.value));
+    pageInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); scrollToPage(pageInput.value); }
+    });
+    prevBtn.addEventListener('click', () => scrollToPage(parseInt(pageInput.value, 10) - 1));
+    nextBtn.addEventListener('click', () => scrollToPage(parseInt(pageInput.value, 10) + 1));
+
 
     // Build page wrappers with the three-layer structure.
     for (let i = 1; i <= pdfDoc.numPages; i++) {

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.57.0] - 2026-08-02
+
+### Added — PDF navigation toolbar & Code block copy buttons
+
+- **PDF Navigation & Page Jump Bar.** When opening any PDF document, a sticky navigation header provides instant page jump (`Page [input] / N`), direct Previous/Next page controls, and active page status.
+- **Code Block Copy Button.** Rendered Markdown fenced code blocks now feature a slick one-click `Copy` button in the top-right corner with smooth `✓ Copied` status feedback.
+
+### Tests
+- `test/code-copy.test.js` (7) — extractCodeText, enhanceCodeBlocks DOM injection, click delegation, idempotency.
+- `test/pdf-nav.test.js` (10) — clampPage boundary rules, calculateActivePage ratios, calculateZoomScale bounds.
+
 ## [0.56.0] - 2026-08-02
 
 ### Added — password-protected PDF support
