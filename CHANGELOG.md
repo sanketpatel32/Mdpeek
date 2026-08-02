@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-08-02
+
+### Added — password-protected PDF support
+
+Encrypted PDFs now open after unlocking. Previously, opening a password-
+protected `.pdf` rejected `getDocument` with a `PasswordException` and rendered
+the generic "Could not load PDF" banner — the document was unreachable. Now the
+viewer catches that exception, shows a centered unlock card, and retries the
+load with the entered password.
+
+- **Unlock prompt.** A `🔒 Password required` card with a masked password field.
+  Enter unlocks, Esc / Cancel aborts. A wrong password re-prompts with
+  "Incorrect password. Try again." and loops until the right one is supplied or
+  the user cancels.
+- **Cancel is clean.** Cancelling the prompt shows "PDF not opened (cancelled)"
+  instead of a fake load error; closing the tab mid-prompt resolves the pending
+  prompt so the load loop short-circuits (no orphaned promise, no scary banner).
+- **Pure error classification.** The decision to prompt vs. surface a real
+  error is a new pure, unit-tested `src/lib/pdf-auth.js`
+  (`classifyPasswordError` → `'need'` / `'incorrect'` / `null`), so the
+  branching matches pdf.js's `PasswordException` codes
+  (`NEED_PASSWORD` = 1, `INCORRECT_PASSWORD` = 2) without coupling the test to
+  pdf.js. The retry loop + prompt UI live in `src/views/pdf-viewer.js`.
+- The password is used only in memory for the `getDocument` call; it is never
+  persisted, logged, or written to disk.
+
+### Tests
+- `test/pdf-auth.test.js` (6) — `classifyPasswordError`: NEED/INCORRECT codes,
+  unknown code fallback, non-password errors → null, falsy/malformed input
+  safety, code-without-name not treated as a password error.
+
 ## [0.55.0] - 2026-08-02
 
 ### Added — capture, streak, word-frequency, editor folding

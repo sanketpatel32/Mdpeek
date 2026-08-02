@@ -14,7 +14,7 @@ editing, and manage a Workspace hub (board, calendar, tasks, review, pomodoro)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Windows](https://img.shields.io/badge/platform-windows%2010%2F11-success)](https://github.com/sanketpatel32/Mdpeek/releases/latest)
 [![Installer Size](https://img.shields.io/badge/installer-~7.3MB-green)](https://github.com/sanketpatel32/Mdpeek/releases/latest)
-[![Version](https://img.shields.io/badge/version-0.55.0-blueviolet)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.56.0-blueviolet)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-1220%2B%20passing-brightgreen)](#-build)
 
 Built with **Tauri 2 + vanilla JS**. Uses the system WebView2 (no bundled
@@ -64,7 +64,7 @@ Chromium), making it far smaller than Electron-based viewers like MarkText
 - **Scroll progress bar** and **scroll position memory** — resume where you left off when you re-enter Reading Mode
 
 ### 📁 Beyond Markdown
-- **PDF viewer** — render `.pdf` files with text selection, in-document search, and a drawing toolbar (pen, highlighter, eraser)
+- **PDF viewer** — render `.pdf` files with text selection, in-document search, and a drawing toolbar (pen, highlighter, eraser); encrypted PDFs prompt for a password to unlock
 - **Excalidraw** — full canvas embedding for `.excalidraw` sketches, theme-synced
 - **Code & config files** — `.js`, `.ts`, `.py`, `.json`, `.css`, `.xml`, `.yml`, `.log`, `Dockerfile`, and 60+ more open as syntax-highlighted views **and can be edited** (`Ctrl+E`)
 - **Plain text** — `.txt` files open in a full-width Notepad-style editor

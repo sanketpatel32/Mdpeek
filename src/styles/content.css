@@ -802,6 +802,78 @@
 .pdf-error {
   color: var(--danger);
 }
+/* v0.56.0: password-unlock card shown when an encrypted PDF is opened. Centered
+   like the loading/error banners; a small card with a lock glyph, a message,
+   and a password field. Enter unlocks, Esc/cancel aborts. */
+.pdf-unlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-height: 240px;
+  padding: 48px 24px;
+  color: var(--fg);
+}
+.pdf-unlock-icon {
+  font-size: 36px;
+  line-height: 1;
+}
+.pdf-unlock-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+.pdf-unlock-msg {
+  font-size: 13px;
+  color: var(--fg-muted);
+  text-align: center;
+  max-width: 360px;
+}
+.pdf-unlock-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.pdf-unlock-input {
+  width: 220px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13.5px;
+  outline: none;
+  transition: border-color 120ms var(--ease, ease);
+}
+.pdf-unlock-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.pdf-unlock-btn,
+.pdf-unlock-cancel {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pdf-unlock-btn {
+  background: var(--accent);
+  color: #fff;
+  border: 1px solid var(--accent);
+}
+.pdf-unlock-btn:hover { filter: brightness(1.05); }
+.pdf-unlock-cancel {
+  background: transparent;
+  color: var(--fg-secondary);
+  border: 1px solid var(--border);
+}
+.pdf-unlock-cancel:hover { background: var(--surface-hover); }
 .pdf-page {
   position: relative;       /* anchor for textLayer + draw canvas overlays */
   display: flex;

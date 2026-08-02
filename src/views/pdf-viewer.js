@@ -11,6 +11,7 @@
 
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { escapeHtml } from '../lib/escape.js';
+import { classifyPasswordError } from '../lib/pdf-auth.js';
 
 // Render scale relative to the app's zoom level.
 function getScale(container) {
@@ -36,6 +37,51 @@ const PEN_WIDTH = 2;
 const HIGHLIGHT_WIDTH = 14;
 const PALETTE = ['#1d1d1f', '#ff3b30', '#0071e3', '#34c759', '#ffcc00'];
 
+// v0.56.0: render the password-unlock card into `container` and resolve the
+// caller's promise via `resolve`: the entered password (string) on Unlock, or
+// null on Cancel/Esc. `kind` is 'need' (first prompt) or 'incorrect' (retry
+// after a wrong password), which only changes the message line. The caller
+// owns the promise so an external destroy() can resolve it as cancelled.
+function promptForPassword(container, kind, resolve) {
+  container.innerHTML = '';
+  container.classList.add('pdf-viewer');
+  const card = document.createElement('div');
+  card.className = 'pdf-unlock';
+  card.setAttribute('role', 'dialog');
+  card.setAttribute('aria-modal', 'false');
+  card.setAttribute('aria-label', 'PDF password');
+  card.innerHTML = ''
+    + '<div class="pdf-unlock-icon" aria-hidden="true">🔒</div>'
+    + '<div class="pdf-unlock-title">Password required</div>'
+    + '<div class="pdf-unlock-msg"></div>'
+    + '<form class="pdf-unlock-form">'
+    +   '<input type="password" class="pdf-unlock-input" placeholder="Enter PDF password" autocomplete="off" />'
+    +   '<button type="submit" class="pdf-unlock-btn">Unlock</button>'
+    +   '<button type="button" class="pdf-unlock-cancel">Cancel</button>'
+    + '</form>';
+  container.appendChild(card);
+  const msg = card.querySelector('.pdf-unlock-msg');
+  msg.textContent = kind === 'incorrect'
+    ? 'Incorrect password. Try again.'
+    : 'This document is encrypted. Enter its password to view it.';
+  const form = card.querySelector('.pdf-unlock-form');
+  const input = card.querySelector('.pdf-unlock-input');
+  input.focus();
+  let settled = false;
+  const finish = (val) => { if (settled) return; settled = true; resolve(val); };
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const pw = input.value;
+    if (!pw) return; // ignore empty submits
+    finish(pw);
+  });
+  card.querySelector('.pdf-unlock-cancel').addEventListener('click', () => finish(null));
+  // Esc cancels. stopPropagation so it doesn't trigger the app-level Esc handler.
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(null); }
+  });
+}
+
 export async function showPdf(container, filePath) {
   container.innerHTML = '<div class="pdf-loading">Loading PDF…</div>';
   container.classList.add('pdf-viewer');
@@ -52,6 +98,12 @@ export async function showPdf(container, filePath) {
   let drawTool = 'pen';
   let drawColor = PALETTE[0];
 
+  // v0.56.0: bridge so destroy() can abort a pending password prompt. Set while
+  // the unlock card is open; destroy() resolves it as cancelled (null), which
+  // unblocks the load loop and lets the destroyed-check short-circuit.
+  let resolvePasswordPrompt = null;
+  _cleanup.push(() => { if (resolvePasswordPrompt) { resolvePasswordPrompt(null); resolvePasswordPrompt = null; } });
+
   // Mutable scale — re-read from the container's font-size (set by applyZoom)
   // whenever the app's zoom level changes. Kept as a `let` (not const) so
   // rerenderAll() can update it and force every page to re-render.
@@ -60,7 +112,37 @@ export async function showPdf(container, filePath) {
   try {
     const pdfjsLib = await loadPdfjs();
     const url = convertFileSrc(filePath);
-    pdfDoc = await pdfjsLib.getDocument({ url }).promise;
+    // Load with a password-retry loop. Encrypted PDFs reject with a
+    // PasswordException; we show an unlock prompt, retry with the entered
+    // password, and loop on wrong passwords. Non-password errors surface as
+    // the usual failure banner.
+    let password = null; // null = no password tried yet
+    for (;;) {
+      let doc;
+      try {
+        const params = password === null ? { url } : { url, password };
+        doc = await pdfjsLib.getDocument(params).promise;
+      } catch (e) {
+        if (destroyed) throw e;
+        const kind = classifyPasswordError(e);
+        if (!kind) throw e; // not a password issue → real failure
+        // Prompt (loops back here on an incorrect password). destroy() resolves
+        // the pending prompt as null, which falls through to the cancel branch.
+        password = await new Promise((resolve) => {
+          resolvePasswordPrompt = resolve;
+          promptForPassword(container, kind, resolve);
+        });
+        resolvePasswordPrompt = null;
+        if (destroyed) throw new Error('cancelled');
+        if (password === null) {
+          container.innerHTML = '<div class="pdf-error">PDF not opened (cancelled).</div>';
+          return { destroy: () => {} };
+        }
+        continue; // retry getDocument with the new password
+      }
+      pdfDoc = doc;
+      break;
+    }
     if (destroyed) return { destroy: () => {} };
     container.innerHTML = '';
 
@@ -135,8 +217,13 @@ export async function showPdf(container, filePath) {
       }
     });
   } catch (e) {
-    container.innerHTML = `<div class="pdf-error">Could not load PDF: ${escapeHtml(String(e))}</div>`;
-    console.error('PDF load failed:', e);
+    // Suppress the intentional cancel paths: a destroy-during-prompt throws
+    // 'cancelled', and a user cancel returns early (no throw). Either way we
+    // don't want a scary "Could not load PDF" banner for a deliberate action.
+    if (!destroyed && String(e) !== 'cancelled') {
+      container.innerHTML = `<div class="pdf-error">Could not load PDF: ${escapeHtml(String(e))}</div>`;
+      console.error('PDF load failed:', e);
+    }
   }
 
   // ---------- drawing ----------
