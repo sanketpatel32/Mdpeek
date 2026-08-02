@@ -108,9 +108,10 @@ export function expandTocMarker(md) {
       let slug = slugify(text);
       if (!slug) continue;
       // Dedupe slugs the same way the heading-id hook does (suffix -1, -2...).
-      const seen = slugCounts.get(slug) || 0;
-      slugCounts.set(slug, seen + 1);
-      if (seen > 0) slug = `${slug}-${seen}`;
+     const seen = slugCounts.get(slug) || 0;
+      const n = seen + 1;
+      slugCounts.set(slug, n);
+      if (n > 1) slug = `${slug}-${n}`;
       headings.push({ level, text, slug });
     }
   }
@@ -774,8 +775,7 @@ function enhanceTaskProgress(container) {
 // whole paragraphs that read as difficult. Skips code blocks, tables, and
 // alert callouts so only real prose is marked. Idempotent across re-renders.
 function enhanceProseHighlights(container) {
-  if (!container || container.__proseWired) return;
-  container.__proseWired = true;
+  if (!container) return;
   const paras = container.querySelectorAll('p');
   paras.forEach((p) => {
     // Skip paragraphs that aren't running prose.
@@ -828,8 +828,7 @@ function enhanceProseHighlights(container) {
 // never read as the same affordance. Skips code blocks, tables, alert callouts,
 // and headings so only body prose is marked. Idempotent across re-renders.
 function enhanceWordFreq(container) {
-  if (!container || container.__wordFreqWired) return;
-  container.__wordFreqWired = true;
+  if (!container) return;
   const paras = container.querySelectorAll('p');
   if (paras.length === 0) return;
   // Build the overused set from the container's own prose, so the underline is
