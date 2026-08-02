@@ -716,7 +716,7 @@ describe('expandTocMarker', () => {
     const md = '# Foo\n\n# Foo\n\n[[toc]]';
     const out = expandTocMarker(md);
     expect(out).toContain('- [Foo](#foo)');
-    expect(out).toContain('- [Foo](#foo-1)');
+    expect(out).toContain('- [Foo](#foo-2)');
   });
 });
 

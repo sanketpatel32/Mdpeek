@@ -56,7 +56,7 @@ fn read_file_for_frontend(path: &str) -> Result<FilePayload, String> {
     if size > 10 * 1024 * 1024 {
         return Err(format!(
             "File too large to open ({} MB). Max 10 MB.",
-            (size as f64) / 1_000_000
+            (size as f64) / 1_000_000.0
         ));
     }
     let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
