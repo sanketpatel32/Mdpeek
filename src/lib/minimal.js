@@ -10,7 +10,7 @@
 export const MINIMAL_SUPPRESSED = new Set([
   'collab', 'kanban', 'terminal', 'present', 'snippets', 'daily',
   'pomodoro', 'calendar', 'tasks', 'review', 'autocomplete', 'graph',
-  'table-editor', 'prose-highlights',
+  'table-editor', 'prose-highlights', 'capture', 'wordfreq',
 ]);
 
 // Is Minimal mode on? `store` is a localStorage-like object (getItem). Absent

@@ -190,6 +190,17 @@
   margin-left: -13px;
   border-radius: 2px;
 }
+/* v0.55.0: Word-frequency underline (opt-in via the "Toggle word-frequency
+   underline" command). Wraps 5+-use words in a dotted amber underline —
+   distinct from prose-complex (tip-green) so "repetitive" and "hard" never
+   read as the same affordance. The two can stack (a word can be both). */
+.markdown-body .wordfreq-mark {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--alert-warning, #9a6700);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
 /* v0.45.0: Pandoc subscript/superscript (H~2~O / x^2^). Browsers ship sane
    defaults (font-size: 0.75em, vertical-align: sub/super); we just nudge the
    size so it composes cleanly with the body font. */

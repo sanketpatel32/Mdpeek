@@ -645,6 +645,10 @@ main {
   color: var(--success);
   font-weight: 600;
 }
+/* v0.55.0: writing-day streak chip. Earns its place only at 2+ days. */
+.editor-status .status-streak {
+  color: var(--fg-secondary);
+}
 .editor-status .save-status {
   margin-left: auto;
   color: var(--fg-muted);
@@ -1258,6 +1262,75 @@ mark.find-current {
 }
 .gutter::-webkit-scrollbar {
   display: none;
+}
+/* v0.55.0: region folding in the editor. The gutter is pointer-events:none by
+   default (so it doesn't intercept textarea clicks), but fold carets re-enable
+   pointer events so the user can click to toggle. Carets sit at the far-left of
+   the gutter, separate from the right-aligned line number. */
+.gutter > div { position: relative; }
+.gutter .fold-caret {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--fg-muted);
+  cursor: pointer;
+  pointer-events: auto;
+  border-radius: var(--radius-sm);
+  user-select: none;
+}
+.gutter .fold-caret:hover {
+  color: var(--accent);
+  background: var(--surface-hover);
+}
+/* Dim the line numbers of folded-away rows so the fold reads as collapsed. */
+.gutter .folded-line { opacity: 0.35; }
+/* Fold overlay: a layer over the textarea that masks folded regions. The layer
+   itself doesn't capture pointer events; only the per-fold chips do (click a
+   chip to unfold). */
+.editor-folds {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 2; /* above the textarea text (z-index:1) but below the gutter (3) */
+}
+.editor-folds .fold-marker {
+  position: absolute;
+  background: var(--bg-elevated);
+  border-left: 2px solid var(--accent);
+  pointer-events: none; /* the chip inside re-enables clicks */
+}
+.editor-folds .fold-chip {
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  font-size: 11.5px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--fg-secondary);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  pointer-events: auto;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.editor-folds .fold-chip:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--surface-hover);
 }
 .editor {
   flex: 1;
@@ -5515,6 +5588,123 @@ body.minimal-mode #collab-status { display: none !important; }
   border-bottom: 1px solid var(--border-subtle);
   margin-bottom: 14px;
 }
+
+/* ---- v0.55.0: quick-capture HUD -----------------------------------------
+   A transient top-center overlay (not a full modal — no dimmed backdrop so it
+   feels light and dismissable). One textarea + a faint hint/destination row. */
+.capture-hud {
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1100;
+  width: min(560px, calc(100vw - 32px));
+  animation: overlay-in 140ms var(--ease);
+}
+.capture-hud.hidden { display: none; }
+.capture-hud-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: modal-in 180ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+.capture-input {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  max-height: 200px;
+  padding: 12px 14px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.45;
+  resize: none;
+}
+.capture-input::placeholder { color: var(--fg-muted); }
+.capture-input:disabled { opacity: 0.6; cursor: progress; }
+.capture-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 14px 10px;
+  font-size: 11.5px;
+  color: var(--fg-muted);
+}
+.capture-dest {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.capture-hint { opacity: 0.85; white-space: nowrap; }
+
+/* ---- v0.55.0: word-frequency popover ------------------------------------ */
+.wf-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  animation: overlay-in 160ms var(--ease);
+}
+.wf-overlay.hidden { display: none; }
+.wf-modal {
+  width: min(560px, calc(100vw - 48px));
+  max-height: min(70vh, 560px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: modal-in 200ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+.wf-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.wf-title { font-weight: 600; font-size: 15px; }
+.wf-close {
+  background: none; border: none; cursor: pointer; font-size: 16px;
+  color: var(--fg-muted); padding: 4px 8px; border-radius: var(--radius);
+}
+.wf-close:hover { background: var(--surface-hover); color: var(--fg); }
+.wf-body { flex: 1; overflow: auto; padding: 8px 8px 12px; }
+.wf-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.wf-item {
+  display: grid;
+  grid-template-columns: 28px minmax(80px, 1fr) minmax(60px, 2fr) 44px;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+}
+.wf-item:hover { background: var(--surface-hover); }
+.wf-rank { color: var(--fg-muted); font-variant-numeric: tabular-nums; font-size: 11.5px; text-align: right; }
+.wf-word { font-family: var(--font-mono, ui-monospace, monospace); color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wf-bar { height: 8px; background: var(--surface); border-radius: 4px; overflow: hidden; }
+.wf-bar-fill { display: block; height: 100%; background: var(--alert-warning, #9a6700); opacity: 0.7; }
+.wf-count { color: var(--fg-secondary); font-variant-numeric: tabular-nums; text-align: right; font-weight: 600; }
+.wf-empty { padding: 32px 16px; text-align: center; color: var(--fg-muted); font-size: 13px; }
+.wf-empty.hidden { display: none; }
+
+
 
 
 

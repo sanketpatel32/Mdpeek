@@ -16,7 +16,9 @@ import {
   transposeChars,
   joinLine,
   selectLine,
+  extractHeadings,
 } from '../lib/editor-logic.js';
+import { sectionRanges, foldedLineSet, foldedLineCount } from '../lib/fold.js';
 
 // Wire a textarea to a live-preview target with debounced re-render, plus the
 // editor niceties: line-number gutter, smart Tab/Enter, auto-pair, markdown
@@ -177,6 +179,8 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     if (gutter) gutter.scrollTop = textarea.scrollTop;
     // Re-position the active-line marker so it scrolls with the text.
     updateActiveLineMarker();
+    // Re-position the fold overlay so markers scroll with the text.
+    syncFolds();
   }
   // Typewriter mode: vertically center the line containing the caret. Called
   // after every input/selection change while the mode is on. Reads the line's
@@ -414,6 +418,146 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     }
   }
 
+  // ----- region folding (v0.55.0) -----
+  // Pure line-math lives in fold.js; this block is the DOM glue. The textarea
+  // ALWAYS holds the true source — folding is purely visual (an overlay masks
+  // the folded lines + a chip marks the fold). Fold state is a per-editor,
+  // in-memory Set of 1-indexed heading lines. State is keyed by line number, so
+  // a doc edit that shifts headings drops stale entries (syncFolds reconciles).
+  const collapsedHeadings = new Set(); // 1-indexed heading lines currently folded
+  let foldLayer = null; // .editor-folds overlay (sibling of the textarea)
+  const wrapEl = textarea.parentElement;
+
+  function ensureFoldLayer() {
+    if (foldLayer || !wrapEl) return;
+    foldLayer = document.createElement('div');
+    foldLayer.className = 'editor-folds';
+    foldLayer.setAttribute('aria-hidden', 'true');
+    // Click on a fold marker unfolds that section. The layer itself is
+    // pointer-events:none; markers re-enable pointer events.
+    foldLayer.addEventListener('click', (e) => {
+      const marker = e.target.closest('.fold-marker');
+      if (!marker) return;
+      const line = parseInt(marker.dataset.headingLine, 10);
+      if (Number.isFinite(line)) { collapsedHeadings.delete(line); syncFolds(); }
+    });
+    wrapEl.appendChild(foldLayer);
+  }
+
+  // Mark each heading's gutter row with a fold caret and dim folded body rows.
+  function syncFoldCarets(headings, hidden) {
+    if (!gutter) return;
+    const rows = gutter.children;
+    const headingSet = new Set(headings.map((h) => h.line));
+    for (let i = 0; i < rows.length; i++) {
+      const lineNo = i + 1;
+      const row = rows[i];
+      const isHeading = headingSet.has(lineNo);
+      const isHidden = hidden.has(lineNo);
+      row.classList.toggle('folded-line', isHidden);
+      if (isHeading) {
+        row.classList.add('has-fold');
+        // Inject/refresh the caret. Reuse the existing one to avoid resetting
+        // the row's layout on every sync.
+        let caret = row.querySelector('.fold-caret');
+        if (!caret) {
+          caret = document.createElement('span');
+          caret.className = 'fold-caret';
+          caret.setAttribute('role', 'button');
+          caret.setAttribute('aria-label', 'Toggle fold');
+          row.insertBefore(caret, row.firstChild);
+        }
+        caret.textContent = collapsedHeadings.has(lineNo) ? '▾' : '▸';
+        caret.dataset.headingLine = String(lineNo);
+      } else if (row.classList.contains('has-fold')) {
+        // Was a heading, no longer is (doc changed) — clean up.
+        row.classList.remove('has-fold');
+        const caret = row.querySelector('.fold-caret');
+        if (caret) caret.remove();
+      }
+    }
+  }
+
+  // Reposition fold markers over the masked line ranges. Uses the mirror's
+  // per-line offsetTop/offsetHeight (which already reflect wrapping) so the
+  // markers sit exactly over the hidden text.
+  function renderFoldMarkers(ranges, hidden) {
+    if (!foldLayer) return;
+    // Build a fast lookup: line number → mirror child index.
+    const mirrorKids = mirror?.children || [];
+    const foldedRanges = ranges.filter((r) => collapsedHeadings.has(r.headingLine));
+    // Clear and rebuild. Cheap (few folds at once).
+    foldLayer.innerHTML = '';
+    if (foldedRanges.length === 0) return;
+    const cs = getComputedStyle(textarea);
+    const padTop = parseFloat(cs.paddingTop) || 0;
+    const padLeft = parseFloat(cs.paddingLeft) || 0;
+    const width = parseFloat(cs.width) || textarea.clientWidth || 0;
+    for (const r of foldedRanges) {
+      const bodyStart = r.headingLine; // mirror index = headingLine - 1
+      const bodyEnd = r.endLine;       // mirror index = endLine - 1
+      const startKid = mirrorKids[bodyStart - 1];
+      const endKid = mirrorKids[bodyEnd - 1];
+      if (!startKid) continue;
+      const top = (startKid.offsetTop || 0) + padTop - textarea.scrollTop;
+      const bottomKid = endKid || startKid;
+      const bottom = (bottomKid.offsetTop || 0) + (bottomKid.offsetHeight || 0) + padTop - textarea.scrollTop;
+      const height = Math.max(20, bottom - top);
+      const count = foldedLineCount(textarea.value, r.headingLine);
+      const marker = document.createElement('div');
+      marker.className = 'fold-marker';
+      marker.dataset.headingLine = String(r.headingLine);
+      marker.style.top = `${top}px`;
+      marker.style.left = `${padLeft}px`;
+      marker.style.width = `${Math.max(40, width - padLeft * 2)}px`;
+      marker.style.height = `${height}px`;
+      marker.innerHTML = `<span class="fold-chip">⌄ ${count} line${count === 1 ? '' : 's'} folded</span>`;
+      foldLayer.appendChild(marker);
+    }
+  }
+
+  // Reconcile fold state with the current source: drop stale entries, refresh
+  // carets + markers. Called on input, scroll, resize, and after explicit
+  // toggles. Never mutates textarea.value.
+  function syncFolds() {
+    if (!wrapEl) return;
+    const text = textarea.value;
+    const headings = extractHeadings(text);
+    const ranges = sectionRanges(text);
+    const validHeadingLines = new Set(headings.map((h) => h.line));
+    // Drop collapsed entries whose line is no longer a heading.
+    for (const ln of [...collapsedHeadings]) {
+      if (!validHeadingLines.has(ln)) collapsedHeadings.delete(ln);
+    }
+    const hidden = foldedLineSet(text, collapsedHeadings);
+    syncFoldCarets(headings, hidden);
+    renderFoldMarkers(ranges, hidden);
+  }
+
+  function toggleFoldAt(headingLine) {
+    if (!Number.isFinite(headingLine)) return;
+    if (collapsedHeadings.has(headingLine)) collapsedHeadings.delete(headingLine);
+    else collapsedHeadings.add(headingLine);
+    syncFolds();
+  }
+
+  // Fold/unfold the heading that owns the current caret line. Used by a palette
+  // command / shortcut. No-op when the caret isn't on a heading line.
+  function toggleFoldAtCaret() {
+    const before = textarea.value.slice(0, textarea.selectionStart);
+    const lineNo = before.split('\n').length;
+    const headings = extractHeadings(textarea.value);
+    if (!headings.some((h) => h.line === lineNo)) return false;
+    toggleFoldAt(lineNo);
+    return true;
+  }
+
+  function unfoldAll() {
+    if (collapsedHeadings.size === 0) return;
+    collapsedHeadings.clear();
+    syncFolds();
+  }
+
   // ----- wiring -----
   function on(type, target, fn) {
     target.addEventListener(type, fn);
@@ -424,12 +568,26 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     schedule();
     syncGutter();
     centerActiveLine();
+    syncFolds();
   });
   on('keydown', textarea, onKeyDown);
   // Re-center on caret moves that don't fire input (arrow keys, clicks).
   on('keyup', textarea, centerActiveLine);
   on('click', textarea, centerActiveLine);
   on('scroll', textarea, onScroll);
+  // Gutter click: a click on a fold caret toggles that section. Other gutter
+  // clicks fall through (no default gutter-click behavior today).
+  if (gutter) {
+    on('click', gutter, (e) => {
+      const caret = e.target.closest('.fold-caret');
+      if (!caret) return;
+      const line = parseInt(caret.dataset.headingLine, 10);
+      if (Number.isFinite(line)) {
+        e.preventDefault();
+        toggleFoldAt(line);
+      }
+    });
+  }
   // Re-sync gutter when font metrics or the textarea size changes.
   let gutterResizeObserver = null;
   if (typeof ResizeObserver !== 'undefined') {
@@ -437,13 +595,16 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
       syncGutter();
       cachedLineHeight = 0; // force re-measure in case font-size changed
       updateActiveLineMarker();
+      syncFolds();
     });
     gutterResizeObserver.observe(textarea);
   }
 
+  ensureFoldLayer();
   refresh();
   syncGutter();
   updateActiveLineMarker();
+  syncFolds();
 
   return {
     // Set the textarea's value. Only writes when the value actually differs —
@@ -454,6 +615,7 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
       if (textarea.value !== text) textarea.value = text;
       refresh();
       syncGutter();
+      syncFolds();
     },
     getValue() {
       return textarea.value;
@@ -521,6 +683,12 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     syncGutter() {
       syncGutter();
     },
+    // v0.55.0: region folding — toggle the section that owns the caret line,
+    // unfold everything, or force a re-render of the fold overlay. Folding is
+    // purely visual; textarea.value is never mutated.
+    toggleFoldAtCaret,
+    unfoldAll,
+    syncFolds,
     format(type) {
       const s = textarea.selectionStart;
       const en = textarea.selectionEnd;

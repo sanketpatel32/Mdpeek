@@ -14,8 +14,8 @@ editing, and manage a Workspace hub (board, calendar, tasks, review, pomodoro)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Windows](https://img.shields.io/badge/platform-windows%2010%2F11-success)](https://github.com/sanketpatel32/Mdpeek/releases/latest)
 [![Installer Size](https://img.shields.io/badge/installer-~7.3MB-green)](https://github.com/sanketpatel32/Mdpeek/releases/latest)
-[![Version](https://img.shields.io/badge/version-0.37.0-blueviolet)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-490%2B%20passing-brightgreen)](#-build)
+[![Version](https://img.shields.io/badge/version-0.55.0-blueviolet)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-1220%2B%20passing-brightgreen)](#-build)
 
 Built with **Tauri 2 + vanilla JS**. Uses the system WebView2 (no bundled
 Chromium), making it far smaller than Electron-based viewers like MarkText
@@ -51,6 +51,7 @@ Chromium), making it far smaller than Electron-based viewers like MarkText
 - **Live syntax highlighting in editor** — transparent-text overlay preserving native cursor, selection, IME, and spellcheck
 - **Smart editing** — Tab/Shift+Tab indent, list continuation on `Enter`, auto-pair brackets/quotes, auto-close code fences
 - **Editor line operations** — `Ctrl+D` duplicate line, `Alt+↑`/`Alt+↓` move line(s), `Ctrl+/` toggle HTML comment
+- **Region folding** — click `▸` in the editor gutter (or *Toggle fold at caret*) to collapse a heading's section; the source is never modified, so saving always writes the full document
 - **Formatting shortcuts** — Bold/Italic/Code/Strikethrough (`Ctrl+Shift+X`)/Blockquote (`Ctrl+Shift+.`) keybinds
 - **Go to line (`Ctrl+G`)** — jump to a line number, VS Code / Sublime style
 - **Typewriter mode** — `Ctrl+Shift+T` keeps the caret vertically centered
@@ -100,6 +101,11 @@ A single home for your day-to-day planning, opened from the home screen / hub:
 - **Review** — spaced-repetition review of `::flashcard::` entries
 - **Pomodoro** — focus timer with phase tracking
 
+### ✍️ Capture & writing flow
+- **Quick-capture inbox (`Ctrl+Shift+I`)** — a transient HUD that appends a timestamped thought to today's daily note under a `## Inbox` heading, without leaving what you're reading
+- **Writing-day streak** — a `🔥 N` chip in the status bar counts consecutive days you saved a daily note or captured a thought (invisible until you have a 2+ day streak)
+- **Word frequency** — a *Word frequency…* command ranks the document's most-used words, and a *Toggle word-frequency underline* command flags 5+-use words in amber
+
 ### 🪟 Window & UI
 - **Calm Glass UI** — frosted topbar, motion system, lucide icons, theme-aware surfaces
 - **Always-on-top (pin)** — titlebar pin button or `Ctrl+Shift+A` keeps the window floating above other apps
@@ -107,7 +113,7 @@ A single home for your day-to-day planning, opened from the home screen / hub:
 - **10 Themes** — Light, Dark, Solarized Light/Dark, Dracula, Nord, GitHub, GitHub Dark, Tokyo Night, Catppuccin
 
 ### ⚙️ Settings & Feature Flags
-- **Opt-out Feature Flags** — enable or disable non-essential features anytime (*Live Collaboration*, *Workspace Hub*, *Integrated Terminal*, *Presentation Slideshow*, *Markdown Snippets*, *Daily Notes*)
+- **Opt-out Feature Flags** — enable or disable non-essential features anytime (*Live Collaboration*, *Workspace Hub*, *Integrated Terminal*, *Presentation Slideshow*, *Markdown Snippets*, *Daily Notes*, *Quick Capture*, *Word Frequency*)
 - **Editor settings** — Tab size (2 / 4 / 8), Word wrap, Spellcheck
 - **Lazy-rendered Changelog** — instant modal tab switching without startup overhead
 
@@ -168,6 +174,7 @@ Download from the [Releases page](https://github.com/sanketpatel32/Mdpeek/releas
 | Typewriter mode | `Ctrl+Shift+T` |
 | Always-on-top (pin) | `Ctrl+Shift+A` |
 | Workspace / Kanban board | `Ctrl+Shift+K` |
+| Capture a thought | `Ctrl+Shift+I` |
 | Exit focus / close find / close drawer | `Esc` |
 
 ### Editor

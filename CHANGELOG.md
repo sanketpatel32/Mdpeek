@@ -7,6 +7,114 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-08-02
+
+### Added — capture, streak, word-frequency, editor folding
+
+A four-feature batch landing the approved v0.55.0 specs together. Each is
+independent and individually gated; all reuse existing modules and the
+pure-helper + jsdom-DOM convention. Every feature is additive (no existing
+behavior changed).
+
+**Quick-capture inbox (`Ctrl+Shift+I`)**
+
+- **A frictionless capture primitive.** Hit `Ctrl+Shift+I` anywhere in the app
+  and a tiny HUD slides in top-center: one input, a hint line, the destination
+  shown faintly. Type a thought / task / link, press Enter, and it appends to
+  today's daily note (`YYYY-MM-DD.md`) under a `## Inbox` heading, timestamped.
+  The HUD vanishes — two seconds of chrome, then it's gone. It *feeds* the
+  existing daily-notes and Tasks features rather than competing with them:
+  captured `- [ ]` items show up in the Tasks view.
+- **Task/bullet preservation** — if the input starts with a task marker
+  (`- [ ]`, `* [x]`, …), the marker is preserved and the timestamp inserted
+  after it so the entry stays discoverable. Multi-line capture (Shift+Enter)
+  indents continuation lines.
+- **Robust injection** — appends under an existing `## Inbox` heading, replaces
+  the daily-note starter's empty `## ` heading, or seeds a fresh heading as
+  needed; idempotent across repeated captures (never two headings). On capture
+  failure the HUD keeps the user's text intact so nothing is lost.
+- Backed by a pure, unit-tested `src/lib/capture.js` (`formatEntry` /
+  `injectInbox`) + a new transient `src/views/capture-hud.js`. Gated by a
+  **Quick capture** feature flag (default on; suppressed under Minimal mode).
+
+**Writing-day streak chip**
+
+- **A tiny reward loop for capture + daily-note saving.** Any day you save a
+  daily note **or** fire quick-capture counts as a "writing day"; consecutive
+  days build a streak shown as a `🔥 N` chip in the **existing** status bar
+  (zero new chrome). Invisible until you have a 2+ day streak, so it earns its
+  place rather than adding permanent noise.
+- **Midnight-rollover safe** — the streak anchors on yesterday at 00:01 before
+  you've written today, so the visible count never drops to 0 the moment you
+  cross midnight. Day stamps are local time, matching the daily-note idiom.
+- Backed by a pure, unit-tested `src/lib/streak.js` (`markWritingDay` /
+  `currentStreak` / `bestStreak` / `formatStreakChip`). No feature flag (it's
+  invisible until you have a streak).
+
+**Word-frequency analysis**
+
+- **A distinct readability axis.** Where prose highlights (v0.53) mark *hard*
+  (3+-syllable) words, this marks *repetitive* words. A *Toggle word-frequency
+  underline* command wraps 5+-use words in an amber dotted underline (distinct
+  from prose's tip-green, so the two never read as the same affordance and can
+  stack). Skips code blocks, tables, alert callouts, and headings — only body
+  prose is marked. Idempotent across re-renders.
+- **A *Word frequency…* command** opens a popover ranking the document's
+  top-20 words by frequency, with a proportional bar per word. Code/stopwords/
+  single letters are excluded from both surfaces.
+- Backed by a pure, unit-tested `src/lib/wordfreq.js` (`tokenize` /
+  `wordFrequencies` / `overusedWords` / `topWords` / `findWordsInText`), a new
+  `enhanceWordFreq` step in `enhanceDom` (mirroring `enhanceProseHighlights`),
+  and a new modal `src/views/wordfreq-popover.js`. Gated by a **Word frequency**
+  feature flag (default on; suppressed under Minimal mode).
+
+**Editor region folding**
+
+- **Fold/unfold markdown sections in the editor.** A `▸`/`▾` caret in the
+  editor gutter collapses a heading's section; clicking again unfolds. The
+  folded region is covered by a single `⌄ N lines folded` chip. Folding an h2
+  hides everything until the next h1/h2, including nested h3+ — matching the
+  rendered-view semantics. h1 is foldable too (top-level collapse).
+- **Source-of-truth preserved.** The textarea always holds the full, true
+  source — folding is purely a visual overlay. Saving always writes the
+  complete document; editing outside a fold never corrupts hidden text;
+  unfolding is instant and lossless. Stale fold state is reconciled away when
+  the doc is edited (heading line no longer exists → entry dropped).
+  Fold state is per-document and in-memory (not persisted across restarts),
+  matching the rendered-view cache behavior.
+- Reuses `extractHeadings` from `editor-logic.js` so "where does this section
+  end?" agrees with the jump-to-heading picker. Backed by a pure, unit-tested
+  `src/lib/fold.js` (`sectionRanges` / `foldedLineSet` / `foldedLineCount`)
+  and gutter-caret + overlay integration in `src/views/editor.js`. No feature
+  flag — a core editing affordance, like the rendered-view folding.
+
+### Tests
+- `test/streak.test.js` (21) — markWritingDay idempotency + persistence +
+  corrupt-store recovery; currentStreak consecutive counting + midnight anchor;
+  bestStreak across gaps; formatStreakChip bands.
+- `test/capture.test.js` (26) — formatEntry (task/bullet/plain/multi-line/CRLF
+  + timestamp format), injectInbox (rules 1–4 + round-trip invariant, no
+  duplicate headings).
+- `test/capture-hud.test.js` (8) — HUD DOM smoke: autofocus/Enter/Esc/
+  Shift+Enter, empty-submit no-op, failure keeps text, disabled-during-save.
+- `test/wordfreq.test.js` (36) — tokenize (markdown/code/stopword/CJK),
+  frequencies + ties, overused threshold, topWords cap, findWordsInText
+  whole-word + case-insensitive.
+- `test/wordfreq-dom.test.js` (10) — enhanceWordFreq wrapping, default-off,
+  code/table/callout skips, coexistence with prose highlights, idempotency.
+- `test/wordfreq-popover.test.js` (7) — ranked list render, empty state,
+  bar scaling, click delegation, HTML-escape.
+- `test/fold.test.js` (23) — sectionRanges (flat/nested/h1/fence-safe/EOF),
+  foldedLineSet (heading stays visible, nested hide, union, stale no-op),
+  foldedLineCount.
+- `test/editor-fold.test.js` (11) — gutter carets, fold/unfold via caret +
+  chip, dimmed body rows, toggleFoldAtCaret, unfoldAll, stale-state reconcile,
+  fence-safety, and the CRITICAL invariant: `textarea.value` is unchanged
+  before/during/after folding.
+- `test/minimal.test.js` (+2) — `capture` and `wordfreq` ∈ MINIMAL_SUPPRESSED
+  (16 non-core features), suppressed under Minimal / restored when off.
+- Existing 1077 tests stay green (1221 total).
+
 ## [0.54.0] - 2026-07-31
 
 ### Added — Minimal mode

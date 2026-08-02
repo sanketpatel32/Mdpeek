@@ -29,6 +29,7 @@ import { docBasename, backlinkQueries, formatBacklinkItems } from './lib/backlin
 import { extractSpeakerNotes } from './lib/slides.js';
 import { EMOJI_MAP } from './lib/emoji.js';
 import { goalProgress, formatGoalChip, GOAL_KEY, SESSION_KEY } from './lib/writing-goal.js';
+import { markWritingDay, currentStreak, formatStreakChip } from './lib/streak.js';
 import { getTemplates, saveTemplate, deleteTemplate, TEMPLATES_KEY } from './lib/templates.js';
 import { extractDocLinks, classifyLinks } from './lib/link-checker.js';
 import { buildGraph, circleLayout } from './lib/graph.js';
@@ -42,7 +43,11 @@ import { smartPaste } from './lib/smart-paste.js';
 import { toSnapshotEntries, formatSnapshotTime } from './lib/snapshots.js';
 import { initDiffViewer } from './views/diff-viewer.js';
 import { initTableEditor } from './views/table-editor.js';
+import { initCaptureHud } from './views/capture-hud.js';
+import { initWordFreqPopover } from './views/wordfreq-popover.js';
 import { parseTable } from './lib/table.js';
+import { formatEntry, injectInbox } from './lib/capture.js';
+import { topWords } from './lib/wordfreq.js';
 import { MINIMAL_SUPPRESSED, minimalModeOn as _minimalModeOn, isFeatureOn } from './lib/minimal.js';
 import { notifyOs, osNotificationsEnabled, setOsNotificationsEnabled } from './lib/notify.js';
 // v0.34.1: build-time version for the About + Updates panels. Import is
@@ -1128,6 +1133,7 @@ function getCommands() {
     { id: 'close-right', label: 'Close tabs to the right', keywords: 'close right tabs after', run: () => { const d = store.active(); if (d) ctxAction('close-right', d.id); } },
     { id: 'close-all', label: 'Close all tabs', keywords: 'close all tabs every', run: () => ctxAction('close-all', store.active()?.id) },
     { id: 'daily', label: 'Open daily note (today\'s .md)', keywords: 'daily note today date journal', run: openDailyNote },
+    { id: 'capture', label: 'Capture thought…', hint: 'Ctrl+Shift+I', keywords: 'capture inbox thought quick note task idea journal', run: openCaptureHud },
     { id: 'save', label: 'Save', hint: 'Ctrl+S', keywords: 'save write', run: saveActive },
     { id: 'export-html', label: 'Export to HTML', keywords: 'export html self-contained', run: exportHtml },
     { id: 'export-txt', label: 'Export to plain text (.txt)', keywords: 'export plain text txt strip markdown', run: exportPlainText },
@@ -1171,9 +1177,13 @@ function getCommands() {
     { id: 'extract-note', label: 'Extract selection to new note', keywords: 'extract selection new note refactor link', run: extractSelectionToNote },
     { id: 'goto-heading', label: 'Go to heading…', keywords: 'go to heading jump navigate outline toc h1 h2', run: () => headingPicker.open() },
     { id: 'editor-outline', label: 'Toggle editor outline', keywords: 'editor outline toc headings panel jump navigate', run: toggleEditorOutline },
+    { id: 'fold-toggle', label: 'Toggle fold at caret', keywords: 'fold collapse region section heading editor outline hide', run: foldToggleAtCaret },
+    { id: 'unfold-all', label: 'Unfold all', keywords: 'unfold expand all region section heading editor outline show', run: unfoldAll },
     { id: 'doc-stats', label: 'Toggle document statistics', keywords: 'stats statistics words chars sentences paragraphs reading time panel', run: toggleDocStats },
     { id: 'doc-readability', label: 'Toggle readability score', keywords: 'readability flesch kincaid grade level score writing difficulty', run: toggleReadability },
     { id: 'toggle-prose-highlights', label: 'Toggle prose highlights', keywords: 'prose highlights readability hard complex words sentences difficult writing underline', run: toggleProseHighlights },
+    { id: 'toggle-wordfreq-underline', label: 'Toggle word-frequency underline', keywords: 'word frequency repetition overused repetitive underline words', run: toggleWordFreqUnderline },
+    { id: 'wordfreq', label: 'Word frequency…', keywords: 'word frequency repetition overused repetitive count rank analyze vocabulary', run: openWordFreqPopover },
     { id: 'sidebar', label: 'Toggle sidebar (TOC)', hint: 'Ctrl+B', keywords: 'sidebar toc outline', run: toggleSidebar },
     { id: 'find', label: 'Find', hint: 'Ctrl+F', keywords: 'find search', run: () => { const d = store.active(); if (d && (d.excalidraw || d.tldraw || d.notebook || d.media)) { toast('Find isn\'t available on this tab type'); return; } find.toggle(); } },
     { id: 'replace', label: 'Find & Replace', hint: 'Ctrl+H', keywords: 'replace substitute find', run: () => find.openReplace() },
@@ -1217,7 +1227,7 @@ function getCommands() {
   const hasDoc = !!doc;
   const collabActive = collab.getStatus().active;
   return cmds.filter((c) => {
-    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-txt' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks' || c.id === 'sort-asc' || c.id === 'sort-desc' || c.id === 'copy-html' || c.id === 'copy-plaintext' || c.id === 'open-in-browser' || c.id === 'check-links' || c.id === 'restore-version' || c.id === 'diff-version' || c.id === 'writing-goal' || c.id === 'save-as-template' || c.id === 'pin-doc-theme' || c.id === 'clear-doc-theme' || c.id === 'case-upper' || c.id === 'case-lower' || c.id === 'case-title' || c.id === 'case-toggle' || c.id === 'wrap-with' || c.id === 'edit-table' || c.id === 'toggle-prose-highlights') && !hasDoc) return false;
+    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-txt' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks' || c.id === 'sort-asc' || c.id === 'sort-desc' || c.id === 'copy-html' || c.id === 'copy-plaintext' || c.id === 'open-in-browser' || c.id === 'check-links' || c.id === 'restore-version' || c.id === 'diff-version' || c.id === 'writing-goal' || c.id === 'save-as-template' || c.id === 'pin-doc-theme' || c.id === 'clear-doc-theme' || c.id === 'case-upper' || c.id === 'case-lower' || c.id === 'case-title' || c.id === 'case-toggle' || c.id === 'wrap-with' || c.id === 'edit-table' || c.id === 'toggle-prose-highlights' || c.id === 'toggle-wordfreq-underline' || c.id === 'wordfreq') && !hasDoc) return false;
     if (c.id === 'end-collab' && !collabActive) return false;
     if (c.id === 'start-collab' && collabActive) return false;
     if ((c.id === 'start-collab' || c.id === 'end-collab') && !featureOn('collab')) return false;
@@ -1225,11 +1235,19 @@ function getCommands() {
     if (c.id === 'start-presentation' && !featureOn('present')) return false;
     if (c.id === 'snippet' && !featureOn('snippets')) return false;
     if (c.id === 'daily' && !featureOn('daily')) return false;
+    // v0.55.0: quick-capture inbox — feature flag (suppressed under Minimal).
+    if (c.id === 'capture' && !featureOn('capture')) return false;
     // v0.52.0: visual table editor — feature flag + only when caret is in a table.
     if (c.id === 'edit-table' && !featureOn('table-editor')) return false;
     if (c.id === 'edit-table' && !caretInTable()) return false;
     // v0.53.0: prose highlights — feature flag.
     if (c.id === 'toggle-prose-highlights' && !featureOn('prose-highlights')) return false;
+    // v0.55.0: word-frequency — feature flag for both the underline toggle and
+    // the popover.
+    if ((c.id === 'toggle-wordfreq-underline' || c.id === 'wordfreq') && !featureOn('wordfreq')) return false;
+    // v0.55.0: editor region folding — edit-mode only (the editor owns the
+    // caret). Core editing affordance, so no feature flag / Minimal suppression.
+    if ((c.id === 'fold-toggle' || c.id === 'unfold-all') && !(doc && doc.mode === 'edit' && doc.editor)) return false;
     // v0.54.0: Minimal mode hides the remaining non-core commands that aren't
     // individually feature-flag-gated above (workspace sub-modes, pomodoro,
     // terminal, readability/stats overlays). One clause rules them all.
@@ -1411,6 +1429,8 @@ async function restoreSnapshot() {
 // the active editor (marking it dirty so the user confirms with a save).
 const diffViewer = initDiffViewer();
 const tableEditor = initTableEditor();
+const captureHud = initCaptureHud();
+const wordFreqPopover = initWordFreqPopover();
 const diffVersionPicker = initQuickSwitcher(
   () => [],
   async (item) => {
@@ -2369,6 +2389,12 @@ async function saveActive() {
 // logged but never surface to the user.
 function maybeSnapshot(doc, content) {
   if (!doc || !doc.path || doc.excalidraw || doc.tldraw || doc.notebook || doc.media) return;
+  // v0.55.0: saving a daily note counts as a writing day for the streak chip.
+  // Fire-and-forget like the snapshot itself — a storage failure must never
+  // surface here.
+  if (isDailyNoteName(basename(doc.path))) {
+    try { markWritingDay(); } catch { /* ignore */ }
+  }
   invoke('write_snapshot', { path: doc.path, content }).catch((e) => {
     console.warn('snapshot failed:', e);
   });
@@ -2909,7 +2935,7 @@ async function enterReading() {
   // badges/gutter) exactly as the normal view does.
   el.readerArticle.innerHTML = renderMarkdown(doc.content);
   try {
-    await enhanceDom(el.readerArticle, { lineNumbers: codeLineNumbersPref(), proseHighlights: proseHighlightsPref() });
+    await enhanceDom(el.readerArticle, { lineNumbers: codeLineNumbersPref(), proseHighlights: proseHighlightsPref(), wordFreq: wordFreqPref() });
   } catch (e) {
     console.error('[mdpeek] reader enhanceDom:', e);
   }
@@ -3064,6 +3090,17 @@ function proseHighlightsPref() {
   try {
     if (minimalModeOn()) return false;
     return localStorage.getItem('mdpeek-prose-highlights') === '1';
+  }
+  catch { return false; }
+}
+
+// v0.55.0: word-frequency underline overlay (overused 5+ use words). Opt-in,
+// read fresh each render. Suppressed under Minimal mode for the same reason as
+// prose highlights.
+function wordFreqPref() {
+  try {
+    if (minimalModeOn()) return false;
+    return localStorage.getItem('mdpeek-wordfreq-underline') === '1';
   }
   catch { return false; }
 }
@@ -4417,6 +4454,68 @@ async function openDailyNote() {
   }
 }
 
+// v0.55.0: quick-capture inbox (Ctrl+Shift+I). Open the transient HUD; on
+// submit, format the entry, inject it under today's daily note's `## Inbox`
+// heading, save, refresh the active tab if it's that note (so the bullet
+// appears live), and mark a writing day for the streak chip.
+function openCaptureHud() {
+  if (!featureOn('capture')) return;
+  const stamp = todayStamp();
+  captureHud.open({
+    destination: `→ ${stamp}.md  (today's note)`,
+    onCapture: onCapture,
+  });
+}
+
+async function onCapture(rawText) {
+  const dir = await resolveNotesDir();
+  if (!dir) throw new Error('No notes folder set');
+  const stamp = todayStamp();
+  const sep = /[\\/]/.test(dir) && !dir.endsWith('/') && !dir.endsWith('\\') ? '\\' : '';
+  const path = `${dir}${sep}${stamp}.md`;
+  // Read existing note; if missing, seed it with the daily-note starter so the
+  // first capture of the day lands in a well-formed note.
+  let content;
+  try {
+    content = await invoke('read_file', { path });
+  } catch (e) {
+    const today = new Date();
+    const prettyDate = today.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    content = `# ${stamp}\n\n*${prettyDate}*\n\n## \n\n`;
+  }
+  const entry = formatEntry(rawText);
+  const next = injectInbox(content, entry);
+  await invoke('save_file', { path, content: next });
+  // Mark a writing day for the streak chip (capture is one of the streak's
+  // inputs, alongside saving a daily note).
+  try { markWritingDay(); } catch { /* ignore */ }
+  // If today's note is the active doc, refresh its buffer so the bullet appears.
+  const doc = store.active();
+  if (doc && doc.path === path) {
+    doc.content = next;
+    if (doc.editor && doc.mode === 'edit') doc.editor.setValue(next);
+    store.clearDirty(doc.id);
+    renderActive().catch((e) => console.error('[mdpeek] capture live refresh:', e));
+  } else {
+    toast('Captured to today\'s note');
+  }
+}
+
+// Resolve the notes dir: prefer the persisted mdpeek-notes-dir, fall back to
+// the OS default via get_default_notes_dir. Returns null if neither is set
+// (the caller surfaces an error). Mirrors the top of openDailyNote.
+async function resolveNotesDir() {
+  let dir = localStorage.getItem('mdpeek-notes-dir') || '';
+  if (dir) return dir;
+  try {
+    dir = await invoke('get_default_notes_dir');
+    if (dir) localStorage.setItem('mdpeek-notes-dir', dir);
+    return dir || '';
+  } catch (e) {
+    return '';
+  }
+}
+
 // Re-pick the notes folder (used by the Settings panel).
 async function changeNotesFolder() {
   try {
@@ -5375,6 +5474,29 @@ function toggleEditorOutline() {
   setEditorOutlineVisible(outlineEl?.classList.contains('hidden'));
 }
 
+// v0.55.0: editor region folding — core editing affordance (no feature flag).
+// toggleFoldAtCaret folds/unfolds the heading that owns the caret line; the
+// editor mutates only visual state (textarea.value is never touched). Mirrors
+// the edit-mode guard of toggleEditorOutline.
+function foldToggleAtCaret() {
+  const doc = store.active();
+  if (!doc || doc.mode !== 'edit' || !doc.editor) {
+    toast('Switch to edit mode to fold');
+    return;
+  }
+  const folded = doc.editor.toggleFoldAtCaret();
+  if (!folded) toast('Place the caret on a heading line to fold');
+}
+
+function unfoldAll() {
+  const doc = store.active();
+  if (!doc || doc.mode !== 'edit' || !doc.editor) {
+    toast('Switch to edit mode to unfold');
+    return;
+  }
+  doc.editor.unfoldAll();
+}
+
 if (outlineBody) {
   outlineBody.addEventListener('click', (e) => {
     const item = e.target.closest('[data-line]');
@@ -5478,6 +5600,28 @@ function toggleProseHighlights() {
   toast(currentlyOn ? 'Prose highlights off' : 'Prose highlights on');
 }
 
+// v0.55.0: toggle the word-frequency underline overlay (mirrors prose-highlights).
+function toggleWordFreqUnderline() {
+  const doc = store.active();
+  if (!doc) { toast('Open a document first'); return; }
+  const currentlyOn = localStorage.getItem('mdpeek-wordfreq-underline') === '1';
+  localStorage.setItem('mdpeek-wordfreq-underline', currentlyOn ? '0' : '1');
+  renderActive().catch((err) => console.error('[mdpeek] wordfreq re-render:', err));
+  toast(currentlyOn ? 'Word-frequency underline off' : 'Word-frequency underline on');
+}
+
+// v0.55.0: open the word-frequency popover. Computes topWords from the active
+// doc's prose (raw markdown source with code stripped). Clicking a word just
+// closes the popover — the in-doc find bar has no "seed with query" API today,
+// so navigation is left for a future enhancement.
+function openWordFreqPopover() {
+  const doc = store.active();
+  if (!doc) { toast('Open a document first'); return; }
+  const text = doc.mode === 'edit' && doc.editor ? doc.editor.getValue() : doc.content;
+  const items = topWords(text, { limit: 20 });
+  wordFreqPopover.open({ items, onWord: () => { wordFreqPopover.close(); } });
+}
+
 function setDocStatsVisible(on) {
   if (!statsEl) return;
   statsEl.classList.toggle('hidden', !on);
@@ -5557,12 +5701,22 @@ function updateEditorStatus() {
     }
   }
 
+  // Writing-day streak chip (v0.55.0). Invisible until the user has a streak
+  // of 2+ (formatStreakChip returns '' otherwise), so it earns its place
+  // rather than adding permanent noise to the status bar.
+  let streakHtml = '';
+  const streakChip = formatStreakChip(currentStreak());
+  if (streakChip) {
+    streakHtml = `<span class="status-sep" aria-hidden="true">·</span><span class="status-streak" title="Writing-day streak">${streakChip}</span>`;
+  }
+
   el.editorStatus.innerHTML =
     `<span>${fmtNum(words)} words</span>` +
     `<span class="status-sep" aria-hidden="true">·</span>` +
     `<span>${fmtNum(chars)} chars</span>` +
     selHtml +
     goalHtml +
+    streakHtml +
     (readMins > 0 && !selHtml
       ? `<span class="status-sep" aria-hidden="true">·</span><span>~${readMins} min read</span>`
       : '') +
@@ -6469,7 +6623,7 @@ function syncSettingsControls() {
   }
 
   // Feature flags synchronization
-  const features = ['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily', 'pomodoro', 'calendar', 'tasks', 'review', 'autocomplete', 'graph', 'table-editor', 'prose-highlights'];
+  const features = ['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily', 'pomodoro', 'calendar', 'tasks', 'review', 'autocomplete', 'graph', 'table-editor', 'prose-highlights', 'capture', 'wordfreq'];
   features.forEach((feat) => {
     const cb = document.getElementById(`settings-feature-${feat}`);
     if (cb) cb.checked = localStorage.getItem(`mdpeek-feature-${feat}`) !== '0';
@@ -7622,6 +7776,15 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     e.stopPropagation();
     toggleAlwaysOnTop();
+    return;
+  }
+  // Ctrl+Shift+I → quick-capture inbox (v0.55.0). Mnemonic: Inbox. Gated by
+  // the capture feature flag (and thus hidden under Minimal mode).
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'I' || e.key === 'i')) {
+    if (!featureOn('capture')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    openCaptureHud();
     return;
   }
   // Reader-internal keys. Only active while Reading Mode is open, and only

@@ -27,7 +27,7 @@ describe('minimalModeOn', () => {
 });
 
 describe('isFeatureOn — suppressed under Minimal mode', () => {
-  const suppressed = ['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily', 'pomodoro', 'calendar', 'tasks', 'review', 'autocomplete', 'graph', 'table-editor', 'prose-highlights'];
+  const suppressed = ['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily', 'pomodoro', 'calendar', 'tasks', 'review', 'autocomplete', 'graph', 'table-editor', 'prose-highlights', 'capture', 'wordfreq'];
   for (const name of suppressed) {
     it(`returns false for '${name}' when Minimal mode is on`, () => {
       const store = makeStore({ 'mdpeek-minimal-mode': '1' });
@@ -58,13 +58,13 @@ describe('isFeatureOn — toggling Minimal restores a previously-enabled feature
 });
 
 describe('MINIMAL_SUPPRESSED', () => {
-  it('contains exactly the 14 non-core feature names', () => {
+  it('contains exactly the 16 non-core feature names', () => {
     expect([...MINIMAL_SUPPRESSED].sort()).toEqual([
-      'autocomplete', 'calendar', 'collab', 'daily', 'graph', 'kanban',
-      'pomodoro', 'present', 'prose-highlights', 'review', 'snippets',
-      'table-editor', 'tasks', 'terminal',
+      'autocomplete', 'calendar', 'capture', 'collab', 'daily', 'graph',
+      'kanban', 'pomodoro', 'present', 'prose-highlights', 'review',
+      'snippets', 'table-editor', 'tasks', 'terminal', 'wordfreq',
     ]);
-    expect(MINIMAL_SUPPRESSED.size).toBe(14);
+    expect(MINIMAL_SUPPRESSED.size).toBe(16);
   });
   it('excludes core capabilities (a core feature would never be suppressed)', () => {
     // There are no "core feature flags" today, but the predicate must not

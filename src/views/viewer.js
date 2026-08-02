@@ -20,11 +20,21 @@ function proseHighlightsOn() {
   catch { return false; }
 }
 
+// v0.55.0: word-frequency underline overlay (overused 5+ use words). Same
+// opt-in + Minimal-suppression rules as prose highlights.
+function wordFreqOn() {
+  try {
+    if (localStorage.getItem('mdpeek-minimal-mode') === '1') return false;
+    return localStorage.getItem('mdpeek-wordfreq-underline') === '1';
+  }
+  catch { return false; }
+}
+
 // Renders `content` (markdown string) into `el`. Returns a promise that resolves
 // after mermaid diagrams are enhanced.
 export async function showDocument(el, content) {
   el.innerHTML = renderMarkdown(content);
-  await enhanceDom(el, { lineNumbers: codeLineNumbersOn(), proseHighlights: proseHighlightsOn() });
+  await enhanceDom(el, { lineNumbers: codeLineNumbersOn(), proseHighlights: proseHighlightsOn(), wordFreq: wordFreqOn() });
 }
 
 // Builds a table of contents from h1-h3 inside `root` and injects it into the
