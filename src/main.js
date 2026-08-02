@@ -48,6 +48,7 @@ import { initWordFreqPopover } from './views/wordfreq-popover.js';
 import { parseTable } from './lib/table.js';
 import { formatEntry, injectInbox } from './lib/capture.js';
 import { topWords } from './lib/wordfreq.js';
+import { generateTocMarkdown } from './lib/toc.js';
 import { MINIMAL_SUPPRESSED, minimalModeOn as _minimalModeOn, isFeatureOn } from './lib/minimal.js';
 import { notifyOs, osNotificationsEnabled, setOsNotificationsEnabled } from './lib/notify.js';
 // v0.34.1: build-time version for the About + Updates panels. Import is
@@ -1169,6 +1170,7 @@ function getCommands() {
     { id: 'sort-table-desc', label: 'Sort table rows ↓ (by column)', keywords: 'sort table rows column descending', run: () => sortTable('desc') },
     { id: 'convert-list-bullet', label: 'Convert list → bullets', keywords: 'convert list bullet unordered dash asterisk', run: () => convertListSelection('bullet') },
     { id: 'convert-list-ordered', label: 'Convert list → numbered', keywords: 'convert list ordered numbered ol', run: () => convertListSelection('ordered') },
+        { id: 'insert-toc', label: 'Insert Table of Contents', keywords: 'insert table of contents toc headings outline markdown', run: insertTocAtCaret },
     { id: 'case-upper', label: 'UPPERCASE selection', keywords: 'convert case upper uppercase capitals', run: () => convertCaseSelection('upper') },
     { id: 'case-lower', label: 'lowercase selection', keywords: 'convert case lower lowercase', run: () => convertCaseSelection('lower') },
     { id: 'case-title', label: 'Title Case selection', keywords: 'convert case title capitalize words', run: () => convertCaseSelection('title') },
@@ -1970,6 +1972,29 @@ function convertListSelection(to) {
 
 // v0.49.0: convert the case of the selection (or current line for a caret).
 // `mode` ∈ 'upper' | 'lower' | 'title' | 'toggle'. Palette-only.
+
+// v0.58.0: Insert a generated Markdown Table of Contents at the current caret.
+function insertTocAtCaret() {
+  const doc = store.active();
+  if (!doc || doc.mode !== 'edit' || !doc.editor) {
+    toast('Switch to edit mode to insert Table of Contents');
+    return;
+  }
+  const currentText = doc.editor.getValue();
+  const tocMd = generateTocMarkdown(currentText);
+  if (!tocMd) {
+    toast('No headings found in document');
+    return;
+  }
+  const { start } = doc.editor.getSelection();
+  doc.editor.replaceRange(start, start, tocMd);
+  doc.content = doc.editor.getValue();
+  store.markDirty(doc.id);
+  persistSoon();
+  scheduleAutoSave();
+  toast('Table of Contents inserted');
+}
+
 function convertCaseSelection(mode) {
   const doc = store.active();
   if (!doc || doc.mode !== 'edit' || !doc.editor) {

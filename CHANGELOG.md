@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.58.0] - 2026-08-02
+
+### Added — Table of Contents generator & document export pipeline
+
+- **Table of Contents Generator.** New `Insert Table of Contents` command palette action (`src/lib/toc.js`) parses markdown heading hierarchy (`#` to `######`), generates clean GitHub-compatible anchors, and inserts an indented TOC list at the caret position.
+- **Document Export Utilities.** Pure export formatting (`src/lib/doc-export.js`) for stripping YAML frontmatter headers and normalizing GFM task list markers (`[ ]` → `☐`, `[x]` → `☑`).
+
+### Tests
+- `test/toc.test.js` (7) — slugify HTML/special chars, extractHeadings fence isolation, generateTocMarkdown formatting.
+- `test/doc-export.test.js` (6) — stripFrontmatter header removal, convertTaskMarkers unicode/plain conversion, prepareExportText pipeline.
+
 ## [0.57.0] - 2026-08-02
 
 ### Added — PDF navigation toolbar & Code block copy buttons
