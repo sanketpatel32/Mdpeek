@@ -631,6 +631,20 @@
   border-radius: var(--radius-sm);
   font-size: 0.88em;
 }
+/* Keyboard keys in rendered docs — <kbd>Ctrl</kbd> + <kbd>S</kbd> */
+.markdown-body kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  font-family: "SFMono-Regular", "Cascadia Code", Consolas, monospace;
+  font-size: 0.82em;
+  line-height: 1.4;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  color: var(--fg-secondary);
+  white-space: nowrap;
+}
 
 /* tables */
 .markdown-body table {
