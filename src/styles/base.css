@@ -9,6 +9,15 @@ body {
   height: 100%;
   overflow: hidden;
 }
+/* Themed text selection across the whole app — not just the editor. */
+::selection {
+  background: var(--accent-soft);
+  color: var(--fg);
+}
+::-moz-selection {
+  background: var(--accent-soft);
+  color: var(--fg);
+}
 
 body {
   background: var(--bg);
@@ -570,6 +579,7 @@ main {
 #document {
   flex: 1;
   overflow: auto;
+  scroll-padding-top: 16px;
 }
 
 /* ---------- Edit mode ---------- */
@@ -1750,20 +1760,24 @@ mark.find-current {
   scrollbar-color: var(--border) transparent;
 }
 *::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
   background: var(--border);
-  border-radius: 5px;
+  border-radius: 4px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 *::-webkit-scrollbar-thumb:hover {
   background: var(--fg-muted);
+}
+/* Slimmer hover-only horizontal scrollbar for tab strips and tight rows. */
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* ---------- Welcome / empty state ---------- */
@@ -5723,5 +5737,3 @@ body.minimal-mode #collab-status { display: none !important; }
 .wf-count { color: var(--fg-secondary); font-variant-numeric: tabular-nums; text-align: right; font-weight: 600; }
 .wf-empty { padding: 32px 16px; text-align: center; color: var(--fg-muted); font-size: 13px; }
 .wf-empty.hidden { display: none; }
-
-
