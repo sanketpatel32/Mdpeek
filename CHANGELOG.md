@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.59.0] - 2026-08-02
+
+### Changed — Package dependency upgrades
+
+- **Modernized core dependencies.** Upgraded `dompurify` (3.4.12), `lucide` (1.28.0), `marked` (18.0.7), `pdfjs-dist` (6.2.108), and `vite` (8.2.0).
+- Verified zero regressions across all markdown parsing, PDF rendering, icon set, and build pipeline features.
+
+### Tests
+- All 58 test files (1257 tests) passing cleanly on updated dependency stack.
+
 ## [0.58.0] - 2026-08-02
 
 ### Added — Table of Contents generator & document export pipeline
