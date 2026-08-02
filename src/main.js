@@ -7000,12 +7000,12 @@ document.getElementById('settings-user-css')?.addEventListener('input', (e) => {
 });
 
 // Notes folder — re-pick where daily notes are saved.
-document.getElementById('settings-notes-pick').addEventListener('click', () => {
+document.getElementById('settings-notes-pick')?.addEventListener('click', () => {
   changeNotesFolder();
 });
 
 // Auto-save — toggle the debounced save-on-idle behavior.
-document.getElementById('settings-autosave').addEventListener('change', (e) => {
+document.getElementById('settings-autosave')?.addEventListener('change', (e) => {
   localStorage.setItem('mdpeek-autosave', e.target.checked ? '1' : '0');
   if (!e.target.checked) clearTimeout(_autoSaveTimer);
 });
@@ -8199,13 +8199,17 @@ listen('file-changed', (event) => {
 
 // Opened via external double-click (cold start: get_initial_file; hot: open-file event)
 listen('open-file', (event) => {
-  const { path, content, is_dir } = event.payload;
-  if (is_dir) {
-    localStorage.setItem('mdpeek-explorer-root', path);
-    setTreeRoot(path);
-    if (el.fileTree.classList.contains('hidden')) toggleExplorer();
-  } else {
-    openPath(path, content).catch((e) => toast('Open failed: ' + fmtErr(e)));
+  try {
+    const { path, content, is_dir } = event.payload;
+    if (is_dir) {
+      localStorage.setItem('mdpeek-explorer-root', path);
+      setTreeRoot(path);
+      if (el.fileTree.classList.contains('hidden')) toggleExplorer();
+    } else {
+      openPath(path, content).catch((e) => toast('Open failed: ' + fmtErr(e)));
+    }
+  } catch (e) {
+    console.error('[mdpeek] open-file:', e);
   }
 }).catch((e) => console.error('open-file listener failed:', e));
 
@@ -8411,9 +8415,8 @@ applyUserCss();
 // the button isn't blank during the first few seconds.
 getVersion()
   .then((v) => {
-    // Only set the label; keep the 'checking' dot until the check completes.
-    const label = el.update.querySelector('.update-label');
-    if (label) label.textContent = `v${v}`;
+   // Only set the label; keep the 'checking' dot until the check completes.
+    if (el.updatesCurrent) el.updatesCurrent.textContent = `v${v}`;
   })
   .catch(() => {});
 
