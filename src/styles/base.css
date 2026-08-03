@@ -352,6 +352,20 @@ main {
   position: relative;
   overflow: hidden;
 }
+/* Mode-switch entrance — fires whenever the element transitions from
+   display:none to visible. Mirrors the reader's animation. */
+.view-mode:not(.hidden),
+.edit-mode:not(.hidden) {
+  animation: mode-enter 180ms var(--ease-out);
+}
+@keyframes mode-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .view-mode:not(.hidden),
+  .edit-mode:not(.hidden) { animation: none; }
+}
 /* ---------- File explorer (left sidebar) ----------
    Mirrors the TOC's visual language but on the left edge. Slightly wider so
    file names don't truncate as aggressively. */
