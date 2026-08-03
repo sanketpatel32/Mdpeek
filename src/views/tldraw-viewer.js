@@ -121,14 +121,14 @@ export async function showTLDraw(container, initialData, onSave, initialAppTheme
       const editor = useEditor();
       React.useEffect(() => {
         if (!editor) return;
-        const cleanup = editor.store.listen(() => {
-          if (saveTimer) clearTimeout(saveTimer);
-          saveTimer = setTimeout(() => {
-            const json = serialize(editor);
-            if (onSave) onSave(json);
-          }, SAVE_DELAY);
-        });
-        return cleanup;
+       const cleanup = editor.store.listen(() => {
+         if (saveTimer) clearTimeout(saveTimer);
+         saveTimer = setTimeout(() => {
+           const json = serialize(editor);
+           if (onSave) onSave(json);
+         }, SAVE_DELAY);
+        }, { source: 'user', scope: 'document' });
+       return cleanup;
       }, [editor]);
       return null;
     }
