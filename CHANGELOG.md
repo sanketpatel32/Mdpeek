@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.60.0] - 2026-08-03
+
+### Fixed - bug fixes across renderer, main, backend, and TLDraw
+
+- **TOC anchor links broken for duplicate headings** - the TOC slug dedupe produced -1 for the first duplicate but the actual heading IDs use uniqueSlug() which yields -2. Links pointed at wrong anchors. Now matches uniqueSlug exactly.
+- **Prose highlights and word-frequency died after first render** - enhanceProseHighlights/enhanceWordFreq set gate flags on the container DOM node, but el.readerArticle is reused across renders via innerHTML replacement. The flag persisted while children were replaced, silently killing both features on every document after the first. Removed the stale gate flags.
+- **TOC sidebar scroll jank on long docs** - updateActiveTocLink ran on every scroll tick and called scrollIntoView with smooth behavior, re-triggering animation every frame. Now rAF-gated + 150ms throttled with instant scroll.
+- **Topbar version label never set** - getVersion() used el.update (undefined - no such element). Now uses el.updatesCurrent.
+- **Open-file listener crash on bad payload** - destructured event.payload with no guard; a null/missing payload threw an uncaught TypeError. Wrapped in try/catch.
+- **Two init-crashing addEventListener** - settings-notes-pick and settings-autosave had no null guard; a missing element would throw at module init and break the whole app. Added optional chaining.
+- **No file-size guard** - read_file_for_frontend had no size cap. Opening a 20 MB+ file shipped the entire content to the webview and froze the UI. Now returns a clear error above 10 MB.
+
+### Fixed - TLDraw integration
+
+- **.tldr missing from Windows Open With menu** - the NSIS installer registered .md, .txt, .pdf, .excalidraw but skipped .tldr. Double-clicking a .tldr in Explorer did not offer mdpeek. Added ProgID registration + hook.
+- **Auto-save fired on pan/zoom** - the store listener had no filter, so camera movements, selection changes, and presence updates all marked the doc dirty and triggered unnecessary saves. Filtered to user document changes only.
+
+### Changed - UI polish
+
+- **Formatting toolbar icons** - replaced the jarring mix of raw text (H1, B, I), Unicode emoji, and HTML tags with clean Lucide SVG icons matching the rest of the app. All 17 buttons now use the centralized icon system.
+- **View/edit mode-switch transitions** - switching was a hard display:none cut. Added a 180ms fade+slide entrance animation mirroring the reader-mode animation. Honors prefers-reduced-motion.
+- **Toast centering bug** - the toast had left:50% but no transform:translateX(-50%) in the base rule. After the entrance animation ended, every toast jumped off-center. Also added exit fade-out animation, severity auto-detection, max-width cap, and longer timeout for errors.
+- **Global selection color** - text selection in rendered docs, TOC, and modals used the OS default blue. Added themed selection across the whole app.
+- **kbd element styling** - keyboard key tags in rendered markdown were completely unstyled. Added a bordered key-cap style.
+- **Responsive header** - the main chrome had zero responsive behavior. Added 3 breakpoints that progressively collapse non-essential chrome on narrow windows.
+- **Spacing scale** - introduced sp-0 through sp-8 design tokens for consistent spacing rhythm.
+- Slimmer scrollbars (10px to 8px), scroll-padding-top on document panes so anchor jumps leave breathing room.
+
+### Tests
+- All 58 test files (1257 tests) passing.
+
 ## [0.59.0] - 2026-08-02
 
 ### Changed — Package dependency upgrades

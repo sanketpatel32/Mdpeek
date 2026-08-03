@@ -14,7 +14,7 @@ editing, and manage a Workspace hub (board, calendar, tasks, review, pomodoro)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Windows](https://img.shields.io/badge/platform-windows%2010%2F11-success)](https://github.com/sanketpatel32/Mdpeek/releases/latest)
 [![Installer Size](https://img.shields.io/badge/installer-~7.3MB-green)](https://github.com/sanketpatel32/Mdpeek/releases/latest)
-[![Version](https://img.shields.io/badge/version-0.59.0-blueviolet)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.60.0-blueviolet)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-1220%2B%20passing-brightgreen)](#-build)
 
 Built with **Tauri 2 + vanilla JS**. Uses the system WebView2 (no bundled
