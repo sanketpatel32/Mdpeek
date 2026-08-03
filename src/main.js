@@ -7603,12 +7603,20 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     gotoLine();
   } else if (k === '=' || k === '+') {
+    // v0.49.0: canvases (Excalidraw/TLDraw) handle their own zoom — don't
+    // hijack the keys (the app font-size zoom has no visual effect there).
+    const dc = store.active();
+    if (dc && (dc.excalidraw || dc.tldraw)) return;
     e.preventDefault();
     zoomIn();
   } else if (k === '-' || k === '_') {
+    const dc = store.active();
+    if (dc && (dc.excalidraw || dc.tldraw)) return;
     e.preventDefault();
     zoomOut();
   } else if (k === '0') {
+    const dc = store.active();
+    if (dc && (dc.excalidraw || dc.tldraw)) return;
     e.preventDefault();
     zoomReset();
   }
@@ -7886,6 +7894,11 @@ window.addEventListener('keydown', (e) => {
 // matches the browser convention users expect.
 window.addEventListener('wheel', (e) => {
   if (!(e.ctrlKey || e.metaKey)) return;
+  // v0.49.0: Excalidraw & TLDraw have their own native Ctrl+scroll canvas
+  // zoom. Let those events through (no preventDefault/stopPropagation) so
+  // the canvas zooms instead of being silently blocked.
+  const dw = store.active();
+  if (dw && (dw.excalidraw || dw.tldraw)) return;
   e.preventDefault();
   e.stopPropagation();
   if (e.deltaY < 0) zoomIn();
