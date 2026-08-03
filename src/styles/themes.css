@@ -10,6 +10,20 @@
 
   --header-h: 52px;
 
+  /* ---- Spacing scale (v0.60.0) -------------------------------------------
+     An 8-step rhythm. Most values are multiples of 4 so they snap to a grid,
+     with half-steps (2px) for tight clusters (icon gaps, button padding).
+     Prefer these over hardcoded pixels: var(--sp-3) instead of 12px. */
+  --sp-0: 2px;
+  --sp-1: 4px;
+  --sp-2: 6px;
+  --sp-3: 8px;
+  --sp-4: 12px;
+  --sp-5: 16px;
+  --sp-6: 20px;
+  --sp-7: 24px;
+  --sp-8: 32px;
+
   /* ---- Motion system (v0.32.0) -------------------------------------------
      Four durations and three easings cover every interaction. Picked to feel
      "macOS/Linear": spring overshoot for tactile elements (buttons, tabs),

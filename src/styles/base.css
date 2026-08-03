@@ -1765,6 +1765,40 @@ mark.find-current {
 }
 
 /* ---------- Scrollbars ---------- */
+/* ---------- Responsive header (v0.60.0) -----------------------------------
+   The header packs tabs, toolbar groups, zoom, and window controls into one
+   row. On narrow windows these overflow and clip. Strategy: progressively
+   collapse non-essential chrome as width shrinks. */
+@media (max-width: 900px) {
+  /* Shrink the search pill — hide the text, keep icon + kbd. */
+  .cmd-k-pill { min-width: auto; flex: 0 0 auto; padding: 0 8px; }
+  .cmd-k-text { display: none; }
+  /* Narrower tabs so more fit. */
+  .tab { max-width: 140px; }
+  .tab-title { max-width: 90px; }
+}
+@media (max-width: 700px) {
+  /* Hide the zoom widget — zoom is still available via Ctrl+= / Ctrl+- . */
+  .zoom-widget { display: none; }
+  /* Hide folder-search — still in the more menu. */
+  #btn-folder-search { display: none; }
+  /* Back/forward are rarely needed on narrow windows (no room to navigate). */
+  .tool-group:first-of-type .tool-btn[data-nav] { display: none; }
+  /* Even narrower tabs. */
+  .tab { max-width: 110px; }
+  .tab-title { max-width: 70px; }
+  /* Hide the cmd-k kbd badge too — just the search icon remains. */
+  .cmd-k-kbd { display: none; }
+}
+@media (max-width: 520px) {
+  /* Below this width, hide the sidebar toggle group — explorer is still
+     accessible via Ctrl+Shift+E. Keep only the essential: tabs + more menu
+     + settings + window controls. */
+  #btn-sidebar, #btn-explorer { display: none; }
+  .tab { max-width: 90px; padding: 0 4px 0 8px; }
+  .tab-title { max-width: 55px; }
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
