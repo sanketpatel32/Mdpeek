@@ -12,6 +12,7 @@
 !define PROGID_TXT "mdpeek.txt"
 !define PROGID_PDF "mdpeek.pdf"
 !define PROGID_EXC "mdpeek.excalidraw"
+!define PROGID_TLD "mdpeek.tldraw"
 
 ; Helper: register one extension in the Open With list + point at our ProgID
 !macro _MPEEK_ASSOC_EXT EXT
@@ -48,6 +49,14 @@
   WriteRegStr HKCR "${PROGID_EXC}\shell\open\command" "" '"$INSTDIR\mdpeek.exe" "%1"'
 !macroend
 
+; Helper: register .tldr under its own ProgID.
+!macro _MPEEK_ASSOC_TLD
+  WriteRegStr HKCR ".tldr\OpenWithProgIDs" "${PROGID_TLD}" ""
+  WriteRegStr HKCR "${PROGID_TLD}" "" "TLDraw Canvas"
+  WriteRegStr HKCR "${PROGID_TLD}\DefaultIcon" "" "$INSTDIR\mdpeek.exe,0"
+  WriteRegStr HKCR "${PROGID_TLD}\shell\open\command" "" '"$INSTDIR\mdpeek.exe" "%1"'
+!macroend
+
 ; Helper: unregister one extension
 !macro _MPEEK_UNASSOC_EXT EXT
   DeleteRegValue HKCR ".${EXT}\OpenWithProgIDs" "${PROGID}"
@@ -64,6 +73,8 @@
   !insertmacro _MPEEK_ASSOC_PDF
   ; Register .excalidraw under its own ProgID.
   !insertmacro _MPEEK_ASSOC_EXC
+  ; Register .tldr under its own ProgID.
+  !insertmacro _MPEEK_ASSOC_TLD
 
   ; Register top-level context menu for all files: "Open with mdpeek"
   WriteRegStr HKCR "*\shell\mdpeek" "" "Open with mdpeek"
@@ -86,10 +97,12 @@
   DeleteRegValue HKCR ".txt\OpenWithProgIDs" "${PROGID_TXT}"
   DeleteRegValue HKCR ".pdf\OpenWithProgIDs" "${PROGID_PDF}"
   DeleteRegValue HKCR ".excalidraw\OpenWithProgIDs" "${PROGID_EXC}"
+  DeleteRegValue HKCR ".tldr\OpenWithProgIDs" "${PROGID_TLD}"
   DeleteRegKey HKCR "${PROGID}"
   DeleteRegKey HKCR "${PROGID_TXT}"
   DeleteRegKey HKCR "${PROGID_PDF}"
   DeleteRegKey HKCR "${PROGID_EXC}"
+  DeleteRegKey HKCR "${PROGID_TLD}"
 
   DeleteRegKey HKCR "*\shell\mdpeek"
   DeleteRegKey HKCR "Directory\shell\mdpeek"
