@@ -25,6 +25,11 @@ import {
   BookOpen,
   GalleryVerticalEnd,
   Pin, PinOff,
+  Heading1, Heading2, Heading3,
+  Bold, Italic, Strikethrough, Highlighter,
+  Code, Code2,
+  Link, List, ListOrdered,
+  Quote, Table, Image,
 } from 'lucide';
 
 // Map of kebab-case alias -> lucide icon node.
@@ -75,6 +80,23 @@ const ICONS = {
   'plus':          Plus,
   'pin':           Pin,
   'pin-off':       PinOff,
+  'fmt-h1':        Heading1,
+  'fmt-h2':        Heading2,
+  'fmt-h3':        Heading3,
+  'fmt-bold':      Bold,
+  'fmt-italic':    Italic,
+  'fmt-strike':    Strikethrough,
+  'fmt-highlight': Highlighter,
+  'fmt-code':      Code2,
+  'fmt-link':      Link,
+  'fmt-ul':        List,
+  'fmt-ol':        ListOrdered,
+  'fmt-task':      ListChecks,
+  'fmt-quote':     Quote,
+  'fmt-fence':     Code,
+  'fmt-table':     Table,
+  'fmt-hr':        Minus,
+  'fmt-image':     Image,
 };
 
 /** Default icon size (matches the old inline SVGs). */

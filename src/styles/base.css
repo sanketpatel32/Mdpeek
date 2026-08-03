@@ -703,14 +703,14 @@ main {
   display: none;
 }
 .fmt-btn {
-  height: 22px;
-  min-width: 24px;
-  padding: 0 6px;
+  height: 26px;
+  min-width: 26px;
+  padding: 0 5px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--fg-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-family: inherit;
   cursor: pointer;
   display: inline-flex;
@@ -726,16 +726,12 @@ main {
 .fmt-btn:active {
   transform: translateY(1px);
 }
-.fmt-btn code,
-.fmt-btn strong,
-.fmt-btn em {
-  font-family: inherit;
-  font-size: inherit;
-  font-style: inherit;
-  font-weight: inherit;
-  background: none;
-  border: none;
-  padding: 0;
+.fmt-btn svg {
+  display: block;
+}
+.fmt-btn .icon-host svg {
+  width: 15px;
+  height: 15px;
 }
 
 /* ---------- Command palette (Ctrl+Shift+P) ----------
