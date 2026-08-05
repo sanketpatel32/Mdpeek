@@ -1020,24 +1020,33 @@
    (static layout), so it needs an ancestor with a CONCRETE resolved height.
    #document's normal height comes from being a `flex:1; overflow:auto` child of
    #view-mode — but `height:100%` on this host resolves against an auto-height
-   flex parent and collapses to 0, producing a blank canvas. The fix: take the
-   host out of the flex chain with `position:absolute; inset:0` so it fills the
-   `position:relative` #view-mode box directly. The `#document.tldraw-host`
-   selector matches the specificity of the base `#document` rule so it wins. */
+   flex parent and collapses to 0, producing a blank canvas. Two ways to fix
+   that, and the earlier one had a cost:
+     - position:absolute; inset:0  → works, but pulls the host out of the flex
+       ROW, so the canvas fills the whole #view-mode box and paints OVER the
+       (still open) TOC sidebar. Every other viewer — Excalidraw included —
+       sits to the right of the TOC, so TLDraw tabs rendered misaligned.
+     - display:flex; flex-direction:column (this rule) → mirrors .excalidraw-host.
+       The host stays as the flex-row item to the right of the TOC, and the
+       flex child resolves a real height via `flex:1; min-height:0` without
+       needing a definite percentage parent. No blank canvas, no sidebar
+       overlap. */
 #document.tldraw-host {
-  position: absolute;
-  inset: 0;
+  flex: 1;
+  min-height: 0;
   margin: 0;
   padding: 0;
-  flex: none;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
 }
 #document.tldraw-host > div,
 #document.tldraw-host .tldraw-wrap {
-  position: absolute;
-  inset: 0;
-  width: 100%;
+  flex: 1;
+  min-height: 0;
   height: 100%;
+  width: 100%;
 }
 
 /* ----------------------------- code viewer ------------------------------- */
