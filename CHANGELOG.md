@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.61.0] - 2026-08-05
+
+### Fixed - TLDraw rendering
+- **TLDraw canvas overlapped the TOC sidebar** - the `.tldraw-host` used
+  `position:absolute; inset:0` to give TLDraw's `width/height:100%` root a
+  concrete ancestor height. That sized the canvas, but pulled the host out of
+  the `#view-mode` flex ROW, so the canvas filled the whole view-mode box and
+  painted OVER the still-open TOC sidebar. Every other viewer (Excalidraw
+  included) sits to the right of the TOC, so TLDraw tabs rendered misaligned
+  and wider than expected. Switched `.tldraw-host` to the same flex-column
+  pattern `.excalidraw-host` already uses: the host stays as the flex-row item
+  to the right of the TOC, and the TLDraw wrapper resolves a real height via
+  `flex:1; min-height:0` (no definite-percentage parent needed). No blank
+  canvas, no sidebar overlap.
+
 ## [0.60.0] - 2026-08-03
 
 ### Fixed - bug fixes across renderer, main, backend, and TLDraw
