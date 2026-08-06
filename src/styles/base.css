@@ -5503,7 +5503,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   flex: 1;
   overflow-y: auto;
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 12.5px;
+  font-size: var(--content-font-size, 12.5px);
   line-height: 1.55;
 }
 .diff-row {
@@ -5614,7 +5614,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   width: 100%;
   min-width: 0;
   padding: 6px 8px;
-  font-size: 13px;
+  font-size: var(--content-font-size, 13px);
   font-family: var(--font-mono, ui-monospace, monospace);
   color: var(--fg);
   background: var(--bg);

@@ -5828,9 +5828,12 @@ function baseFontPx() {
   return parseInt(localStorage.getItem('mdpeek-base-font'), 10) || 15;
 }
 
+let _pdfZoomTimer = null;
+
 function applyZoom() {
   const px = (baseFontPx() * zoomLevel).toFixed(1) + 'px';
   document.documentElement.style.setProperty('--content-font-size', px);
+  document.documentElement.style.setProperty('--zoom-level', String(zoomLevel));
   if (el.document) el.document.style.fontSize = px;
   if (el.preview) el.preview.style.fontSize = px;
   if (el.editor) el.editor.style.fontSize = px;
@@ -5841,10 +5844,19 @@ function applyZoom() {
   if (activeDoc && activeDoc.editor && activeDoc.editor.syncGutter) {
     activeDoc.editor.syncGutter();
   }
-  // If a PDF is active, its pages + text layers + strokes must all re-render
-  // at the new scale. Defer a tick so the font-size change settles first.
-  if (_activePdf) {
-    setTimeout(() => { _activePdf.rerenderAll().catch(() => {}); }, 50);
+  if (_activeImage && typeof _activeImage.rerender === 'function') {
+    _activeImage.rerender();
+  }
+  if (_activePdf && typeof _activePdf.rerenderAll === 'function') {
+    clearTimeout(_pdfZoomTimer);
+    _pdfZoomTimer = setTimeout(() => {
+      if (_activePdf && typeof _activePdf.rerenderAll === 'function') {
+        _activePdf.rerenderAll().catch(() => {});
+      }
+    }, 50);
+  }
+  if (terminal && typeof terminal.updateZoom === 'function') {
+    terminal.updateZoom(zoomLevel);
   }
 }
 
@@ -7602,19 +7614,19 @@ window.addEventListener('keydown', (e) => {
     // Ctrl+G = Go to line (v0.37.0). Matches VS Code / Sublime convention.
     e.preventDefault();
     gotoLine();
-  } else if (k === '=' || k === '+') {
+  } else if (k === '=' || k === '+' || e.code === 'NumpadAdd') {
     // v0.49.0: canvases (Excalidraw/TLDraw) handle their own zoom — don't
     // hijack the keys (the app font-size zoom has no visual effect there).
     const dc = store.active();
     if (dc && (dc.excalidraw || dc.tldraw)) return;
     e.preventDefault();
     zoomIn();
-  } else if (k === '-' || k === '_') {
+  } else if (k === '-' || k === '_' || e.code === 'NumpadSubtract') {
     const dc = store.active();
     if (dc && (dc.excalidraw || dc.tldraw)) return;
     e.preventDefault();
     zoomOut();
-  } else if (k === '0') {
+  } else if (k === '0' || e.code === 'Numpad0') {
     const dc = store.active();
     if (dc && (dc.excalidraw || dc.tldraw)) return;
     e.preventDefault();

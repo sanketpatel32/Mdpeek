@@ -441,11 +441,14 @@ export async function showPdf(container, filePath) {
     }
   }
 
+  let pdfRenderGen = 0;
+
   // Full re-render of every page at the new scale (called after a zoom change).
   // Cancels in-flight renders, tears down old text layers, then re-renders each
   // page's canvas + text layer + draw canvas from scratch.
   async function rerenderAll() {
-    if (!pdfDoc) return;
+    if (!pdfDoc || destroyed) return;
+    const localGen = ++pdfRenderGen;
     // Re-read the scale from the container's current font-size (set by applyZoom).
     scale = getScale(container);
     // Cancel any in-flight page renders.
@@ -460,12 +463,13 @@ export async function showPdf(container, filePath) {
     // pdf.js worker with all pages at once; the IntersectionObserver is for the
     // initial lazy load only.
     const pdfjsLib = await loadPdfjs();
-    if (destroyed) return;
+    if (destroyed || localGen !== pdfRenderGen) return;
     for (const wrapper of container.querySelectorAll('.pdf-page')) {
-      if (destroyed) return;
+      if (destroyed || localGen !== pdfRenderGen) return;
       const num = parseInt(wrapper.dataset.pageNum, 10);
       // eslint-disable-next-line no-await-in-loop
       await renderPage(pdfjsLib, pdfDoc, num, wrapper, scale, renders, textLayers, textCache);
+      if (destroyed || localGen !== pdfRenderGen) return;
       // Re-apply draw mode pointer-events to the fresh canvases.
       applyDrawMode();
     }

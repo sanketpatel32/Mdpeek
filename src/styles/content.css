@@ -1078,7 +1078,7 @@
   text-align: right;
   font-family: "Cascadia Code", "Cascadia Mono", "SFMono-Regular", Consolas,
     "Liberation Mono", Menlo, monospace;
-  font-size: 13.5px;
+  font-size: var(--content-font-size, 13.5px);
   line-height: 1.65;
   color: var(--fg-muted);
   user-select: none;
@@ -1098,7 +1098,7 @@
   background: transparent;
   font-family: "Cascadia Code", "Cascadia Mono", "SFMono-Regular", Consolas,
     "Liberation Mono", Menlo, monospace;
-  font-size: 13.5px;
+  font-size: var(--content-font-size, 13.5px);
   line-height: 1.65;
   white-space: pre;
   tab-size: 4;
@@ -1169,7 +1169,7 @@
 .csv-table {
   border-collapse: collapse;
   width: 100%;
-  font-size: 12.5px;
+  font-size: var(--content-font-size, 12.5px);
 }
 .csv-table th,
 .csv-table td {
@@ -1270,20 +1270,22 @@
   justify-content: flex-start;
 }
 .image-viewer-img {
-  max-width: 100%;
-  max-height: calc(100vh - 140px);
+  max-width: calc(100% * var(--zoom-level, 1));
+  max-height: calc((100vh - 140px) * var(--zoom-level, 1));
   object-fit: contain;
   background: var(--bg-elevated);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
-  transition: max-height 160ms var(--ease, ease);
+  transition: max-height 160ms var(--ease, ease), max-width 160ms var(--ease, ease);
 }
-/* Actual-size mode: drop the max constraints so the image renders 1:1. */
+/* Actual-size mode: drop the max constraints so the image renders 1:1, scaled by zoom. */
 .image-viewer-wrap[data-state="actual"] .image-viewer-img {
   max-width: none;
   max-height: none;
   width: auto;
   height: auto;
+  transform: scale(var(--zoom-level, 1));
+  transform-origin: center top;
 }
 .image-viewer-meta {
   font-size: 12px;
@@ -1354,7 +1356,7 @@
   margin: 0;
   padding: 14px 18px;
   font-family: var(--font-mono, monospace);
-  font-size: 13px;
+  font-size: var(--content-font-size, 13px);
   color: var(--fg-muted);
   white-space: pre-wrap;
   word-break: break-word;
@@ -1366,7 +1368,7 @@
 }
 .nb-prompt {
   font-family: var(--font-mono, monospace);
-  font-size: 12px;
+  font-size: calc(var(--content-font-size, 15px) * 0.8);
   color: var(--fg-muted);
   padding: 12px 8px 0 12px;
   user-select: none;
@@ -1386,12 +1388,12 @@
   grid-column: 2;
   border-top: 1px solid var(--border-subtle);
   padding: 8px 18px;
-  font-size: 13px;
+  font-size: var(--content-font-size, 13px);
 }
 .nb-output pre {
   margin: 0;
   font-family: var(--font-mono, monospace);
-  font-size: 12.5px;
+  font-size: var(--content-font-size, 12.5px);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -1410,7 +1412,7 @@
   padding-top: 8px;
 }
 .nb-output-img {
-  max-width: 100%;
+  max-width: calc(100% * var(--zoom-level, 1));
   height: auto;
   display: block;
   border-radius: var(--radius-sm);
@@ -1437,18 +1439,19 @@
   padding: 32px 24px 64px;
 }
 .media-video-el {
-  max-width: 100%;
-  max-height: calc(100vh - 140px);
+  max-width: calc(100% * var(--zoom-level, 1));
+  max-height: calc((100vh - 140px) * var(--zoom-level, 1));
   border-radius: var(--radius-md);
   background: #000;
   box-shadow: var(--shadow-md);
+  transition: max-height 160ms var(--ease, ease), max-width 160ms var(--ease, ease);
 }
 .media-audio-card {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 16px;
-  width: min(560px, 100%);
+  width: min(calc(560px * var(--zoom-level, 1)), 100%);
   padding: 36px 32px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
@@ -1462,7 +1465,7 @@
 }
 .media-audio-icon svg { width: 100%; height: 100%; }
 .media-audio-name {
-  font-size: 14px;
+  font-size: var(--content-font-size, 14px);
   color: var(--fg);
   text-align: center;
   word-break: break-word;

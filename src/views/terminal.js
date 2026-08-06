@@ -530,5 +530,15 @@ export function initTerminal({ cwdProvider, onToast }) {
         try { t.term.refresh(0, t.term.rows - 1); } catch { /* best effort */ }
       });
     },
+    updateZoom(zoomLevel = 1) {
+      const baseFs = 13;
+      const nextFs = Math.round(baseFs * zoomLevel * 10) / 10;
+      tabs.forEach((t) => {
+        if (t.term) {
+          t.term.options.fontSize = nextFs;
+          try { t.fit.fit(); } catch { /* best effort */ }
+        }
+      });
+    },
   };
 }
