@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.61.3] - 2026-08-07
+
+### Fixed - Links invisible in rendered markdown
+- **Links were effectively invisible in several themes.** Content links
+  (`[text](url)`, autolinks `<http://...>`, bare URLs) had `text-decoration: none`
+  and relied solely on the theme's accent color for visibility. In themes where
+  the accent color is close to the body text color, links became indistinguishable
+  from plain text - most visibly in Nord (pale cyan `#88c0d0` on near-white
+  `#eceff4`) and Dracula (lavender on off-white). Links now render with a
+  subtle underline by default (45% accent opacity) that brightens to full accent
+  on hover - matching the convention every doc site (GitHub, MDN) uses. Internal
+  document links (`*.md`) keep their existing dashed border-colored underline.
+
 ## [0.61.2] - 2026-08-07
 
 ### Fixed - Markdown rendering

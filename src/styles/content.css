@@ -131,10 +131,16 @@
 }
 .markdown-body a {
   color: var(--accent);
-  text-decoration: none;
+  /* Underline by default so links stay visible even in themes where the accent
+     color is close to body text (e.g. Nord's pale cyan on near-white, Dracula's
+     lavender). Without this, links were effectively invisible. Matches the web
+     convention every doc site (GitHub, MDN) uses for content links. */
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
 .markdown-body a:hover {
-  text-decoration: underline;
+  text-decoration-color: var(--accent);
 }
 /* Internal document links (relative .md paths, wiki-links) get a dashed
    underline so users know they open inside the app, not in a browser. */
