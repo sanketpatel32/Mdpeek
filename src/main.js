@@ -1211,7 +1211,7 @@ function getCommands() {
     { id: 'zoom-out', label: 'Zoom out', hint: 'Ctrl+-', keywords: 'zoom out smaller', run: zoomOut },
     { id: 'zoom-reset', label: 'Reset zoom', hint: 'Ctrl+0', keywords: 'zoom reset 100', run: zoomReset },
     { id: 'theme', label: 'Cycle theme', keywords: 'theme color light dark cycle', run: cycleTheme },
-    { id: 'settings', label: 'Open settings', keywords: 'settings preferences options', run: openSettings },
+    { id: 'settings', label: 'Open settings', hint: 'Ctrl+,', keywords: 'settings preferences options', run: openSettings },
     { id: 'show-shortcuts', label: 'Show keyboard shortcuts', keywords: 'shortcuts keybindings hotkeys cheat sheet help', run: () => shortcutsPicker.open() },
     { id: 'kanban', label: 'Open Kanban board', hint: 'Ctrl+Shift+K', keywords: 'kanban board tasks todo done progress workspace', run: openKanban },
     { id: 'ws-calendar', label: 'Open Calendar', keywords: 'calendar month daily notes journal date', run: () => { openKanban(); setWorkspaceMode('calendar'); } },
@@ -7631,6 +7631,12 @@ window.addEventListener('keydown', (e) => {
     if (dc && (dc.excalidraw || dc.tldraw)) return;
     e.preventDefault();
     zoomReset();
+  } else if (k === ',') {
+    // Ctrl+, → open settings. Conventional keybind (VS Code, most editors).
+    // No Shift, so it can't clash with anything in the Shift+ handler below.
+    e.preventDefault();
+    e.stopPropagation();
+    openSettings();
   }
 }, true);
 

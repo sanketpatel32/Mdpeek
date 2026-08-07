@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.61.1] - 2026-08-07
+
+### Fixed - Keyboard shortcuts (Windows)
+- **`Ctrl+,` to open Settings didn't work** - the shortcut was listed in the
+  Settings > Shortcuts help table but had no keydown handler, so pressing it
+  did nothing. Added the handler (capture phase, alongside `Ctrl+O`/`Ctrl+S`).
+  Also added the `Ctrl+,` hint to the "Open settings" command-palette entry so
+  it now appears in the cheat-sheet picker.
+- **macOS key symbols shown on a Windows-only app** - three shortcut badges
+  in the UI used `⌘`/`⇧` symbols that don't exist on Windows keyboards, so the
+  advertised shortcuts looked unreachable:
+  - The topbar command pill showed `⌘K`, which is doubly wrong: the app has
+    no `Ctrl+K`→palette binding (`Ctrl+K` inserts a markdown link in the
+    editor), and the pill's own tooltip already said `Ctrl+Shift+P`. Now shows
+    `Ctrl+Shift+P`, matching the real binding and the tooltip.
+  - The "Reading mode" context-menu hint showed `⇧⌘R` → now `Ctrl+Shift+R`.
+  - The "Kanban board" context-menu hint showed `⇧⌘K` → now `Ctrl+Shift+K`.
+- **`Ctrl+K` (insert link) was undocumented** - the editor binding exists
+  (wraps the selection as `[text](url)`, pre-filling the URL from the
+  clipboard when one is copied) but was missing from the editor-shortcuts
+  help table. Added it.
+
+### Notes
+- Every one of the app's 21 `keydown` handlers already accepted both Ctrl and
+  Cmd (`e.ctrlKey || e.metaKey`), so the *functional* shortcut handling was
+  correct on Windows - the fixes here close the gap between what the UI
+  advertised and what actually fired.
+
 ## [0.61.0] - 2026-08-05
 
 ### Fixed - TLDraw rendering
