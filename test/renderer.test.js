@@ -877,3 +877,36 @@ describe('renderMarkdown — image size syntax (v0.45.0)', () => {
     expect(html).not.toContain('a "b" c');
   });
 });
+
+// breaks:true — a single newline renders as a <br>. This is the behavior users
+// expect from a note-taking editor (matching Obsidian's default, Notion,
+// Discord, Typora): pressing Enter once produces a visible line break in the
+// preview. Without it, single newlines are invisible (CommonMark strict mode,
+// which requires two trailing spaces or a blank line).
+describe('renderMarkdown — line breaks (breaks:true)', () => {
+  it('renders a single newline as <br> within one paragraph', () => {
+    const html = renderMarkdown('line one\nline two');
+    expect(html).toContain('<br>');
+    expect(html).toContain('line one');
+    expect(html).toContain('line two');
+  });
+
+  it('does NOT collapse two newlines into a br (they stay separate paragraphs)', () => {
+    const html = renderMarkdown('para one\n\npara two');
+    // Two <p> blocks, no <br> joining them.
+    expect((html.match(/<p>/g) || []).length).toBeGreaterThanOrEqual(2);
+    expect(html).not.toContain('para one<br>');
+  });
+
+  it('does NOT inject <br> inside fenced code blocks', () => {
+    const html = renderMarkdown('```\nline a\nline b\n```');
+    expect(html).not.toContain('<br>');
+    expect(html).toContain('line a');
+    expect(html).toContain('line b');
+  });
+
+  it('does NOT inject <br> inside inline code', () => {
+    const html = renderMarkdown('`code\nspan`');
+    expect(html).not.toContain('<br>');
+  });
+});

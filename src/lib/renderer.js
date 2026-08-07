@@ -343,6 +343,13 @@ function buildMarked() {
   marked.use(markedSubSup());
   marked.use(markedHighlightExt());
   marked.use({
+    // breaks:true makes a single newline render as a <br>, matching how every
+    // modern note app behaves (Obsidian default, Notion, Discord, Typora). The
+    // editor is a textarea where users press Enter expecting a visual line
+    // break — without this, a single Enter is invisible in the preview and you
+    // must end the line with two spaces (CommonMark/GitHub strict mode), which
+    // no one does. Two newlines still make a new paragraph as usual.
+    breaks: true,
     renderer: {
       // Override heading to inject slug-based ids. The token carries `text`
       // (plain) and `tokens` (for inline rendering); we slugify the plain text

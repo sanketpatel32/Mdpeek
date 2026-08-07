@@ -105,7 +105,16 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
   // when the doc is viewed in view mode.
   async function refresh() {
     if (!preview || preview.offsetParent === null) return;
-    preview.innerHTML = renderMarkdown(textarea.value);
+    let html;
+    try {
+      html = renderMarkdown(textarea.value);
+    } catch (e) {
+      // Don't blank the pane on a parse error — show a small inline note so
+      // the user knows their markdown has an issue without losing context.
+      console.error('[mdpeek] preview renderMarkdown failed:', e);
+      return;
+    }
+    preview.innerHTML = html;
     // Skip mermaid (expensive, re-renders on every keystroke) and folding
     // (the live preview is too transient for clickable triangles to be useful).
     // Line numbers on fenced blocks follow the mdpeek-code-line-numbers setting.

@@ -31,10 +31,37 @@ function wordFreqOn() {
 }
 
 // Renders `content` (markdown string) into `el`. Returns a promise that resolves
-// after mermaid diagrams are enhanced.
+// after mermaid diagrams are enhanced. Non-throwing: if the parser or enhancer
+// throws on malformed input, a visible error banner is shown instead of leaving
+// the pane blank (which would read to the user as "rendering is broken").
 export async function showDocument(el, content) {
-  el.innerHTML = renderMarkdown(content);
-  await enhanceDom(el, { lineNumbers: codeLineNumbersOn(), proseHighlights: proseHighlightsOn(), wordFreq: wordFreqOn() });
+  let html;
+  try {
+    html = renderMarkdown(content);
+  } catch (e) {
+    console.error('[mdpeek] renderMarkdown failed:', e);
+    el.innerHTML =
+      `<div class="pdf-error">` +
+      `<div>Couldn't render this document: ${escapeHtml(e && e.message ? e.message : String(e))}</div>` +
+      `</div>`;
+    return;
+  }
+  el.innerHTML = html;
+  try {
+    await enhanceDom(el, { lineNumbers: codeLineNumbersOn(), proseHighlights: proseHighlightsOn(), wordFreq: wordFreqOn() });
+  } catch (e) {
+    // Enhance failure (e.g. a quirky mermaid diagram) must never blank the
+    // already-rendered body — the markdown is still readable, just without
+    // the enhancement. Log and move on.
+    console.error('[mdpeek] enhanceDom failed:', e);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 // Builds a table of contents from h1-h3 inside `root` and injects it into the

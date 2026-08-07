@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.61.2] - 2026-08-07
+
+### Fixed - Markdown rendering
+- **A single Enter now creates a line break in the preview.** This was the most
+  common "rendering is broken" symptom: type two lines separated by one Enter,
+  and the preview ran them together into one line. The parser (marked) was
+  running in GitHub-strict mode where a single newline is invisible and you had
+  to end each line with two spaces or leave a blank line. Switched to
+  `breaks: true`, matching the behavior users expect from a note app (Obsidian's
+  default, Notion, Discord, Typora) - press Enter once, see a line break. Two
+  newlines still make a new paragraph; newlines inside code blocks/inline code
+  are unaffected.
+- **Render failures no longer blank the pane.** Both render paths (view mode in
+  `viewer.js` and the edit-mode live preview in `editor.js`) called the parser
+  with no error handling, so a thrown error on a malformed document left the
+  preview completely blank with no explanation - reading exactly as "rendering
+  is broken." Now: view mode shows a visible "Couldn't render this document"
+  banner with the error; the live preview keeps the last valid render on a
+  transient parse error instead of flashing. Errors are logged to the console.
+
 ## [0.61.1] - 2026-08-07
 
 ### Fixed - Keyboard shortcuts (Windows)
