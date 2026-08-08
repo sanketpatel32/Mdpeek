@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { renderMarkdown, renderCode, expandTocMarker, expandAdmonitions, expandCollapsible } from '../src/lib/renderer.js';
+import { renderMarkdown, renderCode, expandTocMarker, expandAdmonitions, expandCollapsible, linkifyCodeUrls } from '../src/lib/renderer.js';
 
 // Mock the heavy mermaid module so enhanceDom tests are fast and deterministic
 // (don't depend on the real 400KB library loading under load).
@@ -508,6 +508,61 @@ describe('renderCode — line numbers', () => {
     const html = renderCode('a\nb\n', 'plaintext');
     const gutterBlock = html.split('<pre class="code-pre"')[0];
     expect(gutterBlock.match(/<div>\d+<\/div>/g).length).toBe(3);
+  });
+});
+
+// v0.61.4: Code files (Python, shell, config, etc.) should render bare http(s)
+// URLs as clickable links — matching GitHub's code file view. The linkifier
+// runs on already-highlighted HTML and must skip tag interiors.
+describe('renderCode — URL linkification (v0.61.4)', () => {
+  it('linkifies bare URLs in rendered code output', () => {
+    const html = renderCode('# docs at http://127.0.0.1:18000/docs\n', 'python');
+    expect(html).toContain('<a ');
+    expect(html).toContain('href="http://127.0.0.1:18000/docs"');
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('hljs'); // still highlighted
+  });
+
+  it('does not add links to code without URLs', () => {
+    const html = renderCode('print("hello")\n', 'python');
+    expect(html).not.toContain('<a ');
+  });
+
+  it('preserves hljs spans around a linkified URL', () => {
+    const html = renderCode('# see http://example.com\n', 'python');
+    expect(html).toContain('hljs-comment');
+    expect(html).toContain('<a ');
+  });
+});
+
+describe('linkifyCodeUrls', () => {
+  it('wraps a bare http URL in an <a> tag', () => {
+    const out = linkifyCodeUrls('see http://example.com for info');
+    expect(out).toContain('<a ');
+    expect(out).toContain('href="http://example.com"');
+  });
+
+  it('does NOT double-linkify a URL already inside a tag', () => {
+    const out = linkifyCodeUrls('<a href="http://example.com">link</a>');
+    expect((out.match(/<a /g) || []).length).toBe(1);
+  });
+
+  it('strips trailing punctuation from the href', () => {
+    const out = linkifyCodeUrls('visit http://example.com.');
+    expect(out).toContain('href="http://example.com"');
+  });
+
+  it('handles multiple URLs in one text run', () => {
+    const out = linkifyCodeUrls('a http://a.com b http://b.com');
+    expect((out.match(/<a /g) || []).length).toBe(2);
+  });
+
+  it('no-op when no URL is present', () => {
+    expect(linkifyCodeUrls('just plain text')).toBe('just plain text');
+  });
+
+  it('handles null/empty input', () => {
+    expect(linkifyCodeUrls('')).toBe('');
   });
 });
 

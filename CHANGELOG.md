@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.61.4] - 2026-08-08
+
+### Fixed - Links now visible in all file types
+- **Code files (`.py`, `.sh`, `.js`, `.json`, config files, etc.) now render
+  clickable links.** Previously, opening a non-markdown source file showed bare
+  `http://...` URLs as plain colored text with no link at all — `renderCode`
+  only syntax-highlighted, it never linkified. Added a URL linkifier
+  (`linkifyCodeUrls`) that runs on the already-highlighted HTML, carefully
+  skipping tag interiors so it only wraps actual text-node URLs (never doubles
+  up URLs inside attributes). Matches what GitHub does on code file views.
+  Trailing punctuation (`.`, `,`, `)`) is stripped from the href. Added
+  `.code-viewer a` styling (dotted underline, accent color) so the links are
+  visible without disrupting the monospace code layout.
+- **Exported HTML files now underline links.** The standalone HTML export
+  (`Export to HTML`, `Open in browser`) used `a { text-decoration: none }`,
+  so links in exported files were invisible in the same low-contrast themes.
+  Now matches the in-app underline style.
+- **In-app changelog dialog now underlines links.** `.changelog-body a` had
+  `text-decoration: none`; now underlined consistently with content links.
+
 ## [0.61.3] - 2026-08-07
 
 ### Fixed - Links invisible in rendered markdown

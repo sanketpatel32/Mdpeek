@@ -2526,7 +2526,9 @@ h1 { font-size: 2em; padding-bottom: 0.3em; border-bottom: 1px solid var(--borde
 h2 { font-size: 1.5em; padding-bottom: 0.3em; border-bottom: 1px solid var(--border-subtle); }
 h3 { font-size: 1.25em; } h4 { font-size: 1em; }
 p { margin: 0 0 1em; }
-a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+a:hover { text-decoration-color: var(--accent); }
 ul,ol { margin: 0 0 1em; padding-left: 1.6em; } li { margin: 0.25em 0; }
 blockquote { margin: 0 0 1em; padding: 0.6em 1.1em; color: var(--fg-secondary);
   border-left: 3px solid var(--border); background: var(--surface); border-radius: 0 6px 6px 0; }

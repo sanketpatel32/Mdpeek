@@ -4944,11 +4944,13 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 }
 .changelog-body a {
   color: var(--accent);
-  text-decoration: none;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
   font-weight: 500;
 }
 .changelog-body a:hover {
-  text-decoration: underline;
+  text-decoration-color: var(--accent);
 }
 .changelog-body code {
   font-family: "SFMono-Regular", Consolas, monospace;

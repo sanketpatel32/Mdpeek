@@ -573,6 +573,13 @@ export function renderCode(text, lang) {
   } catch {
     highlighted = escapeText(input);
   }
+  // v0.61.4: linkify bare http(s):// URLs in the highlighted output so code
+  // files (Python, shell, config, etc.) get clickable links — matching what
+  // GitHub does on code file views. Runs on the already-escaped HTML, skipping
+  // tag interiors (<...>) so it only touches text nodes. The URLs in hljs
+  // spans are already HTML-escaped (e.g. &amp;), so we match on the escaped
+  // form and re-escape inside the href.
+  highlighted = linkifyCodeUrls(highlighted);
   // Build a line-number gutter matching the source's line count. The gutter
   // and <pre> share line-height so they stay aligned row-for-row; both live
   // inside a flex wrapper that the outer .code-viewer (set on el.document by
@@ -586,6 +593,47 @@ export function renderCode(text, lang) {
     `<pre class="code-pre"><code class="hljs language-${language || 'plaintext'}">${highlighted}</code></pre>` +
     `</div>`;
   return DOMPurify.sanitize(raw);
+}
+
+// v0.61.4: Linkify bare http(s):// URLs inside highlighted code HTML. Walks
+// the string skipping tag interiors (<...>) so we only touch text nodes,
+// never attributes (where a URL might already be an href). Each matched URL
+// is wrapped in an <a target="_blank" rel="noopener noreferrer">. The href is
+// HTML-escaped (the matched text is already-escaped source, so &amp; etc. are
+// present and preserved). Pure, no DOM.
+const CODE_URL_RE = /https?:\/\/[^\s<>"'`)|\]]+/ig;
+export function linkifyCodeUrls(html) {
+  if (!html) return html;
+  let out = '';
+  let i = 0;
+  while (i < html.length) {
+    const lt = html.indexOf('<', i);
+    if (lt === -1) {
+      // Tail segment — pure text, safe to linkify.
+      out += html.slice(i).replace(CODE_URL_RE, (url) => {
+        // Strip trailing punctuation that's unlikely part of the URL but
+        // commonly sits right after it in prose/comments.
+        const cleaned = url.replace(/[.,;:!)]+$/, '');
+        const href = escapeHtml(cleaned);
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`;
+      });
+      break;
+    }
+    // Text run before the tag — linkify it.
+    if (lt > i) {
+      out += html.slice(i, lt).replace(CODE_URL_RE, (url) => {
+        const cleaned = url.replace(/[.,;:!)]+$/, '');
+        const href = escapeHtml(cleaned);
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`;
+      });
+    }
+    // Copy the tag verbatim (find the closing >).
+    const gt = html.indexOf('>', lt);
+    if (gt === -1) { out += html.slice(lt); break; }
+    out += html.slice(lt, gt + 1);
+    i = gt + 1;
+  }
+  return out;
 }
 
 // Parse CSV/TSV text into a 2D array of strings. Pure RFC-4180-ish state

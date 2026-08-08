@@ -1115,6 +1115,20 @@
   padding: 0;
   display: block;
 }
+/* v0.61.4: linkified URLs in code files (renderCode wraps bare http(s):// in
+   <a>). Code links get a dotted underline so they read as clickable without
+   breaking the monosped visual flow of the code. */
+.code-viewer a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.code-viewer a:hover {
+  text-decoration-style: solid;
+  text-decoration-color: var(--accent);
+}
 
 /* ---------- CSV / TSV viewer ----------
    Sortable, filterable table for .csv and .tsv files. A small toolbar with
