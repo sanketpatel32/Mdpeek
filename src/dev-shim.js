@@ -9,6 +9,13 @@
 // `invoke()` still rejects, which the existing try/catch paths already
 // degrade from gracefully (no files, no terminal — chrome only).
 if (!window.__TAURI_INTERNALS__) {
+  // Collect runtime errors + unhandled rejections so browser-side debugging
+  // (and the ?term=1 / ?settings=1 previews) can be diagnosed via
+  // window.__devErrors instead of a detached DevTools console.
+  window.__devErrors = [];
+  window.addEventListener('error', (e) => window.__devErrors.push(String(e.error || e.message)));
+  window.addEventListener('unhandledrejection', (e) => window.__devErrors.push('unhandled: ' + String(e.reason)));
+
   let cbId = 0;
   window.__TAURI_INTERNALS__ = {
     metadata: {
@@ -43,6 +50,9 @@ if (!window.__TAURI_INTERNALS__) {
   }
   if (params.get('settings') === '1') {
     setTimeout(() => document.getElementById('btn-settings')?.click(), 600);
+  }
+  if (params.get('term') === '1') {
+    setTimeout(() => document.getElementById('btn-terminal')?.click(), 900);
   }
   // Seed a sample document (session restore) so rendered-markdown styling is
   // screenshotable in a plain browser. Seeds once, then reloads so main.js

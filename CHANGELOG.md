@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.64.0] - 2026-08-14
+
+Terminal overhaul, with techniques borrowed from Terax
+(github.com/crynta/terax-ai, Apache-2.0 — same Tauri 2 + portable-pty +
+xterm.js stack). No Terax code is included; the approaches were re-implemented
+for mdpeek's architecture.
+
+### Added - Terminal
+- **In-terminal search (Ctrl+F).** Find bar in the terminal header with
+  live-as-you-type matching, prev/next navigation (Enter / Shift+Enter), Esc
+  to close, and match highlighting via the xterm search addon. Seeded from
+  the current selection when text is highlighted.
+- **GPU-accelerated rendering** via the xterm WebGL renderer — noticeably
+  smoother scrolling and output on large builds/logs. Silently falls back to
+  the DOM renderer when WebGL is unavailable, and recovers from GPU context
+  loss by disposing the addon mid-session.
+- **Live working-directory tracking.** OSC 7 / OSC 9;9 sequences emitted by
+  shells (pwsh with shell integration, git-bash, WSL prompts) now update the
+  PWD readout in the terminal header as you `cd` around; new tabs and
+  restarted shells launch in the last known directory instead of the
+  explorer root.
+- **Live tab titles.** OSC 0/2 title sequences rename the terminal tab
+  (truncated to 24 chars), so long-running commands and custom prompts label
+  their own tab.
+- Scrollback raised to 10,000 lines.
+
+### Changed - Terminal
+- **Enter restarts a dead shell.** When the shell exits, the tab stays open
+  with a clear `[process exited (code N) — press Enter to restart]` line and
+  the real exit code; pressing Enter respawns the shell in place with
+  scrollback preserved, instead of leaving a dead pane.
+- **Safe multi-line paste.** Ctrl+V now routes through xterm's bracketed-
+  paste path, so multi-line pastes arrive as one block instead of being
+  executed line-by-line.
+- `TERM=xterm-256color` is now set on the child environment, so tools emit
+  true-color output and modern TUIs render correctly.
+- UTF-8 decoding across read-buffer boundaries via an incremental carry
+  decoder — multibyte characters split across chunk reads no longer render
+  as mojibake.
+- Custom shell overrides (terminal shell setting) are honored when spawning.
+
 ## [0.63.0] - 2026-08-14
 
 ### Redesigned - Welcome screen ("quiet hero")

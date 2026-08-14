@@ -286,6 +286,19 @@
             <button id="terminal-new-tab" class="terminal-action-btn" type="button" title="New Terminal Tab"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
           </div>
           <div class="terminal-actions">
+            <div id="terminal-search" class="terminal-search hidden" role="search">
+              <input id="terminal-search-input" type="text" placeholder="Find in terminal…"
+                     aria-label="Find in terminal" spellcheck="false" />
+              <button id="terminal-search-prev" class="terminal-action-btn" type="button" title="Previous match (Shift+Enter)">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>
+              </button>
+              <button id="terminal-search-next" class="terminal-action-btn" type="button" title="Next match (Enter)">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <button id="terminal-search-close" class="terminal-action-btn" type="button" title="Close search (Esc)">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
             <span id="terminal-pwd" class="terminal-pwd"></span>
             <button id="terminal-clear-btn" class="terminal-action-btn" type="button" title="Clear terminal (Ctrl+L)">Clear</button>
             <button id="terminal-close-btn" class="terminal-action-btn" type="button" title="Close terminal (Ctrl+`)"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>

@@ -9,14 +9,19 @@
 //                ▲                                │
 //                └── Channel onmessage ──◄── pty.rs reader thread
 //
-// The terminal's `initTerminal({ cwdProvider, onToast })` export signature is
-// unchanged from the previous version so main.js needs no edits at the call
-// site. The pure helpers `readCssVar` and `xtermThemeFromApp` are exported for
-// unit testing.
+// v0.64.0 (Terax-inspired): WebGL renderer with graceful DOM fallback,
+// in-terminal search (Ctrl+F), OSC-based live cwd + tab-title tracking,
+// real exit codes with press-Enter-to-restart, and bracketed-paste-safe
+// clipboard paste. The terminal's `initTerminal({ cwdProvider, onToast })`
+// export signature is unchanged from the previous version so main.js needs
+// no edits at the call site. The pure helpers `readCssVar` and
+// `xtermThemeFromApp` are exported for unit testing.
 
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { WebglAddon } from '@xterm/addon-webgl';
+import { SearchAddon } from '@xterm/addon-search';
 import '@xterm/xterm/css/xterm.css';
 import { invoke, Channel } from '@tauri-apps/api/core';
 
@@ -93,6 +98,26 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+// Normalize an OSC 7 / OSC 9;9 cwd report into a display path.
+// OSC 7 payloads look like `file://hostname/C:/Users/foo` (Windows drive) or
+// `file://hostname/home/foo` (WSL/Unix); OSC 9;9 payloads are bare Windows
+// paths (`C:\Users\foo`). Percent-encoding is decoded when possible; drive
+// paths get backslashes for native display.
+export function normalizeOscCwd(raw) {
+  if (!raw) return '';
+  let p = String(raw);
+  try { p = decodeURIComponent(p); } catch { /* keep raw on malformed input */ }
+  const m = /^file:\/\/[^/]*(\/.*)$/.exec(p);
+  if (m) {
+    p = m[1];
+    // 'file://host/C:/…' carries the path '/C:/…' — drop the wrapper slash
+    // so the drive letter starts the string.
+    if (/^\/[A-Za-z]:/.test(p)) p = p.slice(1);
+  }
+  if (/^[A-Za-z]:/.test(p)) return p.replace(/\//g, '\\');
+  return p;
+}
+
 export function initTerminal({ cwdProvider, onToast }) {
   const drawer = document.getElementById('terminal-drawer');
   const body = document.getElementById('terminal-body');
@@ -114,15 +139,15 @@ export function initTerminal({ cwdProvider, onToast }) {
   }
 
   function getWorkingDir() {
-    // The PTY owns cwd now; we expose cwdProvider() only as the initial cwd
-    // for new tabs. The PWD readout is best-effort: we render the initial cwd
-    // and don't try to track the live shell cwd (would require OSC-sequence
-    // parsing). Matches VS Code's "we show the launch dir" approximation.
-    return cwdProvider() || '.';
+    // Live when the shell reports its cwd via OSC 7 / OSC 9;9 (pwsh shell
+    // integration, git-bash, WSL + oh-my-posh); otherwise the launch dir —
+    // the same "we show where it started" approximation VS Code uses.
+    const active = getActiveTab();
+    return (active && active.cwd) || cwdProvider() || '.';
   }
 
   function updatePwdDisplay() {
-    if (pwdEl) pwdEl.textContent = `PS ${getWorkingDir()}`;
+    if (pwdEl) pwdEl.textContent = getWorkingDir();
   }
 
   function renderTabs() {
@@ -182,66 +207,140 @@ export function initTerminal({ cwdProvider, onToast }) {
       cursorBlink: true,
       allowProposedApi: true,
       theme: xtermThemeFromApp(),
-      scrollback: 5000,
+      scrollback: 10000,
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.loadAddon(new WebLinksAddon());
+    const search = new SearchAddon();
+    term.loadAddon(search);
     term.open(mountEl);
+
+    // GPU-accelerated renderer (Terax-style). Falls back silently to the
+    // default DOM renderer when WebGL is unavailable (remote desktop, locked
+    // GPU, jsdom); on context loss the addon is disposed and we keep running.
+    let webgl = null;
+    try {
+      webgl = new WebglAddon();
+      webgl.onContextLoss(() => { try { webgl?.dispose(); } catch { /* noop */ } webgl = null; });
+      term.loadAddon(webgl);
+    } catch {
+      webgl = null;
+    }
+
     // Fit must run after open() so cols/rows reflect real pixel sizes. Defer
     // one frame so layout has settled.
     requestAnimationFrame(() => { try { fit.fit(); } catch { /* noop */ } });
 
-    // Channel carries backend → frontend PTY events. The Tauri 2 Channel is
-    // passed to invoke() as a normal arg; the backend's spawn_terminal takes
-    // it and calls .send() from the reader thread. Both `new Channel()` and
-    // `invoke()` need __TAURI_INTERNALS__ to be registered; if not (e.g. the
-    // page is loaded in a plain browser during development), they throw. We
-    // catch here so the tab still registers + renders an error instead of
-    // silently failing.
-    let ptyId;
-    try {
-      const chan = new Channel();
-      chan.onmessage = (msg) => {
-        if (!msg) return;
-        if (msg.t === 'Data') term.write(msg.d);
-        else if (msg.t === 'Exit') {
-          // Render a clear "[process exited]" line so the user knows the PTY
-          // died. The tab stays open until they close it (VS Code behavior).
-          term.write('\r\n\x1b[90m[process exited]\x1b[0m\r\n');
-        }
-      };
+    let ptyId;        // undefined until a PTY is attached (and after final failure)
+    let exited = false; // true after the child exits — Enter respawns
+    let lastCwd = cwdProvider() || null;
 
-      // Race the spawn against a timeout so a missing backend (e.g. the page
-      // loaded outside Tauri, or the Rust command hung) doesn't strand the
-      // tab forever with no PTY wired up. 15s is generous: a cold-started
-      // PowerShell on a slow machine with a heavy $PROFILE can take several
-      // seconds before its first byte. On timeout we render an error line and
-      // leave ptyId undefined — the rest of the module is no-op-safe for that
-      // case (onDataDisp / onResizeDisp check ptyId !== undefined).
-      const spawnPromise = invoke('spawn_terminal', {
-        onEvent: chan,
-        cwd: cwdProvider() || null,
-        cols: term.cols,
-        rows: term.rows,
-      });
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(
-          () => reject(new Error('terminal backend did not respond within 15s')),
-          15000,
-        ),
-      );
-      const res = await Promise.race([spawnPromise, timeoutPromise]);
-      ptyId = res.id;
-    } catch (err) {
-      term.write(`\x1b[31mFailed to start terminal: ${escapeHtml(String(err))}\x1b[0m\r\n`);
+    // Live cwd + tab-title tracking via OSC sequences. Shells that emit them
+    // (pwsh with shell integration, git-bash, WSL + oh-my-posh) keep the PWD
+    // readout and tab label in sync; shells that don't simply keep showing
+    // the launch dir (the previous behavior).
+    term.parser.registerOscHandler(7, (data) => {
+      const p = normalizeOscCwd(data);
+      if (p) { lastCwd = p; updatePwdDisplay(); }
+      return false;
+    });
+    term.parser.registerOscHandler(9, (data) => {
+      if (typeof data === 'string' && data.startsWith('9;')) {
+        const p = data.slice(2);
+        if (p) { lastCwd = p; updatePwdDisplay(); }
+        return false;
+      }
+      return false; // other OSC 9;* (growl notifications etc.) pass through
+    });
+    const titleHandler = (data) => {
+      const t = String(data || '').trim();
+      if (t) renameTab(id, t);
+      return false;
+    };
+    term.parser.registerOscHandler(0, titleHandler);
+    term.parser.registerOscHandler(2, titleHandler);
+
+    const tab = {
+      id,
+      name: `Terminal ${tabIdCounter - 1}`,
+      term,
+      fit,
+      search,
+      mountEl,
+      onDataDisp: null,
+      onResizeDisp: null,
+    };
+    // ptyId is a live view: respawns rebind it without touching every call site.
+    Object.defineProperty(tab, 'ptyId', { get: () => ptyId });
+    // Live cwd: updated by OSC handlers as the shell moves around.
+    Object.defineProperty(tab, 'cwd', { get: () => lastCwd });
+
+    // Spawn (or respawn after exit) a PTY for this terminal. Reuses the last
+    // known cwd so a restarted shell lands where the user left off.
+    async function attachPty() {
+      try {
+        const chan = new Channel();
+        chan.onmessage = (msg) => {
+          if (!msg) return;
+          if (msg.t === 'Data') term.write(msg.d);
+          else if (msg.t === 'Exit') {
+            // Mark exited and render a clear status line. The tab stays open;
+            // pressing Enter spawns a fresh shell in the same terminal
+            // (scrollback preserved) instead of leaving a dead pane around.
+            exited = true;
+            term.write(`\r\n\x1b[90m[process exited${msg.d ? ` (code ${msg.d})` : ''} — press Enter to restart]\x1b[0m\r\n`);
+          }
+        };
+
+        // Race the spawn against a timeout so a missing backend (e.g. the page
+        // loaded outside Tauri, or the Rust command hung) doesn't strand the
+        // tab forever with no PTY wired up. 15s is generous: a cold-started
+        // PowerShell on a slow machine with a heavy $PROFILE can take several
+        // seconds before its first byte. On timeout we render an error line and
+        // leave ptyId undefined — the rest of the module is no-op-safe for that
+        // case (onDataDisp / onResizeDisp check ptyId !== undefined).
+        const spawnPromise = invoke('spawn_terminal', {
+          onEvent: chan,
+          cwd: lastCwd,
+          cols: term.cols,
+          rows: term.rows,
+        });
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error('terminal backend did not respond within 15s')),
+            15000,
+          ),
+        );
+        const res = await Promise.race([spawnPromise, timeoutPromise]);
+        ptyId = res.id;
+        exited = false;
+        if (ptyId !== undefined) {
+          requestAnimationFrame(() => {
+            try {
+              fit.fit();
+              invoke('resize_terminal', { id: ptyId, cols: term.cols, rows: term.rows }).catch(() => {});
+            } catch { /* noop */ }
+          });
+        }
+        return true;
+      } catch (err) {
+        term.write(`\x1b[31mFailed to start terminal: ${escapeHtml(String(err))}\x1b[0m\r\n`);
+        return false;
+      }
     }
+
+    await attachPty();
 
     if (term.attachCustomKeyEventHandler) {
       term.attachCustomKeyEventHandler((arg) => {
         if (arg.type === 'keydown') {
           if ((arg.ctrlKey || arg.metaKey) && (arg.key === 'c' || arg.key === 'C') && term.hasSelection()) {
             navigator.clipboard.writeText(term.getSelection());
+            return false;
+          }
+          if ((arg.ctrlKey || arg.metaKey) && (arg.key === 'f' || arg.key === 'F')) {
+            openSearchBar(term.hasSelection() ? term.getSelection() : '');
             return false;
           }
           if ((arg.ctrlKey || arg.metaKey) && (arg.key === 'v' || arg.key === 'V')) {
@@ -259,14 +358,15 @@ export function initTerminal({ cwdProvider, onToast }) {
                   }
                 }
                 const text = await navigator.clipboard.readText();
-                if (text && ptyId !== undefined) {
-                  invoke('write_terminal', { id: ptyId, data: text }).catch(() => {});
+                if (text) {
+                  // term.paste() routes through the bracketed-paste path so
+                  // multi-line pastes arrive as one block instead of being
+                  // executed line-by-line by the shell.
+                  term.paste(text);
                 }
               } catch {
                 navigator.clipboard.readText().then((text) => {
-                  if (text && ptyId !== undefined) {
-                    invoke('write_terminal', { id: ptyId, data: text }).catch(() => {});
-                  }
+                  if (text) term.paste(text);
                 }).catch(() => {});
               }
             })();
@@ -280,6 +380,11 @@ export function initTerminal({ cwdProvider, onToast }) {
     // Pipe keystrokes → PTY. onData fires on every key, including Ctrl+C
     // (\x03), Enter (\r), arrows, etc. — xterm.js does the keyboard mapping.
     const onDataDisp = term.onData((str) => {
+      if (exited) {
+        // The shell died; Enter restarts it in the same terminal.
+        if (str === '\r') attachPty();
+        return;
+      }
       if (ptyId === undefined) return;
       invoke('write_terminal', { id: ptyId, data: str }).catch((e) =>
         console.error('write_terminal:', e),
@@ -291,30 +396,23 @@ export function initTerminal({ cwdProvider, onToast }) {
       if (ptyId === undefined) return;
       invoke('resize_terminal', { id: ptyId, cols, rows }).catch(() => { /* best-effort */ });
     });
+    tab.onDataDisp = onDataDisp;
+    tab.onResizeDisp = onResizeDisp;
 
-    if (ptyId !== undefined) {
-      requestAnimationFrame(() => {
-        try {
-          fit.fit();
-          invoke('resize_terminal', { id: ptyId, cols: term.cols, rows: term.rows }).catch(() => {});
-        } catch { /* noop */ }
-      });
-    }
-
-    const tab = {
-      id,
-      name: `Terminal ${tabIdCounter - 1}`,
-      ptyId,
-      term,
-      fit,
-      mountEl,
-      onDataDisp,
-      onResizeDisp,
-    };
     tabs.push(tab);
     switchTab(id);
     term.focus();
     return tab;
+  }
+
+  // Rename a tab (OSC 0/2 title tracking). Truncated for the tab strip.
+  function renameTab(id, title) {
+    const t = tabs.find((x) => x.id === id);
+    if (!t) return;
+    const short = title.length > 24 ? title.slice(0, 22) + '…' : title;
+    if (t.name === short) return;
+    t.name = short;
+    renderTabs();
   }
 
   function switchTab(id) {
@@ -497,6 +595,60 @@ export function initTerminal({ cwdProvider, onToast }) {
     const active = getActiveTab();
     if (active) active.term.focus();
   });
+
+  // ---- In-terminal search (Terax-style inline find, v0.64.0) --------------
+  // A compact find bar in the terminal header driving the active tab's
+  // SearchAddon: Enter/↓ next, Shift+Enter/↑ previous, Esc closes and
+  // returns focus to the terminal.
+  const searchWrap = document.getElementById('terminal-search');
+  const searchInput = document.getElementById('terminal-search-input');
+  const searchPrevBtn = document.getElementById('terminal-search-prev');
+  const searchNextBtn = document.getElementById('terminal-search-next');
+  const searchCloseBtn = document.getElementById('terminal-search-close');
+
+  function closeSearchBar() {
+    if (!searchWrap) return;
+    searchWrap.classList.add('hidden');
+    const active = getActiveTab();
+    if (active) {
+      try { active.search.clearActiveDecoration?.(); } catch { /* noop */ }
+      active.term.focus();
+    }
+  }
+
+  function runSearch(backwards = false) {
+    if (!searchInput) return;
+    const q = searchInput.value || '';
+    if (!q) return;
+    const active = getActiveTab();
+    if (!active) return;
+    try {
+      if (backwards) active.search.findPrevious(q, { caseSensitive: false });
+      else active.search.findNext(q, { caseSensitive: false });
+    } catch { /* noop */ }
+  }
+
+  function openSearchBar(seed = '') {
+    if (!searchWrap || !searchInput) return;
+    if (drawer?.classList.contains('hidden')) open();
+    searchWrap.classList.remove('hidden');
+    searchInput.value = seed;
+    searchInput.focus();
+    searchInput.select();
+    if (seed) runSearch();
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); runSearch(e.shiftKey); }
+      else if (e.key === 'Escape') { e.preventDefault(); closeSearchBar(); }
+      e.stopPropagation(); // keep app-level shortcuts out while typing
+    });
+    searchInput.addEventListener('input', () => runSearch());
+  }
+  if (searchPrevBtn) searchPrevBtn.addEventListener('click', () => runSearch(true));
+  if (searchNextBtn) searchNextBtn.addEventListener('click', () => runSearch(false));
+  if (searchCloseBtn) searchCloseBtn.addEventListener('click', closeSearchBar);
 
   // Public API. `destroyAll` is called from main.js on app close to prevent
   // zombie PowerShell processes when the window is closed.

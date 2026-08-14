@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::io::Write;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use serde::Serialize;
@@ -30,13 +30,14 @@ static NEXT_ID: AtomicU32 = AtomicU32::new(1);
 // `Master` is boxed because portable_pty returns a trait object whose concrete
 // type differs per platform (ConPty on Windows, Unix on Linux/macOS). The same
 // boxed master is used for both writing (keystrokes) and resizing.
+//
+// The child is shared with the reader thread (Arc<Mutex>) so that after the
+// PTY reaches EOF the reader can reap it via try_wait() and report the real
+// exit code to the frontend (v0.64.0 — previously Exit(0) was hardcoded).
 pub(crate) struct TermEntry {
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
-    // Child handle: dropped on kill. Keeping it stored prevents the child from
-    // being reaped prematurely if the user closes the drawer without killing
-    // the tab.
-    _child: Box<dyn portable_pty::Child + Send + Sync>,
+    child: Arc<Mutex<Box<dyn portable_pty::Child + Send + Sync>>>,
 }
 
 /// Managed app state: a map from terminal id → live PTY entry.
@@ -60,11 +61,53 @@ pub struct SpawnResult {
     pub id: u32,
 }
 
+/// Decode `pending` into (string-to-send, leftover-bytes-to-carry).
+///
+/// ConPTY output is a byte stream: a single `read()` can end in the middle of
+/// a multi-byte UTF-8 sequence, and decoding that fragment with
+/// `from_utf8_lossy` alone would emit U+FFFD for every split char (visible
+/// mojibake for CJK/emoji output). This helper keeps incomplete trailing
+/// sequences as carry-over so they complete on the next read. Invalid
+/// sequences mid-stream (binary output) are replaced with one U+FFFD each.
+fn decode_chunk(pending: &mut Vec<u8>) -> String {
+    let mut out = String::new();
+    loop {
+        match std::str::from_utf8(pending) {
+            Ok(s) => {
+                out.push_str(s);
+                pending.clear();
+                return out;
+            }
+            Err(e) => {
+                let valid = e.valid_up_to();
+                if valid > 0 {
+                    // from_utf8 on the valid prefix cannot fail.
+                    out.push_str(unsafe { std::str::from_utf8_unchecked(&pending[..valid]) });
+                }
+                match e.error_len() {
+                    Some(bad) => {
+                        // Truly invalid sequence — replace and continue parsing
+                        // the remainder in this same pass.
+                        out.push('\u{FFFD}');
+                        pending.drain(..valid + bad);
+                    }
+                    None => {
+                        // Incomplete sequence at the very end — carry it.
+                        pending.drain(..valid);
+                        return out;
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Spawn a new PTY running PowerShell, streaming bytes to `on_event`.
 ///
 /// `cwd` is optional; when missing the PTY inherits the app's working dir.
 /// `cols`/`rows` initialize the PTY size (xterm.js sends real dimensions on
-/// resize via `resize_terminal`).
+/// resize via `resize_terminal`). `shell` optionally overrides the shell
+/// program (used by the frontend's shell picker); empty/None probes normally.
 #[tauri::command]
 pub fn spawn_terminal(
     state: tauri::State<'_, TermState>,
@@ -72,6 +115,7 @@ pub fn spawn_terminal(
     cwd: Option<String>,
     cols: Option<u16>,
     rows: Option<u16>,
+    shell: Option<String>,
 ) -> Result<SpawnResult, String> {
     eprintln!("[pty] spawn_terminal: start (cwd={:?}, cols={:?}, rows={:?})", cwd, cols, rows);
     let id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
@@ -91,9 +135,10 @@ pub fn spawn_terminal(
         })?;
     eprintln!("[pty] openpty: ok");
 
-    // Pick the shell. PowerShell 5.1 (powershell.exe) ships with every
-    // Windows 10+ install, so it's the safe default. PowerShell 7 (pwsh.exe)
-    // is preferred when present because it has better ANSI + UTF-8 handling.
+    // Pick the shell. An explicit override wins (the frontend shell picker).
+    // Otherwise: PowerShell 5.1 (powershell.exe) ships with every Windows 10+
+    // install, so it's the safe default; PowerShell 7 (pwsh.exe) is preferred
+    // when present because it has better ANSI + UTF-8 handling.
     //
     // The probe is defensively bounded: stdin/stdout/stderr are wired to null
     // so nothing can block waiting for input, and we run it on a worker thread
@@ -101,50 +146,57 @@ pub fn spawn_terminal(
     // hang the whole spawn_terminal command. On any doubt we fall back to the
     // universally-installed powershell.exe.
     #[cfg(target_os = "windows")]
-    let (program, args): (&str, Vec<&str>) = {
-        use std::process::Stdio;
-        use std::sync::mpsc;
-        use std::time::Duration;
-        let (tx, rx) = mpsc::channel();
-        std::thread::spawn(move || {
-            let mut cmd = std::process::Command::new("pwsh.exe");
-            cmd.arg("--version")
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::null());
-            let result = cmd
-                .output()
-                .map(|o| o.status.success())
-                .unwrap_or(false);
-            let _ = tx.send(result);
-        });
-        let pwsh7_present = rx.recv_timeout(Duration::from_millis(1500)).unwrap_or(false);
-        if pwsh7_present {
-            eprintln!("[pty] probe: using pwsh.exe (PowerShell 7)");
-            ("pwsh.exe", vec!["-NoLogo"])
+    let (program, args): (String, Vec<&str>) = {
+        if let Some(sh) = shell.as_deref().filter(|s| !s.trim().is_empty()) {
+            eprintln!("[pty] override: using requested shell {sh:?}");
+            (sh.trim().to_string(), vec!["-NoLogo"])
         } else {
-            eprintln!("[pty] probe: using powershell.exe (Windows PowerShell 5.1)");
-            ("powershell.exe", vec!["-NoLogo"])
+            use std::process::Stdio;
+            use std::sync::mpsc;
+            use std::time::Duration;
+            let (tx, rx) = mpsc::channel();
+            std::thread::spawn(move || {
+                let mut cmd = std::process::Command::new("pwsh.exe");
+                cmd.arg("--version")
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::null());
+                let result = cmd
+                    .output()
+                    .map(|o| o.status.success())
+                    .unwrap_or(false);
+                let _ = tx.send(result);
+            });
+            let pwsh7_present = rx.recv_timeout(Duration::from_millis(1500)).unwrap_or(false);
+            if pwsh7_present {
+                eprintln!("[pty] probe: using pwsh.exe (PowerShell 7)");
+                ("pwsh.exe".to_string(), vec!["-NoLogo"])
+            } else {
+                eprintln!("[pty] probe: using powershell.exe (Windows PowerShell 5.1)");
+                ("powershell.exe".to_string(), vec!["-NoLogo"])
+            }
         }
     };
     #[cfg(not(target_os = "windows"))]
-    let (program, args): (&str, Vec<&str>) = {
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string());
-        // Leak-safe: shell path comes from env, lifetime is the process. We
-        // can't easily avoid the allocation here without rewriting the API;
-        // accept the small leak per spawn.
-        let leaked: &'static str = Box::leak(shell.into_boxed_str());
-        (leaked, vec!["-l"])
+    let (program, args): (String, Vec<&str>) = {
+        let shell_prog = shell
+            .filter(|s| !s.trim().is_empty())
+            .map(|s| s.trim().to_string())
+            .unwrap_or_else(|| std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string()));
+        (shell_prog, vec!["-l"])
     };
 
     eprintln!("[pty] spawn_command: launching {} {:?}", program, args);
-    let mut cmd = CommandBuilder::new(program);
+    let mut cmd = CommandBuilder::new(&program);
     for a in args {
         cmd.arg(a);
     }
     if let Some(dir) = cwd.as_deref().filter(|d| !d.trim().is_empty()) {
         cmd.cwd(dir);
     }
+    // Advertise the terminal type so CLI tools pick color + key sequences that
+    // match xterm.js (git, bat, fzf, etc. all check TERM).
+    cmd.env("TERM", "xterm-256color");
 
     let child = pair
         .slave
@@ -175,33 +227,52 @@ pub fn spawn_terminal(
     eprintln!("[pty] take_writer: ok");
 
     // Reader thread: pump PTY → Channel. Runs until EOF (child exited) or
-    // error. On exit sends one PtyEvent::Exit so the frontend can render a
-    // "[process exited]" line. The thread owns its own clone of the reader;
-    // dropping the master (kill_terminal / app shutdown) causes read() to
-    // return 0 and the thread exits cleanly.
+    // error. On exit it reaps the child (try_wait) and sends one PtyEvent::Exit
+    // with the real exit code so the frontend can render it. The thread owns
+    // its own clone of the reader; dropping the master (kill_terminal / app
+    // shutdown) causes read() to return 0 and the thread exits cleanly.
     let reader = master
         .try_clone_reader()
         .map_err(|e| format!("try_clone_reader failed: {e}"))?;
     let exit_chan = on_event.clone();
+    let child_handle: Arc<Mutex<Box<dyn portable_pty::Child + Send + Sync>>> =
+        Arc::new(Mutex::new(child));
+    let reap = Arc::clone(&child_handle);
     std::thread::spawn(move || {
         let mut reader = reader;
         let mut buf = [0u8; 8192];
+        let mut pending: Vec<u8> = Vec::new();
         loop {
             match reader.read(&mut buf) {
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
-                    let s = String::from_utf8_lossy(&buf[..n]).into_owned();
-                    let _ = on_event.send(PtyEvent::Data(s));
+                    pending.extend_from_slice(&buf[..n]);
+                    let s = decode_chunk(&mut pending);
+                    if !s.is_empty() {
+                        let _ = on_event.send(PtyEvent::Data(s));
+                    }
                 }
             }
         }
-        let _ = exit_chan.send(PtyEvent::Exit(0));
+        // Reap the child for its real exit code. At EOF the process has (or is
+        // about to have) exited, so try_wait resolves without blocking in the
+        // common case. If the lock is held by a concurrent kill, or the status
+        // isn't observable, fall back to 0 — the exact code is best-effort.
+        let code = reap
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .try_wait()
+            .ok()
+            .flatten()
+            .map(|s| s.exit_code() as i32)
+            .unwrap_or(0);
+        let _ = exit_chan.send(PtyEvent::Exit(code));
     });
 
     let entry = TermEntry {
         master,
         writer,
-        _child: child,
+        child: child_handle,
     };
     state.0.lock().unwrap_or_else(|e| e.into_inner()).insert(id, entry);
     eprintln!("[pty] spawn_terminal: returning id={id}");
@@ -235,9 +306,13 @@ pub fn write_terminal(
 #[tauri::command]
 pub fn kill_terminal(state: tauri::State<'_, TermState>, id: u32) -> Result<(), String> {
     let entry = state.0.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
-    if let Some(mut entry) = entry {
+    if let Some(entry) = entry {
         std::thread::spawn(move || {
-            let _ = entry._child.kill();
+            let _ = entry
+                .child
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .kill();
         });
     }
     Ok(())
@@ -257,8 +332,12 @@ pub fn kill_all_terminals(state: tauri::State<'_, TermState>) -> Result<(), Stri
         .map(|(_, v)| v)
         .collect();
     std::thread::spawn(move || {
-        for mut entry in entries {
-            let _ = entry._child.kill();
+        for entry in entries {
+            let _ = entry
+                .child
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .kill();
         }
     });
     Ok(())

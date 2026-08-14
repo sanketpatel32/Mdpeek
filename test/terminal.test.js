@@ -37,6 +37,13 @@ vi.mock('@xterm/xterm', () => ({
     onResize() { return { dispose() {} }; }
     get cols() { return 80; }
     get rows() { return 24; }
+    paste() {}
+    hasSelection() { return false; }
+    getSelection() { return ''; }
+    get parser() {
+      return { registerOscHandler() {} };
+    }
+    attachCustomKeyEventHandler() {}
   },
 }));
 vi.mock('@xterm/addon-fit', () => ({
@@ -45,8 +52,24 @@ vi.mock('@xterm/addon-fit', () => ({
 vi.mock('@xterm/addon-web-links', () => ({
   WebLinksAddon: class { activate() {} dispose() {} },
 }));
+vi.mock('@xterm/addon-webgl', () => ({
+  WebglAddon: class {
+    activate() {}
+    dispose() {}
+    onContextLoss() {}
+  },
+}));
+vi.mock('@xterm/addon-search', () => ({
+  SearchAddon: class {
+    activate() {}
+    dispose() {}
+    findNext() {}
+    findPrevious() {}
+    clearActiveDecoration() {}
+  },
+}));
 
-import { readCssVar, xtermThemeFromApp } from '../src/views/terminal.js';
+import { readCssVar, xtermThemeFromApp, normalizeOscCwd } from '../src/views/terminal.js';
 
 beforeEach(() => {
   // Reset the :root inline style so each test starts from a clean slate.
@@ -132,5 +155,31 @@ describe('xtermThemeFromApp', () => {
       expect(typeof theme[slot]).toBe('string');
       expect(theme[slot].length).toBeGreaterThan(0);
     }
+  });
+});
+
+
+// v0.64.0: OSC cwd normalization (live working-directory tracking).
+// String.raw keeps the backslashes literal without escape-sequence gymnastics.
+describe('normalizeOscCwd', () => {
+  it('parses OSC 7 Windows drive paths (file://host/C:/…)', () => {
+    expect(normalizeOscCwd('file://desktop/C:/Users/sanpa/docs')).toBe(String.raw`C:\Users\sanpa\docs`);
+  });
+
+  it('parses OSC 7 Unix-style paths without converting separators', () => {
+    expect(normalizeOscCwd('file://wsl/home/user/projects')).toBe('/home/user/projects');
+  });
+
+  it('passes through bare OSC 9;9 Windows paths', () => {
+    expect(normalizeOscCwd(String.raw`C:\Users\sanpa\docs`)).toBe(String.raw`C:\Users\sanpa\docs`);
+  });
+
+  it('decodes percent-encoded characters', () => {
+    expect(normalizeOscCwd('file://host/C:/Users/My%20Docs')).toBe(String.raw`C:\Users\My Docs`);
+  });
+
+  it('returns empty string for empty input and tolerates malformed encoding', () => {
+    expect(normalizeOscCwd('')).toBe('');
+    expect(normalizeOscCwd('file://host/C:/bad/%e0%80')).toContain('C:');
   });
 });
