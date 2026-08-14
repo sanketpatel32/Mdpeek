@@ -138,12 +138,23 @@ export function replaceEmojis(text) {
 // text (the overwhelmingly common case). marked skips inline-text rendering
 // inside code spans (those are emitted as `codespan` tokens), so emoji
 // replacement naturally stays scoped to prose.
+//
+// IMPORTANT (v0.62.2 fix): a `text` token is not always flat. List-item bodies
+// arrive as a text token with a nested `tokens` array; the default renderer
+// parses those with `this.parser.parseInline(...)`. Returning just
+// `replaceEmojis(token.text)` for those tokens skipped the inline pass
+// entirely — every `**bold**`, `` `code` `` and link inside a list item was
+// emitted as literal source text. Preserve the nested-tokens branch and run
+// emoji replacement on whichever body we produce.
 export function markedEmojiExt() {
   return {
     async: false,
     renderer: {
-      text({ text }) {
-        return replaceEmojis(text);
+      text(token) {
+        const body = token.tokens && token.tokens.length
+          ? this.parser.parseInline(token.tokens)
+          : token.text;
+        return replaceEmojis(body);
       },
     },
   };

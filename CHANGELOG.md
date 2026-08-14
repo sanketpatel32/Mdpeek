@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.2] - 2026-08-14
+
+### Fixed - Markdown rendered as raw source in lists
+- **Root cause:** the emoji shortcode extension overrode marked's global
+  `text` renderer hook and returned plain text for every token. List-item
+  bodies arrive as text tokens carrying nested inline tokens; the default
+  renderer parses those with `parser.parseInline`. The override skipped that
+  branch entirely, so **every list item in every document rendered its inline
+  markdown as literal source** — `**bold**`, `` `code` ``, `[links]`, and
+  `*italics*` all showed raw since v0.36.0.
+- The renderer now preserves the nested-tokens branch (parseInline) and runs
+  emoji replacement on the result, so `:rocket:` shortcodes keep working both
+  in paragraphs and inside list items. Regression tests added covering bold,
+  code, links, italics, and emoji in unordered and ordered list items.
+
+### Improved - Settings dialog UI
+- Header action buttons (Export / Import) no longer flash destructive red on
+  hover — only "Reset to default" reads as a destructive action now.
+- Category sidebar is a recessed pane with a hairline divider (macOS System
+  Settings style) instead of floating buttons on the modal background.
+- Stacked setting cards within a panel have breathing room between them
+  instead of merging edge-to-edge.
+- Panel section labels are uppercase with a divider rule; content pane
+  contains overscroll.
+
 ## [0.62.1] - 2026-08-14
 
 ### Added - UI polish pass

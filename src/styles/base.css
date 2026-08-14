@@ -4460,13 +4460,25 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   cursor: pointer;
   transition: all var(--dur-1) ease;
 }
+/* Neutral hover for the routine actions; only Reset reads as destructive. */
 .settings-header-btn:hover {
   background: var(--surface-hover);
+  color: var(--fg);
+  border-color: var(--border);
+}
+.settings-header-btn:active {
+  transform: scale(0.97);
+}
+#settings-reset:hover {
   color: var(--danger);
   border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
 }
 .settings-header-btn svg {
   opacity: 0.8;
+}
+.settings-header-btn:hover svg {
+  opacity: 1;
 }
 .settings-close-btn {
   display: inline-flex;
@@ -4494,14 +4506,20 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   margin: 4px -4px 0;
 }
 
-/* Sidebar — vertical list of category buttons, like macOS System Settings. */
+/* Sidebar — vertical list of category buttons, like macOS System Settings.
+   v0.62.2: recessed pane background so the sidebar reads as a distinct region
+   instead of floating buttons, with a hairline divider toward the content. */
 .settings-sidebar {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding: 4px 10px 4px 4px;
+  padding: 8px 10px 8px 8px;
   height: 520px;
   max-height: calc(100vh - 180px);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  border-right: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  overflow-y: auto;
 }
 .settings-cat {
   display: flex;
@@ -4559,6 +4577,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   height: 520px;
   max-height: calc(100vh - 180px);
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .settings-panel {
@@ -4582,10 +4601,12 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   content: attr(data-cat);
   display: block;
   margin: 2px 2px 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
   font-size: 10.5px;
   font-weight: 700;
-  text-transform: capitalize;
-  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   color: var(--fg-muted);
 }
 .settings-panel[data-cat="shortcuts"]::before,
@@ -4600,6 +4621,10 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   overflow: hidden;
+}
+/* Breathing room between stacked cards within one panel. */
+.setting-card + .setting-card {
+  margin-top: 14px;
 }
 .setting-row {
   display: flex;
@@ -4692,6 +4717,11 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   .settings-sidebar {
     flex-direction: row;
     padding: 0 0 8px;
+    background: transparent;
+    border-right: none;
+    border-radius: 0;
+    height: auto;
+    max-height: none;
   }
   .settings-cat {
     flex: 1;
