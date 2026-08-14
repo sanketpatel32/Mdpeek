@@ -489,6 +489,52 @@
   --kanban-done:  #a6e3a1;
 }
 
+/* ---- OLED Black (v0.62.1) ----
+   True #000 base for OLED displays (every "dark" theme here is at least
+   #1c1c1e, so panels still glow on pure-black screens). Surfaces stay
+   near-black with just enough lift to keep hierarchy readable; the accent
+   is brightened vs the dark theme so it survives against #000. */
+:root[data-theme="oled"] {
+  --bg: #000000;
+  --bg-elevated: #0d0d0f;
+  --surface: #0d0d0f;
+  --surface-hover: #1a1a1e;
+  --surface-active: #26262b;
+
+  --fg: #f2f2f5;
+  --fg-secondary: #b0b0b8;
+  --fg-muted: #6a6a72;
+
+  --border: #1f1f24;
+  --border-subtle: #141418;
+
+  --accent: #4f9cf9;
+  --accent-hover: #7ab5fb;
+  --accent-soft: rgba(79, 156, 249, 0.16);
+  --danger: #ff5147;
+  --success: #3ddc84;
+
+  --code-bg: #0a0a0c;
+  --code-border: #1f1f24;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.6);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.65);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.8);
+
+  --sw-bg: #000000;
+  --sw-accent: #4f9cf9;
+
+  --alert-note: #58a6ff;        --alert-note-bg: rgba(88, 166, 255, 0.1);
+  --alert-tip: #3ddc84;         --alert-tip-bg: rgba(61, 220, 132, 0.1);
+  --alert-important: #bc8cff;   --alert-important-bg: rgba(188, 140, 255, 0.1);
+  --alert-warning: #e3b341;     --alert-warning-bg: rgba(227, 179, 65, 0.1);
+  --alert-caution: #ff6b63;     --alert-caution-bg: rgba(255, 107, 99, 0.12);
+
+  --kanban-todo:  #58a6ff;
+  --kanban-doing: #e3b341;
+  --kanban-done:  #3ddc84;
+}
+
 /* Smooth theme switch — scoped to UI chrome only (NOT markdown content,
    which is re-rendered on every keystroke in edit mode and would flicker
    as fresh elements animate their color/background from initial values). */

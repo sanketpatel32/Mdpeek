@@ -28,7 +28,7 @@
       <div id="collab-status" class="collab-status hidden" role="status" aria-live="polite" title="Live collaboration — click to open panel">
         <span class="collab-dot" aria-hidden="true"></span>
         <span class="collab-text">Live</span>
-        <button id="collab-end" class="collab-end" type="button" title="End session" aria-label="End collaboration session">×</button>
+        <button id="collab-end" class="collab-end" type="button" title="End session" aria-label="End collaboration session"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
 
       <!-- Pomodoro timer pill (v0.33.0) — mirrors the collab pill. Hidden until
@@ -37,7 +37,7 @@
       <div id="pomo-status" class="pomo-status hidden" role="status" aria-live="polite" title="Pomodoro timer">
         <span id="pomo-dot" class="pomo-dot pomo-dot-focus" aria-hidden="true"></span>
         <span id="pomo-time" class="pomo-time">25:00</span>
-        <button id="pomo-toggle" class="pomo-toggle" type="button" title="Start/pause" aria-label="Start or pause Pomodoro">▶</button>
+        <button id="pomo-toggle" class="pomo-toggle" type="button" title="Start/pause" aria-label="Start or pause Pomodoro"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg></button>
       </div>
 
       <span class="header-spacer" data-tauri-drag-region></span>
@@ -251,7 +251,7 @@
               <aside id="editor-outline" class="editor-outline hidden" aria-label="Document outline">
                 <div class="editor-outline-header">
                   <span class="editor-outline-title">Outline</span>
-                  <button id="editor-outline-close" class="editor-outline-close" type="button" title="Hide outline" aria-label="Hide outline">✕</button>
+                  <button id="editor-outline-close" class="editor-outline-close" type="button" title="Hide outline" aria-label="Hide outline"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                 </div>
                 <div id="editor-outline-body" class="editor-outline-body"></div>
               </aside>
@@ -261,7 +261,7 @@
               <aside id="doc-stats" class="doc-stats hidden" aria-label="Document statistics">
                 <div class="doc-stats-header">
                   <span class="doc-stats-title">Statistics</span>
-                  <button id="doc-stats-close" class="doc-stats-close" type="button" title="Hide statistics" aria-label="Hide statistics">✕</button>
+                  <button id="doc-stats-close" class="doc-stats-close" type="button" title="Hide statistics" aria-label="Hide statistics"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                 </div>
                 <div id="doc-stats-body" class="doc-stats-body"></div>
               </aside>
@@ -283,12 +283,12 @@
           <div class="terminal-left-group">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
             <div id="terminal-tabs" class="terminal-tabs"></div>
-            <button id="terminal-new-tab" class="terminal-action-btn" type="button" title="New Terminal Tab">+</button>
+            <button id="terminal-new-tab" class="terminal-action-btn" type="button" title="New Terminal Tab"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
           </div>
           <div class="terminal-actions">
             <span id="terminal-pwd" class="terminal-pwd"></span>
             <button id="terminal-clear-btn" class="terminal-action-btn" type="button" title="Clear terminal (Ctrl+L)">Clear</button>
-            <button id="terminal-close-btn" class="terminal-action-btn" type="button" title="Close terminal (Ctrl+`)">✕</button>
+            <button id="terminal-close-btn" class="terminal-action-btn" type="button" title="Close terminal (Ctrl+`)"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
           </div>
         </div>
         <div id="terminal-body" class="terminal-body" tabindex="0">
@@ -854,6 +854,17 @@
                         </div>
                       </div>
                       <span class="theme-name">Catppuccin</span>
+                      <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </button>
+                    <button class="theme-card" type="button" data-theme="oled" role="radio" aria-checked="false">
+                      <div class="theme-swatch" data-sw="oled" aria-hidden="true">
+                        <div class="swatch-header"></div>
+                        <div class="swatch-body">
+                          <div class="swatch-line long"></div>
+                          <div class="swatch-line short"></div>
+                        </div>
+                      </div>
+                      <span class="theme-name">OLED Black</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </button>
                   </div>

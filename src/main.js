@@ -133,6 +133,7 @@ const HLJS_FOR_THEME = {
   'github-dark': 'hljs-dark',
   'tokyo-night': 'hljs-dark',
   catppuccin: 'hljs-dracula',
+  oled: 'hljs-dark',
 };
 const DEFAULT_THEME = 'light';
 
@@ -177,7 +178,7 @@ function renderWelcome() {
           <div class="welcome-brand-info">
             <div class="welcome-title-row">
               <h1 class="welcome-title">mdpeek</h1>
-              <span class="version-badge">v0.29.2</span>
+              <span class="version-badge">v${BUILD_VERSION || ''}</span>
             </div>
             <p class="welcome-tagline">Featherlight file viewer & Markdown editor</p>
           </div>
@@ -4140,6 +4141,13 @@ let _pomoInterval = null;
 function pomoEnsureLoaded() {
   if (!_pomoState) _pomoState = pomoLoad();
 }
+// v0.62.1: lucide-style SVGs for the pomodoro toggle (replaces the old text
+// ▶/⏸ glyphs, which rendered inconsistently across fonts/sizes).
+const POMO_PLAY_SVG =
+  '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>';
+const POMO_PAUSE_SVG =
+  '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><rect x="5" y="4" width="4" height="16" rx="1"/><rect x="15" y="4" width="4" height="16" rx="1"/></svg>';
+
 function pomoSyncUi() {
   pomoEnsureLoaded();
   if (!el.pomoStatus) return;
@@ -4153,7 +4161,7 @@ function pomoSyncUi() {
     el.pomoDot.className = 'pomo-dot ' + (_pomoState.phase === 'focus' ? 'pomo-dot-focus' : 'pomo-dot-break');
   }
   el.pomoStatus.classList.toggle('running', _pomoState.running);
-  if (el.pomoToggle) el.pomoToggle.textContent = _pomoState.running ? '⏸' : '▶';
+  if (el.pomoToggle) el.pomoToggle.innerHTML = _pomoState.running ? POMO_PAUSE_SVG : POMO_PLAY_SVG;
 }
 
 function pomoStartTicker() {
@@ -4807,7 +4815,7 @@ function pinCurrentDocTheme() {
   if (!doc || !doc.path) { toast('Save the document first to pin a theme to it'); return; }
   const current = getDocTheme(doc.path, localStorage) || (localStorage.getItem('mdpeek-theme') || 'light');
   const raw = window.prompt(
-    `Pin a theme to "${basename(doc.path)}".\nTheme id (light, dark, dracula, nord, solar-light, solar-dark, github, github-dark, tokyo-night, catppuccin):`,
+    `Pin a theme to "${basename(doc.path)}".\nTheme id (light, dark, dracula, nord, solar-light, solar-dark, github, github-dark, tokyo-night, catppuccin, oled):`,
     current,
   );
   if (raw === null) return;

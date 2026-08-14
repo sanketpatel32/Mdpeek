@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.1] - 2026-08-14
+
+### Added - UI polish pass
+- **New "OLED Black" theme.** True `#000` base for OLED displays (every
+  previous dark theme was at least `#1c1c1e`, so panels still glowed).
+  Near-black elevated surfaces, brightened accent, registered in all theme
+  lists (settings grid + swatch, hljs mapping, Excalidraw/tldraw dark sets,
+  per-doc pin prompt).
+- **Global keyboard focus rings.** One `:focus-visible` rule now covers every
+  interactive control in the app (previously only 8 scattered rules existed —
+  keyboard users got almost no focus feedback). Uses the theme accent.
+
+### Changed - Consistency & micro-interactions
+- **Tactile button press feedback**: a subtle fast scale-down on `:active` for
+  every button without its own press style (zero-specificity `:where()` rule,
+  so existing styled buttons are untouched). Disabled under
+  `prefers-reduced-motion`.
+- **Icon consistency**: replaced the literal `✕`/`×`/`+`/`▶`/`⏸` text glyphs
+  (collab pill, pomodoro toggle, editor outline/doc-stats close buttons,
+  terminal actions) with lucide-style inline SVGs matching the rest of the
+  app. The pomodoro play/pause now swaps SVGs instead of text glyphs.
+- **Terminal action buttons** restyled to match the `.tool-btn` vocabulary
+  (consistent sizing, hover surface, transitions).
+- **Welcome screen**: brand title hierarchy strengthened (24px/700), tagline
+  promoted to secondary color, recents rows get a hover surface lift + accent
+  left rail, tab hover→active state changes now transition smoothly.
+- File-tree empty state no longer uses inline styles (moved to CSS classes).
+
+### Fixed
+- **Welcome screen version badge showed a hardcoded `v0.29.2`** — never
+  updated since v0.29. Now renders the actual build version from package.json.
+
+
 ## [0.62.0] - 2026-08-14
 
 ### Added - Advanced markdown features

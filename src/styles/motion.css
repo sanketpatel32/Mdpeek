@@ -251,4 +251,8 @@
   .theme-card:hover {
     transform: none;
   }
+  /* v0.62.1: the new global press-scale feedback (base.css) too. */
+  :where(button):not(.no-press):active {
+    transform: none;
+  }
 }

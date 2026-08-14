@@ -22,7 +22,7 @@ async function ensureCss() {
 
 // Classify an mdpeek app theme into Excalidraw's two-theme system.
 // Excalidraw only supports 'light' | 'dark', so we map each of our 10 themes.
-const DARK_THEMES = new Set(['dark', 'solar-dark', 'dracula', 'nord', 'github-dark', 'tokyo-night', 'catppuccin']);
+const DARK_THEMES = new Set(['dark', 'solar-dark', 'dracula', 'nord', 'github-dark', 'tokyo-night', 'catppuccin', 'oled']);
 function excalidrawThemeFor(appTheme) {
   return DARK_THEMES.has(appTheme) ? 'dark' : 'light';
 }

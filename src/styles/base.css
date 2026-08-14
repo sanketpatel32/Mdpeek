@@ -30,6 +30,27 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* v0.62.1: global keyboard focus ring. One rule covers every interactive
+   control (the app previously had only a handful of scattered :focus-visible
+   rules, so keyboard users got almost no feedback). Uses the theme accent so
+   it adapts to all themes. :where() keeps specificity at 0 so any element
+   that defines its own focus style still wins. Buttons that render their own
+   ring (e.g. segmented controls) aren't harmed — outline is only applied on
+   :focus-visible, never mouse clicks. */
+:where(button, a[href], input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm, 4px);
+}
+
+/* v0.62.1: tactile press feedback on every button. Fast, subtle scale-down
+   with a snappy transition. Excluded under prefers-reduced-motion (see
+   motion.css). Buttons whose :active state is already styled with transforms
+   or background changes still compose fine — scale is additive. */
+:where(button):not(.no-press):active {
+  transform: scale(0.96);
+}
+
 /* ---------- App header ----------
    v0.32.0 "calm glass": frosted translucent surface (backdrop-blur), hairline
    bottom border, generous spacing. The translucency lets content subtly bleed
@@ -431,6 +452,19 @@ main {
   color: var(--fg-muted);
   font-size: 12px;
   line-height: 1.5;
+}
+/* v0.62.1: the empty-state copy/button previously carried inline styles
+   (src/views/file-tree.js); centralized here with the token scale. */
+.tree-empty-text {
+  margin: 0 0 var(--sp-2, 10px) 0;
+}
+.tree-empty-btn {
+  margin: 0;
+  width: 100%;
+  padding: 6px 12px;
+  font-size: 12px;
+  justify-content: center;
+  gap: 6px;
 }
 .tree-root-label {
   padding: 4px 14px 8px;
@@ -1085,11 +1119,13 @@ mark.find-current {
   color: var(--fg-muted);
 }
 .editor-outline-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: none;
   color: var(--fg-muted);
   cursor: pointer;
-  font-size: 12px;
   width: 18px;
   height: 18px;
   border-radius: var(--radius-sm);
@@ -1893,9 +1929,10 @@ mark.find-current {
   gap: 8px;
 }
 .welcome-title {
-  font-size: 21px;
-  font-weight: 600;
-  letter-spacing: -0.025em;
+  /* v0.62.1: larger/tighter for a clearer brand hierarchy. */
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
   color: var(--fg);
   margin: 0;
   line-height: 1.2;
@@ -1909,12 +1946,13 @@ mark.find-current {
   border-radius: 10px;
   letter-spacing: 0.03em;
   border: 1px solid var(--border-subtle);
+  font-variant-numeric: tabular-nums;
 }
 .welcome-tagline {
-  font-size: 12px;
-  margin: 3px 0 0;
+  font-size: 12.5px;
+  margin: 4px 0 0;
   line-height: 1.4;
-  color: var(--fg-muted);
+  color: var(--fg-secondary);
 }
 
 .welcome-actions {
@@ -2106,10 +2144,17 @@ mark.find-current {
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background-color 120ms var(--ease);
+  transition: background-color var(--dur-2) var(--ease),
+    box-shadow var(--dur-2) var(--ease);
 }
+/* v0.62.1: hover affordance — surface lift + accent left rail so the recents
+   column reads as interactive, matching the file-tree row treatment. */
 .recent-item:hover {
   background: var(--surface-hover);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.recent-item:hover .recent-name {
+  color: var(--fg);
 }
 .recent-icon {
   flex-shrink: 0;
@@ -2308,6 +2353,9 @@ mark.find-current {
   -webkit-user-select: none;
   user-select: none;
   flex-shrink: 0;
+  /* v0.62.1: smooth the hover→active state change (was an instant swap). */
+  transition: background-color var(--dur-2) var(--ease),
+    color var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease);
 }
 .tab:hover {
   background: var(--surface-hover);
@@ -2588,6 +2636,7 @@ mark.find-current {
 .theme-swatch[data-sw="github-dark"] { --sw-bg: #0d1117; --sw-header: #21262d; --sw-accent: #58a6ff; --sw-fg: #c9d1d9; }
 .theme-swatch[data-sw="tokyo-night"] { --sw-bg: #1a1b26; --sw-header: #24283b; --sw-accent: #7aa2f7; --sw-fg: #c0caf5; }
 .theme-swatch[data-sw="catppuccin"]  { --sw-bg: #1e1e2e; --sw-header: #313244; --sw-accent: #cba6f7; --sw-fg: #cdd6f4; }
+.theme-swatch[data-sw="oled"]       { --sw-bg: #000000; --sw-header: #0d0d0f; --sw-accent: #4f9cf9; --sw-fg: #f2f2f5; }
 
 /* ---------- Theme grid (Settings → Appearance) ----------
    v0.34.1: this rule is intentionally MORE specific (`.setting-row` AND
@@ -4100,13 +4149,18 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 .pomo-dot-break { background: var(--success); }
 .pomo-status.running .pomo-dot-focus { animation: dot-pulse 1.5s ease-in-out infinite; }
 .pomo-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: transparent;
   color: var(--accent);
-  font-size: 13px;
   cursor: pointer;
-  padding: 0 2px;
+  padding: 2px;
   line-height: 1;
+}
+.pomo-toggle svg {
+  display: block;
 }
 
 /* ---- Calendar ---- */
@@ -5248,14 +5302,27 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   align-items: center;
   gap: 6px;
 }
+/* v0.62.1: restyled to match the .tool-btn vocabulary (icon-sized, centered,
+   consistent hover surface) — previously a bare text-style button that read as
+   visually distinct from every other toolbar in the app. */
 .terminal-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   background: transparent;
   border: none;
   color: var(--fg-muted);
   font-size: 11px;
-  padding: 2px 8px;
+  line-height: 1;
+  padding: 4px 8px;
   border-radius: var(--radius-sm);
   cursor: pointer;
+  transition: background-color var(--dur-2) var(--ease),
+    color var(--dur-2) var(--ease);
+}
+.terminal-action-btn svg {
+  display: block;
 }
 .terminal-action-btn:hover {
   background: var(--surface-hover);

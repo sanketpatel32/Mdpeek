@@ -50,7 +50,7 @@ async function ensureCss() {
 
 // Collapse the app's 10 themes into TLDraw's two-mode system. Same set as the
 // Excalidraw viewer so the two canvases agree on light/dark for a given theme.
-const DARK_THEMES = new Set(['dark', 'solar-dark', 'dracula', 'nord', 'github-dark', 'tokyo-night', 'catppuccin']);
+const DARK_THEMES = new Set(['dark', 'solar-dark', 'dracula', 'nord', 'github-dark', 'tokyo-night', 'catppuccin', 'oled']);
 function tldrawThemeFor(appTheme) {
   return DARK_THEMES.has(appTheme) ? 'dark' : 'light';
 }
