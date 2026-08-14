@@ -19,7 +19,7 @@
   <body>
     <header class="app-header" data-tauri-drag-region>
       <div id="tab-strip-container" class="tab-strip-container">
-        <div id="tab-strip" class="tab-strip">
+        <div id="tab-strip" class="tab-strip" role="tablist" aria-label="Open tabs">
           <span class="tab-indicator is-hidden" aria-hidden="true"></span>
         </div>
         <button id="tab-new" class="tab-new" title="New tab (Ctrl+N)" aria-label="New tab"><span data-icon="plus" data-icon-size="14"></span></button>
@@ -36,8 +36,11 @@
            the full timer controls live. -->
       <div id="pomo-status" class="pomo-status hidden" role="status" aria-live="polite" title="Pomodoro timer">
         <span id="pomo-dot" class="pomo-dot pomo-dot-focus" aria-hidden="true"></span>
+        <span id="pomo-phase-label" class="pomo-phase-label">Focus</span>
         <span id="pomo-time" class="pomo-time">25:00</span>
+        <button id="pomo-skip" class="pomo-toggle" type="button" title="Skip to next phase" aria-label="Skip phase"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><polygon points="5 4 15 12 5 20 5 4"/><rect x="17" y="4" width="2.5" height="16" rx="1"/></svg></button>
         <button id="pomo-toggle" class="pomo-toggle" type="button" title="Start/pause" aria-label="Start or pause Pomodoro"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg></button>
+        <button id="pomo-reset" class="pomo-toggle" type="button" title="Reset session" aria-label="Reset Pomodoro session"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/></svg></button>
       </div>
 
       <span class="header-spacer" data-tauri-drag-region></span>
@@ -218,6 +221,9 @@
           <div id="reading-progress" class="reading-progress" aria-hidden="true"><div class="reading-progress-bar"></div></div>
           <aside id="toc" class="toc" aria-label="Table of contents"></aside>
           <article id="document" class="markdown-body"></article>
+          <button id="back-to-top" class="back-to-top hidden" type="button" title="Back to top" aria-label="Back to top">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+          </button>
         </main>
 
         <main id="edit-mode" class="edit-mode hidden">
@@ -360,7 +366,7 @@
       <div class="slide-stage"></div>
       <button class="slide-arrow next" type="button" title="Next (→)" aria-label="Next slide">›</button>
       <!-- v0.40.0: speaker-notes panel. Hidden by default; toggle with N.
-           Populated per-slide from note: lines / <!-- note: --> comments. -->
+           Populated per-slide from "note:" lines and [note: ...] comments. -->
       <div class="speaker-notes hidden" role="note" aria-label="Speaker notes">
         <div class="speaker-notes-label">Speaker notes</div>
         <div class="speaker-notes-body"></div>
@@ -563,10 +569,14 @@
       <div class="workspace-panel" data-mode="tasks">
         <div class="tasks-shell">
           <div class="tasks-toolbar">
+            <select id="tasks-filter" class="setting-select" aria-label="Filter tasks">
+              <option value="open">Open</option>
+              <option value="done">Done</option>
+              <option value="all">All</option>
+            </select>
             <select id="tasks-sort" class="setting-select" aria-label="Sort tasks">
               <option value="created">Newest first</option>
               <option value="source">By source</option>
-              <option value="due">By due date</option>
               <option value="status">By status</option>
             </select>
             <span id="tasks-summary" class="tasks-summary">—</span>
@@ -590,6 +600,9 @@
         <div class="graph-shell">
           <div class="graph-header">
             <span id="graph-summary" class="graph-summary">—</span>
+            <label class="graph-opt" title="Hide notes with no links">
+              <input type="checkbox" id="graph-hide-orphans"> Hide unlinked
+            </label>
           </div>
           <svg id="graph-svg" class="graph-canvas" role="img" aria-label="Note graph"></svg>
         </div>
@@ -1177,6 +1190,18 @@
                     <input type="checkbox" id="settings-feature-pomodoro" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
+                </div>
+                <div class="setting-row">
+                  <div class="setting-text">
+                    <div class="setting-label">Pomodoro durations</div>
+                    <div class="setting-desc">Minutes for focus / break / long break, and a long break every N breaks</div>
+                  </div>
+                  <div class="pomo-duration-grid">
+                    <input type="number" min="1" max="180" step="1" id="settings-pomo-focus" aria-label="Focus minutes" title="Focus (minutes)" />
+                    <input type="number" min="1" max="60" step="1" id="settings-pomo-break" aria-label="Break minutes" title="Break (minutes)" />
+                    <input type="number" min="1" max="90" step="1" id="settings-pomo-longbreak" aria-label="Long break minutes" title="Long break (minutes)" />
+                    <input type="number" min="1" max="12" step="1" id="settings-pomo-long-every" aria-label="Long break every N breaks" title="Long break every N breaks" />
+                  </div>
                 </div>
                 <div class="setting-row">
                   <div class="setting-text">

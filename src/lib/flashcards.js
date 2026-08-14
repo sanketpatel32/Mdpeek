@@ -134,7 +134,9 @@ function looksLikeQuestion(text) {
 
 function makeCard(sourceKey, line, syntax, question, answer) {
   return {
-    key: `${sourceKey}:${line}`,
+    // v0.67.0: key on content, not line number — inserting a line above a card
+    // used to orphan its SRS history (ease/interval/reps silently reset).
+    key: `${sourceKey}:${question}`,
     question,
     answer,
     line,

@@ -209,7 +209,7 @@ function run() {
   // its React tree.
   if (mode === 'canvas') {
     matchIdx = -1;
-    matches = [];
+    marks = [];
     updateCount();
     input.classList.toggle('no-match', query !== '');
     return;
@@ -622,20 +622,27 @@ function isOpen() {
   return overlay && !overlay.classList.contains('hidden');
 }
 
-function open() {
+// v0.67.0: open(seedQuery, { focus }) — folder-search passes the clicked
+// match so the bar opens pre-filled for the in-document jump (this API was
+// missing entirely; every folder-search result click threw a TypeError).
+function open(seedQuery, { focus = true } = {}) {
   if (!overlay) build();
   overlay.classList.remove('hidden');
-  // Seed the query from the current selection — only if the input is empty
-  // (so Ctrl+F twice doesn't overwrite what the user is typing).
-  if (input.value === '') {
+  if (seedQuery) {
+    input.value = query = seedQuery;
+  } else if (input.value === '') {
+    // Seed the query from the current selection — only if the input is empty
+    // (so Ctrl+F twice doesn't overwrite what the user is typing).
     const seed = readSelectionSeed();
     if (seed) {
       input.value = seed;
       query = seed;
     }
   }
-  input.focus();
-  input.select();
+  if (focus) {
+    input.focus();
+    input.select();
+  }
   run();
 }
 
@@ -794,5 +801,5 @@ export function initFindBar(accessors) {
   created = true;
   ctx = { ...ctx, ...accessors };
   build();
-  return { close, toggle, refresh, setCaseSensitive, setRegex, setWholeWord, openReplace, findNext: () => step(true), findPrev: () => step(false) };
+  return { close, toggle, open, refresh, setCaseSensitive, setRegex, setWholeWord, openReplace, findNext: () => step(true), findPrev: () => step(false) };
 }

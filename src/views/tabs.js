@@ -29,23 +29,33 @@ export function renderTabs(store) {
       const active = d.id === store.activeId ? ' active' : '';
       const pinned = d.pinned ? ' pinned' : '';
       const shared = d.shared ? ' shared' : '';
-      const dirty = d.dirty ? '<span class="tab-dot" title="Unsaved changes">●</span>' : '';
+      // v0.67.0: dot modifiers — a shared+dirty tab used to render two
+      // identically-green dots (the shared tint overrode the dirty one).
+      const dirty = d.dirty ? '<span class="tab-dot tab-dot--dirty" title="Unsaved changes">●</span>' : '';
       // Shared docs show a green "live" dot so the collab state is visible at a
       // glance even when there are no unsaved changes.
-      const sharedDot = d.shared ? '<span class="tab-dot" title="Live collaboration">●</span>' : '';
+      const sharedDot = d.shared ? '<span class="tab-dot tab-dot--shared" title="Live collaboration">●</span>' : '';
       const icon = iconFor(d);
       const title = escapeHtml(titleFor(d));
       // Pinned tabs: title is hidden via CSS; the close × is also hidden (you
       // unpin via the context menu, not by closing). Title attribute still
       // carries the filename so hover-tooltips keep working.
-      return `<div class="tab${active}${pinned}${shared}" data-id="${d.id}" title="${escapeHtml(d.path || (d.shared ? 'Shared document' : 'Untitled'))}">
+      // v0.67.0: role=tab + roving tabindex (arrows/Enter handled in
+      // main.js), draggable for drag-to-reorder, and the close affordance is
+      // a real focusable <button>.
+      return `<div class="tab${active}${pinned}${shared}" data-id="${d.id}" role="tab" aria-selected="${active ? 'true' : 'false'}" tabindex="${active ? '0' : '-1'}" draggable="true" title="${escapeHtml(d.path || (d.shared ? 'Shared document' : 'Untitled'))}">
         ${icon}<span class="tab-title">${title}</span>${dirty}${sharedDot}
-        <span class="tab-close" data-id="${d.id}" title="Close (Ctrl+W)">×</span>
+        <button class="tab-close" data-id="${d.id}" type="button" title="Close (Ctrl+W)" aria-label="Close tab">×</button>
       </div>`;
     })
     .join('');
 
   strip.innerHTML = html;
+  // Keep the roving tabindex honest across re-renders: exactly one tab (the
+  // active one, or the first) is tabbable.
+  const tabs = strip.querySelectorAll('.tab');
+  tabs.forEach((t) => { t.tabIndex = t.classList.contains('active') ? 0 : -1; });
+  if (tabs.length && ![...tabs].some((t) => t.tabIndex === 0)) tabs[0].tabIndex = 0;
 
   // Auto-scroll the active tab into view so switching to a tab that's scrolled
   // out of view brings it visible.

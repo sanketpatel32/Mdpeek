@@ -87,6 +87,23 @@ describe('diffLines', () => {
   });
 });
 
+describe('diffLines — ignoreWhitespace (v0.67.0)', () => {
+  it('treats reindented lines as equal when enabled', () => {
+    const oldText = 'a\nb\n  c\n';
+    const newText = 'a\n    b\nc   \n';
+    const plain = diffLines(oldText, newText);
+    expect(plain.stats.added + plain.stats.removed).toBeGreaterThan(0);
+    const ws = diffLines(oldText, newText, { ignoreWhitespace: true });
+    expect(ws.stats.added).toBe(0);
+    expect(ws.stats.removed).toBe(0);
+  });
+
+  it('still reports real changes with ignoreWhitespace on', () => {
+    const ws = diffLines('alpha\nbeta\n', 'alpha\ngamma\n', { ignoreWhitespace: true });
+    expect(ws.stats).toEqual({ added: 1, removed: 1 });
+  });
+});
+
 describe('formatDiffStats', () => {
   it('returns "no changes" for a zero diff', () => {
     expect(formatDiffStats({ added: 0, removed: 0 })).toBe('no changes');

@@ -12,7 +12,7 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { escapeHtml } from '../lib/escape.js';
 import { classifyPasswordError } from '../lib/pdf-auth.js';
-import { clampPage, calculateActivePage, calculateZoomScale } from '../lib/pdf-nav.js';
+import { clampPage } from '../lib/pdf-nav.js';
 
 // Render scale relative to the app's zoom level.
 function getScale(container) {
@@ -235,6 +235,9 @@ export async function showPdf(container, filePath) {
           current = parseInt(page.dataset.pageNum, 10);
         } else break;
       }
+      // v0.67.0: keep the page input in sync while scrolling — the prev/next
+      // buttons compute from it, so a stale value jumped you back to page 2.
+      if (pageInput) pageInput.value = String(current);
       if (badge) {
         badge.textContent = `${current} / ${pdfDoc.numPages}`;
         badge.classList.remove('hidden', 'fading');

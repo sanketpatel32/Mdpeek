@@ -16,6 +16,14 @@ let _container = null;     // the DOM element we render into
 let _activePath = null;    // file path that should render as active
 let _onOpenFile = null;    // callback: (path) => void
 let _expanded = new Set(); // directory paths the user has expanded
+// v0.67.0: expansion state persists per root so deep vaults survive restarts
+// and folder re-picks (previously collapsed back to nothing).
+const TREE_EXPANDED_KEY = 'mdpeek-tree-expanded:';
+
+function saveExpanded() {
+  if (!_root) return;
+  try { localStorage.setItem(TREE_EXPANDED_KEY + _root, JSON.stringify([..._expanded])); } catch { /* quota */ }
+}
 
 // ---------- public API ----------
 export function initFileTree(container, onOpenFile) {
@@ -24,6 +32,12 @@ export function initFileTree(container, onOpenFile) {
   // One delegated click handler covers every row — rows are added/removed
   // constantly as the user expands/collapses, so per-row listeners would leak.
   _container.addEventListener('click', onTreeClick);
+  // v0.67.0: keyboard navigation — ArrowUp/Down move focus, Enter/Space
+  // activate, ArrowRight/Left expand/collapse (Left on a collapsed dir's row
+  // goes to its parent). Rows carry tabindex=-1 with a roving tabindex=0.
+  _container.addEventListener('keydown', onTreeKeydown);
+  _container.setAttribute('role', 'tree');
+  _container.setAttribute('aria-label', 'File explorer');
   renderEmpty();
 }
 
@@ -32,6 +46,15 @@ export function setTreeRoot(path) {
   _expanded.clear();
   if (path) {
     _expanded.add(path); // root is always expanded
+    // v0.67.0: restore this root's persisted expansion state.
+    try {
+      const saved = JSON.parse(localStorage.getItem(TREE_EXPANDED_KEY + path) || '[]');
+      if (Array.isArray(saved)) {
+        for (const ep of saved) {
+          if (typeof ep === 'string' && ep !== path && ep.startsWith(path)) _expanded.add(ep);
+        }
+      }
+    } catch { /* ignore corrupt state */ }
   }
   render();
 }
@@ -109,6 +132,9 @@ async function render() {
   _container.innerHTML = '';
   _container.appendChild(frag);
   reapplyActive();
+  // Exactly one row starts tabbable (roving tabindex).
+  const firstRow = _container.querySelector('.tree-row');
+  if (firstRow) firstRow.tabIndex = 0;
 }
 
 function headerRow() {
@@ -126,6 +152,10 @@ function rowFor(entry, depth) {
   row.className = `tree-row ${entry.is_dir ? 'is-dir' : 'is-file'}`;
   row.dataset.path = entry.path;
   row.dataset.kind = entry.is_dir ? 'dir' : 'file';
+  row.dataset.depth = String(depth); // depthOf() reads this (see below)
+  row.tabIndex = -1; // roving tabindex — see focusRow / onTreeKeydown
+  row.setAttribute('role', 'treeitem');
+  if (entry.is_dir) row.setAttribute('aria-expanded', _expanded.has(entry.path) ? 'true' : 'false');
   row.style.paddingLeft = `${depth * 14 + 10}px`;
   const chevron = entry.is_dir ? '<svg class="tree-chevron" viewBox="0 0 16 16" width="10" height="10" aria-hidden="true"><polyline points="6 4 10 8 6 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '<span class="tree-chevron-spacer"></span>';
   const icon = entry.is_dir ? dirIcon() : fileIcon(entry.name);
@@ -147,6 +177,8 @@ function fileIcon(name) {
 async function onTreeClick(e) {
   const row = e.target.closest('.tree-row');
   if (!row) return;
+  // Clicking a row also focuses it (rows are keyboard-focusable now).
+  focusRow(row);
   const path = row.dataset.path;
   const kind = row.dataset.kind;
   if (kind === 'file') {
@@ -163,7 +195,9 @@ async function onTreeClick(e) {
 
 async function expandDir(row, path) {
   _expanded.add(path);
+  saveExpanded();
   row.classList.add('expanded');
+  row.setAttribute('aria-expanded', 'true');
   row.querySelector('.tree-chevron')?.classList.add('open');
   // Append a loading placeholder, then replace with the real entries.
   const depth = depthOf(row);
@@ -193,7 +227,9 @@ async function expandDir(row, path) {
 
 function collapseDir(row, path) {
   _expanded.delete(path);
+  saveExpanded();
   row.classList.remove('expanded');
+  row.setAttribute('aria-expanded', 'false');
   row.querySelector('.tree-chevron')?.classList.remove('open');
   // Remove every descendant row until we hit a sibling at the same/lower depth.
   const depth = depthOf(row);
@@ -209,9 +245,63 @@ function collapseDir(row, path) {
 }
 
 function depthOf(row) {
-  // Recover depth from paddingLeft — the only place it's encoded.
+  // v0.67.0: depth is carried on the row's dataset. The old paddingLeft
+  // arithmetic silently broke if the CSS padding ever changed.
+  const d = parseInt(row.dataset.depth, 10);
+  if (Number.isFinite(d)) return d;
   const px = parseFloat(row.style.paddingLeft) || 0;
   return Math.max(0, Math.round((px - 10) / 14));
+}
+
+// Roving-tabindex focus helper for keyboard navigation.
+function focusRow(row) {
+  if (!row) return;
+  _container.querySelectorAll('.tree-row').forEach((r) => { r.tabIndex = -1; });
+  row.tabIndex = 0;
+  if (typeof row.focus === 'function') row.focus();
+}
+
+function findParentRow(row) {
+  const depth = depthOf(row);
+  let cur = row.previousElementSibling;
+  while (cur && depthOf(cur) >= depth) cur = cur.previousElementSibling;
+  return cur && cur.classList.contains('tree-row') ? cur : null;
+}
+
+function onTreeKeydown(e) {
+  const row = e.target.closest ? e.target.closest('.tree-row') : null;
+  if (!row) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const rows = Array.from(_container.querySelectorAll('.tree-row'));
+    const next = rows[rows.indexOf(row) + (e.key === 'ArrowDown' ? 1 : -1)];
+    if (next) focusRow(next);
+  } else if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    if (row.dataset.kind === 'file') {
+      if (_onOpenFile) _onOpenFile(row.dataset.path);
+    } else if (_expanded.has(row.dataset.path)) {
+      collapseDir(row, row.dataset.path);
+    } else {
+      expandDir(row, row.dataset.path);
+    }
+  } else if (e.key === 'ArrowRight') {
+    if (row.dataset.kind === 'dir' && !_expanded.has(row.dataset.path)) {
+      e.preventDefault();
+      expandDir(row, row.dataset.path);
+    }
+  } else if (e.key === 'ArrowLeft') {
+    if (row.dataset.kind === 'dir' && _expanded.has(row.dataset.path)) {
+      e.preventDefault();
+      collapseDir(row, row.dataset.path);
+    } else {
+      const parent = findParentRow(row);
+      if (parent) {
+        e.preventDefault();
+        focusRow(parent);
+      }
+    }
+  }
 }
 function lastDescendantOf(row) {
   const depth = depthOf(row);

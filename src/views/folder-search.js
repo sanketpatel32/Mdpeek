@@ -51,19 +51,23 @@ let lastReplace = null;  // [{ path, oldContent }] for single-level undo, or nul
 let isDirtyCb = null;        // (path) => boolean — is this path an open tab with unsaved edits?
 let updateOpenDocCb = null;  // (path, newContent) => void — sync a clean open tab after write
 let lastResults = [];       // last search result set (for currentMatchPaths)
+let focusedGroupPath = null; // hovered/keyboard-selected file group (replace-focused-file)
+let selectedIdx = -1;        // keyboard-selected .search-match index
 
 // Build the DOM once. Idempotent — safe to call repeatedly.
 function build() {
   overlay = document.createElement('div');
   overlay.id = 'folder-search-overlay';
   overlay.className = 'folder-search-overlay hidden';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-label', 'Search in folder');
   overlay.innerHTML = `
     <div class="folder-search-card">
       <div class="folder-search-header">
         <span class="folder-search-folder" title="">Folder</span>
         <button class="folder-search-toggle tool-btn icon-only" id="folder-search-case" title="Match case" aria-label="Match case" aria-pressed="false">Aa</button>
         <input type="search" class="folder-search-input" placeholder="Search in folder…" aria-label="Search query" spellcheck="false" autocomplete="off" />
-        <span class="folder-search-count">0</span>
+        <span class="folder-search-count" aria-live="polite">0</span>
         <button class="folder-search-expand tool-btn icon-only" title="Toggle replace" aria-label="Toggle replace" type="button">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
@@ -107,12 +111,17 @@ function build() {
     debounceTimer = setTimeout(runSearch, 200);
   });
 
-  // Enter — run immediately (skip debounce).
+  // Enter — run immediately (skip debounce); with a keyboard selection
+  // active, Enter opens it (v0.67.0). ArrowDown/Up move the selection.
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      if (selectedIdx >= 0) { openSelected(); return; }
       clearTimeout(debounceTimer);
       runSearch();
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      moveSelection(e.key === 'ArrowDown' ? 1 : -1);
     } else if (e.key === 'Escape') {
       e.preventDefault();
       close();
@@ -151,18 +160,22 @@ function build() {
   });
 
   // Re-render results on replace-input change so the live preview updates.
+  // v0.67.0: debounced like the query input — runSearch is a full-folder grep
+  // and used to fire synchronously per keystroke.
   replaceInput.addEventListener('input', () => {
     if (replaceExpanded && query) {
-      runSearch();
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(runSearch, 200);
     }
   });
 
   // Close button.
   closeBtn.addEventListener('click', close);
 
-  // Click-outside dismiss (only when clicking the overlay itself, not a child).
-  overlay.addEventListener('mousedown', (e) => {
-    if (e.target === overlay) close();
+  // Click-outside dismiss (v0.67.0). The overlay card fills the panel, so the
+  // old e.target === overlay check could never fire — listen on the document.
+  document.addEventListener('mousedown', (e) => {
+    if (isOpen() && !overlay.contains(e.target)) close();
   });
 
   // Result click — delegated since the list re-renders constantly.
@@ -183,6 +196,39 @@ function build() {
     const line = parseInt(match.dataset.line, 10);
     if (path && onOpenCallback) onOpenCallback(path, line, query);
   });
+  // Track the hovered file group so "replace focused file" targets what the
+  // user is actually looking at (v0.67.0).
+  resultsEl.addEventListener('mouseover', (e) => {
+    const group = e.target.closest('.search-file-group');
+    if (group) focusedGroupPath = group.dataset.path;
+  });
+  resultsEl.setAttribute('role', 'listbox');
+}
+
+// v0.67.0: keyboard selection helpers for the results list.
+function visibleMatchRows() {
+  return resultsEl ? Array.from(resultsEl.querySelectorAll('.search-match')) : [];
+}
+
+function moveSelection(delta) {
+  const rows = visibleMatchRows();
+  if (rows.length === 0) return;
+  if (selectedIdx < 0 && delta < 0) selectedIdx = 0;
+  selectedIdx = Math.max(0, Math.min(rows.length - 1, selectedIdx + delta));
+  rows.forEach((r, i) => r.classList.toggle('selected', i === selectedIdx));
+  const sel = rows[selectedIdx];
+  if (sel && sel.scrollIntoView) sel.scrollIntoView({ block: 'nearest' });
+  const group = sel && sel.closest('.search-file-group');
+  if (group) focusedGroupPath = group.dataset.path;
+}
+
+function openSelected() {
+  const rows = visibleMatchRows();
+  const row = rows[selectedIdx];
+  if (!row) return;
+  const path = row.dataset.path;
+  const line = parseInt(row.dataset.line, 10);
+  if (path && onOpenCallback) onOpenCallback(path, line, query);
 }
 
 function setReplaceExpanded(on) {
@@ -194,6 +240,8 @@ function setReplaceExpanded(on) {
 
 async function runSearch() {
   if (!folderPath) return;
+  focusedGroupPath = null;
+  selectedIdx = -1;
   searchGen += 1;
   const myGen = searchGen;
   // Empty query → clear results, show empty state.
@@ -311,15 +359,6 @@ function escapeAttr(s) {
 // (search_in_folder returns one match per line), so multi-match lines are
 // undercounted in the preview — the true count comes from applyReplacements
 // on full file content at confirm time.
-function previewReplacement(line, query, replacement, caseSensitive) {
-  if (!query) return line;
-  const hay = caseSensitive ? line : line.toLowerCase();
-  const needle = caseSensitive ? query : query.toLowerCase();
-  const idx = hay.indexOf(needle);
-  if (idx === -1) return line;
-  return line.slice(0, idx) + replacement + line.slice(idx + needle.length);
-}
-
 // Collect the distinct file paths from the last search result set.
 function currentMatchPaths() {
   return lastResults.map((r) => r.path);
@@ -414,7 +453,9 @@ async function replaceAll() {
 async function replaceFocusedFile() {
   if (!folderPath || !query) return;
   if (lastResults.length === 0) return;
-  const target = lastResults[0].path;
+  // v0.67.0: target the hovered/keyboard-selected group — this used to always
+  // replace the FIRST result file, a dangerous default for a batch write.
+  const target = focusedGroupPath || lastResults[0].path;
   const saved = lastResults;
   lastResults = saved.filter((r) => r.path === target);
   try {

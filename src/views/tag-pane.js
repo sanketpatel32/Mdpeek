@@ -45,7 +45,8 @@ function build() {
   });
   // Esc closes (one-time listener — close() no-ops when hidden).
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && isOpen()) close();
+    // !defaultPrevented: dismissing a picker/modal Esc must not cascade.
+    if (e.key === 'Escape' && !e.defaultPrevented && isOpen()) close();
   });
 }
 

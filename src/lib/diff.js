@@ -53,12 +53,18 @@ function lcsTable(a, b) {
 
 // Diff two texts line-by-line. Returns { rows, stats } where stats is
 // { added, removed } (line counts). Pure; never throws.
-export function diffLines(oldText, newText) {
+export function diffLines(oldText, newText, { ignoreWhitespace = false } = {}) {
   const a = toLines(oldText);
   const b = toLines(newText);
+  // v0.67.0: optionally compare whitespace-normalized keys so pure reindents
+  // / trailing spaces don't flood the diff. Emitted rows keep the original
+  // text; only equality uses the keys.
+  const key = (l) => (ignoreWhitespace ? l.replace(/\s+/g, ' ').trim() : l);
+  const ak = a.map(key);
+  const bk = b.map(key);
   const m = a.length;
   const n = b.length;
-  const dp = lcsTable(a, b);
+  const dp = lcsTable(ak, bk);
   const rows = [];
   let added = 0;
   let removed = 0;
@@ -68,7 +74,7 @@ export function diffLines(oldText, newText) {
   // Emit deletions before additions at a given divergence so the viewer reads
   // naturally (old text removed, then new text inserted).
   while (i < m && j < n) {
-    if (a[i] === b[j]) {
+    if (ak[i] === bk[j]) {
       rows.push({ type: 'equal', oldLine: i + 1, newLine: j + 1, text: a[i] });
       i++; j++;
     } else if (dp[i + 1][j] >= dp[i][j + 1]) {

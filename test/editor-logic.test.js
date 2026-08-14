@@ -189,9 +189,43 @@ describe('autoPair', () => {
     expect(r.start).toBe(1);
   });
 
-  it('does not pair when there is a selection (let native wrap it)', () => {
+  it('wraps a selection in the pair (v0.67.0 — used to clobber it)', () => {
     const r = autoPair('abc', 0, 3, '(');
+    expect(r).toEqual({ text: '(abc)', start: 1, end: 4, handled: true });
+  });
+
+  it('wraps a selection in quotes', () => {
+    const r = autoPair('hello', 0, 5, '"');
+    expect(r).toEqual({ text: '"hello"', start: 1, end: 6, handled: true });
+  });
+
+  it('still lets a plain closer fall through over a selection', () => {
+    const r = autoPair('abc', 0, 3, ')');
     expect(r).toBe(null);
+  });
+});
+
+describe('handleEnter — task lists (v0.67.0)', () => {
+  it('carries the checkbox forward', () => {
+    const r = handleEnter('- [ ] buy milk', 14, 14);
+    expect(r.text).toBe('- [ ] buy milk\n- [ ] ');
+    expect(r.start).toBe(r.text.length);
+  });
+
+  it('clears a checked box when continuing', () => {
+    const r = handleEnter('- [x] done thing', 16, 16);
+    expect(r.text).toBe('- [x] done thing\n- [ ] ');
+  });
+
+  it('exits the list on an empty unchecked item', () => {
+    const r = handleEnter('- [ ] ', 6, 6);
+    expect(r.text).toBe('');
+    expect(r.start).toBe(0);
+  });
+
+  it('plain bullets still continue without a checkbox', () => {
+    const r = handleEnter('- item', 6, 6);
+    expect(r.text).toBe('- item\n- ');
   });
 });
 

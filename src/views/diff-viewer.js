@@ -21,8 +21,11 @@ let newHeadEl;     // .diff-pane-head-new
 let oldBodyEl;     // .diff-pane-old
 let newBodyEl;     // .diff-pane-new
 let applyBtn;      // .diff-apply
+let wsCheck;       // .diff-ws-check (v0.67.0)
 let newContent = '';
+let oldContent = '';
 let onApplyCb = null;
+let lastFocus = null; // element to refocus on close (v0.67.0)
 
 function esc(s) {
   return String(s ?? '')
@@ -45,6 +48,7 @@ function build() {
     +       '<span class="diff-title">Compare versions</span>'
     +       '<span class="diff-stats"></span>'
     +     '</div>'
+    +     '<label class="diff-ws-toggle" title="Treat lines that differ only in whitespace as equal"><input type="checkbox" class="diff-ws-check"> Ignore whitespace</label>'
     +     '<button class="diff-close" type="button" title="Close (Esc)" aria-label="Close diff view">✕</button>'
     +   '</header>'
     +   '<div class="diff-grid">'
@@ -69,6 +73,8 @@ function build() {
   oldBodyEl = overlay.querySelector('.diff-pane-old');
   newBodyEl = overlay.querySelector('.diff-pane-new');
   applyBtn = overlay.querySelector('.diff-apply');
+  wsCheck = overlay.querySelector('.diff-ws-check');
+  wsCheck?.addEventListener('change', renderDiff);
   overlay.querySelector('.diff-close').addEventListener('click', close);
   applyBtn.addEventListener('click', () => {
     if (onApplyCb) onApplyCb(newContent);
@@ -139,25 +145,42 @@ export function initDiffViewer() {
 // onApply(newText) is called if the user clicks "Use this version".
 function open(opts = {}) {
   if (!created) return;
-  const oldC = opts.oldContent ?? '';
+  oldContent = opts.oldContent ?? '';
   newContent = opts.newContent ?? '';
   onApplyCb = typeof opts.onApply === 'function' ? opts.onApply : null;
-  const { rows, stats } = diffLines(oldC, newContent);
   if (opts.title) titleEl.textContent = opts.title;
-  statsEl.textContent = formatDiffStats(stats);
   oldHeadEl.textContent = opts.oldLabel || 'Old';
   newHeadEl.textContent = opts.newLabel || 'Current';
-  renderPane(oldBodyEl, rows, 'old');
-  renderPane(newBodyEl, rows, 'new');
-  // Only show "Use this version" when there's a caller to apply to + changes exist.
-  applyBtn.hidden = !onApplyCb || (stats.added === 0 && stats.removed === 0);
+  renderDiff();
+  // v0.67.0: move focus into the dialog (it stayed on the background trigger)
+  // and restore it on close.
+  lastFocus = document.activeElement;
   overlay.classList.remove('hidden');
+  const closeBtn = overlay.querySelector('.diff-close');
+  if (closeBtn) closeBtn.focus();
   // Reset scroll to the top so re-opening lands at the first change.
   oldBodyEl.scrollTop = 0;
   newBodyEl.scrollTop = 0;
 }
 
+// Run the diff + repaint both panes. Called by open() and by the
+// ignore-whitespace toggle (v0.67.0).
+function renderDiff() {
+  const { rows, stats } = diffLines(oldContent, newContent, {
+    ignoreWhitespace: !!(wsCheck && wsCheck.checked),
+  });
+  statsEl.textContent = formatDiffStats(stats);
+  renderPane(oldBodyEl, rows, 'old');
+  renderPane(newBodyEl, rows, 'new');
+  // Only show "Use this version" when there's a caller to apply to + changes exist.
+  applyBtn.hidden = !onApplyCb || (stats.added === 0 && stats.removed === 0);
+}
+
 function close() {
   if (!created || !overlay) return;
   overlay.classList.add('hidden');
+  if (lastFocus && lastFocus.focus) {
+    try { lastFocus.focus(); } catch { /* detached */ }
+    lastFocus = null;
+  }
 }

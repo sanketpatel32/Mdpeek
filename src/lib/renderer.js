@@ -853,7 +853,8 @@ export function renderCsv(text, opts = {}) {
   const toolbar =
     `<div class="csv-toolbar">` +
     `<input class="csv-filter" type="search" placeholder="Filter rows…" aria-label="Filter rows" spellcheck="false" />` +
-    `<span class="csv-count" data-total="${total}">${total} rows</span>` +
+    `<button class="tool-btn csv-copy-btn" type="button" title="Copy the visible (filtered/sorted) rows as a Markdown table">Copy as Markdown</button>` +
+    `<span class="csv-count" data-total="${total}" aria-live="polite">${total} rows</span>` +
     `</div>`;
   const raw = `<div class="csv-viewer-inner">${toolbar}${renderCsvTable(rows)}</div>`;
   return DOMPurify.sanitize(raw);

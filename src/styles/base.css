@@ -113,7 +113,7 @@ body {
   color: var(--fg-secondary);
   cursor: default;
   -webkit-app-region: no-drag;
-  transition: background-color 120ms var(--ease), color 120ms var(--ease);
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
 }
 .window-btn:hover {
   background: var(--surface-hover);
@@ -164,6 +164,12 @@ body.focus-mode .app-header,
 body.focus-mode #toc,
 body.focus-mode #file-tree {
   display: none;
+}
+/* v0.67.0: side panes start at the header height — with the header hidden in
+   focus mode they must start at 0 or they leave a dead gap. */
+body.focus-mode .tag-pane,
+body.focus-mode .reference-pane {
+  top: 0;
 }
 
 /* ---------- Toolbar ---------- */
@@ -447,7 +453,7 @@ main {
   background: transparent;
   color: var(--fg-muted);
   cursor: pointer;
-  transition: background-color 120ms var(--ease), color 120ms var(--ease);
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
 }
 .file-tree-action-btn:hover {
   background: var(--surface-hover);
@@ -496,7 +502,7 @@ main {
   cursor: pointer;
   color: var(--fg-secondary);
   white-space: nowrap;
-  transition: background-color 80ms var(--ease), color 80ms var(--ease);
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
 }
 .tree-row:hover {
   background: var(--surface-hover);
@@ -513,7 +519,7 @@ main {
 .tree-chevron {
   flex-shrink: 0;
   color: var(--fg-muted);
-  transition: transform 140ms var(--ease);
+  transition: transform var(--dur-2) var(--ease-out);
 }
 .tree-chevron.open {
   transform: rotate(90deg);
@@ -734,7 +740,7 @@ main {
   margin-left: auto;
   color: var(--fg-muted);
   opacity: 0.8;
-  transition: color 0.15s ease;
+  transition: color var(--dur-1) var(--ease-out);
 }
 .editor-status .save-status[data-state="saving"] {
   color: var(--accent);
@@ -827,8 +833,8 @@ main {
   overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md, 8px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
   padding: 4px;
   font-size: 13px;
 }
@@ -961,6 +967,12 @@ main {
 }
 .find-overlay.hidden {
   display: none !important;
+}
+@keyframes pane-in-left {
+  from { transform: translateX(-16px); opacity: 0; }
+}
+@keyframes pane-in-right {
+  from { transform: translateX(16px); opacity: 0; }
 }
 @keyframes find-in {
   from { opacity: 0; transform: translateY(-6px); }
@@ -1702,7 +1714,8 @@ mark.find-current {
   transition: background-color 100ms var(--ease, ease);
   border-left: 2px solid transparent;
 }
-.search-match:hover {
+.search-match:hover,
+.search-match.selected {
   background: var(--surface-hover);
   border-left-color: var(--accent);
 }
@@ -2480,7 +2493,7 @@ mark.find-current {
 }
 /* Shared/collab tabs get a green dot + a subtle "(shared)" suffix on the
    title to make the live-collab state visible at a glance. */
-.tab.shared .tab-dot {
+.tab .tab-dot--shared {
   color: var(--success);
 }
 .tab.shared .tab-title::after {
@@ -2495,14 +2508,19 @@ mark.find-current {
   justify-content: center;
   width: 18px;
   height: 18px;
+  padding: 0;
+  border: none;
   border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
   font-size: 15px;
   line-height: 1;
   color: var(--fg-muted);
   opacity: 0;
   transform: scale(0.7);
-  transition: opacity 150ms var(--ease), transform 150ms var(--ease),
-    background-color 120ms var(--ease), color 120ms var(--ease);
+  cursor: pointer;
+  transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
 }
 .tab:hover .tab-close,
 .tab.active .tab-close {
@@ -3699,7 +3717,7 @@ body.presenting #slideshow { display: flex; }
   color: var(--fg-secondary);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background-color 120ms var(--ease), color 120ms var(--ease);
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
 }
 .pdf-tool-btn:hover {
   background: var(--surface-hover);
@@ -4364,6 +4382,15 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   font-size: 16px;
   font-weight: 600;
   text-align: center;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.calendar-header .cal-label:hover {
+  color: var(--accent);
+}
+.calendar-header .cal-label:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 .calendar-grid {
   display: grid;
@@ -5686,7 +5713,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   font-weight: 500;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: background-color 120ms var(--ease), color 120ms var(--ease);
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
 }
 .terminal-tab:hover {
   background: var(--surface-hover);
@@ -5824,7 +5851,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
    command palette. Clicking a chip pre-seeds folder-search. */
 .tag-pane {
   position: fixed;
-  top: 48px;            /* below the header */
+  top: var(--header-h);            /* below the header */
   left: 0;
   bottom: 0;
   width: 260px;
@@ -5835,6 +5862,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  animation: pane-in-left var(--dur-3) var(--ease-out);
 }
 .tag-pane.hidden { display: none; }
 .tag-pane-header {
@@ -5912,7 +5940,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
    src/views/reference-pane.js. */
 .reference-pane {
   position: fixed;
-  top: 48px;
+  top: var(--header-h);
   right: 0;
   bottom: 0;
   width: 38%;
@@ -5925,6 +5953,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  animation: pane-in-right var(--dur-3) var(--ease-out);
 }
 .reference-pane.hidden { display: none; }
 .ref-header {
@@ -6335,3 +6364,99 @@ body.minimal-mode #collab-status { display: none !important; }
 .wf-count { color: var(--fg-secondary); font-variant-numeric: tabular-nums; text-align: right; font-weight: 600; }
 .wf-empty { padding: 32px 16px; text-align: center; color: var(--fg-muted); font-size: 13px; }
 .wf-empty.hidden { display: none; }
+
+/* v0.67.0 additions --------------------------------------------------------- */
+
+.pomo-phase-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+.pomo-duration-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.pomo-duration-grid input {
+  width: 100%;
+  min-width: 0;
+  padding: 5px 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  text-align: center;
+}
+.pomo-duration-grid input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+
+.graph-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.graph-opt input {
+  accent-color: var(--accent);
+}
+
+.back-to-top {
+  position: fixed;
+  right: 28px;
+  bottom: 52px;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--fg-secondary);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-spring);
+}
+.back-to-top:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+  transform: translateY(-2px);
+}
+.back-to-top:active {
+  transform: translateY(0) scale(0.94);
+}
+.back-to-top:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.diff-ws-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.diff-ws-toggle input {
+  accent-color: var(--accent);
+}
+
+/* Tree rows are keyboard-focusable now (roving tabindex). */
+.tree-row:focus-visible {
+  outline: none;
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+}

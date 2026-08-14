@@ -49,7 +49,8 @@ function build() {
   refreshBtn.addEventListener('click', () => render());
   closeBtn.addEventListener('click', close);
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && isOpen()) close();
+    // !defaultPrevented: dismissing a picker/modal Esc must not cascade.
+    if (e.key === 'Escape' && !e.defaultPrevented && isOpen()) close();
   });
 }
 

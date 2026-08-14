@@ -81,7 +81,9 @@ export function buildToc(root) {
   headings.forEach((h, i) => {
     const id = h.id || `h-${i}`;
     h.id = id;
-    items.push(`<li class="toc-${h.tagName.toLowerCase()}"><a href="#${id}">${h.textContent}</a></li>`);
+    // v0.67.0: escape both the text and the href id — heading text used to be
+    // re-injected into innerHTML raw, re-arming markup DOMPurify had removed.
+    items.push(`<li class="toc-${h.tagName.toLowerCase()}"><a href="#${encodeURIComponent(id)}">${escapeHtml(h.textContent)}</a></li>`);
   });
   tocEl.innerHTML = `<ul>${items.join('')}</ul>`;
 }

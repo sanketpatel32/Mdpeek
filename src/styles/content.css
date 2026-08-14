@@ -918,9 +918,11 @@
 
 /* ----------------------------- PDF viewer -------------------------------- */
 /* The PDF container (renders stacked <canvas> pages, one per <div.pdf-page>). */
-.markdown-body.pdf-viewer {
+#document.pdf-viewer {
   padding: 24px 0 80px;
   background: var(--surface);
+  /* v0.67.0: the sticky toolbar overlays scrollIntoView('start') targets. */
+  scroll-padding-top: 48px;
 }
 .pdf-loading,
 .pdf-error {
@@ -979,7 +981,7 @@
   font: inherit;
   font-size: 13.5px;
   outline: none;
-  transition: border-color 120ms var(--ease, ease);
+  transition: border-color var(--dur-1) var(--ease-out);
 }
 .pdf-unlock-input:focus {
   border-color: var(--accent);
@@ -1325,7 +1327,7 @@
   user-select: none;
   white-space: nowrap;
   border-bottom: 1px solid var(--border);
-  transition: background-color 120ms var(--ease, ease);
+  transition: background-color var(--dur-1) var(--ease-out);
 }
 .csv-table th:hover {
   background: var(--surface-hover);
@@ -1407,7 +1409,7 @@
   background: var(--bg-elevated);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
-  transition: max-height 160ms var(--ease, ease), max-width 160ms var(--ease, ease);
+  transition: max-height var(--dur-2) var(--ease-out), max-width var(--dur-2) var(--ease-out);
 }
 /* Actual-size mode: drop the max constraints so the image renders 1:1, scaled by zoom. */
 .image-viewer-wrap[data-state="actual"] .image-viewer-img {
@@ -1529,11 +1531,11 @@
   word-break: break-word;
 }
 .nb-output-stream pre { color: var(--fg-muted); }
-.nb-output-stderr pre { color: #d33; }
+.nb-output-stderr pre { color: var(--danger); }
 .nb-output-error {
-  background: rgba(220, 50, 47, 0.08);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
 }
-.nb-output-error pre { color: #b00; }
+.nb-output-error pre { color: var(--danger); }
 .nb-output-data {
   display: grid;
   grid-template-columns: 84px 1fr;
@@ -1575,7 +1577,7 @@
   border-radius: var(--radius-md);
   background: #000;
   box-shadow: var(--shadow-md);
-  transition: max-height 160ms var(--ease, ease), max-width 160ms var(--ease, ease);
+  transition: max-height var(--dur-2) var(--ease-out), max-width var(--dur-2) var(--ease-out);
 }
 .media-audio-card {
   display: flex;
@@ -1706,7 +1708,7 @@
   padding: 6px 16px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-sm);
   font-size: 13px;
   color: var(--fg);
 }
@@ -1728,7 +1730,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background 120ms ease;
+  transition: background var(--dur-1) var(--ease-out);
 }
 .pdf-toolbar-btn:hover {
   background: var(--surface-hover);
@@ -1749,26 +1751,3 @@
   color: var(--fg-muted);
 }
 
-/* v0.57.0: Code copy button */
-.code-copy-btn {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  height: 24px;
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg);
-  color: var(--fg-muted);
-  font-size: 11px;
-  cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 120ms ease, background 120ms ease;
-}
-pre:hover .code-copy-btn {
-  opacity: 1;
-}
-.code-copy-btn.copied {
-  color: var(--accent);
-  border-color: var(--accent);
-}

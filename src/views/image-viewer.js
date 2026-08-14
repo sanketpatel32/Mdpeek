@@ -21,7 +21,7 @@ export function showImage(container, filePath) {
   // Build the DOM: image + overlay canvas + filename pill. The wrap is the
   // click-to-zoom surface (matches the original inline implementation).
   container.innerHTML =
-    `<div class="image-viewer-wrap" data-state="fit">
+    `<div class="image-viewer-wrap" data-state="fit" role="button" tabindex="0" aria-label="Toggle fit / actual size">
        <div class="image-canvas-stage">
          <img class="image-viewer-img" alt="${escapeAttr(name)}" draggable="false" />
          <canvas class="image-annot-overlay" aria-hidden="true"></canvas>
@@ -37,13 +37,34 @@ export function showImage(container, filePath) {
   let controller = null;
   let destroyed = false;
 
-  // Click toggles fit-to-window ↔ actual-size (only when NOT drawing).
-  wrap.addEventListener('click', () => {
+  const metaEl = container.querySelector('.image-viewer-meta');
+  // v0.67.0: meta pill shows dimensions + the current zoom mode, not just
+  // the filename.
+  const updateMeta = () => {
+    if (!metaEl) return;
+    const w = img.naturalWidth;
+    const h = img.naturalHeight;
+    const dim = w && h ? ` · ${w}×${h}` : '';
+    const zoom = wrap.dataset.state === 'fit' ? ' · Fit' : ' · 100%';
+    metaEl.textContent = `${name}${dim}${zoom}`;
+  };
+  img.addEventListener('load', updateMeta, { once: true });
+
+  // Click (or Enter/Space — the wrap is a focusable button now) toggles
+  // fit-to-window ↔ actual-size. No-op while drawing.
+  const toggleFit = () => {
     if (drawMode) return;
-    const isFit = wrap.dataset.state === 'fit';
-    wrap.dataset.state = isFit ? 'actual' : 'fit';
+    wrap.dataset.state = wrap.dataset.state === 'fit' ? 'actual' : 'fit';
+    updateMeta();
     // Re-fit the canvas after a layout change.
     requestAnimationFrame(resizeCanvas);
+  };
+  wrap.addEventListener('click', toggleFit);
+  wrap.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggleFit();
+    }
   });
 
   // ---------- canvas sizing ----------
@@ -110,7 +131,6 @@ export function showImage(container, filePath) {
       // multiplies lineWidth by dpr * (scale/1.5); we want strokes to render
       // at the same physical proportions, so compute the equivalent scale.
       const displayWidth = img.getBoundingClientRect().width || img.naturalWidth;
-      const scaleForNatural = (img.naturalWidth / displayWidth) * 1.5 / (window.devicePixelRatio || 1);
       for (const stroke of strokes) {
         drawStrokeAtNaturalSize(ctx, stroke);
       }

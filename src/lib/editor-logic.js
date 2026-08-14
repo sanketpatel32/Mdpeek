@@ -87,8 +87,9 @@ export function handleEnter(text, start, end) {
   const lineUpToCaret = text.slice(lineStart, start);
 
   // 1) Empty list item ("- " with nothing after) → exit the list: delete marker.
+  //    An empty task item ("- [ ] ") also exits.
   const m = lineUpToCaret.match(LIST_RE);
-  if (m && lineUpToCaret === m[1] + m[2]) {
+  if (m && (lineUpToCaret === m[1] + m[2] || lineUpToCaret === m[1] + m[2] + '[ ] ')) {
     const out = text.slice(0, lineStart) + text.slice(start); // drop the marker
     return { text: out, start: lineStart, end: lineStart };
   }
@@ -98,8 +99,11 @@ export function handleEnter(text, start, end) {
   if (m) {
     const indent = m[1];
     const marker = m[2];
+    // v0.67.0: task-list items carry their checkbox forward
+    // ("- [ ] task" + Enter → "- [ ] "). Cleared checkbox always ([ ]).
+    const taskMatch = lineUpToCaret.slice(m[0].length).match(/^\[[ xX]\]\s+/);
     const next = incrementMarker(marker);
-    const insert = '\n' + indent + next;
+    const insert = '\n' + indent + next + (taskMatch ? '[ ] ' : '');
     return { text: text.slice(0, start) + insert + text.slice(start), start: start + insert.length, end: start + insert.length };
   }
 
@@ -241,6 +245,18 @@ const QUOTES = new Set(['"', "'", '`']);
 // Decide what to do when the user types `char` at [start,end).
 // Returns null if we should let the browser handle it natively.
 export function autoPair(text, start, end, char) {
+  // v0.67.0: selection + opener (bracket or quote) → wrap the selection in the
+  // pair instead of replacing it (the classic "["-to-link workflow).
+  if ((PAIRS[char] || QUOTES.has(char)) && start !== end) {
+    const closer = PAIRS[char] || char;
+    return {
+      text: text.slice(0, start) + char + text.slice(start, end) + closer + text.slice(end),
+      start: start + 1,
+      end: end + 1,
+      handled: true,
+    };
+  }
+
   // Skip-over: typing a closer when the next char is that closer → move caret +1.
   if (CLOSERS.has(char) || QUOTES.has(char)) {
     if (start === end && text[start] === char) {

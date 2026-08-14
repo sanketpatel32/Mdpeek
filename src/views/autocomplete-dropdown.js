@@ -52,6 +52,8 @@ function build() {
 // fresh (no stale items, no leftover selection).
 function hide() {
   if (dropdown) dropdown.classList.add('hidden');
+  const ta = ctx && ctx.getEditor && ctx.getEditor().textarea ? ctx.getEditor().textarea() : null;
+  if (ta) ta.setAttribute('aria-expanded', 'false');
   active = null;
   items = [];
   selected = 0;
@@ -102,12 +104,17 @@ function positionAtCaret(textarea) {
   // coordinate frame.
   const left = taRect.left + (mRect.left - mirror.getBoundingClientRect().left) + 2;
   const top = taRect.top + (mRect.top - mirror.getBoundingClientRect().top) + mRect.height + 2;
-  // Clamp into the viewport so the dropdown never overflows the bottom edge.
+  // Clamp horizontally; flip ABOVE the caret line when the dropdown would
+  // overflow the bottom edge (v0.67.0 — clamping used to cover the caret).
   const ddRect = dropdown.getBoundingClientRect();
   const maxLeft = window.innerWidth - ddRect.width - 8;
-  const maxTop = window.innerHeight - ddRect.height - 8;
   dropdown.style.left = Math.max(8, Math.min(left, maxLeft)) + 'px';
-  dropdown.style.top = Math.max(8, Math.min(top, maxTop)) + 'px';
+  const caretTop = taRect.top + (mRect.top - mirror.getBoundingClientRect().top);
+  if (top + ddRect.height > window.innerHeight - 8) {
+    dropdown.style.top = Math.max(8, caretTop - ddRect.height - 8) + 'px';
+  } else {
+    dropdown.style.top = Math.max(8, top) + 'px';
+  }
 }
 
 function render() {
@@ -116,10 +123,13 @@ function render() {
   listEl.innerHTML = items.map((it, i) => {
     const cls = i === selected ? 'ac-item active' : 'ac-item';
     const hint = it.hint ? `<span class="ac-hint">${escapeHtml(it.hint)}</span>` : '';
-    return `<li class="${cls}" role="option" data-i="${i}">` +
+    return `<li class="${cls}" role="option" aria-selected="${i === selected ? 'true' : 'false'}" data-i="${i}">` +
       `<span class="ac-label">${escapeHtml(it.display)}</span>${hint}</li>`;
   }).join('');
   dropdown.classList.remove('hidden');
+  // v0.67.0: combobox semantics on the textarea.
+  const ta = ctx.getEditor && ctx.getEditor().textarea ? ctx.getEditor().textarea() : null;
+  if (ta) ta.setAttribute('aria-expanded', 'true');
 }
 
 function escapeHtml(s) {
@@ -146,6 +156,9 @@ function accept() {
   const text = editor.getValue();
   const { start } = active;
   const caret = editor.getState().end;
+  // v0.67.0: bail when the caret moved back before the trigger (arrows don't
+  // refresh the dropdown) — accepting used to splice the wrong range.
+  if (caret < start) { hide(); return false; }
   const { text: next, caret: newCaret } = acceptSuggestion(text, start, caret, pick.value);
   editor.replaceRange(start, caret, next.slice(start, newCaret));
   editor.setState({ start: newCaret, end: newCaret });
@@ -213,6 +226,15 @@ export function initAutocomplete(accessors) {
   created = true;
   ctx = { ...ctx, ...accessors };
   build();
+  // v0.67.0: click outside (window-level) hides the dropdown — it used to
+  // stay floating after clicking the toolbar/preview until the next keystroke.
+  window.addEventListener('pointerdown', (e) => {
+    if (!dropdown || dropdown.classList.contains('hidden')) return;
+    if (dropdown.contains(e.target)) return;
+    const ta = ctx.getEditor && ctx.getEditor().textarea ? ctx.getEditor().textarea() : null;
+    if (ta && ta.contains && ta.contains(e.target)) return;
+    hide();
+  });
   // Click an item to accept it. The dropdown is non-focusable; clicks bubble.
   dropdown.addEventListener('mousedown', (e) => {
     // mousedown so we can preventDefault and keep focus on the textarea.

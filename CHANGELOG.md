@@ -7,6 +7,96 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.67.0] - 2026-08-14
+
+Feature loop: four parallel audits (editing surface, navigation/reference,
+document viewers, workspace hub) turned into fixes + capabilities across the
+whole app.
+
+### Fixed - behavior bugs
+- Accepting an autocomplete suggestion with Tab/Enter no longer double-fires
+  the editor's own key handler (it inserted a stray indent/newline).
+- Folder-search "jump to in-document match" threw a TypeError every time —
+  the find bar's `open(query, { focus })` API was missing entirely.
+- Find bar on canvas tabs (Excalidraw/TLDraw): an undeclared variable threw
+  on Ctrl+H and F3, freezing the bar.
+- Notebook viewer: an inverted guard meant async-loaded language grammars
+  (rare kernels) never re-rendered their code cells.
+- TOC built heading text into innerHTML unescaped — markup DOMPurify had
+  removed from the document body could re-execute from the TOC.
+- PDF prev/next buttons jumped back to page ~2 after manual scrolling (they
+  read a stale page input); the input now tracks the visible page, and page
+  jumps clear the sticky toolbar.
+- Esc dismissing a picker no longer cascades through to close the reference
+  or tag pane behind it.
+- Folder-search: the replace field re-grepped the whole folder per keystroke
+  (now debounced); "click outside to dismiss" was dead code; Alt+Enter
+  "replace focused file" always replaced the FIRST result file — it now
+  targets the hovered/keyboard-selected file.
+- CSV viewer announced "ascending" on every column of a sorted table.
+- Editor gutter line numbers jumped to the top after any line-count change.
+- Smart-key edits (auto-pair, Tab indent, list continuation, Ctrl+B) wiped
+  the native undo stack — edits now land via an undoable path so Ctrl+Z
+  works.
+- Review: flashcards written in heading syntax ("## What is X?") were never
+  discovered; card scheduling state was keyed by line number, so inserting a
+  line above a card reset its whole SRS history (now content-keyed).
+- Review hints lied about intervals ("Again" showed "<1m"; it schedules
+  +1 day) — hints now show the real next interval, and the session-complete
+  date is locale-formatted.
+- Pomodoro drifted when minimized to tray (WebView2 throttles background
+  timers) — ticks now use wall-clock elapsed time.
+- Tasks inbox counted sample checkboxes inside fenced code blocks and
+  toggling them rewrote code samples.
+- Moving a Kanban card destroyed its creation timestamp (old cards read
+  "just now" and reshuffled); moves are recorded separately now.
+- Quick capture left the calendar's word-count memo stale.
+- Shared+dirty tabs rendered two identically-green dots; the dots are now
+  distinguished (dirty = accent, shared = green).
+- A nested HTML comment tripped the build's HTML parser.
+
+### Added
+- Editor: typing a bracket or quote over a selection wraps it (the classic
+  "["-to-link workflow); Enter on a task-list item carries `[ ] ` forward;
+  IME composition is no longer hijacked.
+- Review sessions are keyboard-operable: Space/Enter reveals, 1-4 rate;
+  "Again" re-queues the card later in the session (once).
+- Pomodoro: phase label + skip/reset buttons on the pill, and configurable
+  focus/break/long-break/every-N durations in Settings → Features.
+- Tasks inbox: Open/Done/All filter (completed cards were previously
+  invisible); the dead "By due date" sort option was removed.
+- Kanban cards are keyboard-operable: arrows move between columns, Enter
+  edits, Delete removes.
+- Tab strip: role=tab semantics, roving tabindex with arrow-key focus,
+  Enter/Space activation, a focusable close button, and drag-to-reorder.
+- File tree: full keyboard navigation (arrows/Enter/Space), treeitem roles,
+  and expansion state persists per folder across restarts.
+- CSV viewer: "Copy as Markdown" copies the visible (filtered/sorted) rows
+  as a GFM table.
+- Diff viewer: "Ignore whitespace" toggle + focus moved into the dialog and
+  restored on close.
+- Image viewer: keyboard-toggle fit/actual size; the meta pill shows
+  dimensions and the current zoom mode.
+- Graph: "Hide unlinked" toggle; re-layouts on window resize.
+- Calendar: click the month label for a month/year jump picker.
+- Folder-search results are keyboard-navigable (arrows + Enter) with a
+  visible selection; match counts are announced to screen readers.
+- Back-to-top floating button for long documents.
+- Autocomplete: dropdown flips above the caret near the viewport bottom,
+  hides on outside clicks, refuses stale accepts after caret moves, and
+  exposes combobox semantics (aria-expanded/aria-selected).
+
+### Changed
+- Tag/reference panes align under the header token (were 4px off), start at
+  the top in focus mode, and slide in like the find bar.
+- `--radius-md` token defined (was silently undefined in three viewers);
+  PDF viewer container rule fixed (was dead) and notebook error output uses
+  theme danger tokens.
+- Duration/easing token sweep across tree, tabs, tag chips, CSV/PDF/image/
+  media viewers; PDF toolbar shadow tokenized.
+- Removed dead code: orphaned code-copy module (+ its CSS block + tests),
+  unused PDF-viewer imports, unreachable folder-search preview helper.
+
 ## [0.66.0] - 2026-08-14
 
 Feature-UI sweep across the workspace hub and overlays: every remaining

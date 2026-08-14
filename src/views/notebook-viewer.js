@@ -31,7 +31,9 @@ export function showNotebook(container, content) {
   // register async; we render immediately with plaintext then re-render.
   let renderedLang = language;
   prepareCodeLang(language).then((ready) => {
-    if (destroyed || ready) return;
+    // v0.67.0: fixed inverted guard — re-render only when the grammar DID
+    // land async (ensureLang resolves true on success).
+    if (destroyed || !ready) return;
     // Re-render once the language grammar lands.
     renderCells();
   });

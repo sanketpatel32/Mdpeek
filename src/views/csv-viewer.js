@@ -17,6 +17,7 @@ export function initCsvViewer(container, rows) {
 
   const filterInput = container.querySelector('.csv-filter');
   const countEl = container.querySelector('.csv-count');
+  const copyBtn = container.querySelector('.csv-copy-btn');
   const tbody = container.querySelector('.csv-table tbody');
   const ths = container.querySelectorAll('.csv-table th');
 
@@ -85,8 +86,7 @@ export function initCsvViewer(container, rows) {
       const isActive = i === sortCol && sortDir !== 'none';
       th.dataset.state = isActive ? sortDir : 'none';
       th.setAttribute('aria-sort',
-        sortDir === 'asc' ? 'ascending' :
-        sortDir === 'desc' ? 'descending' : 'none');
+        isActive ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none');
       if (ind) ind.textContent = isActive ? (sortDir === 'asc' ? '▲' : '▼') : '';
     });
   }
@@ -138,6 +138,23 @@ export function initCsvViewer(container, rows) {
   tableEl.addEventListener('click', onHeaderClick);
   tableEl.addEventListener('keydown', onHeaderKey);
   if (filterInput) filterInput.addEventListener('input', onFilterInput);
+
+  // v0.67.0: copy the visible (filtered + sorted) rows as a GFM Markdown
+  // table — the usual reason to sort/filter a CSV is to take the result out.
+  copyBtn?.addEventListener('click', async () => {
+    const esc = (v) => String(v ?? '').replace(/\|/g, '\\|');
+    const lines = [];
+    lines.push(`| ${header.map((h) => esc(h)).join(' | ')} |`);
+    lines.push(`| ${header.map(() => '---').join(' | ')} |`);
+    for (const row of computeRows()) {
+      lines.push(`| ${header.map((_, i) => esc(row[i])).join(' | ')} |`);
+    }
+    try {
+      await navigator.clipboard.writeText(lines.join('\n'));
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => { copyBtn.textContent = 'Copy as Markdown'; }, 1400);
+    } catch { /* clipboard denied — leave the label alone */ }
+  });
 
   // Initial state: no sort, all rows visible.
   updateSortIndicators();

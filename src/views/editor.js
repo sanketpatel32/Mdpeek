@@ -128,11 +128,24 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     timer = setTimeout(refresh, debounceMs);
   }
 
+  // Replace the whole value while KEEPING the native undo stack. Direct
+  // `.value =` assignment wipes Chromium's textarea undo (Ctrl+Z stops working
+  // after any smart-key edit). execCommand('insertText') over a select-all
+  // replacement records an undoable step; when unavailable/refused we fall
+  // back to the direct assignment (undo lost, editing still works).
+  function setValueUndoable(newText) {
+    textarea.focus();
+    textarea.select();
+    let applied = false;
+    try { applied = document.execCommand('insertText', false, newText); } catch { applied = false; }
+    if (!applied) textarea.value = newText;
+  }
+
   // Apply a logic result back to the textarea: set value, caret, then refresh
   // preview + gutter. Returns false when nothing changed.
   function applyResult(result) {
     if (!result) return false;
-    if (result.text !== textarea.value) textarea.value = result.text;
+    if (result.text !== textarea.value) setValueUndoable(result.text);
     textarea.setSelectionRange(result.start, result.end);
     schedule();
     syncGutter();
@@ -154,6 +167,9 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
       for (let i = 1; i <= n; i++) html += `<div>${i}</div>`;
       gutter.innerHTML = html;
       gutter.dataset.lastCount = String(n);
+      // Rebuilding resets the gutter's scroll — re-align with the textarea
+      // (numbers used to jump to the top after any line-count change).
+      gutter.scrollTop = textarea.scrollTop;
     }
     const cs = getComputedStyle(textarea);
     const fs = parseFloat(cs.fontSize) || 13.5;
@@ -245,6 +261,9 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
 
   // ----- keydown: Tab, Enter, auto-pair, wrap shortcuts, find -----
   function onKeyDown(e) {
+    // v0.67.0: IME guard — keydowns during composition (isComposing / the
+    // legacy 229 keyCode) must reach the IME, not our Enter/auto-pair logic.
+    if (e.isComposing || e.keyCode === 229) return;
     const { selectionStart: s, selectionEnd: en } = textarea;
     const ctrl = e.ctrlKey || e.metaKey;
 
@@ -408,7 +427,7 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     }
 
     // Auto-pair: single printable char, no selection, no ctrl/alt.
-    if (e.key.length === 1 && s === en && !ctrl && !e.altKey) {
+    if (e.key.length === 1 && !ctrl && !e.altKey) {
       const r = autoPair(textarea.value, s, en, e.key);
       if (r && r.handled) {
         e.preventDefault();
@@ -471,9 +490,11 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
         let caret = row.querySelector('.fold-caret');
         if (!caret) {
           caret = document.createElement('span');
+          // The gutter is aria-hidden, so role/aria-label here were inert —
+          // keep it honest: decorative glyph with a tooltip. Keyboard folding
+          // lives in the command palette ("Toggle current fold").
           caret.className = 'fold-caret';
-          caret.setAttribute('role', 'button');
-          caret.setAttribute('aria-label', 'Toggle fold');
+          caret.title = 'Toggle fold';
           row.insertBefore(caret, row.firstChild);
         }
         caret.textContent = collapsedHeadings.has(lineNo) ? '▾' : '▸';
@@ -642,7 +663,7 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
       const en = textarea.selectionEnd;
       const before = textarea.value.slice(0, s);
       const after = textarea.value.slice(en);
-      textarea.value = before + text + after;
+      setValueUndoable(before + text + after);
       const caret = s + text.length;
       textarea.setSelectionRange(caret, caret);
       textarea.focus();
@@ -660,7 +681,7 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     replaceRange(start, end, text) {
       const before = textarea.value.slice(0, start);
       const after = textarea.value.slice(end);
-      textarea.value = before + text + after;
+      setValueUndoable(before + text + after);
       const caret = start + text.length;
       textarea.setSelectionRange(caret, caret);
       textarea.focus();

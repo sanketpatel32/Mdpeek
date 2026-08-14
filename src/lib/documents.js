@@ -303,6 +303,24 @@ export class DocumentStore {
     this._emit('change');
   }
 
+  // v0.67.0: move a tab to a new index within its own pinned group
+  // (drag-to-reorder). `index` is relative to the group, matching how the
+  // drag handler computes it from the visible strip.
+  moveDoc(id, index) {
+    const from = this.docs.findIndex((x) => x.id === id);
+    if (from === -1) return;
+    const doc = this.docs[from];
+    const pinnedCount = this.docs.filter((x) => x.pinned).length;
+    const groupStart = doc.pinned ? 0 : pinnedCount;
+    const groupEnd = doc.pinned ? pinnedCount : this.docs.length;
+    const to = Math.max(groupStart, Math.min(groupEnd - 1, groupStart + index));
+    if (to === from) return;
+    const next = this.docs.slice();
+    next.splice(to, 0, ...next.splice(from, 1));
+    this.docs = next;
+    this._emit('change');
+  }
+
   // v0.46.0: Close every non-pinned tab except the given one. Pinned tabs
   // survive (matching closeDocs semantics). The active tab is preserved; if it
   // was among the closed, the given tab becomes active. Emits a single change.

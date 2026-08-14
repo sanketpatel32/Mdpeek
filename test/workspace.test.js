@@ -171,7 +171,8 @@ describe('flashcards.js — parser auto-detects 3 syntaxes', () => {
     expect(cards.length).toBe(4);
     expect(cards[0]).toMatchObject({ question: 'What is 2+2?', answer: '4', syntax: 'qa', line: 1 });
     expect(cards[1]).toMatchObject({ question: 'Capital of France?', answer: 'Paris', syntax: 'qa', line: 2 });
-    expect(cards[1].key).toBe('note.md:2');
+    // v0.67.0: keys are content-based (stable across line edits), not line-based.
+    expect(cards[1].key).toBe('note.md:Capital of France?');
   });
 
   it('rejects :: without surrounding spaces (URLs, code)', () => {

@@ -70,6 +70,7 @@ import {
   loadState as pomoLoad, saveState as pomoSave, clearState as pomoClear,
   start as pomoStart, pause as pomoPause, tick as pomoTick, skipPhase as pomoSkip,
   reset as pomoReset, formatTime as pomoFormat, phaseLabel as pomoPhaseLabel,
+  phaseSeconds,
 } from './lib/pomodoro.js';
 import {
   normalizeNoteTasks, normalizeKanbanTasks, mergeTasks, filterTasks, sortTasks, taskStats,
@@ -350,6 +351,7 @@ const el = {
   calGrid: document.getElementById('calendar-grid'),
   calFoot: document.getElementById('cal-foot'),
   // Tasks
+  tasksFilter: document.getElementById('tasks-filter'),
   tasksSort: document.getElementById('tasks-sort'),
   tasksSummary: document.getElementById('tasks-summary'),
   tasksList: document.getElementById('tasks-list'),
@@ -3526,7 +3528,7 @@ function renderKanban() {
   const html = KANBAN_STATUSES.map((status) => {
     const cards = filteredTasks
       .filter((t) => t.status === status)
-      .sort((a, b) => a.createdAt - b.createdAt);
+      .sort((a, b) => (a.movedAt || a.createdAt) - (b.movedAt || b.createdAt));
     const count = cards.length;
 
     const cardsHtml = cards.length
@@ -3538,7 +3540,7 @@ function renderKanban() {
             : '';
           const timeStr = formatKanbanTime(t.createdAt);
           return `
-            <div class="kanban-card ${isDone ? 'kanban-card-done' : ''}" data-id="${t.id}">
+            <div class="kanban-card ${isDone ? 'kanban-card-done' : ''}" data-id="${t.id}" tabindex="0">
               <button class="kanban-card-checkbox ${isDone ? 'checked' : ''}" data-id="${t.id}" title="${isDone ? 'Mark as incomplete' : 'Mark as done'}" aria-label="Toggle status">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">${isDone ? '<polyline points="20 6 9 17 4 12"/>' : ''}</svg>
               </button>
@@ -3599,9 +3601,14 @@ function moveKanbanTask(id, newStatus) {
   const task = _kanbanTasks.find((t) => t.id === id);
   if (!task || task.status === newStatus) return;
   task.status = newStatus;
-  task.createdAt = Date.now();
+  // v0.67.0: keep createdAt (card age + ordering); record the move instead.
+  // (Resetting createdAt made old cards read "just now" and reshuffled them.)
+  task.movedAt = Date.now();
   saveKanbanTasks(_kanbanTasks);
   renderKanban();
+  // Refocus the moved card — renderKanban rebuilds the DOM and focus is lost
+  // (matters for keyboard moves; harmless after a drag).
+  el.kanbanBoard?.querySelector(`.kanban-card[data-id="${id}"]`)?.focus();
 }
 
 function deleteKanbanTask(id) {
@@ -3827,12 +3834,34 @@ async function openDailyNoteAt(stamp) {
 // ---------- Tasks inbox ----------
 let _tasksNoteScan = null; // cached note-checkbox scan; null = needs refresh
 
+// 1-indexed line numbers that sit inside ``` / ~~~ fenced code blocks.
+// Used by the tasks scan to ignore sample checkboxes in code blocks.
+function fencedLineSet(text) {
+  const set = new Set();
+  const lines = String(text).split('\n');
+  let fence = null;
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^\s*(```+|~~~+)/);
+    if (m) {
+      set.add(i + 1);
+      if (fence && m[1][0] === fence[0]) fence = null;
+      else fence = m[1];
+      continue;
+    }
+    if (fence) set.add(i + 1);
+  }
+  return set;
+}
+
 async function renderTasks() {
   if (!el.tasksList) return;
   el.tasksList.innerHTML = '<div class="tasks-empty">Scanning your notes…</div>';
   if (el.tasksSummary) el.tasksSummary.textContent = '—';
   try {
-    const kanbanOnly = normalizeKanbanTasks(_kanbanTasks);
+    // v0.67.0: Open/Done/All filter — done Kanban cards + note checkboxes
+    // used to be completely invisible.
+    const filter = el.tasksFilter ? el.tasksFilter.value : 'open';
+    const kanbanOnly = normalizeKanbanTasks(_kanbanTasks, filter !== 'open');
     let noteTasks = [];
     const notesDir = localStorage.getItem('mdpeek-notes-dir');
     if (notesDir && _tasksNoteScan === null) {
@@ -3842,9 +3871,27 @@ async function renderTasks() {
         invoke('search_in_folder', { root: notesDir, query: '- [x]', caseSensitive: false, maxResults: 500 }).catch(() => ({ results: [] })),
       ]);
       const hits = [...((openHits && openHits.results) || []), ...((doneHits && doneHits.results) || [])];
-      _tasksNoteScan = normalizeNoteTasks(hits);
+      // v0.67.0: drop checkbox lines inside fenced code blocks — they're
+      // samples, not real tasks (toggling them used to rewrite code samples).
+      // One read per file with hits, cached with the scan (Refresh only).
+      const kept = [];
+      const byFile = new Map();
+      for (const h of hits) {
+        if (!byFile.has(h.path)) byFile.set(h.path, []);
+        byFile.get(h.path).push(h);
+      }
+      for (const [path, fileHits] of byFile) {
+        try {
+          const text = await invoke('read_file', { path });
+          const fenced = fencedLineSet(text);
+          for (const h of fileHits) if (!fenced.has(h.line)) kept.push(h);
+        } catch { kept.push(...fileHits); }
+      }
+      _tasksNoteScan = normalizeNoteTasks(kept);
     }
     noteTasks = _tasksNoteScan || [];
+    if (filter === 'open') noteTasks = noteTasks.filter((t) => !t.done);
+    else if (filter === 'done') noteTasks = noteTasks.filter((t) => t.done);
     const merged = sortTasks(
       filterTasks(mergeTasks(kanbanOnly, noteTasks), _kanbanFilter),
       el.tasksSort ? el.tasksSort.value : 'created'
@@ -3963,6 +4010,11 @@ async function scanFlashcards() {
       // Also scan for callout QA + heading-Q headings.
       const res2 = await invoke('search_in_folder', { root: notesDir, query: '[!qa]', caseSensitive: false, maxResults: 500 }).catch(() => ({ results: [] }));
       (res2.results || []).forEach((r) => files.add(r.path));
+      // v0.67.0: heading-syntax cards ("## What is X?") contain neither '::'
+      // nor '[!qa]' — scan every file with an ATX heading too ('## ' is a
+      // substring of '### ', so all heading levels >= 2 are covered).
+      const res3 = await invoke('search_in_folder', { root: notesDir, query: '## ', caseSensitive: false, maxResults: 2000 }).catch(() => ({ results: [] }));
+      (res3.results || []).forEach((r) => files.add(r.path));
       for (const path of files) {
         try {
           const text = await invoke('read_file', { path });
@@ -4003,6 +4055,11 @@ async function renderReview() {
   }
 }
 
+// 'YYYY-MM-DD' → locale date for the session-complete message.
+function formatReviewDate(stamp) {
+  try { return new Date(stamp + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return stamp; }
+}
+
 function renderReviewCard() {
   if (!el.reviewStage) return;
   if (_reviewIndex >= _reviewQueue.length) {
@@ -4015,12 +4072,13 @@ function renderReviewCard() {
     }
     el.reviewStage.innerHTML = `<div class="review-done">
       <h3>All caught up!</h3>
-      <p>${next ? `Next review: ${next}` : 'No upcoming reviews. Add Q::A cards to your notes.'}</p>
+      <p>${next ? `Next review: ${formatReviewDate(next)}` : 'No upcoming reviews. Add Q::A cards to your notes.'}</p>
     </div>`;
     if (el.reviewSummary) el.reviewSummary.textContent = 'Session complete.';
     return;
   }
   const card = _reviewQueue[_reviewIndex];
+  const _prevSrs = loadSrsState()[card.key] || null;
   const front = `<div class="review-face review-face-front">
     <div class="review-face-label">Question</div>
     <div class="review-q">${escapeHtml(card.question)}</div>
@@ -4032,13 +4090,17 @@ function renderReviewCard() {
     <div class="review-source" data-src="${card.path}" data-line="${card.line}">Edit in note</div>
   </div>`;
   const actions = _reviewRevealed ? `<div class="review-actions">
-    ${['again', 'hard', 'good', 'easy'].map((r) => `<button class="review-rate" data-rate="${r}"><span class="review-rate-label">${r[0].toUpperCase() + r.slice(1)}</span><span class="review-rate-hint">${rateHint(r)}</span></button>`).join('')}
+    ${['again', 'hard', 'good', 'easy'].map((r) => `<button class="review-rate" data-rate="${r}"><span class="review-rate-label">${r[0].toUpperCase() + r.slice(1)}</span><span class="review-rate-hint">${rateHint(r, _prevSrs)}</span></button>`).join('')}
   </div>` : '';
   el.reviewStage.innerHTML = `<div class="review-card${_reviewRevealed ? ' revealed' : ''}" id="review-card"><div class="review-card-inner">${front}${back}</div></div>${actions}`;
 }
 
-function rateHint(r) {
-  return r === 'again' ? '<1m' : r === 'hard' ? 'soon' : r === 'good' ? 'normal' : 'longer';
+// Hint shows the REAL next interval from the SRS math. The old static hints
+// lied — "again" schedules +1 day here (SM-2), not "<1m".
+function rateHint(r, prev) {
+  let days;
+  try { days = srsReview(prev || newCard(), r).interval; } catch { days = 0; }
+  return days >= 1 ? `${days}d` : '<1d';
 }
 
 function rateCard(rating) {
@@ -4048,6 +4110,9 @@ function rateCard(rating) {
   const prev = state[card.key] || newCard();
   state[card.key] = srsReview(prev, rating);
   saveSrsState(state);
+  // "again" re-queues the card at the end of the session (Anki-style) so a
+  // lapse is re-seen — but only once per card to guarantee termination.
+  if (rating === 'again' && !card._requeued) _reviewQueue.push({ ...card, _requeued: true });
   _reviewIndex++;
   _reviewRevealed = false;
   renderReviewCard();
@@ -4098,7 +4163,16 @@ async function renderGraph() {
       if (el.graphSummary) el.graphSummary.textContent = 'No markdown notes in this folder.';
       return;
     }
-    const { nodes, edges, orphans } = buildGraph(files);
+    const built = buildGraph(files);
+    // v0.67.0: "Hide unlinked" filter — drop degree-0 nodes + their edges
+    // (none: orphans have none by definition, but keep the guard cheap).
+    const hideOrphans = !!document.getElementById('graph-hide-orphans')?.checked;
+    const nodes = hideOrphans ? built.nodes.filter((n) => n.degree > 0) : built.nodes;
+    const keptIds = new Set(nodes.map((n) => n.id));
+    const edges = hideOrphans
+      ? built.edges.filter((ed) => keptIds.has(ed.from) && keptIds.has(ed.to))
+      : built.edges;
+    const orphans = hideOrphans ? 0 : built.orphans;
     // Render into the SVG's measured box. Defer one frame if it has no size yet
     // (just-shown panel) so circleLayout has real dimensions to work with.
     const draw = () => drawGraph(svg, nodes, edges, orphans);
@@ -4188,10 +4262,15 @@ function pomoSyncUi() {
   if (!el.pomoStatus) return;
   const on = featureOn('pomodoro');
   // Show the pill whenever there's an active or started session.
-  const hasSession = _pomoState && (_pomoState.running || _pomoState.remaining !== 25 * 60 || _pomoState.cycle > 0);
+  // v0.67.0: compare against the CONFIGURED focus length — the old hardcoded
+  // 25min check made the pill flash visible with custom durations.
+  const focusSec = _pomoState && _pomoState.settings ? phaseSeconds('focus', _pomoState.settings) : 25 * 60;
+  const hasSession = _pomoState && (_pomoState.running || _pomoState.remaining !== focusSec || _pomoState.cycle > 0);
   el.pomoStatus.classList.toggle('hidden', !(on && hasSession));
   if (!hasSession) return;
   if (el.pomoTime) el.pomoTime.textContent = pomoFormat(_pomoState.remaining);
+  const phaseEl = document.getElementById('pomo-phase-label');
+  if (phaseEl) phaseEl.textContent = pomoPhaseLabel(_pomoState.phase);
   if (el.pomoDot) {
     el.pomoDot.className = 'pomo-dot ' + (_pomoState.phase === 'focus' ? 'pomo-dot-focus' : 'pomo-dot-break');
   }
@@ -4202,10 +4281,17 @@ function pomoSyncUi() {
 
 function pomoStartTicker() {
   if (_pomoInterval) return;
+  // v0.67.0: wall-clock anchor. WebView2 throttles background timers
+  // (minimize-to-tray), so each tick passes the REAL elapsed seconds to
+  // pomoTick instead of assuming 1s — the countdown stays accurate.
+  let lastTick = Date.now();
   _pomoInterval = setInterval(() => {
     pomoEnsureLoaded();
+    const now = Date.now();
+    const elapsed = Math.max(1, Math.round((now - lastTick) / 1000));
+    lastTick = now;
     if (!_pomoState.running) return;
-    const r = pomoTick(_pomoState, 1);
+    const r = pomoTick(_pomoState, elapsed);
     _pomoState = r.state;
     pomoSave(_pomoState);
     if (r.finished) {
@@ -4575,6 +4661,9 @@ async function onCapture(rawText) {
   // Mark a writing day for the streak chip (capture is one of the streak's
   // inputs, alongside saving a daily note).
   try { markWritingDay(); } catch { /* ignore */ }
+  // The capture modified today's daily note — drop the calendar memo so the
+  // dot / word-count chip renders on the next calendar view.
+  _calCacheKey = null; _calCache = null;
   // If today's note is the active doc, refresh its buffer so the bullet appears.
   const doc = store.active();
   if (doc && doc.path === path) {
@@ -4980,6 +5069,12 @@ el.fileTreeBody.addEventListener('click', (e) => {
 // owns its own Ctrl+C/X/V semantics and we must not hijack them. The general
 // input/textarea guard in the keydown handler below covers other fields.
 el.editor.addEventListener('focus', () => { _treeActivePath = null; _treeActiveKind = null; });
+// v0.67.0: keyboard focus inside the tree (rows are focusable now) drives the
+// same tracker that clicks do, so F2/Delete work after arrow navigation.
+if (el.fileTreeBody) el.fileTreeBody.addEventListener('focusin', (e) => {
+  const row = e.target.closest('.tree-row');
+  if (row) { _treeActivePath = row.dataset.path; _treeActiveKind = row.dataset.kind; }
+});
 
 // v0.41.0: autocomplete key handling. Capture phase so we run before the
 // editor's own keydown (which would otherwise intercept Tab/Enter for indent
@@ -4988,7 +5083,10 @@ el.editor.addEventListener('focus', () => { _treeActivePath = null; _treeActiveK
 // handler runs normally.
 el.editor.addEventListener('keydown', (e) => {
   if (localStorage.getItem('mdpeek-feature-autocomplete') === '0') return;
-  autocomplete.handleKeydown(e);
+  // v0.67.0: stopImmediatePropagation when the dropdown consumed the key —
+  // at-target listeners fire in registration order, so without this the
+  // editor's own Tab/Enter handler still runs and inserts a stray indent/newline.
+  if (autocomplete.handleKeydown(e)) e.stopImmediatePropagation();
 }, true);
 
 // ---------- File-tree context menu (Cut/Copy/Paste/Rename/Delete) ----------
@@ -6085,6 +6183,19 @@ document.getElementById('reader-theme')?.addEventListener('click', readerCycleTh
 document.getElementById('reader-font-family')?.addEventListener('click', readerCycleFontFamily);
 // v0.34.1: visible style-toggle button in the slideshow overlay (was S-key only).
 document.getElementById('slide-style-btn')?.addEventListener('click', toggleSlideStyle);
+
+// v0.67.0: floating back-to-top button for long documents. Appears after
+// 400px of scroll in the document pane.
+(function wireBackToTop() {
+  const btt = document.getElementById('back-to-top');
+  if (!btt || !el.document) return;
+  el.document.addEventListener('scroll', () => {
+    btt.classList.toggle('hidden', el.document.scrollTop < 400);
+  }, { passive: true });
+  btt.addEventListener('click', () => {
+    el.document.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+})();
 // Visible exit button (Esc was previously the only way out).
 document.getElementById('slide-exit-btn')?.addEventListener('click', exitPresentation);
 if (el.share) el.share.addEventListener('click', openShareModal);
@@ -6158,6 +6269,40 @@ if (el.workspaceRefresh) {
 // Calendar nav
 if (el.calPrev) el.calPrev.addEventListener('click', () => { stepMonth(-1); });
 if (el.calNext) el.calNext.addEventListener('click', () => { stepMonth(1); });
+// v0.67.0: click the month label to jump — picker over the last 18 and next
+// 12 months (nearest first), instead of clicking prev 8 times.
+const calJumpPicker = makePicker({
+  id: 'cal-jump-picker',
+  placeholder: 'Jump to month…',
+  getItems: () => {
+    const now = new Date();
+    const items = [];
+    for (let off = -18; off <= 12; off++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + off, 1);
+      items.push({ label: monthLabel(d.getFullYear(), d.getMonth()), hint: String(d.getFullYear()), ym: `${d.getFullYear()}:${d.getMonth()}` });
+    }
+    return items.reverse(); // nearest first
+  },
+  onSelect: (item) => {
+    const [y, m] = String(item.ym).split(':').map(Number);
+    _calYear = y;
+    _calMonth = m;
+    renderCalendar();
+  },
+});
+const calLabelEl = document.getElementById('cal-label');
+if (calLabelEl) {
+  calLabelEl.setAttribute('tabindex', '0');
+  calLabelEl.setAttribute('role', 'button');
+  calLabelEl.title = 'Jump to month';
+  calLabelEl.addEventListener('click', () => calJumpPicker.open());
+  calLabelEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      calJumpPicker.open();
+    }
+  });
+}
 if (el.calToday) el.calToday.addEventListener('click', () => {
   const n = new Date();
   _calYear = n.getFullYear();
@@ -6229,6 +6374,7 @@ if (el.tasksList) {
 if (el.tasksSort) {
   el.tasksSort.addEventListener('change', renderTasks);
 }
+if (el.tasksFilter) el.tasksFilter.addEventListener('change', renderTasks);
 
 // Review: click card to reveal, rate buttons to schedule.
 if (el.reviewStage) {
@@ -6239,7 +6385,7 @@ if (el.reviewStage) {
     if (rate) { rateCard(rate.dataset.rate); return; }
     if (src) {
       const path = src.dataset.src;
-      if (path) { openPath(path); closeKanban(); }
+      if (path) { openPathAndJump(path, Number(src.dataset.line) || 1); closeKanban(); }
       return;
     }
     if (card && !_reviewRevealed) {
@@ -6249,12 +6395,83 @@ if (el.reviewStage) {
   });
 }
 
+// v0.67.0: review session keyboard operation — Space/Enter reveals the
+// answer, 1-4 rate (again/hard/good/easy). Skips inputs so typing elsewhere
+// is unaffected.
+document.addEventListener('keydown', (e) => {
+  if (e.defaultPrevented) return;
+  if (!document.body.classList.contains('kanban-mode') || _wsMode !== 'review') return;
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+  if (e.key === ' ' || e.key === 'Enter') {
+    if (_reviewRevealed) return;
+    e.preventDefault();
+    _reviewRevealed = true;
+    renderReviewCard();
+    return;
+  }
+  if (_reviewRevealed) {
+    const ratings = { '1': 'again', '2': 'hard', '3': 'good', '4': 'easy' };
+    if (ratings[e.key]) {
+      e.preventDefault();
+      rateCard(ratings[e.key]);
+    }
+  }
+});
+
 // Graph node click → open the note + close the hub (v0.50.0).
 if (el.graphSvg) {
   el.graphSvg.addEventListener('click', onGraphClick);
 }
+// v0.67.0: graph controls — hide-unlinked toggle + re-layout on window resize
+// (the SVG used to stay clipped to the old viewBox after resizing).
+document.getElementById('graph-hide-orphans')?.addEventListener('change', renderGraph);
+let _graphResizeTimer = null;
+window.addEventListener('resize', () => {
+  if (_wsMode !== 'graph') return;
+  clearTimeout(_graphResizeTimer);
+  _graphResizeTimer = setTimeout(() => renderGraph(), 200);
+});
 
 // Pomodoro pill
+// v0.67.0: skip + reset controls on the pill (the state machine supported
+// them; there was just no UI). stopPropagation so the pill's open-panel
+// click handler doesn't also fire.
+document.getElementById('pomo-skip')?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  pomoEnsureLoaded();
+  _pomoState = pomoSkip(_pomoState);
+  pomoSave(_pomoState);
+  pomoSyncUi();
+});
+document.getElementById('pomo-reset')?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  pomoStopAndReset();
+});
+// v0.67.0: configurable durations (Settings → Features). Writes through to
+// the pomodoro state's settings + persists immediately.
+(function wirePomoDurationSettings() {
+  const map = [
+    ['settings-pomo-focus', 'focus'],
+    ['settings-pomo-break', 'break'],
+    ['settings-pomo-longbreak', 'longbreak'],
+    ['settings-pomo-long-every', 'longEvery'],
+  ];
+  pomoEnsureLoaded();
+  for (const [id, key] of map) {
+    const input = document.getElementById(id);
+    if (!input) continue;
+    input.value = String(_pomoState.settings?.[key] ?? '');
+    input.addEventListener('change', () => {
+      pomoEnsureLoaded();
+      const num = Math.max(1, Math.min(180, parseInt(input.value, 10) || 0));
+      input.value = String(num);
+      _pomoState.settings = { ...(_pomoState.settings || {}), [key]: num };
+      pomoSave(_pomoState);
+      pomoSyncUi();
+    });
+  }
+})();
 if (el.pomoStatus) {
   el.pomoStatus.addEventListener('click', (e) => {
     // The toggle button has its own target; clicks on the pill body open Board.
@@ -6342,14 +6559,38 @@ if (el.kanbanBoard) {
   });
 
   el.kanbanBoard.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
+    // Add-input Enter → create (existing behavior).
     const input = e.target.closest('.kanban-add-input');
-    if (!input) return;
-    e.preventDefault();
-    addKanbanTask(input.dataset.status, input.value);
-    input.value = '';
-    // Keep focus on the To-Do input for rapid entry.
-    input.focus();
+    if (input) {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      addKanbanTask(input.dataset.status, input.value);
+      input.value = '';
+      // Keep focus on the To-Do input for rapid entry.
+      input.focus();
+      return;
+    }
+    // v0.67.0: card keyboard operation. Cards are tabindex=0 (see
+    // renderKanban): ArrowLeft/Right move between columns, Enter edits,
+    // Delete removes. Inner buttons own their Enter/Space and are skipped.
+    const card = e.target.closest('.kanban-card');
+    if (!card || e.target.closest('button')) return;
+    const id = card.dataset.id;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      const cur = _kanbanTasks.find((t) => t.id === id);
+      if (!cur) return;
+      const at = KANBAN_STATUSES.indexOf(cur.status);
+      const to = Math.max(0, Math.min(KANBAN_STATUSES.length - 1, at + (e.key === 'ArrowRight' ? 1 : -1)));
+      if (to !== at) moveKanbanTask(id, KANBAN_STATUSES[to]);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const textEl = card.querySelector('.kanban-card-text');
+      if (textEl) textEl.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    } else if (e.key === 'Delete') {
+      e.preventDefault();
+      deleteKanbanTask(id);
+    }
   });
 
   el.kanbanBoard.addEventListener('pointerdown', (e) => {
@@ -7442,6 +7683,65 @@ el.tabStrip.addEventListener('mousedown', (e) => {
   const tab = e.target.closest('.tab');
   if (tab) closeTab(tab.dataset.id).catch((e) => console.error('closeTab failed:', e));
 });
+
+// v0.67.0: keyboard support. Tabs are role=tab + tabindex (roving, see
+// renderTabs): arrows move focus within the strip, Enter/Space activate the
+// focused tab. The close button is a real <button> and is left alone.
+el.tabStrip.addEventListener('keydown', (e) => {
+  if (e.target.closest('.tab-close')) return;
+  const tab = e.target.closest ? e.target.closest('.tab') : null;
+  if (!tab) return;
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault();
+    const tabs = Array.from(el.tabStrip.querySelectorAll('.tab'));
+    const i = tabs.indexOf(tab);
+    const next = tabs[e.key === 'ArrowRight' ? Math.min(tabs.length - 1, i + 1) : Math.max(0, i - 1)];
+    if (next) {
+      tabs.forEach((t) => { t.tabIndex = -1; });
+      next.tabIndex = 0;
+      next.focus();
+    }
+  } else if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    store.switch(tab.dataset.id);
+    const doc = store.active();
+    if (doc) rewatch(doc.path).catch(() => {});
+  }
+});
+
+// v0.67.0: drag-to-reorder. dragstart carries the id; dropping on another tab
+// in the same pinned group calls store.moveDoc. Cross-group drops (pinned ↔
+// unpinned) are ignored to keep the pinned partition intact.
+let _dragTabId = null;
+el.tabStrip.addEventListener('dragstart', (e) => {
+  const tab = e.target.closest('.tab');
+  if (!tab) return;
+  _dragTabId = tab.dataset.id;
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', _dragTabId); } catch { /* ignore */ }
+  }
+});
+el.tabStrip.addEventListener('dragover', (e) => {
+  if (!_dragTabId) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+});
+el.tabStrip.addEventListener('drop', (e) => {
+  const dragId = _dragTabId;
+  _dragTabId = null;
+  if (!dragId) return;
+  const target = e.target.closest ? e.target.closest('.tab') : null;
+  e.preventDefault();
+  if (!target || target.dataset.id === dragId) return;
+  const dragged = store.docs.find((d) => d.id === dragId);
+  const targetDoc = store.docs.find((d) => d.id === target.dataset.id);
+  if (!dragged || !targetDoc || dragged.pinned !== targetDoc.pinned) return;
+  const group = store.docs.filter((d) => d.pinned === dragged.pinned);
+  const idx = group.findIndex((d) => d.id === targetDoc.id);
+  store.moveDoc(dragId, idx);
+});
+el.tabStrip.addEventListener('dragend', () => { _dragTabId = null; });
 
 // Right-click → context menu. Only when the cursor is over an actual tab
 // (right-clicking the + button or empty strip area does nothing special).
