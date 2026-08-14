@@ -558,6 +558,105 @@
   .markdown-body pre .code-row > code { padding-left: 0 !important; }
 }
 
+/* ---- v0.62.0: YAML front matter metadata table ---------------------------- */
+.markdown-body .frontmatter {
+  margin: 0 0 1.25em;
+}
+.markdown-body .fm-table {
+  border-collapse: collapse;
+  font-size: 0.86em;
+  width: auto;
+  min-width: 260px;
+}
+.markdown-body .fm-table th,
+.markdown-body .fm-table td {
+  border: 1px solid var(--border-subtle);
+  padding: 4px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body .fm-table th {
+  background: var(--code-bg);
+  color: var(--fg-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.markdown-body .fm-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  margin: 1px 4px 1px 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: 0.92em;
+}
+
+/* ---- v0.62.0: code fence filename header + line highlighting -------------- */
+.markdown-body .code-block {
+  margin: 0 0 1em;
+}
+.markdown-body .code-block > pre {
+  /* The title bar sits flush on top of the block; pre drops its own margin so
+     the pair reads as one card. */
+  margin: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+.markdown-body .code-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  font-family: "SFMono-Regular", "Cascadia Code", Consolas, "Liberation Mono",
+    monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  letter-spacing: 0.03em;
+}
+.markdown-body .code-title::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.55;
+}
+/* Highlighted fence lines: block spans so each source line is targetable. */
+.markdown-body pre code .code-line {
+  display: block;
+}
+.markdown-body pre code .code-line.highlighted {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: inset 3px 0 0 var(--accent);
+  margin-left: -16px;   /* bleed the tint into the pre's left padding */
+  padding-left: 16px;
+  margin-right: -16px;  /* …and to the right edge */
+  padding-right: 16px;
+}
+
+/* ---- v0.62.0: embedded video cards (YouTube/Vimeo) ------------------------ */
+.markdown-body .video-embed {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin: 0 0 1.25em;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.markdown-body .video-embed iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
 /* Heading anchor links — a # glyph that appears on hover. Clicking copies the
    #slug fragment so it can be pasted as a deep link. Hidden by default to keep
    heading text clean; revealed on hover or keyboard focus. */

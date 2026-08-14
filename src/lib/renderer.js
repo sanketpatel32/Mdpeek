@@ -18,6 +18,7 @@ import { escapeHtml } from './escape.js';
 import { extractAbbreviations, applyAbbreviations } from './abbreviations.js';
 import { findComplexWords, isDenseParagraph } from './prose.js';
 import { overusedWords, findWordsInText } from './wordfreq.js';
+import { extractFrontMatter, renderFrontMatterTable } from './frontmatter.js';
 
 // Local escapeText — escapes only & < > (NOT quotes). Used for TEXT CONTENT
 // (code block bodies, mermaid source). Deliberately different from the shared
@@ -334,6 +335,70 @@ async function ensureLang(lang) {
   }
 }
 
+// v0.62.0: Parse a fenced-code info string into parts. marked hands the whole
+// post-fence string to the code renderer as `lang`, so we split it here:
+//
+//   parseFenceInfo('js title="app.js" {1,3-5}')
+//     → { lang: 'js', title: 'app.js', lines: Set{1,3,4,5} }
+//   parseFenceInfo('js app.js')        → { lang: 'js', title: 'app.js', lines: null }
+//   parseFenceInfo('python')           → { lang: 'python', title: null, lines: null }
+//
+// `title="…"` / `title='…'` (Nextra/Docusaurus convention) or a bare trailing
+// token containing a dot (filename shorthand) set the title. `{1,3-5}` sets
+// the highlighted-line set (1-indexed, ranges inclusive). Exported for tests.
+export function parseFenceInfo(info) {
+  const raw = String(info || '').trim();
+  if (!raw) return { lang: null, title: null, lines: null };
+  const parts = raw.split(/\s+/);
+  const lang = parts[0] || null;
+  let title = null;
+  let lineSpec = null;
+  for (let i = 1; i < parts.length; i++) {
+    const p = parts[i];
+    const t = p.match(/^title=("([^"]*)"|'([^']*)')$/);
+    if (t) { title = t[2] ?? t[3] ?? ''; continue; }
+    // Bare quoted filename: ```js 'main.py'
+    const q = p.match(/^("([^"]*)"|'([^']*)')$/);
+    if (q) { title = q[2] ?? q[3] ?? ''; continue; }
+    const l = p.match(/^\{([\d,\s-]+)\}$/);
+    if (l) { lineSpec = l[1]; continue; }
+    // Bare filename: contains a dot, isn't a flag-ish token.
+    if (!title && /\./.test(p) && !/[{}'"]/.test(p)) title = p;
+  }
+  return { lang, title, lines: lineSpec ? parseLineSpec(lineSpec) : null };
+}
+
+// Parse "1, 3-5" into a Set of 1-indexed line numbers. Exported for tests.
+export function parseLineSpec(spec) {
+  const lines = new Set();
+  for (const part of String(spec).split(',')) {
+    const range = part.trim().match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+    if (!range) continue;
+    const a = parseInt(range[1], 10);
+    const b = range[2] ? parseInt(range[2], 10) : a;
+    // Guard against pathological ranges (e.g. 1-99999999) by capping span.
+    const lo = Math.min(a, b);
+    const hi = Math.min(Math.max(a, b), lo + 5000);
+    for (let n = lo; n <= hi; n++) lines.add(n);
+  }
+  return lines;
+}
+
+// Wrap each line of already-highlighted HTML in a block-level span so CSS can
+// target individual lines, adding `highlighted` to the lines in `lines`
+// (1-indexed). Splitting on '\n' is safe with hljs output — its spans never
+// cross newlines (newlines are emitted as plain text between tags). Empty
+// trailing line (from the fence's final newline) is left unwrapped.
+function wrapHighlightedLines(html, lines) {
+  const all = html.split('\n');
+  const out = all.map((line, i) => {
+    if (i === all.length - 1 && line === '') return '';
+    const cls = lines.has(i + 1) ? 'code-line highlighted' : 'code-line';
+    return `<span class="${cls}">${line}</span>`;
+  });
+  return out.join('\n');
+}
+
 function buildMarked() {
   const marked = new Marked();
   marked.use(markedKatex({ throwOnError: false }));
@@ -384,8 +449,22 @@ function buildMarked() {
         return `<img src="${escapeHtml(src)}"${altAttr}${titleAttr}${wAttr}${hAttr} loading="lazy" decoding="async" />`;
       },
       heading({ tokens, depth, text }) {
-        const inner = this.parser.parseInline(tokens);
-        const id = uniqueSlug(slugify(text));
+        let inner = this.parser.parseInline(tokens);
+        // v0.62.0: Pandoc/Obsidian custom heading ids — `## Heading {#my-id}`.
+        // The trailing `{#id}` (if present) becomes the anchor id and is
+        // stripped from the rendered text. Strip from the rendered HTML (not
+        // the token) so it also works when the id text sits inside inline
+        // formatting; if it can't be stripped, fall through to the auto-slug.
+        let id = null;
+        const custom = String(text).match(/\s*\{#([A-Za-z][\w-]*)\}\s*$/);
+        if (custom) {
+          const stripped = inner.replace(/\s*\{#[A-Za-z][\w-]*\}\s*$/, '');
+          if (stripped !== inner) {
+            inner = stripped;
+            id = uniqueSlug(custom[1]);
+          }
+        }
+        if (!id) id = uniqueSlug(slugify(text));
         const tag = `h${depth}`;
         return id
           ? `<${tag} id="${id}">${inner}</${tag}>`
@@ -429,11 +508,15 @@ function buildMarked() {
         );
       },
       code({ text, lang }) {
-        if (lang === 'mermaid') {
+        // v0.62.0: fence info strings — ```js title="app.js" {1,3-5} — carry a
+        // filename header and/or a line-highlight spec alongside the language.
+        // marked puts the whole info string in `lang`; parse it apart.
+        const { lang: language0, title, lines } = parseFenceInfo(lang);
+        if (language0 === 'mermaid') {
           // Escape so a fence containing `</div>` can't break out of the wrapper.
           return `<div class="mermaid">${escapeText(text)}</div>`;
         }
-        const language = lang && hljs.getLanguage(lang) ? lang : 'plaintext';
+        const language = language0 && hljs.getLanguage(language0) ? language0 : 'plaintext';
         let highlighted;
         try {
           highlighted = language === 'plaintext'
@@ -442,7 +525,19 @@ function buildMarked() {
         } catch {
           highlighted = escapeText(text);
         }
-        return `<pre><code class="hljs language-${language}">${highlighted}</code></pre>`;
+        if (lines) {
+          highlighted = wrapHighlightedLines(highlighted, lines);
+        }
+        const codeHtml = `<pre><code class="hljs language-${language}">${highlighted}</code></pre>`;
+        if (!title) return codeHtml;
+        // Filename header bar above the block. The title is attribute-escaped;
+        // data-title lets CSS/tests find it without trusting the inner text.
+        return (
+          `<div class="code-block" data-title="${escapeHtml(title)}">` +
+          `<div class="code-title">${escapeHtml(title)}</div>` +
+          codeHtml +
+          `</div>`
+        );
       },
     },
   });
@@ -528,10 +623,14 @@ export function renderMarkdown(md) {
 
   // Reset slug dedupe so each render is self-contained.
   _slugCounts = new Map();
+  // v0.62.0: pull a leading YAML front-matter block out of the source before
+  // any other preprocessing (its `---` fences would otherwise confuse the
+  // admonition/wiki-link passes and render as a broken <hr> + raw text).
+  const { md: fmStripped, meta } = extractFrontMatter(input);
   // v0.46.0: Markdown Extra abbreviation references. Pull the `*[KEY]: exp`
   // definitions out first (they're removed from the source), then wrap whole-
   // word occurrences of each key. Gated on `*[` so zero cost otherwise.
-  const { md: abbrCleaned, abbrs } = extractAbbreviations(input);
+  const { md: abbrCleaned, abbrs } = extractAbbreviations(fmStripped);
   // Rewrite mkDocs `!!! type` admonitions into GFM `> [!TYPE]` alerts so the
   // existing blockquote callout renderer themes them. Must run BEFORE the
   // other pre-passes (the `>` prefix we emit could confuse them otherwise).
@@ -562,7 +661,9 @@ export function renderMarkdown(md) {
   // wrapper skips fenced/inline code and link destinations.
   const abbrApplied = abbrs.size > 0 ? applyAbbreviations(processed, abbrs) : processed;
   const raw = marked.parse(abbrApplied, { async: false });
-  const html = DOMPurify.sanitize(raw);
+  // The front-matter table is fully HTML-escaped by renderFrontMatterTable, so
+  // it's prepended after sanitize rather than routed through DOMPurify.
+  const html = renderFrontMatterTable(meta) + DOMPurify.sanitize(raw);
   cacheSet(input, html);
   return html;
 }
@@ -785,6 +886,7 @@ export async function enhanceDom(container, {
   enhanceTaskCheckboxes(container);
   enhanceTaskProgress(container);
   enhanceSpoilers(container);
+  enhanceVideoEmbeds(container);
   if (wordFreq) enhanceWordFreq(container);
   if (proseHighlights) enhanceProseHighlights(container);
   if (renderFolding) enhanceFolding(container);
@@ -948,6 +1050,58 @@ function enhanceWordFreq(container) {
   });
 }
 
+// v0.62.0: Embedded video cards. A paragraph whose ONLY content is a
+// YouTube/Vimeo link becomes a responsive 16:9 <iframe> card. The iframe is
+// created here, in the live DOM AFTER sanitize — never via a DOMPurify
+// exception — and its src is constructed from a strictly-validated video id,
+// never from raw user text. Supports:
+//
+//   https://www.youtube.com/watch?v=ID     https://youtu.be/ID
+//   https://www.youtube.com/watch?v=ID&t=30s (start time preserved)
+//   https://vimeo.com/ID
+//
+// Any other paragraph shape (link with text, multiple links, mixed prose) is
+// left untouched, so inline mentions never turn into players.
+const VIDEO_LINK_RE = /^https?:\/\/(?:(?:www|m)\.youtube(?:-nocookie)?\.com\/watch\?v=|youtu\.be\/|www\.youtube-nocookie\.com\/embed\/|vimeo\.com\/)([\w-]{6,15})/;
+function videoEmbedSrc(href) {
+  const m = String(href || '').trim().match(VIDEO_LINK_RE);
+  if (!m) return null;
+  const id = m[1];
+  let src;
+  if (/youtu/.test(href)) {
+    src = `https://www.youtube-nocookie.com/embed/${id}`;
+    const t = href.match(/[?&]t=(\d+)/);
+    if (t) src += `?start=${t[1]}`;
+  } else {
+    src = `https://player.vimeo.com/video/${id}`;
+  }
+  return src;
+}
+function enhanceVideoEmbeds(container) {
+  if (typeof window === 'undefined') return;
+  container.querySelectorAll('p').forEach((p) => {
+    // Only a bare autolink paragraph qualifies: exactly one child element,
+    // it's an <a>, and the visible link text is itself a video URL (so a
+    // labeled link like [watch this](url) or mixed prose stays a link).
+    if (p.children.length !== 1 || p.children[0].tagName !== 'A') return;
+    const a = p.children[0];
+    if (p.textContent.trim() !== a.textContent.trim()) return;
+    if (!videoEmbedSrc(a.textContent)) return;
+    const src = videoEmbedSrc(a.getAttribute('href'));
+    if (!src) return;
+    const card = document.createElement('div');
+    card.className = 'video-embed';
+    const iframe = document.createElement('iframe');
+    iframe.src = src;
+    iframe.setAttribute('allowfullscreen', '');
+    iframe.setAttribute('loading', 'lazy');
+    iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+    iframe.setAttribute('title', 'Embedded video');
+    card.append(iframe);
+    p.replaceWith(card);
+  });
+}
+
 // v0.46.0: Wire click-to-reveal on `||spoiler||` spans (rendered as
 // `<span class="spoiler">`). One delegated listener per container; toggling
 // `.revealed` unmasks the text via CSS. Idempotent (sets a data flag so a
@@ -994,9 +1148,12 @@ function enhanceCodeBlocks(container, { lineNumbers = false } = {}) {
     if (!code) return;
 
     // Language badge — small pill in the top-left showing the detected lang.
-    // Skipped for plaintext (no value showing "plaintext"). Idempotent.
+    // Skipped for plaintext (no value showing "plaintext") and when a
+    // .code-title filename bar is present (v0.62.0 — the title already
+    // identifies the block). Idempotent.
     const lang = (code.className.match(/language-(\S+)/) || [])[1];
-    if (lang && lang !== 'plaintext' && !pre.querySelector('.code-lang')) {
+    const hasTitleBar = pre.parentElement && pre.parentElement.classList.contains('code-block');
+    if (lang && lang !== 'plaintext' && !hasTitleBar && !pre.querySelector('.code-lang')) {
       const badge = document.createElement('span');
       badge.className = 'code-lang';
       badge.textContent = lang;

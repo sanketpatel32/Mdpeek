@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.0] - 2026-08-14
+
+### Added - Advanced markdown features
+- **YAML front matter now renders as a metadata table.** A leading
+  `--- … ---` block is extracted before rendering (previously it leaked into
+  the preview as a broken `<hr>` plus raw `key: value` text) and displayed as
+  a compact themed key/value table at the top of the document. Supports
+  strings, quoted strings, booleans, numbers, dates, inline `[a, b]` arrays,
+  CRLF files, comments, and duplicate keys; tag-like keys render as accent
+  pills. Pure new module `src/lib/frontmatter.js`.
+- **Custom heading IDs (Pandoc/Obsidian syntax).** `## Heading {#my-id}` now
+  uses `my-id` as the anchor (shown/stripped from the rendered text, deduped
+  across the doc). Headings without a custom id keep the GitHub-style
+  auto-slug; heading anchor links and `[[toc]]` pick custom ids up
+  automatically.
+- **Code fence filenames and line highlighting.** ```` ```js title="app.js"
+  {1,3-5} ```` renders a filename header bar on the block (Docusaurus/Nextra
+  convention; a bare ```` ```js app.js ```` or quoted `'app.js'` works too)
+  and highlights the given lines with an accent tint + left bar. The language
+  badge is suppressed when a title bar is present.
+- **Embedded video cards.** A bare YouTube or Vimeo link alone on a line
+  (including `youtu.be` short links and `?t=30s` start times) renders as a
+  responsive 16:9 embedded player card. Implementation creates the iframe in
+  the live DOM after sanitization — no DOMPurify exception — with a strictly
+  validated video-id regex, always `youtube-nocookie.com`/`player.vimeo.com`
+  srcs. Labeled links (`[watch this](…)`) and prose mentions stay links.
+
+### Fixed - Alert callouts render correctly
 ### Fixed - Alert callouts render correctly
 - **GFM alert callouts no longer show a stray blank line at the top of the
   body.** With `breaks: true`, marked splits the `> [!NOTE]` marker line from
