@@ -52,6 +52,15 @@ function build() {
     const word = li.dataset.word;
     if (word && onWordCb) onWordCb(word);
   });
+  // Items are focusable (tabindex in the markup) — Enter/Space act like click.
+  listEl.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const li = e.target.closest('.wf-item');
+    if (!li) return;
+    e.preventDefault();
+    const word = li.dataset.word;
+    if (word && onWordCb) onWordCb(word);
+  });
 }
 
 function isOpen() {
@@ -77,7 +86,7 @@ function render(items) {
   listEl.innerHTML = items.map(({ word, count }, i) => {
     const pct = Math.max(4, Math.round((count / max) * 100));
     return (
-      `<li class="wf-item" data-word="${escapeHtml(word)}" title="Click to scroll to first occurrence">`
+      `<li class="wf-item" data-word="${escapeHtml(word)}" tabindex="0" role="button" title="Click to scroll to first occurrence">`
       + `<span class="wf-rank">${i + 1}</span>`
       + `<span class="wf-word">${escapeHtml(word)}</span>`
       + `<span class="wf-bar"><span class="wf-bar-fill" style="width:${pct}%"></span></span>`

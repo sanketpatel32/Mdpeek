@@ -189,13 +189,13 @@
   border-radius: 0;
   text-decoration: underline;
   text-decoration-style: dotted;
-  text-decoration-color: var(--alert-tip, #1a7f37);
+  text-decoration-color: var(--alert-tip);
   text-decoration-thickness: 2px;
   text-underline-offset: 2px;
 }
 .markdown-body p.prose-dense {
-  background: color-mix(in srgb, var(--alert-tip, #1a7f37) 6%, transparent);
-  border-left: 3px solid color-mix(in srgb, var(--alert-tip, #1a7f37) 40%, transparent);
+  background: color-mix(in srgb, var(--alert-tip) 6%, transparent);
+  border-left: 3px solid color-mix(in srgb, var(--alert-tip) 40%, transparent);
   padding-left: 10px;
   margin-left: -13px;
   border-radius: 2px;
@@ -207,7 +207,7 @@
 .markdown-body .wordfreq-mark {
   text-decoration: underline;
   text-decoration-style: dotted;
-  text-decoration-color: var(--alert-warning, #9a6700);
+  text-decoration-color: var(--alert-warning);
   text-decoration-thickness: 2px;
   text-underline-offset: 2px;
 }

@@ -483,15 +483,20 @@ function toast(msg, opts = {}) {
   el.toast.style.cursor = opts.onClick ? 'pointer' : 'default';
   el.toast.onclick = opts.onClick || null;
   clearTimeout(toast._t);
+  const dismiss = () => {
+    clearTimeout(toast._t);
+    el.toast.classList.add('leaving');
+    el.toast.onclick = null;
+    setTimeout(() => {
+      el.toast.classList.add('hidden');
+      el.toast.classList.remove('leaving', 'success', 'error', 'warn');
+    }, 200);
+  };
+  // Click-to-dismiss when the toast has no action — persistent toasts
+  // (previously the only way clear one was waiting out the timer).
+  if (!opts.onClick) el.toast.onclick = dismiss;
   if (!opts.persistent) {
-    toast._t = setTimeout(() => {
-      el.toast.classList.add('leaving');
-      el.toast.onclick = null;
-      setTimeout(() => {
-        el.toast.classList.add('hidden');
-        el.toast.classList.remove('leaving', 'success', 'error', 'warn');
-      }, 200);
-    }, timeout);
+    toast._t = setTimeout(dismiss, timeout);
   }
 }
 
@@ -1322,7 +1327,9 @@ const SNIPPET_ITEMS = [
   { label: 'Code Block (JS)', hint: '```js', text: '```javascript\nfunction example() {\n  console.log("Hello, world!");\n}\n```\n\n' },
   { label: 'Code Block (Python)', hint: '```python', text: '```python\ndef example():\n    print("Hello, world!")\n```\n\n' },
   { label: 'Math Block (KaTeX)', hint: '$$', text: '$$\nE = mc^2\n$$\n\n' },
-  { label: 'Meeting Notes Template', hint: '# Meeting', text: '# Meeting Notes\n**Date:** ' + new Date().toISOString().slice(0,10) + '\n**Attendees:** \n\n## Agenda\n1. \n\n## Action Items\n- [ ] \n\n' },
+  // v0.66.0: getter — the date is computed when the picker opens, not once at
+  // app start (the template used to insert a stale date after midnight).
+  { label: 'Meeting Notes Template', hint: '# Meeting', get text() { return '# Meeting Notes\n**Date:** ' + new Date().toISOString().slice(0, 10) + '\n**Attendees:** \n\n## Agenda\n1. \n\n## Action Items\n- [ ] \n\n'; } },
 ];
 
 const snippetPicker = initSnippetPicker(
@@ -1711,7 +1718,7 @@ const quickSwitcher = initQuickSwitcher(
       const content = await invoke('read_file', { path: item.path });
       await openPath(item.path, content);
     } catch (e) {
-      toast('Could not open: ' + item.name);
+      toast('Could not open: ' + item.label);
       removeRecent(item.path);
     }
   },
@@ -2459,6 +2466,9 @@ function maybeSnapshot(doc, content) {
   // surface here.
   if (isDailyNoteName(basename(doc.path))) {
     try { markWritingDay(); } catch { /* ignore */ }
+    // The save may have created the note or changed its word count — drop the
+    // calendar memo so the dot/word chip renders on the next calendar view.
+    _calCacheKey = null; _calCache = null;
   }
   invoke('write_snapshot', { path: doc.path, content }).catch((e) => {
     console.warn('snapshot failed:', e);
@@ -2915,7 +2925,7 @@ function updateSlide() {
 function syncSlideStyleBtn() {
   if (!_slideshow) return;
   const label = el.slideshow.querySelector('#slide-style-label');
-  if (label) label.textContent = _slideshow.style === 'deck' ? 'Reading' : 'Deck';
+  if (label) label.textContent = _slideshow.style === 'deck' ? 'Deck' : 'Reading';
 }
 
 // Toggle between deck (big, centered) and reading (normal flow) styles.
@@ -4139,8 +4149,9 @@ function drawGraph(svg, nodes, edges, orphans) {
     const cls = n.degree === 0 ? 'graph-node graph-node-orphan' : 'graph-node';
     return (
       `<g class="${cls}" data-node-id="${esc(n.id)}" data-path="${esc(n.path)}">` +
+      `<title>${esc(n.label)}</title>` +
       `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r.toFixed(1)}" />` +
-      `<text x="${p.x.toFixed(1)}" y="${(p.y + r + 12).toFixed(1)}">${esc(n.label)}</text>` +
+      `<text x="${p.x.toFixed(1)}" y="${(p.y + r + 12).toFixed(1)}">${esc(n.label.length > 18 ? n.label.slice(0, 17) + '…' : n.label)}</text>` +
       `</g>`
     );
   }).join('');
@@ -4185,6 +4196,7 @@ function pomoSyncUi() {
     el.pomoDot.className = 'pomo-dot ' + (_pomoState.phase === 'focus' ? 'pomo-dot-focus' : 'pomo-dot-break');
   }
   el.pomoStatus.classList.toggle('running', _pomoState.running);
+  el.pomoStatus.classList.toggle('break', _pomoState.phase !== 'focus');
   if (el.pomoToggle) el.pomoToggle.innerHTML = _pomoState.running ? POMO_PAUSE_SVG : POMO_PLAY_SVG;
 }
 
@@ -6073,6 +6085,8 @@ document.getElementById('reader-theme')?.addEventListener('click', readerCycleTh
 document.getElementById('reader-font-family')?.addEventListener('click', readerCycleFontFamily);
 // v0.34.1: visible style-toggle button in the slideshow overlay (was S-key only).
 document.getElementById('slide-style-btn')?.addEventListener('click', toggleSlideStyle);
+// Visible exit button (Esc was previously the only way out).
+document.getElementById('slide-exit-btn')?.addEventListener('click', exitPresentation);
 if (el.share) el.share.addEventListener('click', openShareModal);
 if (el.shareCopyBtn) el.shareCopyBtn.addEventListener('click', copyShareLink);
 if (el.shareCancelBtn) el.shareCancelBtn.addEventListener('click', closeShareModal);
@@ -6082,6 +6096,14 @@ if (el.joinCancelBtn) el.joinCancelBtn.addEventListener('click', closeJoinDialog
 if (el.collabStatus) el.collabStatus.addEventListener('click', (e) => {
   // The × button has its own handler; don't double-handle.
   if (e.target === el.collabEnd) return;
+  openShareModal();
+});
+// The pill is focusable (tabindex in index.html) — Enter/Space open the panel.
+// The inner × is a real <button> and handles its own keys.
+if (el.collabStatus) el.collabStatus.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  if (e.target === el.collabEnd) return;
+  e.preventDefault();
   openShareModal();
 });
 if (el.collabEnd) el.collabEnd.addEventListener('click', (e) => {

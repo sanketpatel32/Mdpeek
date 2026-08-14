@@ -26,7 +26,7 @@ const PICKER_HTML = (placeholder) => `
 // in a fresh item list before opening.
 // v0.50.0: exported so main.js can build ad-hoc pickers (e.g. the document
 // overview / heading cloud) without a dedicated wrapper per use case.
-export function makePicker({ placeholder, getItems, onSelect, id }) {
+export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage }) {
   const overlay = document.createElement('div');
   overlay.id = id;
   overlay.className = 'modal-overlay palette-overlay hidden';
@@ -58,8 +58,10 @@ export function makePicker({ placeholder, getItems, onSelect, id }) {
     filtered = scored.slice(0, 12);
     selected = 0;
     const empty = filtered.length === 0;
+    // Pickers can name their own no-items message (e.g. the quick switcher
+    // says "No recent files yet"); a typed query still says "No matches".
     list.innerHTML = empty
-      ? '<li class="palette-empty">No matches</li>'
+      ? `<li class="palette-empty">${escapeHtml(query ? 'No matches' : (emptyMessage || 'No matches'))}</li>`
       : filtered.map((s, i) => {
           const cls = i === selected ? 'palette-item active' : 'palette-item';
           const hint = s.item.hint ? `<span class="palette-hint">${escapeHtml(s.item.hint)}</span>` : '';
@@ -153,6 +155,7 @@ export function initQuickSwitcher(getItems, onSelect) {
   return makePicker({
     id: 'quick-switcher',
     placeholder: 'Type a file name…',
+    emptyMessage: 'No recent files yet — open something first',
     getItems,
     onSelect,
   });

@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.66.0] - 2026-08-14
+
+Feature-UI sweep across the workspace hub and overlays: every remaining
+panel now uses the design tokens (spacing, durations, easing, focus rings,
+theme-aware color-mix), plus a batch of long-standing behavior bugs.
+
+### Fixed - behavior bugs
+- Quick switcher: a dead recent-file entry showed "Could not open: undefined"
+  — the toast now names the file (the item exposes `label`, not `name`).
+- Meeting Notes snippet: the template's date was computed once at app start,
+  so it inserted a stale date; it is now evaluated when the picker opens.
+- Calendar: saving a daily note never dropped the month memo, so the
+  activity dot / word-count chip never appeared until a manual re-scan.
+- Presentation style toggle: the button label showed the style you would
+  switch TO ("Reading" while in deck mode); it now shows the current style.
+- Table editor: the sticky column header row let cell content bleed through
+  when scrolling — it now paints an opaque elevated background.
+
+### Added
+- Presentations have a visible Exit button (top-left) — Esc was previously
+  the only way out.
+- Quick capture HUD: the textarea grows with input (up to ~6 lines), and a
+  failed save tints the error line red via `.capture-error`.
+- TOC rail shows "No headings yet" instead of a blank column for documents
+  without h1-h3.
+- Graph node labels truncate at 18 chars with the full name in a native
+  tooltip.
+- Word-frequency items are keyboard-operable (Tab focus + Enter/Space).
+- Quick switcher empty state says "No recent files yet" when nothing is
+  open yet; typed queries still say "No matches".
+- Collab pill is focusable and opens the share panel with Enter/Space.
+
+### Changed - UI polish (token/contrast pass)
+- Inputs and textareas inherit the app font everywhere (including pickers).
+- Toasts: tokenized enter/leave animations, click-to-dismiss cursor.
+- Context menus use the elevated shadow token.
+- Command palette: card focus ring, accent-colored active row, focusable
+  hints.
+- Kanban: softer card shadows, accent drop ring while dragging, checkbox
+  glyphs re-tinted against accent, delete button revealed on card focus.
+- Pomodoro pill: full hover/active/running states, break time tinted green,
+  pulsing status dots.
+- Calendar cells: focus rings, calmer out-of-month dimming, today pill,
+  ellipsized word counts.
+- Slideshow arrows: theme-aware glass surfaces, accent hover, focus rings.
+- Reader TOC: active item gets the accent-soft tint + weight, tokenized
+  transitions.
+- Peer carets animate with the spring easing; name labels contrast against
+  the accent fill.
+- Word-frequency bars paint a visible track; graph nodes give hover
+  feedback; the drop overlay animates in.
+- Modals/overlays/scrims tokenized (durations, easing, theme-tinted scrim).
+
 ## [0.65.0] - 2026-08-15
 
 ### Redesigned - Settings dialog

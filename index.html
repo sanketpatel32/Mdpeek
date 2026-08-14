@@ -25,7 +25,7 @@
         <button id="tab-new" class="tab-new" title="New tab (Ctrl+N)" aria-label="New tab"><span data-icon="plus" data-icon-size="14"></span></button>
       </div>
 
-      <div id="collab-status" class="collab-status hidden" role="status" aria-live="polite" title="Live collaboration — click to open panel">
+      <div id="collab-status" class="collab-status hidden" role="status" aria-live="polite" tabindex="0" title="Live collaboration — click to open panel">
         <span class="collab-dot" aria-hidden="true"></span>
         <span class="collab-text">Live</span>
         <button id="collab-end" class="collab-end" type="button" title="End session" aria-label="End collaboration session"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -318,7 +318,7 @@
       </div>
     </div>
 
-    <div id="toast" class="toast hidden"></div>
+    <div id="toast" class="toast hidden" role="status" aria-live="polite" title="Click to dismiss"></div>
 
     <div id="pdf-page-badge" class="pdf-page-badge hidden" aria-live="polite">1 / 1</div>
 
@@ -365,9 +365,12 @@
         <div class="speaker-notes-label">Speaker notes</div>
         <div class="speaker-notes-body"></div>
       </div>
+      <button class="slide-exit-btn" id="slide-exit-btn" type="button" title="Exit presentation (Esc)" aria-label="Exit presentation">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
       <button class="slide-style-btn" id="slide-style-btn" type="button" title="Switch style (S)" aria-label="Switch presentation style">
         <span data-icon="slide-style"></span>
-        <span id="slide-style-label">Reading</span>
+        <span id="slide-style-label">Deck</span>
       </button>
       <div class="slide-progress" aria-live="polite"></div>
       <div class="slide-hint">← → · space · F fullscreen · N notes · S style · Esc</div>

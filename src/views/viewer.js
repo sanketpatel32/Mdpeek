@@ -73,7 +73,8 @@ export function buildToc(root) {
   if (!tocEl) return;
   const headings = root.querySelectorAll('h1, h2, h3');
   if (headings.length === 0) {
-    tocEl.innerHTML = '';
+    // Say so instead of showing a blank rail.
+    tocEl.innerHTML = '<div class="toc-empty">No headings yet</div>';
     return;
   }
   const items = [];

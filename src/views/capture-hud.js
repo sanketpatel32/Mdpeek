@@ -14,6 +14,7 @@ let created = false;
 let overlay;        // #capture-hud
 let input;          // textarea
 let destEl;         // .capture-dest
+let cardEl;         // .capture-hud-card (gets .capture-error on failure)
 let onCaptureCb = null;
 let prevFocus = null;
 let saving = false;
@@ -36,6 +37,7 @@ function build() {
   document.body.appendChild(overlay);
   input = overlay.querySelector('.capture-input');
   destEl = overlay.querySelector('.capture-dest');
+  cardEl = overlay.querySelector('.capture-hud-card');
 
   // Enter = submit (Shift+Enter = newline). Empty input = silent no-op close.
   // While saving (awaiting onCapture), input is disabled so rapid Enter can't
@@ -49,6 +51,11 @@ function build() {
       e.stopPropagation();
       close();
     }
+  });
+  // Auto-grow the textarea up to ~6 lines instead of scrolling inside it.
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 200) + 'px';
   });
   // Stop the global keymap from intercepting keys while typing in the HUD
   // (e.g. Ctrl+Shift+I would otherwise re-toggle). Let normal typing through.
@@ -80,6 +87,7 @@ async function submit() {
     saving = false;
     input.disabled = false;
     input.removeAttribute('aria-busy');
+    if (cardEl) cardEl.classList.add('capture-error');
     const msg = err && err.message ? err.message : String(err);
     if (destEl) destEl.textContent = '⚠ Could not capture: ' + msg;
     // Refocus so the user can tweak + retry, or hit Esc to give up.
@@ -100,7 +108,9 @@ function open(opts = {}) {
   if (!created) return;
   onCaptureCb = typeof opts.onCapture === 'function' ? opts.onCapture : null;
   if (destEl) destEl.textContent = opts.destination || '';
+  if (cardEl) cardEl.classList.remove('capture-error');
   input.value = '';
+  input.style.height = 'auto';
   input.disabled = false;
   input.removeAttribute('aria-busy');
   saving = false;
