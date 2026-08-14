@@ -84,10 +84,10 @@
   to { opacity: 0; transform: translateY(8px) scale(0.96); }
 }
 
-/* --- welcome card (initial entrance) --- */
-.welcome-card {
-  animation: welcome-fade-up var(--dur-4) var(--ease-out);
-}
+/* --- welcome entrance --- */
+/* v0.63.0: the old .welcome-card fade lives no more — the welcome screen is
+   now a staggered column; its choreography (welcome-rise keyframes + per-
+   child delays) lives with the rest of the welcome styles in base.css. */
 
 /* --- Settings panel switch (v0.32.1) ---
    When a category is clicked, the old panel gets `.hidden` added and the new

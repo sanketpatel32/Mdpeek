@@ -10,6 +10,18 @@
 
   --header-h: 52px;
 
+  /* ---- Typography (v0.63.0) -----------------------------------------------
+     Two families maximum: a UI/UI-text sans stack and a mono stack for code.
+     Components should reference these instead of hardcoding stacks. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text",
+    "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "SFMono-Regular", "Cascadia Code", Consolas, "Liberation Mono",
+    monospace;
+
+  /* Unified focus treatment — a soft accent halo instead of a hard outline.
+     Use with :focus-visible for a calmer, premium keyboard affordance. */
+  --focus-ring: 0 0 0 2px var(--bg-elevated), 0 0 0 4px color-mix(in srgb, var(--accent) 55%, transparent);
+
   /* ---- Spacing scale (v0.60.0) -------------------------------------------
      An 8-step rhythm. Most values are multiples of 4 so they snap to a grid,
      with half-steps (2px) for tight clusters (icon gaps, button padding).
@@ -501,12 +513,14 @@
   --surface-hover: #1a1a1e;
   --surface-active: #26262b;
 
+  /* v0.63.0: secondary/muted text brightened — on true black the previous
+     values fell below comfortable contrast for secondary UI copy. */
   --fg: #f2f2f5;
-  --fg-secondary: #b0b0b8;
-  --fg-muted: #6a6a72;
+  --fg-secondary: #b8b8c2;
+  --fg-muted: #8f8f9a;
 
-  --border: #1f1f24;
-  --border-subtle: #141418;
+  --border: #26262c;
+  --border-subtle: #18181d;
 
   --accent: #4f9cf9;
   --accent-hover: #7ab5fb;

@@ -94,19 +94,22 @@
 
 
 
-/* headings */
+/* headings — v0.63.0: tightened tracking on display sizes + a calmer rhythm
+   (slightly less top margin, a touch more air below) for a premium doc feel. */
 .markdown-body h1,
 .markdown-body h2,
 .markdown-body h3,
 .markdown-body h4 {
-  font-weight: 600;
+  font-weight: 650;
   line-height: 1.25;
-  margin-top: 2em;
-  margin-bottom: 0.6em;
+  margin-top: 1.8em;
+  margin-bottom: 0.65em;
+  letter-spacing: -0.015em;
   scroll-margin-top: calc(var(--header-h) + 16px);
 }
 .markdown-body h1 {
   font-size: 2em;
+  letter-spacing: -0.025em;
   padding-bottom: 0.3em;
   border-bottom: 1px solid var(--border-subtle);
 }
@@ -288,7 +291,8 @@
 .markdown-body .spoiler.revealed { color: inherit; }
 .markdown-body img {
   max-width: 100%;
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
 }
 /* v0.36.0: inline images in the preview are click-to-zoom (renderer.js wires
    the click; data-zoom="1" is set on every standalone img). A subtle hover
@@ -378,10 +382,13 @@
   .mdpeek-lightbox .lb-prev,
   .mdpeek-lightbox .lb-next { transition: none; }
 }
+/* v0.63.0: hr as a centered fading hairline — reads as a section break
+   rather than a ruled line. */
 .markdown-body hr {
   border: none;
-  border-top: 1px solid var(--border-subtle);
-  margin: 2em 0;
+  height: 1px;
+  margin: 2.2em 0;
+  background: linear-gradient(90deg, transparent, var(--border) 20%, var(--border) 80%, transparent);
 }
 
 /* lists */
@@ -398,13 +405,16 @@
   margin: 0.25em 0;
 }
 
-/* quotes — full border + soft tint (not a side-stripe) */
+/* quotes — v0.63.0: accent side-stripe over a soft tint (was a full border).
+   The stripe ties quotes to the app accent; the tint separates them from
+   body text without adding another hard box. */
 .markdown-body blockquote {
   margin: 0 0 1em;
-  padding: 0.6em 1.1em;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  border-radius: var(--radius);
+  padding: 0.7em 1.1em;
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+  border-radius: 0 var(--radius) var(--radius) 0;
   color: var(--fg-secondary);
 }
 .markdown-body blockquote p {
@@ -438,8 +448,7 @@
   padding: 14px 16px;
   border-radius: var(--radius);
   overflow: auto;
-  font-family: "SFMono-Regular", "Cascadia Code", Consolas, "Liberation Mono",
-    monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.55;
   margin: 0 0 1em;
@@ -611,8 +620,7 @@
   border: 1px solid var(--code-border);
   border-bottom: none;
   border-radius: var(--radius) var(--radius) 0 0;
-  font-family: "SFMono-Regular", "Cascadia Code", Consolas, "Liberation Mono",
-    monospace;
+  font-family: var(--font-mono);
   font-size: 11.5px;
   font-weight: 600;
   color: var(--fg-muted);
@@ -726,21 +734,20 @@
   display: none !important;
 }
 .markdown-body code {
-  font-family: "SFMono-Regular", "Cascadia Code", Consolas, "Liberation Mono",
-    monospace;
+  font-family: var(--font-mono);
 }
 .markdown-body :not(pre) > code {
   background: var(--code-bg);
-  border: 1px solid var(--code-border);
-  padding: 1px 5px;
-  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--code-border) 70%, transparent);
+  padding: 0.1em 0.4em;
+  border-radius: 6px;
   font-size: 0.88em;
 }
 /* Keyboard keys in rendered docs — <kbd>Ctrl</kbd> + <kbd>S</kbd> */
 .markdown-body kbd {
   display: inline-block;
   padding: 1px 5px;
-  font-family: "SFMono-Regular", "Cascadia Code", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.82em;
   line-height: 1.4;
   background: var(--code-bg);
@@ -751,7 +758,8 @@
   white-space: nowrap;
 }
 
-/* tables */
+/* tables — v0.63.0: softer inner hairlines, header on a tinted band, and a
+   hover row so long tables are easier to track across. */
 .markdown-body table {
   border-collapse: collapse;
   width: 100%;
@@ -760,16 +768,20 @@
 }
 .markdown-body th,
 .markdown-body td {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
   padding: 8px 13px;
   text-align: left;
 }
 .markdown-body th {
   background: var(--surface);
   font-weight: 600;
+  border-bottom: 1px solid var(--border);
 }
 .markdown-body tr:nth-child(2n) td {
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 45%, transparent);
+}
+.markdown-body tbody tr:hover td {
+  background: var(--accent-soft);
 }
 
 /* ----------------------------- task lists -------------------------------- */

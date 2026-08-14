@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.63.0] - 2026-08-14
+
+### Redesigned - Welcome screen ("quiet hero")
+- The welcome screen is now a centered hero column instead of a two-column
+  card: large app mark with a soft accent halo, hero-scale title (30px,
+  tightened tracking), and ambient accent glows bleeding in from the top
+  corners (tinted per theme via `--accent-soft`).
+- Primary actions are a 2×2 grid of cards — icon in a tinted tile, label,
+  one-line hint, and shortcut chip. "Open File" gets a gradient accent
+  treatment with a colored glow shadow.
+- Recents live in a floating panel beneath the actions (capped height,
+  scrolls) with soft accent-tint hover rows; the shortcut footer is centered.
+- The whole column enters with a staggered rise animation (60ms per block),
+  fully disabled under `prefers-reduced-motion`.
+- Fully responsive: single-column actions under 640px, compressed hero on
+  short viewports (≤600px / ≤480px breakpoints preserved).
+
+### Improved - Calmer app chrome
+- The glass header gains a faint top-edge highlight so it reads as a lit
+  slab (macOS/Linear-style glass).
+- Toolbar button clusters are translucent recessed wells instead of
+  hard-bordered boxes — fewer hard lines across the header.
+- Settings → Appearance theme swatches are taller (62px) with three window
+  dots and a content preview that lifts on hover, so each card reads as a
+  tiny app window.
+
+### Improved - Richer rendered-markdown typography
+- Headings: tightened tracking on display sizes, calmer margin rhythm.
+- Blockquotes: accent side-stripe over a soft tint (was a full border).
+- Tables: softer inner hairlines, header band with a stronger bottom rule,
+  and row hover for tracking long tables.
+- `hr` renders as a centered fading hairline; inline code is a softer pill;
+  images get larger radii plus a soft shadow.
+
+### Fixed - OLED theme contrast
+- Muted/secondary text and borders were too dim against the true-#000 base;
+  both lifted to comfortable contrast levels.
+
+### Added - Developer preview shim
+- `src/dev-shim.js` (dev-only; no-ops in real Tauri builds) lets the full UI
+  boot in a plain browser — previously `getCurrentWindow()` aborted module
+  execution, leaving a blank page in `vite dev`. Supports `?theme=…`,
+  `?settings=1`, and `?doc=1` (seeds a sample document) for deterministic
+  UI screenshots and visual regression checks.
+
 ## [0.62.2] - 2026-08-14
 
 ### Fixed - Markdown rendered as raw source in lists

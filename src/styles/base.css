@@ -68,6 +68,10 @@ body {
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid var(--border-subtle);
+  /* v0.63.0: faint top-edge highlight sells the "glass slab" — light catches
+     the upper rim the way it does on native toolbars. Invisible on OLED-ish
+     themes where the mix collapses toward transparent. */
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 14%, transparent);
   -webkit-user-select: none;
   user-select: none;
   position: relative;
@@ -168,8 +172,10 @@ body.focus-mode #file-tree {
   align-items: center;
   gap: 3px;
   padding: 3px;
-  background: var(--surface);
-  border: 1px solid var(--border-subtle);
+  /* v0.63.0: translucent well instead of a bordered box — reads as one
+     recessed control cluster without adding hard lines to the header. */
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 55%, transparent);
   border-radius: var(--radius);
 }
 
@@ -182,8 +188,8 @@ body.focus-mode #file-tree {
 
 /* Zoom widget — the − / % / + cluster reads as one cohesive unit */
 .tool-group.zoom-widget {
-  background: var(--surface);
-  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 55%, transparent);
   gap: 0;
   padding: 2px;
 }
@@ -1861,81 +1867,98 @@ mark.find-current {
 }
 
 /* ---------- Welcome / empty state ---------- */
-/* ---------- Welcome / home screen ----------
-   Two-column card on a soft surface. Left column: brand + primary actions +
-   a condensed shortcut footer. Right column: recent files. Designed to fit
-   without scrolling on standard windows; collapses to one column when narrow. */
-/* ---------- Welcome screen / Home hub ---------- */
+/* ---------- Welcome / home screen (v0.63.0 "quiet hero") ----------
+   Centered column: brand hero with an ambient accent halo → grid of action
+   cards → recents panel → shortcut hints. Scales down gracefully on short
+   viewports and collapses to one column when narrow. */
 .welcome {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   flex: 1;
   min-height: 0;
   width: 100%;
-  padding: clamp(20px, 4vw, 40px);
+  padding: clamp(20px, 4vh, 44px) 20px;
   text-align: left;
   color: var(--fg-secondary);
   overflow: auto;
-  background: radial-gradient(circle at 50% 20%, var(--accent-soft) 0%, transparent 60%);
+  /* Ambient depth: two soft accent glows bleeding in from the top corners.
+     Uses --accent-soft so every theme tints the room in its own accent. */
+  background:
+    radial-gradient(600px 300px at 12% -6%, var(--accent-soft) 0%, transparent 70%),
+    radial-gradient(600px 300px at 88% -6%, var(--accent-soft) 0%, transparent 70%);
 }
-.welcome-card {
-  display: grid;
-  grid-template-columns: 310px minmax(0, 1fr);
-  gap: 32px;
-  width: 100%;
-  max-width: min(780px, 92vw);
-  max-height: 100%;
-  min-height: 0;
-  margin: auto;
-  overflow: hidden;
-  padding: 32px 36px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.25);
-  animation: welcome-fade-up 350ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.welcome-main {
+.welcome-inner {
   display: flex;
   flex-direction: column;
-  min-width: 0;
-  min-height: 0;
+  align-items: stretch;
+  gap: 22px;
+  width: 100%;
+  max-width: 600px;
+  margin: auto;
 }
 
-.welcome-brand {
+/* Staggered entrance — each block rises into place, top to bottom. */
+.welcome-inner > * {
+  animation: welcome-rise 420ms var(--ease-out) both;
+}
+.welcome-inner > *:nth-child(1) { animation-delay: 0ms; }
+.welcome-inner > *:nth-child(2) { animation-delay: 60ms; }
+.welcome-inner > *:nth-child(3) { animation-delay: 120ms; }
+.welcome-inner > *:nth-child(4) { animation-delay: 180ms; }
+@keyframes welcome-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Hero — big brand mark with a halo glow, then title + tagline. */
+.welcome-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding-top: 6px;
+}
+.welcome-logo-wrap {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 24px;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+.welcome-logo-halo {
+  position: absolute;
+  inset: -26px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent-soft) 0%, transparent 65%);
+  /* A whisper of accent color around the mark, present in every theme. */
+  filter: blur(2px);
 }
 .welcome-logo {
-  width: 42px;
-  height: 42px;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  position: relative;
+  width: 68px;
+  height: 68px;
+  border-radius: 16px;
+  box-shadow: 0 10px 28px -8px color-mix(in srgb, var(--accent) 40%, transparent),
+    var(--shadow-md);
   flex-shrink: 0;
   margin: 0;
-}
-.welcome-brand-info {
-  display: flex;
-  flex-direction: column;
 }
 .welcome-title-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 10px;
 }
 .welcome-title {
-  /* v0.62.1: larger/tighter for a clearer brand hierarchy. */
-  font-size: 24px;
+  /* v0.63.0: hero-scale brand name — the welcome screen's loudest element. */
+  font-size: 30px;
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.04em;
   color: var(--fg);
   margin: 0;
-  line-height: 1.2;
+  line-height: 1.15;
 }
 .version-badge {
   font-size: 10px;
@@ -1945,82 +1968,115 @@ mark.find-current {
   padding: 2px 7px;
   border-radius: 10px;
   letter-spacing: 0.03em;
-  border: 1px solid var(--border-subtle);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
   font-variant-numeric: tabular-nums;
 }
 .welcome-tagline {
-  font-size: 12.5px;
-  margin: 4px 0 0;
-  line-height: 1.4;
+  font-size: 13.5px;
+  margin: 0;
+  line-height: 1.5;
   color: var(--fg-secondary);
+  max-width: 40ch;
 }
 
+/* Action cards — 2×2 grid; each card leads with an icon in a tinted tile. */
 .welcome-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
   width: 100%;
 }
 .welcome-action {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 14px;
+  padding: 12px 14px;
   border: 1px solid var(--border-subtle);
-  border-radius: 9px;
-  background: var(--surface-active);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
   color: var(--fg);
   font: inherit;
-  font-size: 13px;
-  font-weight: 500;
   cursor: pointer;
   text-align: left;
-  transition: all 140ms var(--ease);
+  box-shadow: var(--shadow-sm);
+  transition: transform 160ms var(--ease),
+    border-color 160ms var(--ease),
+    box-shadow 160ms var(--ease),
+    background-color 160ms var(--ease);
 }
-.welcome-action > span {
+.welcome-action .wa-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex-shrink: 0;
+  transition: transform 160ms var(--ease-spring);
+}
+.welcome-action .wa-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
   flex: 1;
 }
-.welcome-action svg {
+.welcome-action .wa-label {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.welcome-action .wa-hint {
+  font-size: 11.5px;
   color: var(--fg-muted);
-  flex-shrink: 0;
-  transition: color 140ms var(--ease);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .welcome-action:hover {
-  background: var(--surface-hover);
-  border-color: var(--border);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
-.welcome-action:hover svg {
-  color: var(--fg);
+.welcome-action:hover .wa-icon {
+  transform: scale(1.06);
 }
 .welcome-action:active {
   transform: translateY(0);
+  box-shadow: var(--shadow-sm);
 }
 .welcome-action.primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 82%, #000 18%));
+  border-color: transparent;
   color: #ffffff;
-  box-shadow: 0 4px 14px var(--accent-soft);
+  box-shadow: 0 8px 20px -6px color-mix(in srgb, var(--accent) 55%, transparent);
 }
-.welcome-action.primary svg {
+.welcome-action.primary .wa-icon {
+  background: rgba(255, 255, 255, 0.18);
   color: #ffffff;
+}
+.welcome-action.primary .wa-hint {
+  color: rgba(255, 255, 255, 0.78);
 }
 .welcome-action.primary:hover {
-  background: var(--accent);
-  filter: brightness(1.08);
-  box-shadow: 0 6px 18px var(--accent-soft);
+  border-color: transparent;
+  filter: brightness(1.06);
+  box-shadow: 0 12px 26px -6px color-mix(in srgb, var(--accent) 65%, transparent);
 }
 .welcome-action kbd {
   margin-left: auto;
   padding: 2px 6px;
-  font-family: "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
-  background: var(--bg);
+  background: var(--surface);
   border: 1px solid var(--border-subtle);
   border-radius: 5px;
   color: var(--fg-muted);
   font-weight: 400;
+  flex-shrink: 0;
 }
 .welcome-action.primary kbd {
   background: rgba(255, 255, 255, 0.2);
@@ -2028,14 +2084,13 @@ mark.find-current {
   color: #ffffff;
 }
 
-/* Condensed shortcut footer — single line, low contrast. */
+/* Condensed shortcut footer — single line, low contrast, centered. */
 .welcome-footer {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 4px 8px;
-  margin-top: auto;
-  padding-top: 18px;
   font-size: 11px;
   color: var(--fg-muted);
 }
@@ -2049,28 +2104,25 @@ mark.find-current {
 .welcome kbd {
   display: inline-block;
   padding: 1px 5px;
-  font-family: "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
-  background: var(--bg);
+  background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-bottom-width: 1.5px;
   border-radius: var(--radius-sm);
   color: var(--fg);
 }
 
-/* Right column — recent files. */
-.welcome-aside {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  border-left: 1px solid var(--border-subtle);
-  padding-left: 28px;
-  margin-left: -4px;
+/* Recents — floating panel beneath the action grid. */
+.welcome-recents {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 8px;
+  box-shadow: var(--shadow-sm);
 }
 .recent-files {
   width: 100%;
-  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -2080,14 +2132,14 @@ mark.find-current {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
-  padding: 0 2px;
+  margin-bottom: 6px;
+  padding: 2px 8px 4px;
 }
 .recent-title {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   color: var(--fg-muted);
 }
 .recent-clear {
@@ -2111,23 +2163,24 @@ mark.find-current {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 32px 16px;
+  padding: 20px 16px;
   color: var(--fg-muted);
   font-size: 12px;
   text-align: center;
-  flex: 1;
   opacity: 0.7;
 }
 .recent-empty svg {
   opacity: 0.5;
 }
-/* The list itself scrolls if needed; the card never grows past the viewport. */
+/* The list scrolls if needed; capped so a long history never pushes the
+   footer off-screen. */
 .recent-list {
   display: flex;
   flex-direction: column;
   gap: 1px;
   overflow-y: auto;
   min-height: 0;
+  max-height: 228px;
   margin: 0 -4px;
   padding: 0 4px;
 }
@@ -2144,17 +2197,15 @@ mark.find-current {
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background-color var(--dur-2) var(--ease),
-    box-shadow var(--dur-2) var(--ease);
+  transition: background-color var(--dur-2) var(--ease);
 }
-/* v0.62.1: hover affordance — surface lift + accent left rail so the recents
-   column reads as interactive, matching the file-tree row treatment. */
+/* Hover affordance — soft accent tint so the panel reads as interactive,
+   matching the file-tree row treatment. */
 .recent-item:hover {
-  background: var(--surface-hover);
-  box-shadow: inset 2px 0 0 var(--accent);
+  background: var(--accent-soft);
 }
 .recent-item:hover .recent-name {
-  color: var(--fg);
+  color: var(--accent);
 }
 .recent-icon {
   flex-shrink: 0;
@@ -2178,6 +2229,7 @@ mark.find-current {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: color var(--dur-2) var(--ease);
 }
 .recent-path {
   font-size: 11px;
@@ -2196,104 +2248,110 @@ mark.find-current {
   white-space: nowrap;
 }
 
-/* Mid-tier windows (~700–900px): tighten the card slightly so it doesn't
-   feel oversized or leave wide gutters. Two columns stay intact. */
+/* Mid-tier windows: keep the two-card grid but tighten the rhythm. */
 @media (max-width: 880px) {
-  .welcome-card {
-    gap: 20px;
-    padding: 22px 22px;
+  .welcome-inner {
+    gap: 18px;
   }
   .welcome-logo {
-    width: 46px;
-    height: 46px;
+    width: 60px;
+    height: 60px;
+    border-radius: 14px;
+  }
+  .welcome-title {
+    font-size: 26px;
+  }
+}
+
+/* Narrow windows: single-column action list, smaller hero. */
+@media (max-width: 640px) {
+  .welcome {
+    padding: 18px 16px;
+  }
+  .welcome-inner {
+    gap: 16px;
+  }
+  .welcome-actions {
+    grid-template-columns: 1fr;
+  }
+  .welcome-logo {
+    width: 54px;
+    height: 54px;
+    border-radius: 13px;
+  }
+  .welcome-title {
+    font-size: 24px;
+  }
+}
+
+/* Short viewports or expanded terminal drawer: compress the hero so the
+   actions + recents stay reachable without scrolling. */
+@media (max-height: 600px) {
+  .welcome {
+    padding: 14px 16px;
+  }
+  .welcome-inner {
+    gap: 14px;
+  }
+  .welcome-logo-wrap {
+    margin-bottom: 2px;
+  }
+  .welcome-logo {
+    width: 44px;
+    height: 44px;
     border-radius: 11px;
-    margin-bottom: 10px;
+  }
+  .welcome-logo-halo {
+    inset: -16px;
   }
   .welcome-title {
     font-size: 20px;
   }
-}
-
-/* Narrow windows: collapse the two columns into one and allow vertical scroll
-   as the last resort. */
-@media (max-width: 640px) {
-  .welcome {
-    overflow: auto;
-    padding: 20px 16px;
-  }
-  .welcome-card {
-    grid-template-columns: 1fr;
-    max-height: none;
-    gap: 20px;
-    padding: 24px 20px;
-  }
-  .welcome-brand {
-    align-items: center;
-    text-align: center;
-  }
-  .welcome-actions {
-    align-items: stretch;
+  .welcome-tagline {
+    display: none;
   }
   .welcome-action {
-    /* Tighter vertical rhythm when stacked so 4 buttons fit a short window. */
     padding: 9px 12px;
   }
-  .welcome-footer {
-    justify-content: center;
+  .welcome-action .wa-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
   }
-}
-
-/* Short viewports or expanded terminal drawer: scale down padding and spacing so the card remains compact */
-@media (max-height: 600px) {
-  .welcome {
-    padding: 12px 16px;
-  }
-  .welcome-card {
-    gap: 18px;
-    padding: 16px 20px;
-  }
-  .welcome-brand {
-    margin-bottom: 12px;
-  }
-  .welcome-logo {
-    width: 40px;
-    height: 40px;
-    margin-bottom: 6px;
-  }
-  .welcome-title {
-    font-size: 18px;
-  }
-  .welcome-actions {
-    gap: 6px;
-  }
-  .welcome-action {
-    padding: 7px 10px;
-  }
-  .welcome-footer {
-    padding-top: 10px;
+  .recent-list {
+    max-height: 140px;
   }
 }
 
 @media (max-height: 480px) {
-  .welcome-brand {
-    margin-bottom: 8px;
+  .welcome-inner {
+    gap: 10px;
   }
   .welcome-logo {
-    width: 32px;
-    height: 32px;
-    margin-bottom: 4px;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
   }
-  .welcome-tagline {
+  .welcome-title {
+    font-size: 17px;
+  }
+  .welcome-action .wa-hint {
     display: none;
-  }
-  .welcome-actions {
-    gap: 4px;
-  }
-  .welcome-action {
-    padding: 6px 10px;
   }
   .welcome-footer {
     display: none;
+  }
+  .recent-list {
+    max-height: 96px;
+  }
+}
+
+/* Entrance choreography is decorative — reduced-motion users get static
+   content immediately. */
+@media (prefers-reduced-motion: reduce) {
+  .welcome-inner > *,
+  .welcome-inner > *:nth-child(n) {
+    animation: none;
   }
 }
 
@@ -2544,7 +2602,7 @@ mark.find-current {
   margin-left: auto;
   color: var(--fg-muted);
   font-size: 11px;
-  font-family: "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
 }
 
 /* ---------- File-tree context menu extras ---------- */
@@ -2672,34 +2730,42 @@ mark.find-current {
 }
 .theme-card .theme-swatch {
   width: 100%;
-  height: 54px;
-  border-radius: 6px;
+  height: 62px;
+  border-radius: 7px;
   border: 1px solid rgba(128, 128, 128, 0.2);
   background: var(--sw-bg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+  transition: transform 180ms var(--ease);
+}
+.theme-card:hover .theme-swatch {
+  transform: translateY(-1px);
 }
 .theme-swatch .swatch-header {
-  height: 14px;
+  height: 15px;
   background: var(--sw-header, var(--sw-bg));
   border-bottom: 1px solid rgba(128, 128, 128, 0.15);
   position: relative;
 }
+/* v0.63.0: three window dots (macOS traffic lights) — one real dot plus two
+   painted on with box-shadow, so the preview reads as a tiny app window. */
 .theme-swatch .swatch-header::before {
   content: '';
   position: absolute;
   left: 6px;
-  top: 4px;
-  width: 6px;
-  height: 6px;
+  top: 5px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--sw-accent);
+  box-shadow: 8px 0 0 -0.5px color-mix(in srgb, var(--sw-accent) 55%, var(--sw-fg, transparent)),
+    16px 0 0 -0.5px color-mix(in srgb, var(--sw-accent) 30%, var(--sw-fg, transparent));
 }
 .theme-swatch .swatch-body {
   flex: 1;
-  padding: 6px;
+  padding: 7px 6px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -2730,7 +2796,7 @@ mark.find-current {
   background: var(--surface-hover);
   color: var(--fg);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 6px 16px -4px rgba(0, 0, 0, 0.18);
 }
 .theme-card.active {
   border-color: var(--accent);
@@ -4830,7 +4896,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   border-radius: var(--radius-sm);
   background: var(--bg);
   color: var(--fg);
-  font-family: "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 11.5px;
   white-space: nowrap;
   overflow: hidden;
@@ -4888,7 +4954,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 .shortcut-table kbd {
   display: inline-block;
   padding: 1px 6px;
-  font-family: "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -4898,7 +4964,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   margin-right: 2px;
 }
 .shortcut-table code {
-  font-family: "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   background: var(--code-bg);
   padding: 1px 5px;
@@ -4915,7 +4981,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   margin: 3px 0;
 }
 .help-tips code {
-  font-family: "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   background: var(--code-bg);
   padding: 1px 5px;
@@ -5037,7 +5103,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   text-decoration-color: var(--accent);
 }
 .changelog-body code {
-  font-family: "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   background: var(--code-bg);
   color: var(--fg);
