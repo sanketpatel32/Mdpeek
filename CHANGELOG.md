@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - Alert callouts render correctly
+- **GFM alert callouts no longer show a stray blank line at the top of the
+  body.** With `breaks: true`, marked splits the `> [!NOTE]` marker line from
+  the body with a `<br>` token; the alert renderer stripped the marker text
+  but left the `<br>`, so every callout started with an empty line. The `<br>`
+  immediately following the marker is now dropped.
+- **Custom alert titles now render in the callout header instead of leaking
+  into the body.** `> [!TIP] Pro tip` previously showed the title as "TIP"
+  and "Pro tip" as body text. Text after the marker on the same line is now
+  used as the header title (HTML-escaped), matching GitHub. This also fixes
+  mkDocs `!!! type "title"` admonitions and multi-paragraph callouts, which
+  flow through the same renderer.
+
 ## [0.61.4] - 2026-08-08
 
 ### Fixed - Links now visible in all file types

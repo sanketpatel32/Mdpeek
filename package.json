@@ -35,7 +35,7 @@
     "highlight.js": "^11.11.1",
     "katex": "^0.17.0",
     "lucide": "^1.28.0",
-    "marked": "^18.0.7",
+    "marked": "^18.0.9",
     "marked-footnote": "^1.4.0",
     "marked-katex-extension": "^5.1.10",
     "mermaid": "^11.16.0",

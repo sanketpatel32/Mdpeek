@@ -401,17 +401,30 @@ function buildMarked() {
           return `<blockquote>\n${this.parser.parse(tokens)}</blockquote>`;
         }
         // Strip the consumed marker text from the first paragraph's leading
-        // text token so it doesn't appear in the rendered body.
+        // text token so it doesn't appear in the rendered body. Any text left
+        // on the marker line is a custom title (e.g. `> [!TIP] Pro tip`) —
+        // shown in the header instead of the body. The `br` that follows
+        // (breaks:true splits the marker line from the body) is dropped too,
+        // otherwise every callout body starts with a stray blank line.
         const firstPara = tokens.find((t) => t.type === 'paragraph');
         if (firstPara && firstPara.tokens && firstPara.tokens[0]) {
           const t0 = firstPara.tokens[0];
           const lead = t0.text || t0.raw || '';
-          t0.text = lead.replace(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i, '');
+          const m = lead.match(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*(.*)$/i);
+          if (m) {
+            if (m[2].trim()) alert.title = m[2].trim();
+            t0.text = '';
+            const idx = firstPara.tokens.indexOf(t0);
+            if (idx !== -1 && firstPara.tokens[idx + 1] && firstPara.tokens[idx + 1].type === 'br') {
+              firstPara.tokens.splice(idx + 1, 1);
+            }
+          }
         }
         const body = this.parser.parse(tokens);
+        const title = escapeHtml(alert.title || alert.type);
         return (
           `<blockquote class="markdown-alert markdown-alert-${alert.type}">` +
-          `<p class="markdown-alert-title">${alert.icon}${alert.type}</p>` +
+          `<p class="markdown-alert-title">${alert.icon}${title}</p>` +
           `${body}</blockquote>`
         );
       },

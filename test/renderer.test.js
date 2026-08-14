@@ -116,6 +116,29 @@ describe('renderMarkdown — GFM alerts', () => {
     const html = renderMarkdown('> [!WARNING]\n> Be careful.');
     expect(html).toContain('markdown-alert-WARNING');
   });
+
+  it('does not start the alert body with a stray <br>', () => {
+    // breaks:true splits the marker line from the body with a <br>; the
+    // renderer must drop it or every callout shows a leading blank line.
+    const html = renderMarkdown('> [!NOTE]\n> body line');
+    expect(html).toContain('<p>body line</p>');
+    expect(html).not.toContain('<br>body line');
+  });
+
+  it('shows custom alert titles in the header, not the body', () => {
+    const html = renderMarkdown('> [!TIP] Pro tip\n> body');
+    expect(html).toMatch(/markdown-alert-title">.*Pro tip<\/p>/s);
+    expect(html).toContain('<p>body</p>');
+  });
+
+  it('escapes HTML in custom alert titles', () => {
+    // A title split into an inline-html token falls through to the body —
+    // either way nothing unescaped may reach the header.
+    const html = renderMarkdown('> [!NOTE] <b>hi</b>\n> body');
+    const header = html.match(/markdown-alert-title">([\s\S]*?)<\/p>/)[1];
+    expect(header).toContain('NOTE');
+    expect(header).not.toContain('<b>');
+  });
 });
 
 describe('renderMarkdown — task lists', () => {
