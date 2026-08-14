@@ -51,6 +51,7 @@ import { formatEntry, injectInbox } from './lib/capture.js';
 import { topWords } from './lib/wordfreq.js';
 import { generateTocMarkdown } from './lib/toc.js';
 import { MINIMAL_SUPPRESSED, minimalModeOn as _minimalModeOn, isFeatureOn } from './lib/minimal.js';
+import { filterSettingsPanels } from './lib/settings-search.js';
 import { notifyOs, osNotificationsEnabled, setOsNotificationsEnabled } from './lib/notify.js';
 // v0.34.1: build-time version for the About + Updates panels. Import is
 // hoisted to module top; the value is written into the DOM early (right after
@@ -6892,6 +6893,12 @@ const settingsSidebar = el.settingsDialog.querySelector('.settings-sidebar');
 if (settingsSidebar) settingsSidebar.addEventListener('click', (e) => {
   const cat = e.target.closest('.settings-cat');
   if (!cat) return;
+  // Switching categories always exits search mode first so the panel the
+  // user picked is shown cleanly (not the stacked search-results view).
+  if (_settingsSearchInput && _settingsSearchInput.value) {
+    _settingsSearchInput.value = '';
+    applySettingsSearch('');
+  }
   const name = cat.dataset.cat;
   settingsSidebar.querySelectorAll('.settings-cat').forEach((b) => {
     b.classList.toggle('active', b === cat);
@@ -6907,6 +6914,50 @@ if (settingsSidebar) settingsSidebar.addEventListener('click', (e) => {
     }
   }
 });
+
+// ---------- Settings search (v0.65.0) ----------
+// Live filter across every panel: typing stacks all panels (grouped by
+// compact section labels) with non-matching rows/cards hidden; clearing
+// restores the category view. The DOM filter lives in src/lib so the
+// restore path is unit-tested (the browser harness can't send key events).
+const _settingsSearchInput = document.getElementById('settings-search');
+const _settingsSearchWrap = _settingsSearchInput?.closest('.settings-search');
+const _settingsContentEl = el.settingsDialog.querySelector('.settings-content');
+const _settingsEmpty = document.getElementById('settings-search-empty');
+
+function applySettingsSearch(q) {
+  if (!_settingsContentEl) return;
+  const query = (q || '').trim().toLowerCase();
+  const active = settingsSidebar?.querySelector('.settings-cat.active');
+  const hits = filterSettingsPanels(el.settingsDialog, query, active ? active.dataset.cat : null);
+  if (!query) {
+    _settingsContentEl.classList.remove('searching');
+    _settingsSearchWrap?.classList.remove('has-value');
+    _settingsEmpty?.classList.add('hidden');
+    return;
+  }
+  _settingsContentEl.classList.add('searching');
+  _settingsSearchWrap?.classList.add('has-value');
+  _settingsEmpty?.classList.toggle('hidden', hits > 0);
+  _settingsContentEl.scrollTop = 0;
+}
+
+if (_settingsSearchInput) {
+  _settingsSearchInput.addEventListener('input', (e) => applySettingsSearch(e.target.value));
+  // Esc clears the search instead of closing the dialog (stopPropagation so
+  // the dialog-level Esc handler doesn't also fire).
+  _settingsSearchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      if (_settingsSearchInput.value) {
+        _settingsSearchInput.value = '';
+        applySettingsSearch('');
+      } else {
+        _settingsSearchInput.blur();
+      }
+    }
+  });
+}
 
 // About panel — "View on GitHub" / "Report an issue" buttons open the system
 // browser via plugin-opener. Delegated so it survives settings re-opens.

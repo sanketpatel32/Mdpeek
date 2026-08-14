@@ -610,18 +610,22 @@
       <div class="modal modal-wide">
         <div class="settings-header">
           <h2 id="settings-title" class="modal-title">Settings</h2>
+          <!-- v0.65.0: live search across every panel. Typing filters setting
+               rows in place; clearing restores the category view. -->
+          <div class="settings-search" role="search">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="settings-search" type="text" placeholder="Search settings…" aria-label="Search settings" spellcheck="false" autocomplete="off" />
+            <kbd class="settings-search-esc" title="Clear search">esc</kbd>
+          </div>
           <div class="settings-header-actions">
-            <button id="settings-export" class="settings-header-btn" type="button" title="Export settings to a JSON file">
+            <button id="settings-export" class="settings-header-btn" type="button" title="Export settings to a JSON file" aria-label="Export settings">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              <span>Export</span>
             </button>
-            <button id="settings-import" class="settings-header-btn" type="button" title="Import settings from a JSON file">
+            <button id="settings-import" class="settings-header-btn" type="button" title="Import settings from a JSON file" aria-label="Import settings">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              <span>Import</span>
             </button>
-            <button id="settings-reset" class="settings-header-btn" type="button" title="Reset all settings to defaults">
+            <button id="settings-reset" class="settings-header-btn" type="button" title="Reset all settings to defaults" aria-label="Reset settings">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-              <span>Reset to default</span>
             </button>
             <button id="settings-close-btn" class="settings-close-btn" type="button" aria-label="Close settings">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -631,6 +635,7 @@
         <div class="settings-shell">
           <!-- Category sidebar -->
           <nav class="settings-sidebar" aria-label="Settings categories">
+            <div class="settings-group-label" aria-hidden="true">Workspace</div>
             <button class="settings-cat active" data-cat="general" type="button">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               <span>General</span>
@@ -647,6 +652,7 @@
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               <span>Features</span>
             </button>
+            <div class="settings-group-label" aria-hidden="true">Reference</div>
             <button class="settings-cat" data-cat="shortcuts" type="button">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"/></svg>
               <span>Shortcuts</span>
@@ -669,6 +675,10 @@
           <div class="settings-content">
             <!-- General -->
             <div class="settings-panel" data-cat="general">
+              <div class="panel-head">
+                <h3 class="panel-title">General</h3>
+                <p class="panel-desc">Tabs, notifications and how mdpeek starts up</p>
+              </div>
               <div class="setting-card">
                 <div class="setting-row">
                   <div class="setting-text">
@@ -739,6 +749,10 @@
 
             <!-- Appearance -->
             <div class="settings-panel hidden" data-cat="appearance">
+              <div class="panel-head">
+                <h3 class="panel-title">Appearance</h3>
+                <p class="panel-desc">Theme, typography and reading comfort</p>
+              </div>
               <div class="setting-card">
                 <div class="setting-row setting-row-block">
                   <div class="setting-text">
@@ -763,9 +777,11 @@
                       <div class="theme-swatch" data-sw="light" aria-hidden="true">
                         <div class="swatch-header"></div>
                         <div class="swatch-body">
+                          <div class="swatch-line title"></div>
                           <div class="swatch-line long"></div>
                           <div class="swatch-line short"></div>
                         </div>
+                        <div class="swatch-chips" aria-hidden="true"><i></i><i></i><i></i></div>
                       </div>
                       <span class="theme-name">Light</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -774,9 +790,11 @@
                       <div class="theme-swatch" data-sw="dark" aria-hidden="true">
                         <div class="swatch-header"></div>
                         <div class="swatch-body">
+                          <div class="swatch-line title"></div>
                           <div class="swatch-line long"></div>
                           <div class="swatch-line short"></div>
                         </div>
+                        <div class="swatch-chips" aria-hidden="true"><i></i><i></i><i></i></div>
                       </div>
                       <span class="theme-name">Dark</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -785,9 +803,11 @@
                       <div class="theme-swatch" data-sw="solar-light" aria-hidden="true">
                         <div class="swatch-header"></div>
                         <div class="swatch-body">
+                          <div class="swatch-line title"></div>
                           <div class="swatch-line long"></div>
                           <div class="swatch-line short"></div>
                         </div>
+                        <div class="swatch-chips" aria-hidden="true"><i></i><i></i><i></i></div>
                       </div>
                       <span class="theme-name">Solarized Light</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -796,9 +816,11 @@
                       <div class="theme-swatch" data-sw="solar-dark" aria-hidden="true">
                         <div class="swatch-header"></div>
                         <div class="swatch-body">
+                          <div class="swatch-line title"></div>
                           <div class="swatch-line long"></div>
                           <div class="swatch-line short"></div>
                         </div>
+                        <div class="swatch-chips" aria-hidden="true"><i></i><i></i><i></i></div>
                       </div>
                       <span class="theme-name">Solarized Dark</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -807,9 +829,11 @@
                       <div class="theme-swatch" data-sw="dracula" aria-hidden="true">
                         <div class="swatch-header"></div>
                         <div class="swatch-body">
+                          <div class="swatch-line title"></div>
                           <div class="swatch-line long"></div>
                           <div class="swatch-line short"></div>
                         </div>
+                        <div class="swatch-chips" aria-hidden="true"><i></i><i></i><i></i></div>
                       </div>
                       <span class="theme-name">Dracula</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -818,9 +842,11 @@
                       <div class="theme-swatch" data-sw="nord" aria-hidden="true">
                         <div class="swatch-header"></div>
                         <div class="swatch-body">
+                          <div class="swatch-line title"></div>
                           <div class="swatch-line long"></div>
                           <div class="swatch-line short"></div>
                         </div>
+                        <div class="swatch-chips" aria-hidden="true"><i></i><i></i><i></i></div>
                       </div>
                       <span class="theme-name">Nord</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -829,9 +855,11 @@
                       <div class="theme-swatch" data-sw="github" aria-hidden="true">
                         <div class="swatch-header"></div>
                         <div class="swatch-body">
+                          <div class="swatch-line title"></div>
                           <div class="swatch-line long"></div>
                           <div class="swatch-line short"></div>
                         </div>
+                        <div class="swatch-chips" aria-hidden="true"><i></i><i></i><i></i></div>
                       </div>
                       <span class="theme-name">GitHub</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -840,9 +868,11 @@
                       <div class="theme-swatch" data-sw="github-dark" aria-hidden="true">
                         <div class="swatch-header"></div>
                         <div class="swatch-body">
+                          <div class="swatch-line title"></div>
                           <div class="swatch-line long"></div>
                           <div class="swatch-line short"></div>
                         </div>
+                        <div class="swatch-chips" aria-hidden="true"><i></i><i></i><i></i></div>
                       </div>
                       <span class="theme-name">GitHub Dark</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -851,9 +881,11 @@
                       <div class="theme-swatch" data-sw="tokyo-night" aria-hidden="true">
                         <div class="swatch-header"></div>
                         <div class="swatch-body">
+                          <div class="swatch-line title"></div>
                           <div class="swatch-line long"></div>
                           <div class="swatch-line short"></div>
                         </div>
+                        <div class="swatch-chips" aria-hidden="true"><i></i><i></i><i></i></div>
                       </div>
                       <span class="theme-name">Tokyo Night</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -862,9 +894,11 @@
                       <div class="theme-swatch" data-sw="catppuccin" aria-hidden="true">
                         <div class="swatch-header"></div>
                         <div class="swatch-body">
+                          <div class="swatch-line title"></div>
                           <div class="swatch-line long"></div>
                           <div class="swatch-line short"></div>
                         </div>
+                        <div class="swatch-chips" aria-hidden="true"><i></i><i></i><i></i></div>
                       </div>
                       <span class="theme-name">Catppuccin</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -873,9 +907,11 @@
                       <div class="theme-swatch" data-sw="oled" aria-hidden="true">
                         <div class="swatch-header"></div>
                         <div class="swatch-body">
+                          <div class="swatch-line title"></div>
                           <div class="swatch-line long"></div>
                           <div class="swatch-line short"></div>
                         </div>
+                        <div class="swatch-chips" aria-hidden="true"><i></i><i></i><i></i></div>
                       </div>
                       <span class="theme-name">OLED Black</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -938,6 +974,10 @@
 
             <!-- Editor -->
             <div class="settings-panel hidden" data-cat="editor">
+              <div class="panel-head">
+                <h3 class="panel-title">Editor</h3>
+                <p class="panel-desc">Writing behavior, saving and code-fence rendering</p>
+              </div>
               <div class="setting-card">
                 <div class="setting-row">
                   <div class="setting-text">
@@ -1045,6 +1085,10 @@
 
             <!-- Features (Feature Flags) -->
             <div class="settings-panel hidden" data-cat="features">
+              <div class="panel-head">
+                <h3 class="panel-title">Features</h3>
+                <p class="panel-desc">Turn individual tools on or off — or hide them all with Minimal mode</p>
+              </div>
               <div class="setting-card">
                 <!-- v0.54.0: Minimal mode — the master switch. When on, every
                      feature below is hidden and greyed out; the app returns to a
@@ -1227,6 +1271,10 @@
 
             <!-- Shortcuts -->
             <div class="settings-panel hidden" data-cat="shortcuts">
+              <div class="panel-head">
+                <h3 class="panel-title">Shortcuts</h3>
+                <p class="panel-desc">Every keyboard shortcut in one place</p>
+              </div>
               <div class="help-section">
                 <div class="help-heading">Global shortcuts</div>
                 <table class="shortcut-table">
@@ -1317,6 +1365,10 @@
 
             <!-- Tips -->
             <div class="settings-panel hidden" data-cat="tips">
+              <div class="panel-head">
+                <h3 class="panel-title">Tips</h3>
+                <p class="panel-desc">Get more out of mdpeek</p>
+              </div>
               <div class="help-section">
                 <ul class="help-tips">
                   <li>Drag &amp; drop files onto the window to open them as tabs.</li>
@@ -1337,11 +1389,19 @@
 
             <!-- Changelog -->
             <div class="settings-panel hidden" data-cat="changelog">
+              <div class="panel-head">
+                <h3 class="panel-title">Changelog</h3>
+                <p class="panel-desc">What changed in recent releases</p>
+              </div>
               <div id="changelog-content" class="changelog-body"></div>
             </div>
 
             <!-- About (with Updates) -->
             <div class="settings-panel hidden" data-cat="about">
+              <div class="panel-head">
+                <h3 class="panel-title">About</h3>
+                <p class="panel-desc">Version, links and software updates</p>
+              </div>
               <div class="about-card">
                 <img src="/icon.png" alt="mdpeek" class="about-logo" />
                 <h3 class="about-name">mdpeek</h3>
@@ -1399,6 +1459,11 @@
                 </div>
               </div>
             </div>
+          </div>
+          <!-- v0.65.0: search empty state (shown by JS when a query matches nothing) -->
+          <div id="settings-search-empty" class="settings-search-empty hidden">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            No settings match your search.
           </div>
         </div>
       </div>

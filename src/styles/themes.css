@@ -77,31 +77,31 @@
 :root,
 :root[data-theme="light"] {
   /* surfaces — warm-tinted neutrals, not clinical white */
-  --bg: #f9f9fb;
+  --bg: #f8f8fa;
   --bg-elevated: #ffffff;
-  --surface: #f2f3f7;
-  --surface-hover: #e9ebf1;
-  --surface-active: #dfe2ea;
+  --surface: #f1f2f6;
+  --surface-hover: #e8eaf0;
+  --surface-active: #dde0e8;
 
   /* text */
   --fg: #1d1d1f;
-  --fg-secondary: #515154;
-  --fg-muted: #86868b;
+  --fg-secondary: #4d4d51;
+  --fg-muted: #828287;
 
   /* lines — softer, more natural */
-  --border: #d2d4dc;
-  --border-subtle: #e5e6ec;
+  --border: #d0d2da;
+  --border-subtle: #e6e7ed;
 
   /* accents — macOS system blue */
   --accent: #0071e3;
   --accent-hover: #0060c0;
-  --accent-soft: rgba(0, 113, 227, 0.09);
+  --accent-soft: rgba(0, 113, 227, 0.1);
   --danger: #ff3b30;
   --success: #34c759;
 
   /* code */
-  --code-bg: #f2f3f7;
-  --code-border: #e5e6ec;
+  --code-bg: #f1f2f6;
+  --code-border: #e6e7ed;
 
   /* effects — macOS-style layered, soft shadows */
   --shadow-sm: 0 1px 3px rgba(29, 29, 31, 0.05), 0 1px 2px rgba(29, 29, 31, 0.03);
@@ -110,40 +110,40 @@
 
   /* theme swatch — drives the live preview in the Appearance grid.
      Uses the theme's own bg + accent so the swatch always matches reality. */
-  --sw-bg: #f9f9fb;
+  --sw-bg: #f8f8fa;
   --sw-accent: #0071e3;
 }
 
 /* Design tokens — Dark
    macOS dark-mode inspired: true neutrals, elevated surfaces, soft borders. */
 :root[data-theme="dark"] {
-  --bg: #1c1c1e;
-  --bg-elevated: #2c2c2e;
-  --surface: #2c2c2e;
-  --surface-hover: #3a3a3c;
-  --surface-active: #48484a;
+  --bg: #1b1b1e;
+  --bg-elevated: #2b2b2e;
+  --surface: #262629;
+  --surface-hover: #37373a;
+  --surface-active: #454548;
 
   --fg: #f5f5f7;
-  --fg-secondary: #aeaeb2;
-  --fg-muted: #636366;
+  --fg-secondary: #b0b0b5;
+  --fg-muted: #7c7c82;
 
-  --border: #3a3a3c;
-  --border-subtle: #2c2c2e;
+  --border: #3d3d41;
+  --border-subtle: #313134;
 
   --accent: #0a84ff;
   --accent-hover: #409cff;
-  --accent-soft: rgba(10, 132, 255, 0.15);
+  --accent-soft: rgba(10, 132, 255, 0.16);
   --danger: #ff453a;
   --success: #30d158;
 
-  --code-bg: #2c2c2e;
-  --code-border: #3a3a3c;
+  --code-bg: #232326;
+  --code-border: #3d3d41;
 
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
 
-  --sw-bg: #1c1c1e;
+  --sw-bg: #1b1b1e;
   --sw-accent: #0a84ff;
 
   --alert-note: #4493f8;        --alert-note-bg: rgba(68, 147, 248, 0.12);
@@ -157,17 +157,17 @@
    Warm cream paper + muted rainbow accents. */
 :root[data-theme="solar-light"] {
   --bg: #fdf6e3;
-  --bg-elevated: #eee8d5;
+  --bg-elevated: #fffbf0;
   --surface: #eee8d5;
-  --surface-hover: #e4dcc3;
-  --surface-active: #d6cba8;
+  --surface-hover: #e6ddc2;
+  --surface-active: #dbd1af;
 
   --fg: #073642;
-  --fg-secondary: #586e75;
-  --fg-muted: #657b83;
+  --fg-secondary: #52676f;
+  --fg-muted: #8a9797;
 
-  --border: #ddd6c1;
-  --border-subtle: #e9e1c9;
+  --border: #d9d1b8;
+  --border-subtle: #e8e0c6;
 
   --accent: #268bd2;
   --accent-hover: #1e6fa7;
@@ -203,16 +203,16 @@
 :root[data-theme="solar-dark"] {
   --bg: #002b36;
   --bg-elevated: #073642;
-  --surface: #073642;
-  --surface-hover: #0e4654;
-  --surface-active: #145566;
+  --surface: #06303d;
+  --surface-hover: #0e4755;
+  --surface-active: #155a6a;
 
   --fg: #fdf6e3;
-  --fg-secondary: #93a1a1;
-  --fg-muted: #839496;
+  --fg-secondary: #9db1b1;
+  --fg-muted: #718e94;
 
-  --border: #0e4654;
-  --border-subtle: #073642;
+  --border: #10505f;
+  --border-subtle: #0a3d4b;
 
   --accent: #268bd2;
   --accent-hover: #4099d7;
@@ -246,16 +246,16 @@
 :root[data-theme="dracula"] {
   --bg: #282a36;
   --bg-elevated: #343746;
-  --surface: #343746;
-  --surface-hover: #44475a;
-  --surface-active: #565b76;
+  --surface: #2f313f;
+  --surface-hover: #3e4152;
+  --surface-active: #4c506b;
 
   --fg: #f8f8f2;
   --fg-secondary: #b9bac9;
-  --fg-muted: #8092c4;
+  --fg-muted: #8b9dc4;
 
-  --border: #44475a;
-  --border-subtle: #383b4a;
+  --border: #46495c;
+  --border-subtle: #3a3d4c;
 
   --accent: #bd93f9;
   --accent-hover: #caa6ff;
@@ -289,16 +289,16 @@
 :root[data-theme="nord"] {
   --bg: #2e3440;
   --bg-elevated: #3b4252;
-  --surface: #3b4252;
-  --surface-hover: #434c5e;
-  --surface-active: #4c566a;
+  --surface: #353c4b;
+  --surface-hover: #44505f;
+  --surface-active: #505f73;
 
   --fg: #eceff4;
   --fg-secondary: #d8dee9;
-  --fg-muted: #7e8eab;
+  --fg-muted: #8b99b0;
 
-  --border: #434c5e;
-  --border-subtle: #3b4252;
+  --border: #47536a;
+  --border-subtle: #3c4455;
 
   --accent: #88c0d0;
   --accent-hover: #9bcbd8;
@@ -338,10 +338,10 @@
 
   --fg: #1f2328;
   --fg-secondary: #59636e;
-  --fg-muted: #818b98;
+  --fg-muted: #6e7781;
 
   --border: #d0d7de;
-  --border-subtle: #d8dee4;
+  --border-subtle: #e4e8ec;
 
   --accent: #0969da;
   --accent-hover: #0860ca;
@@ -377,16 +377,16 @@
 :root[data-theme="github-dark"] {
   --bg: #0d1117;
   --bg-elevated: #161b22;
-  --surface: #161b22;
+  --surface: #131923;
   --surface-hover: #21262d;
-  --surface-active: #30363d;
+  --surface-active: #2e3540;
 
   --fg: #e6edf3;
   --fg-secondary: #9198a1;
-  --fg-muted: #6e7681;
+  --fg-muted: #76828c;
 
-  --border: #30363d;
-  --border-subtle: #21262d;
+  --border: #323a44;
+  --border-subtle: #222933;
 
   --accent: #2f81f7;
   --accent-hover: #4493f8;
@@ -420,16 +420,16 @@
 :root[data-theme="tokyo-night"] {
   --bg: #1a1b26;
   --bg-elevated: #24283b;
-  --surface: #24283b;
-  --surface-hover: #2f334d;
-  --surface-active: #3b4261;
+  --surface: #202335;
+  --surface-hover: #2c3149;
+  --surface-active: #3a4066;
 
   --fg: #c0caf5;
   --fg-secondary: #a9b1d6;
-  --fg-muted: #747ca8;
+  --fg-muted: #7d86b4;
 
-  --border: #414868;
-  --border-subtle: #2f334d;
+  --border: #3d4568;
+  --border-subtle: #2b2f49;
 
   --accent: #7aa2f7;
   --accent-hover: #89b4fa;
@@ -463,16 +463,16 @@
 :root[data-theme="catppuccin"] {
   --bg: #1e1e2e;
   --bg-elevated: #313244;
-  --surface: #313244;
-  --surface-hover: #45475a;
-  --surface-active: #585b70;
+  --surface: #26273a;
+  --surface-hover: #3c3e54;
+  --surface-active: #4b4e68;
 
   --fg: #cdd6f4;
   --fg-secondary: #bac2de;
-  --fg-muted: #7f849c;
+  --fg-muted: #8b90ab;
 
-  --border: #45475a;
-  --border-subtle: #313244;
+  --border: #4a4c63;
+  --border-subtle: #363850;
 
   --accent: #89b4fa;
   --accent-hover: #b4befe;
@@ -508,10 +508,10 @@
    is brightened vs the dark theme so it survives against #000. */
 :root[data-theme="oled"] {
   --bg: #000000;
-  --bg-elevated: #0d0d0f;
-  --surface: #0d0d0f;
-  --surface-hover: #1a1a1e;
-  --surface-active: #26262b;
+  --bg-elevated: #101014;
+  --surface: #0c0c0f;
+  --surface-hover: #1b1b21;
+  --surface-active: #282830;
 
   /* v0.63.0: secondary/muted text brightened — on true black the previous
      values fell below comfortable contrast for secondary UI copy. */
@@ -519,8 +519,8 @@
   --fg-secondary: #b8b8c2;
   --fg-muted: #8f8f9a;
 
-  --border: #26262c;
-  --border-subtle: #18181d;
+  --border: #292931;
+  --border-subtle: #1a1a20;
 
   --accent: #4f9cf9;
   --accent-hover: #7ab5fb;
@@ -528,7 +528,7 @@
   --danger: #ff5147;
   --success: #3ddc84;
 
-  --code-bg: #0a0a0c;
+  --code-bg: #08080a;
   --code-border: #1f1f24;
 
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.6);

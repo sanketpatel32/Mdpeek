@@ -50,6 +50,13 @@ if (!window.__TAURI_INTERNALS__) {
   }
   if (params.get('settings') === '1') {
     setTimeout(() => document.getElementById('btn-settings')?.click(), 600);
+    // Optionally deep-link to a settings category (?settings=1&panel=appearance).
+    const panel = params.get('panel');
+    if (panel) {
+      setTimeout(() => {
+        document.querySelector(`.settings-cat[data-cat="${panel}"]`)?.click();
+      }, 1200);
+    }
   }
   if (params.get('term') === '1') {
     setTimeout(() => document.getElementById('btn-terminal')?.click(), 900);

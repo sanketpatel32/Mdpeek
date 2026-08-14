@@ -2684,23 +2684,26 @@ mark.find-current {
   background: var(--sw-accent);
   box-shadow: 0 0 0 1.5px var(--sw-bg);
 }
-.theme-swatch[data-sw="light"]       { --sw-bg: #ffffff; --sw-header: #f3f4f6; --sw-accent: #0969da; --sw-fg: #1f2328; }
-.theme-swatch[data-sw="dark"]        { --sw-bg: #0d1117; --sw-header: #161b22; --sw-accent: #2f81f7; --sw-fg: #e6edf3; }
-.theme-swatch[data-sw="solar-light"] { --sw-bg: #fdf6e3; --sw-header: #eee8d5; --sw-accent: #268bd2; --sw-fg: #657b83; }
-.theme-swatch[data-sw="solar-dark"]  { --sw-bg: #002b36; --sw-header: #073642; --sw-accent: #268bd2; --sw-fg: #839496; }
-.theme-swatch[data-sw="dracula"]     { --sw-bg: #282a36; --sw-header: #44475a; --sw-accent: #bd93f9; --sw-fg: #f8f8f2; }
-.theme-swatch[data-sw="nord"]        { --sw-bg: #2e3440; --sw-header: #3b4252; --sw-accent: #88c0d0; --sw-fg: #d8dee9; }
-.theme-swatch[data-sw="github"]      { --sw-bg: #ffffff; --sw-header: #f6f8fa; --sw-accent: #2563eb; --sw-fg: #111827; }
-.theme-swatch[data-sw="github-dark"] { --sw-bg: #0d1117; --sw-header: #21262d; --sw-accent: #58a6ff; --sw-fg: #c9d1d9; }
-.theme-swatch[data-sw="tokyo-night"] { --sw-bg: #1a1b26; --sw-header: #24283b; --sw-accent: #7aa2f7; --sw-fg: #c0caf5; }
-.theme-swatch[data-sw="catppuccin"]  { --sw-bg: #1e1e2e; --sw-header: #313244; --sw-accent: #cba6f7; --sw-fg: #cdd6f4; }
-.theme-swatch[data-sw="oled"]       { --sw-bg: #000000; --sw-header: #0d0d0f; --sw-accent: #4f9cf9; --sw-fg: #f2f2f5; }
+.theme-swatch[data-sw="light"]       { --sw-bg: #f8f8fa; --sw-header: #f1f2f6; --sw-accent: #0071e3; --sw-fg: #1d1d1f; }
+.theme-swatch[data-sw="dark"]        { --sw-bg: #1b1b1e; --sw-header: #262629; --sw-accent: #0a84ff; --sw-fg: #f5f5f7; }
+.theme-swatch[data-sw="solar-light"] { --sw-bg: #fdf6e3; --sw-header: #eee8d5; --sw-accent: #268bd2; --sw-fg: #586e75; }
+.theme-swatch[data-sw="solar-dark"]  { --sw-bg: #002b36; --sw-header: #06303d; --sw-accent: #268bd2; --sw-fg: #93a1a1; }
+.theme-swatch[data-sw="dracula"]     { --sw-bg: #282a36; --sw-header: #2f313f; --sw-accent: #bd93f9; --sw-fg: #f8f8f2; }
+.theme-swatch[data-sw="nord"]        { --sw-bg: #2e3440; --sw-header: #353c4b; --sw-accent: #88c0d0; --sw-fg: #d8dee9; }
+.theme-swatch[data-sw="github"]      { --sw-bg: #ffffff; --sw-header: #f6f8fa; --sw-accent: #0969da; --sw-fg: #1f2328; }
+.theme-swatch[data-sw="github-dark"] { --sw-bg: #0d1117; --sw-header: #131923; --sw-accent: #2f81f7; --sw-fg: #e6edf3; }
+.theme-swatch[data-sw="tokyo-night"] { --sw-bg: #1a1b26; --sw-header: #202335; --sw-accent: #7aa2f7; --sw-fg: #c0caf5; }
+.theme-swatch[data-sw="catppuccin"]  { --sw-bg: #1e1e2e; --sw-header: #26273a; --sw-accent: #89b4fa; --sw-fg: #cdd6f4; }
+.theme-swatch[data-sw="oled"]        { --sw-bg: #000000; --sw-header: #0c0c0f; --sw-accent: #4f9cf9; --sw-fg: #f2f2f5; }
 
-/* ---------- Theme grid (Settings → Appearance) ----------
+/* ---------- Theme grid (Settings → Appearance, v0.65.0) ----------
+   Each card previews the theme as a miniature mdpeek window: title bar with
+   traffic lights + tab pill, a heading line in the accent color, two body
+   lines, and three color chips. Clicking applies instantly.
    v0.34.1: this rule is intentionally MORE specific (`.setting-row` AND
    `.setting-row-block`) than the base `.setting-row { align-items:center }`
    below. Without the compound selector, source order would let `.setting-row`
-   win, shrinking the grid to its intrinsic 135px width and collapsing it to
+   win, shrinking the grid to its intrinsic width and collapsing it to
    a single column. The compound selector wins regardless of source order. */
 .setting-row.setting-row-block {
   flex-direction: column;
@@ -2709,16 +2712,15 @@ mark.find-current {
 }
 .theme-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
   gap: 12px;
 }
 .theme-card {
   position: relative;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 12px;
+  gap: 9px;
+  padding: 10px;
   background: var(--surface);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
@@ -2726,36 +2728,56 @@ mark.find-current {
   font: inherit;
   color: var(--fg-secondary);
   overflow: hidden;
-  transition: all 180ms ease;
+  transition: border-color var(--dur-2) var(--ease-out),
+    background-color var(--dur-2) var(--ease-out),
+    transform var(--dur-2) var(--ease-out),
+    box-shadow var(--dur-2) var(--ease-out);
 }
+.theme-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: var(--surface-hover);
+  color: var(--fg);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.theme-card:active {
+  transform: translateY(0) scale(0.98);
+}
+.theme-card.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface));
+  box-shadow: 0 0 0 2px var(--accent);
+  color: var(--fg);
+}
+/* The mini-window preview. Fixed palette via data-sw custom properties set
+   further up, so every card shows ITS theme regardless of the active one. */
 .theme-card .theme-swatch {
   width: 100%;
-  height: 62px;
-  border-radius: 7px;
-  border: 1px solid rgba(128, 128, 128, 0.2);
+  height: 86px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--sw-fg, #888) 18%, transparent);
   background: var(--sw-bg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05);
-  transition: transform 180ms var(--ease);
+  transition: transform var(--dur-2) var(--ease-out);
 }
 .theme-card:hover .theme-swatch {
   transform: translateY(-1px);
 }
 .theme-swatch .swatch-header {
-  height: 15px;
+  height: 17px;
+  flex: 0 0 17px;
   background: var(--sw-header, var(--sw-bg));
-  border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+  border-bottom: 1px solid color-mix(in srgb, var(--sw-fg, #888) 14%, transparent);
   position: relative;
 }
-/* v0.63.0: three window dots (macOS traffic lights) — one real dot plus two
-   painted on with box-shadow, so the preview reads as a tiny app window. */
+/* Traffic lights: one real dot + two painted via box-shadow. */
 .theme-swatch .swatch-header::before {
   content: '';
   position: absolute;
   left: 6px;
-  top: 5px;
+  top: 6px;
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -2763,52 +2785,78 @@ mark.find-current {
   box-shadow: 8px 0 0 -0.5px color-mix(in srgb, var(--sw-accent) 55%, var(--sw-fg, transparent)),
     16px 0 0 -0.5px color-mix(in srgb, var(--sw-accent) 30%, var(--sw-fg, transparent));
 }
+/* Active-tab pill on the right of the title bar. */
+.theme-swatch .swatch-header::after {
+  content: '';
+  position: absolute;
+  right: 6px;
+  top: 4px;
+  width: 26px;
+  height: 9px;
+  border-radius: 4px 4px 0 0;
+  background: var(--sw-bg);
+  border: 1px solid color-mix(in srgb, var(--sw-fg, #888) 16%, transparent);
+  border-bottom: none;
+}
 .theme-swatch .swatch-body {
   flex: 1;
-  padding: 7px 6px;
+  padding: 7px 8px 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 .theme-swatch .swatch-line {
   height: 4px;
   border-radius: 2px;
   background: var(--sw-fg, var(--sw-accent));
-  opacity: 0.7;
+}
+/* Title line = the theme's accent; body lines = foreground at two weights. */
+.theme-swatch .swatch-line.title {
+  width: 58%;
+  height: 5px;
+  background: var(--sw-accent);
+  opacity: 0.95;
 }
 .theme-swatch .swatch-line.long {
-  width: 80%;
-  background: var(--sw-accent);
+  width: 84%;
+  opacity: 0.4;
 }
 .theme-swatch .swatch-line.short {
-  width: 45%;
-  background: var(--sw-fg);
-  opacity: 0.5;
+  width: 48%;
+  opacity: 0.24;
 }
+/* Bottom chips: surface · foreground · accent, anchored bottom-right —
+   the palette at a glance. */
+.theme-swatch .swatch-chips {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 0 8px 7px;
+}
+.theme-swatch .swatch-chips i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--sw-fg, #888) 25%, transparent);
+}
+.theme-swatch .swatch-chips i:nth-child(1) { background: var(--sw-header, var(--sw-bg)); }
+.theme-swatch .swatch-chips i:nth-child(2) { background: var(--sw-fg, #888); }
+.theme-swatch .swatch-chips i:nth-child(3) { background: var(--sw-accent); }
 .theme-card .theme-name {
   font-size: 12px;
   font-weight: 500;
   text-align: center;
   line-height: 1.2;
 }
-.theme-card:hover {
-  border-color: var(--accent);
-  background: var(--surface-hover);
-  color: var(--fg);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px -4px rgba(0, 0, 0, 0.18);
-}
-.theme-card.active {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent), var(--accent-soft) 0 4px 12px;
-  color: var(--fg);
+.theme-card.active .theme-name {
   font-weight: 600;
+  color: var(--fg);
 }
 /* Check badge — top-right corner, only on active card. */
 .theme-card .theme-check {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: 8px;
+  right: 8px;
   width: 16px;
   height: 16px;
   padding: 2px;
@@ -3658,6 +3706,11 @@ body.presenting #slideshow { display: flex; }
   border: 1px solid var(--border);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28), var(--shadow-lg);
 }
+/* v0.65.0: the redesigned settings dialog gets a wider canvas so the theme
+   grid breathes (3-up at full card width) without crowding the sidebar. */
+#settings-dialog .modal-wide {
+  width: 920px;
+}
 
 /* ---------- Global Kanban board (v0.22.2) ----------
    Full-page view (same layering model as #slideshow) — NOT a modal. Three
@@ -4492,53 +4545,110 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 .graph-node:hover text { fill: var(--fg); font-weight: 600; }
 
 
-/* Settings Header Bar: title on left, Reset to default and Close (✕) on right */
+/* ---------- Settings dialog (v0.65.0 redesign) ----------
+   Header = title · live search · icon actions. The search field spans the
+   flexible middle so it's reachable from anywhere in the dialog. */
 .settings-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 14px;
   padding-bottom: 12px;
-  margin-bottom: 6px;
+  margin-bottom: 10px;
   border-bottom: 1px solid var(--border-subtle);
 }
 .settings-header .modal-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--fg);
+  white-space: nowrap;
+}
+/* Live search pill — matches the quick-switcher input vocabulary. */
+.settings-search {
+  flex: 1;
+  max-width: 320px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  color: var(--fg-muted);
+  transition: border-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+.settings-search:focus-within {
+  border-color: var(--accent);
+  background: var(--bg-elevated);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.settings-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12.5px;
+  outline: none;
+}
+.settings-search input::placeholder {
+  color: var(--fg-muted);
+}
+.settings-search-esc {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--fg-muted);
+  background: var(--surface-hover);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity var(--dur-1) ease;
+}
+.settings-search:focus-within .settings-search-esc,
+.settings-search.has-value .settings-search-esc {
+  opacity: 1;
 }
 .settings-header-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
 }
 .settings-header-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
-  font-size: 12px;
-  font-weight: 500;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   color: var(--fg-muted);
-  background: var(--surface);
-  border: 1px solid var(--border-subtle);
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: var(--radius);
   cursor: pointer;
-  transition: all var(--dur-1) ease;
+  transition: background-color var(--dur-1) ease, color var(--dur-1) ease,
+    border-color var(--dur-1) ease, transform 100ms ease;
 }
 /* Neutral hover for the routine actions; only Reset reads as destructive. */
 .settings-header-btn:hover {
   background: var(--surface-hover);
   color: var(--fg);
-  border-color: var(--border);
+  border-color: var(--border-subtle);
 }
 .settings-header-btn:active {
-  transform: scale(0.97);
+  transform: scale(0.94);
 }
 #settings-reset:hover {
   color: var(--danger);
-  border-color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
 }
 .settings-header-btn svg {
   opacity: 0.8;
@@ -4567,33 +4677,45 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 /* Two-pane shell: category sidebar on the left, content on the right. */
 .settings-shell {
   display: grid;
-  grid-template-columns: 210px 1fr;
+  grid-template-columns: 198px 1fr;
   gap: 0;
-  margin: 4px -4px 0;
+  margin: 0 -4px;
 }
 
 /* Sidebar — vertical list of category buttons, like macOS System Settings.
-   v0.62.2: recessed pane background so the sidebar reads as a distinct region
-   instead of floating buttons, with a hairline divider toward the content. */
+   v0.65.0: categories split into labeled groups (Workspace / Reference) so
+   the list reads as sections, not an undifferentiated pile. */
 .settings-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 8px 10px 8px 8px;
-  height: 520px;
-  max-height: calc(100vh - 180px);
+  gap: 2px;
+  padding: 10px 10px 10px 8px;
+  height: 540px;
+  max-height: calc(100vh - 200px);
   background: color-mix(in srgb, var(--surface) 55%, transparent);
   border-right: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg) 0 0 var(--radius-lg);
   overflow-y: auto;
+}
+.settings-group-label {
+  padding: 8px 12px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-muted);
+  opacity: 0.85;
+}
+.settings-group-label:first-child {
+  padding-top: 2px;
 }
 .settings-cat {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  height: 38px;
-  padding: 0 12px;
+  height: 34px;
+  padding: 0 11px;
   background: transparent;
   border: none;
   border-radius: var(--radius);
@@ -4604,33 +4726,42 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   text-align: left;
   cursor: pointer;
   position: relative;
-  transition: background-color var(--dur-1) ease, color var(--dur-1) ease, transform 120ms ease;
+  transition: background-color var(--dur-1) ease, color var(--dur-1) ease;
 }
 .settings-cat:hover {
   background: var(--surface-hover);
   color: var(--fg);
 }
+.settings-cat:active {
+  transform: scale(0.985);
+}
 .settings-cat.active {
-  background: var(--accent-soft);
+  background: var(--bg-elevated);
   color: var(--accent);
   font-weight: 600;
+  box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--border-subtle);
 }
 .settings-cat.active::before {
   content: '';
   position: absolute;
-  left: -4px;
-  top: 8px;
-  bottom: 8px;
+  left: -8px;
+  top: 7px;
+  bottom: 7px;
   width: 3px;
   border-radius: 0 3px 3px 0;
   background: var(--accent);
 }
 .settings-cat svg {
   flex-shrink: 0;
-  opacity: 0.9;
+  opacity: 0.75;
+  transition: opacity var(--dur-1) ease;
 }
+.settings-cat:hover svg,
 .settings-cat.active svg {
   opacity: 1;
+}
+.settings-cat.active svg {
+  color: var(--accent);
 }
 .settings-cat:focus-visible {
   outline: 2px solid var(--accent);
@@ -4639,11 +4770,12 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 
 /* Content pane — holds one panel per category with smooth tab transition */
 .settings-content {
-  padding: 4px 4px 4px 18px;
-  height: 520px;
-  max-height: calc(100vh - 180px);
+  padding: 12px 4px 4px 18px;
+  height: 540px;
+  max-height: calc(100vh - 200px);
   overflow-y: auto;
   overscroll-behavior: contain;
+  scroll-behavior: smooth;
 }
 
 .settings-panel {
@@ -4663,30 +4795,69 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   }
 }
 
-.settings-panel::before {
-  content: attr(data-cat);
-  display: block;
-  margin: 2px 2px 12px;
-  padding-bottom: 8px;
+/* v0.65.0: real panel headers (replaced the uppercase attr(data-cat) hack).
+   Title + one-line description give each screen an anchor. */
+.panel-head {
+  margin: 2px 2px 14px;
+  padding-bottom: 10px;
   border-bottom: 1px solid var(--border-subtle);
-  font-size: 10.5px;
+}
+.panel-head .panel-title {
+  margin: 0 0 2px;
+  font-size: 16.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--fg);
+}
+.panel-head .panel-desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--fg-muted);
+}
+
+/* Search mode — all panels stacked, non-matching rows hidden (JS toggles
+   .hidden on rows/cards). Panels lose their enter animation while searching
+   so re-filtering doesn't re-trigger it; heads shrink to section labels so
+   results stay grouped by where they live. */
+.settings-content.searching .settings-panel:not(.hidden) {
+  animation: none;
+}
+.settings-content.searching .panel-head {
+  margin: 14px 2px 8px;
+  padding-bottom: 6px;
+}
+.settings-content.searching .panel-head .panel-title {
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--fg-muted);
 }
-.settings-panel[data-cat="shortcuts"]::before,
-.settings-panel[data-cat="tips"]::before,
-.settings-panel[data-cat="changelog"]::before,
-.settings-panel[data-cat="about"]::before {
-  content: none;
+.settings-content.searching .panel-head .panel-desc {
+  display: none;
+}
+.settings-search-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+.settings-search-empty svg {
+  display: block;
+  margin: 0 auto 10px;
+  opacity: 0.5;
 }
 
 .setting-card {
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  transition: border-color var(--dur-2) var(--ease-out);
+}
+.setting-card:hover {
+  border-color: var(--border);
 }
 /* Breathing room between stacked cards within one panel. */
 .setting-card + .setting-card {
@@ -4697,14 +4868,14 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 14px 16px;
+  padding: 13px 16px;
   transition: background-color var(--dur-1) var(--ease-out);
 }
 .setting-row + .setting-row {
   border-top: 1px solid var(--border-subtle);
 }
 .setting-row:hover {
-  background: var(--surface-hover);
+  background: color-mix(in srgb, var(--surface-hover) 65%, transparent);
 }
 /* v0.41.0: stacked variant for textarea-style settings (custom CSS). The
    label sits on top, the input fills the row below. */
@@ -4736,15 +4907,23 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 }
 .setting-label {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 550;
   color: var(--fg);
   line-height: 1.3;
+  letter-spacing: -0.005em;
 }
 .setting-desc {
   font-size: 12px;
   color: var(--fg-muted);
   margin-top: 3px;
   line-height: 1.45;
+}
+.setting-desc code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 1px 4px;
+  background: var(--code-bg);
+  border-radius: 4px;
 }
 
 .updates-in-about {
@@ -4777,17 +4956,32 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   .modal-wide {
     width: calc(100vw - 32px);
   }
+  #settings-dialog .modal-wide {
+    width: calc(100vw - 32px);
+  }
+  .settings-header {
+    flex-wrap: wrap;
+  }
+  .settings-search {
+    order: 3;
+    flex-basis: 100%;
+    max-width: none;
+  }
   .settings-shell {
     grid-template-columns: 1fr;
   }
   .settings-sidebar {
     flex-direction: row;
+    flex-wrap: wrap;
     padding: 0 0 8px;
     background: transparent;
     border-right: none;
     border-radius: 0;
     height: auto;
     max-height: none;
+  }
+  .settings-group-label {
+    display: none;
   }
   .settings-cat {
     flex: 1;
@@ -4798,11 +4992,16 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   .settings-cat span {
     font-size: 12px;
   }
+  .settings-cat.active::before {
+    display: none;
+  }
   .settings-content {
     border-left: none;
     border-top: 1px solid var(--border-subtle);
     padding-left: 4px;
     padding-top: 10px;
+    height: auto;
+    max-height: 60vh;
   }
   .setting-row {
     flex-direction: column;
@@ -4912,18 +5111,24 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 }
 
 /* Help / Shortcuts panel — reference card styling. */
+/* v0.65.0: reference sections read as cards, matching the settings panels. */
 .help-section {
-  margin-bottom: 18px;
+  margin-bottom: 14px;
+  padding: 6px 4px 10px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
 }
 .help-section:last-child {
   margin-bottom: 0;
 }
 .help-heading {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--fg);
-  margin-bottom: 8px;
-  padding-left: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-muted);
+  margin: 8px 12px;
 }
 .help-sub {
   font-weight: 400;
@@ -4936,12 +5141,12 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   font-size: 12.5px;
 }
 .shortcut-table td {
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 7px 12px;
   vertical-align: middle;
+  transition: background-color var(--dur-1) ease;
 }
-.shortcut-table tr:last-child td {
-  border-bottom: none;
+.shortcut-table tr:hover td {
+  background: color-mix(in srgb, var(--surface-hover) 55%, transparent);
 }
 .shortcut-table td:first-child {
   white-space: nowrap;
@@ -4950,6 +5155,13 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 }
 .shortcut-table td:last-child {
   color: var(--fg-secondary);
+  border-left: 1px solid var(--border-subtle);
+}
+.shortcut-table tr td {
+  border-bottom: 1px solid var(--border-subtle);
+}
+.shortcut-table tr:last-child td {
+  border-bottom: none;
 }
 .shortcut-table kbd {
   display: inline-block;
@@ -4972,13 +5184,16 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 }
 .help-tips {
   margin: 0;
-  padding-left: 18px;
+  padding: 4px 16px 4px 34px;
   font-size: 12.5px;
   color: var(--fg-secondary);
   line-height: 1.7;
 }
 .help-tips li {
-  margin: 3px 0;
+  margin: 5px 0;
+}
+.help-tips li::marker {
+  color: var(--accent);
 }
 .help-tips code {
   font-family: var(--font-mono);
@@ -5142,8 +5357,25 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 24px 20px 16px;
-  margin: 8px 0 0;
+  padding: 28px 20px 20px;
+  margin: 8px 0 14px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
+}
+/* Soft accent halo behind the logo — same vocabulary as the welcome hero. */
+.about-card::before {
+  content: '';
+  position: absolute;
+  top: -70px;
+  left: 50%;
+  width: 260px;
+  height: 180px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center, var(--accent-soft) 0%, transparent 70%);
+  pointer-events: none;
 }
 .about-logo {
   width: 64px;
@@ -5151,6 +5383,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   border-radius: 16px;
   box-shadow: var(--shadow-md);
   margin-bottom: 14px;
+  position: relative;
 }
 .about-name {
   font-size: 20px;
@@ -5231,17 +5464,23 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   height: 0;
 }
 .toggle-track {
-  width: 40px;
-  height: 24px;
+  width: 42px;
+  height: 25px;
   background: var(--surface-active);
   border-radius: 999px;
   position: relative;
-  transition: background-color 180ms var(--ease);
+  transition: background-color 200ms var(--ease);
+}
+.setting-toggle:hover .toggle-track {
+  background: color-mix(in srgb, var(--fg) 22%, var(--surface-active));
+}
+.setting-toggle:hover input:checked + .toggle-track {
+  background: var(--accent-hover);
 }
 .toggle-thumb {
   position: absolute;
-  top: 2px;
-  left: 2px;
+  top: 2.5px;
+  left: 2.5px;
   width: 20px;
   height: 20px;
   background: #ffffff;
@@ -5254,11 +5493,16 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   background: var(--accent);
 }
 .setting-toggle input:checked + .toggle-track .toggle-thumb {
-  transform: translateX(16px);
+  transform: translateX(17px);
 }
 .setting-toggle input:focus-visible + .toggle-track {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+.setting-toggle:active .toggle-thumb {
+  transform: scale(0.9);
+}
+.setting-toggle:active input:checked + .toggle-track .toggle-thumb {
+  transform: translateX(17px) scale(0.9);
 }
 
 /* ---------- Modern Integrated Terminal Drawer ---------- */

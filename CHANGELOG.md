@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.65.0] - 2026-08-15
+
+### Redesigned - Settings dialog
+- **Live settings search.** A search field in the settings header filters
+  across every panel as you type — matching rows stay visible grouped under
+  compact section labels, everything else hides, and an empty state shows
+  when nothing matches. Esc or clearing restores the category view;
+  clicking a category always exits search first.
+- **Proper panel headers.** Every category screen now opens with a real
+  title and one-line description (General, Appearance, Editor, Features,
+  Shortcuts, Tips, Changelog, About) instead of a small uppercase tag.
+- **Grouped sidebar.** Categories are split into "Workspace" and
+  "Reference" groups with a refined active state (elevated pill + accent
+  edge marker).
+- **Icon-only header actions.** Export / Import / Reset are compact icon
+  buttons with tooltips; Reset still reads as destructive on hover.
+- **Polished controls.** Larger iOS-style toggles with hover/press states
+  and the app-wide focus halo; softer translucent setting cards with
+  hairline row separators and gentler hover; styled inline `code` inside
+  setting descriptions.
+- **Reference panels rebuilt.** Shortcuts render as cards with hover rows
+  and a key/description split; Tips get accent markers; About gains a
+  surface card with a soft accent halo behind the logo.
+- Dialog widened to 920px so the theme grid breathes; responsive layout
+  updated for narrow windows (search wraps to its own row).
+
+### Redesigned - Theme picker
+- Theme cards now preview each scheme as a miniature mdpeek window: title
+  bar with traffic lights and an active-tab pill, an accent-colored
+  heading line, two body-text lines, and three palette chips (surface ·
+  foreground · accent) — so each theme reads at a glance before clicking.
+- Active card shows a full accent ring; hover lifts with a shadow.
+
+### Changed - All 11 themes refined
+- Systematic palette pass on every theme (Light, Dark, Solarized Light/
+  Dark, Dracula, Nord, GitHub, GitHub Dark, Tokyo Night, Catppuccin, OLED):
+  `--border-subtle` now sits strictly between the surface and border steps
+  so hairlines are visible on every theme (previously several dark themes
+  reused the surface color, making card separators invisible); hover/active
+  surface ramps got a clearer step; muted text brightened on dark themes
+  for comfortable description contrast; code backgrounds tuned.
+- Theme preview swatches now sample the refined palettes (and fixed Dark /
+  GitHub / GitHub Dark / Catppuccin previews that were showing another
+  theme's colors).
+
+### Added - Under the hood
+- Settings filter logic extracted to `src/lib/settings-search.js` with
+  jsdom unit tests (7 new) covering filter, empty state, and the
+  clear/restore path.
+- Dev shim: `?panel=` URL param deep-links a settings category for
+  deterministic browser previews; runtime error collector for debugging.
+
 ## [0.64.0] - 2026-08-14
 
 Terminal overhaul, with techniques borrowed from Terax
