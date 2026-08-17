@@ -49,6 +49,11 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
   // localStorage here matches the mdpeek-active-line pattern at line 196.
   const wrapPref = (() => { try { return localStorage.getItem('mdpeek-word-wrap'); } catch { return null; } })();
   textarea.setAttribute('wrap', wrapPref === '0' ? 'off' : 'soft');
+  // v0.69.0: the wrap attribute alone is not enough — the .editor CSS pins
+  // white-space: pre-wrap, which overrides the attribute and made wrap="off"
+  // a silent no-op (long lines kept wrapping). Force the inline value so off
+  // really scrolls horizontally; '' restores the CSS default for soft wrap.
+  textarea.style.whiteSpace = wrapPref === '0' ? 'pre' : '';
 
   // ----- hidden mirror (wrap-aware measurement) -----
   // A visibility:hidden div that echoes the textarea's text one <div> per
@@ -82,6 +87,15 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     // clientWidth excludes the scrollbar, matching the textarea's content box.
     mirror.style.width = `${textarea.clientWidth}px`;
     mirror.style.tabSize = cs.tabSize;
+    // v0.69.0: copy the wrapping regime too. The mirror used to be pinned to
+    // pre-wrap by CSS, so with word wrap off it kept wrapping long lines while
+    // the textarea scrolled horizontally — every long line desynced the gutter
+    // rows below it. Copying the computed values keeps the two in lockstep in
+    // both modes (and picks up any letter-spacing that would shift wrap points).
+    mirror.style.whiteSpace = cs.whiteSpace;
+    mirror.style.overflowWrap = cs.overflowWrap;
+    mirror.style.wordBreak = cs.wordBreak;
+    mirror.style.letterSpacing = cs.letterSpacing;
   }
   // Rebuild the mirror's per-line children from the textarea's current text.
   function updateMirror() {
@@ -160,6 +174,30 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
   // row; the number renders on the first visual row (top of the row).
   function syncGutter() {
     if (!gutter) return;
+    // v0.69.0: derive line-height from the live CSS ratio instead of trusting
+    // the textarea's own inline px. The inline value is a pin (integer px so
+    // gutter rows and text rows advance by the same whole pixels) — but it
+    // used to be re-read as-is after a zoom, so line-height stayed at the
+    // pre-zoom value forever: zoomed text grew taller than its line boxes and
+    // visibly slid off the numbers. Clear the pin, read the ratio-driven
+    // computed value, then re-pin the rounded result.
+    textarea.style.lineHeight = '';
+    const cs = getComputedStyle(textarea);
+    const fs = parseFloat(cs.fontSize) || 13.5;
+    const rawLh = parseFloat(cs.lineHeight);
+    const ratio = rawLh > 0 && fs > 0 ? rawLh / fs : 1.6;
+    const linePx = Math.max(1, Math.round(fs * ratio));
+    const linePxStr = linePx + 'px';
+    // Pin the textarea BEFORE building the mirror so the mirror lays out with
+    // the exact line-height the text will use (it copies the inline value).
+    textarea.style.lineHeight = linePxStr;
+    gutter.style.fontFamily = cs.fontFamily;
+    gutter.style.fontSize = cs.fontSize;
+    gutter.style.lineHeight = linePxStr;
+    gutter.style.paddingTop = cs.paddingTop;
+    gutter.style.paddingBottom = cs.paddingBottom;
+
+    cachedLineHeight = linePx;
     updateMirror();
     const n = textarea.value.length ? textarea.value.split('\n').length : 1;
     if (gutter.childElementCount !== n || gutter.dataset.lastCount !== String(n)) {
@@ -171,20 +209,6 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
       // (numbers used to jump to the top after any line-count change).
       gutter.scrollTop = textarea.scrollTop;
     }
-    const cs = getComputedStyle(textarea);
-    const fs = parseFloat(cs.fontSize) || 13.5;
-    const rawLh = parseFloat(cs.lineHeight);
-    const linePx = Math.max(1, Math.round(rawLh || (fs * 1.6)));
-    const linePxStr = linePx + 'px';
-
-    textarea.style.lineHeight = linePxStr;
-    gutter.style.fontFamily = cs.fontFamily;
-    gutter.style.fontSize = cs.fontSize;
-    gutter.style.lineHeight = linePxStr;
-    gutter.style.paddingTop = cs.paddingTop;
-    gutter.style.paddingBottom = cs.paddingBottom;
-
-    cachedLineHeight = linePx;
     // KEY CHANGE: each gutter row is as tall as the wrapped mirror line, so
     // numbers stay aligned with text that spans multiple visual rows.
     const mirrorLines = mirror?.children || [];

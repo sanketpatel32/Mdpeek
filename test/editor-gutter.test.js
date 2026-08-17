@@ -28,22 +28,67 @@ describe('Editor Gutter Alignment', () => {
   it('synchronizes gutter typography and padding with textarea', () => {
     textarea.value = 'line 1\nline 2\nline 3';
     textarea.style.fontSize = '18px';
-    textarea.style.lineHeight = '28px';
     textarea.style.paddingTop = '20px';
     textarea.style.paddingBottom = '20px';
     textarea.style.fontFamily = 'Inter, sans-serif';
 
     const editor = initEditor({ textarea, gutter });
 
-    // Verify syncGutter copies computed typography to gutter
+    // Verify syncGutter copies computed typography to gutter. Line-height is
+    // the notable one: syncGutter re-derives it from the ratio (jsdom has no
+    // CSS cascade here, so the 1.6 fallback applies → round(18 × 1.6) = 29px)
+    // and pins the SAME integer px on the textarea and the gutter so rows and
+    // text advance by whole pixels together.
     expect(gutter.style.fontSize).toBe('18px');
-    expect(gutter.style.lineHeight).toBe('28px');
+    expect(textarea.style.lineHeight).toBe('29px');
+    expect(gutter.style.lineHeight).toBe('29px');
     expect(gutter.style.paddingTop).toBe('20px');
     expect(gutter.style.paddingBottom).toBe('20px');
     expect(gutter.children.length).toBe(3);
-    expect(gutter.children[0].style.lineHeight).toBe('28px');
+    expect(gutter.children[0].style.lineHeight).toBe('29px');
 
     editor.destroy();
+  });
+
+  it('re-derives line-height when the font size changes (zoom)', () => {
+    // Regression: syncGutter used to re-read its own stale inline px, so after
+    // a zoom (font-size change) the line-height stayed at the pre-zoom value
+    // forever and zoomed text slid off the line numbers.
+    textarea.value = 'a\nb';
+    textarea.style.fontSize = '18px';
+    const editor = initEditor({ textarea, gutter });
+    expect(textarea.style.lineHeight).toBe('29px'); // round(18 × 1.6)
+
+    // Simulate applyZoom changing only the font size, then re-sync.
+    textarea.style.fontSize = '24px';
+    editor.syncGutter();
+    expect(textarea.style.lineHeight).toBe('38px'); // round(24 × 1.6), not 29
+    expect(gutter.style.lineHeight).toBe('38px');
+    expect(gutter.children[0].style.lineHeight).toBe('38px');
+
+    editor.destroy();
+  });
+
+  it('mirror follows the textarea wrapping regime when word wrap is off', () => {
+    // Regression: the mirror was pinned to pre-wrap by CSS, so with word wrap
+    // off it kept wrapping long lines while the textarea scrolled
+    // horizontally — gutter rows below any long line desynced.
+    localStorage.setItem('mdpeek-word-wrap', '0');
+    try {
+      textarea.value = 'short\n' + 'x'.repeat(500);
+      const editor = initEditor({ textarea, gutter });
+      const mirror = container.querySelector('.editor-mirror');
+
+      expect(textarea.getAttribute('wrap')).toBe('off');
+      // The inline white-space is what actually stops the wrapping (the CSS
+      // pre-wrap default would override the wrap attribute alone).
+      expect(textarea.style.whiteSpace).toBe('pre');
+      expect(getComputedStyle(mirror).whiteSpace).toBe('pre');
+
+      editor.destroy();
+    } finally {
+      localStorage.removeItem('mdpeek-word-wrap');
+    }
   });
 
   it('uses the textarea as the only text-rendering layer', () => {

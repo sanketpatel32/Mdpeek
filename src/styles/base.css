@@ -1351,7 +1351,9 @@ mark.find-current {
     monospace
   );
   font-size: 13.5px;
-  line-height: 1.6;
+  /* Follows the Line spacing setting (syncGutter re-pins an integer px copy
+     on both elements so rows and text advance by whole pixels). */
+  line-height: var(--content-line-height, 1.6);
   text-align: right;
   user-select: none;
   white-space: pre;
@@ -1448,7 +1450,10 @@ mark.find-current {
      AFTER the gutter strip. */
   font-family: var(--content-font-family, "SFMono-Regular", "Cascadia Code", Consolas, monospace) !important;
   font-size: 13.5px;
-  line-height: 1.6;
+  /* Line spacing setting drives the ratio; syncGutter pins the integer-px
+     result inline (on the textarea AND gutter) so the line numbers and the
+     text advance by exactly the same whole pixels. */
+  line-height: var(--content-line-height, 1.6);
   padding: 16px 20px 16px 64px; /* top right bottom left — left = 44 (gutter) + 20 (text inset) */
   outline: none;
   tab-size: 2;

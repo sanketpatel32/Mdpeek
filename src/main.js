@@ -6165,7 +6165,20 @@ function applyLineNumbers() {
 // textarea; new tabs pick up the setting on initEditor via editor.js.
 function applyWordWrap() {
   const on = localStorage.getItem('mdpeek-word-wrap') !== '0';
-  if (el.editor) el.editor.setAttribute('wrap', on ? 'soft' : 'off');
+  if (el.editor) {
+    el.editor.setAttribute('wrap', on ? 'soft' : 'off');
+    // v0.69.0: the attribute alone does nothing while the .editor CSS pins
+    // white-space: pre-wrap — force the inline value so "off" really stops
+    // wrapping ('' restores the CSS default for soft wrap).
+    el.editor.style.whiteSpace = on ? '' : 'pre';
+  }
+  // The measurement mirror copies the textarea's wrapping regime, so
+  // re-measure immediately: waiting for the next keystroke left the gutter
+  // sized for the old wrap mode and the numbers drifted off their lines.
+  const activeDoc = store && store.docs ? store.docs.find((d) => d.id === store.activeId) : null;
+  if (activeDoc && activeDoc.editor && activeDoc.editor.syncGutter) {
+    activeDoc.editor.syncGutter();
+  }
 }
 function applySpellcheck() {
   const on = localStorage.getItem('mdpeek-spellcheck') === '1';
