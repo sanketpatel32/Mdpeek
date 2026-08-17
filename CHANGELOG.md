@@ -7,6 +7,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.68.0] - 2026-08-17
+
+Drawing overhaul: a dedicated audit of the Excalidraw + TLDraw integrations
+turned into data-loss fixes, PNG/SVG export, a canvas status bar, and four
+crash/layout regressions caught by headless-browser verification.
+
+### Fixed - data loss
+- Excalidraw saves now serialize with the `local` flavor. The default
+  ('database') branch silently stripped embedded image files AND cleared
+  zoom/scroll appState on every save — pasted images vanished from saved
+  scenes. 'local' keeps both, so scenes round-trip losslessly.
+- Switching tabs or closing within the 1s save-debounce window no longer
+  drops the last strokes: both canvases flush the pending save through
+  onSave on destroy. The same flush now runs on app quit and on the
+  auto-save timer, and closing a canvas tab serializes the live scene before
+  the dirty check.
+- Unsaved canvas tabs never auto-saved at all — edits reached disk only via
+  explicit Ctrl+S. Canvas saves now schedule the auto-save timer exactly
+  like text edits.
+- TLDraw theme switching no longer reverts drawings: the `colorScheme` prop
+  sits in tldraw 5.x's editor-construction dependency array, so every theme
+  change disposed and recreated the Editor, re-loaded the open-time snapshot
+  over the user's edits, and the autosaver persisted that reversion. Theme
+  is now applied imperatively via `editor.user.updateUserPreferences`.
+- TLDraw no longer flips freshly opened .tldr files to "edited" ~1s after
+  open with zero changes (the initial snapshot load is a user-source store
+  put; it's now suppressed from the autosaver).
+
+### Fixed - crashes / layout
+- Tab switch into a canvas tab aborted the whole re-render:
+  autocomplete's hide() dereferenced `.textarea` on a null editor (canvas /
+  pdf / home tabs have no editor), so opening TLDraw while any Excalidraw
+  tab existed silently failed to mount.
+- Every document mousedown threw `ReferenceError: isOpen is not defined`
+  from folder-search's click-outside handler (shipped in 0.67.0) — it was
+  referenced but never defined.
+- Restored canvas tabs mounted 0px tall (invisible) after app restart: the
+  boot-time double render hit the new same-doc guard after the branch's
+  class cleanup had stripped the host class. Canvas branches now declare
+  their host class themselves, and both viewers use per-container ownership
+  tokens so a stale lazy-load can never strip a newer mount's classes/DOM.
+- Re-rendering the same canvas doc (settings toggle, dirty-flag transition)
+  re-ran the full mount and leaked the first React root; a guard now keeps
+  the live instance.
+- Excalidraw's dead `.markdown-body.excalidraw-host` CSS selector was
+  replaced with the `#document` host rules the app actually applies; the
+  corrupt-file warning banner is a styled sibling instead of raw text.
+- The file watcher no longer clobbers unsaved canvas edits with an empty
+  read-back (it reports content only, not the renamed path).
+
+### Added
+- Export any drawing to PNG (2x) or SVG (vector) via the toolbar Export
+  button or the command palette ("Export drawing as PNG/SVG"); the Rust
+  save dialog filters by the chosen format.
+- Canvas status bar: live element/shape count + which engine is mounted,
+  replacing the words/chars counter that canvas tabs used to blank.
+- Command palette entries "New Excalidraw drawing" and "New TLDraw drawing"
+  create untitled canvases directly.
+- Closed-tab restore (Ctrl+Shift+T) and version-history snapshots carry the
+  canvas flags, so drawings reopen as drawings and restore as drawings;
+  version compare explains it is text-only instead of diffing JSON.
+- Corrupt .excalidraw JSON shows a dismissible warning banner ("saving will
+  replace the original file") instead of silently starting blank.
+- Save button is available on unsaved canvas tabs; live-share and the
+  reference picker are explicitly guarded for TLDraw tabs.
+
+### Changed
+- tldraw bumped to ^5.3.1 (drop-in; no API changes needed).
+
 ## [0.67.0] - 2026-08-14
 
 Feature loop: four parallel audits (editing surface, navigation/reference,

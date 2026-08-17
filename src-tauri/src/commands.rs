@@ -222,9 +222,18 @@ pub fn get_global_assets_dir() -> Result<String, String> {
 /// filtered to .png, writes the bytes, and returns the absolute saved path.
 /// Rejects with "cancelled" if the user dismisses the dialog.
 #[tauri::command]
-pub async fn save_annotated_image(bytes: Vec<u8>, suggested_name: String) -> Result<String, String> {
-    let file = rfd::AsyncFileDialog::new()
-        .add_filter("PNG image", &["png"])
+pub async fn save_annotated_image(
+    bytes: Vec<u8>,
+    suggested_name: String,
+    kind: Option<String>,
+) -> Result<String, String> {
+    // v0.68.0: canvas export writes SVG as well as PNG — pick the dialog
+    // filter from the caller's format (default PNG keeps old callers working).
+    let dialog = match kind.as_deref() {
+        Some("svg") => rfd::AsyncFileDialog::new().add_filter("SVG image", &["svg"]),
+        _ => rfd::AsyncFileDialog::new().add_filter("PNG image", &["png"]),
+    };
+    let file = dialog
         .set_file_name(&suggested_name)
         .save_file()
         .await

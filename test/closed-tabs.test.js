@@ -9,7 +9,18 @@ describe('closed-tabs', () => {
     expect(snap.mode).toBe('edit');
     expect(snap.editor).toBeUndefined(); // live editor dropped
     expect(snap.editorState).toBeUndefined();
+    expect(snap.excalidraw).toBe(false); // v0.68.0: canvas flags ride along
+    expect(snap.tldraw).toBe(false);
     expect(snap.closedAt).toBeGreaterThan(0);
+  });
+
+  it('carries canvas flags so drawings reopen as drawings (v0.68.0)', () => {
+    const snap = snapshotDoc({ path: null, content: '{"elements":[]}', excalidraw: true });
+    expect(snap.excalidraw).toBe(true);
+    expect(snap.tldraw).toBe(false);
+    const t = snapshotDoc({ path: '/x.tldr', content: '{}', tldraw: true });
+    expect(t.tldraw).toBe(true);
+    expect(t.excalidraw).toBe(false);
   });
 
   it('returns null for a null doc', () => {

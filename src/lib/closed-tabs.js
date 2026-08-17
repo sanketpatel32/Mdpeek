@@ -16,6 +16,10 @@ export function snapshotDoc(doc) {
     content: doc.content ?? '',
     plain: !!doc.plain,
     code: !!doc.code,
+    // v0.68.0: canvas flags ride along so a closed drawing tab reopens as a
+    // drawing (not as a markdown tab full of scene JSON).
+    excalidraw: !!doc.excalidraw,
+    tldraw: !!doc.tldraw,
     mode: doc.mode || 'edit',
     closedAt: Date.now(),
   };

@@ -9,6 +9,24 @@
 //   1. Its CSS (index.css) — without it the UI is completely broken.
 //   2. A parent container with an explicit height — Excalidraw fills its parent
 //      and collapses to 0px if the parent has no height.
+//
+// v0.68.0 changes:
+//   - serializeAsJSON is called with the 'local' flavor. The default
+//     ('database') branch strips embedded image files AND clears zoom/scroll
+//     appState — every save silently destroyed pasted images. 'local' keeps
+//     both, so scenes round-trip losslessly.
+//   - destroy() FLUSHES a pending debounced save through onSave before
+//     unmounting, so switching tabs / closing within the 1s window can no
+//     longer drop the last strokes.
+//   - An `isStale` callback (5th arg) lets renderActive cancel the mount after
+//     the slow lazy-load resolves — a late mount used to wipe the DOM of
+//     whichever tab had become active in the meantime.
+//   - Corrupt saved JSON shows a dismissible warning banner instead of
+//     silently starting a blank canvas (whose first save would overwrite the
+//     original file).
+//   - exportImage('png' | 'svg') renders the scene to image bytes via the
+//     package's exportToBlob / exportToSvg, and getElementCount() feeds the
+//     app's status bar.
 
 import { escapeHtml } from '../lib/escape.js';
 
@@ -30,36 +48,82 @@ function excalidrawThemeFor(appTheme) {
 // Debounce delay for save-on-change.
 const SAVE_DELAY = 1000;
 
-export async function showExcalidraw(container, initialData, onSave, initialAppTheme) {
+// v0.68.0: per-container ownership tokens. renderActive can re-enter for the
+// same doc while a previous call's lazy-load is still in flight (e.g. the
+// boot-time restore fires it twice). The second call claims the container
+// synchronously; when the FIRST call's imports resolve it is stale and must
+// NOT strip the host class or clear the DOM the second call now owns — that
+// used to leave a mounted-but-invisible canvas (0px tall) after reload.
+const _containerOwners = new WeakMap();
+
+export async function showExcalidraw(container, initialData, onSave, initialAppTheme, isStale) {
+  const token = {};
+  _containerOwners.set(container, token);
+  const isOwner = () => _containerOwners.get(container) === token;
   // Loading state + ensure the container has height while modules download.
   container.innerHTML = '<div class="pdf-loading">Loading Excalidraw…</div>';
   container.classList.add('excalidraw-host');
 
+  // No-op controller returned when the mount is cancelled (stale render) or
+  // the modules fail to load. Has every method main.js can call, so callers
+  // never need null-checks.
+  const stub = {
+    setTheme: () => {},
+    getSceneJSON: () => '',
+    updateScene: () => {},
+    getSceneElements: () => [],
+    getElementCount: () => 0,
+    exportImage: null,
+    setCollabHook: () => {},
+    clearCollabHook: () => {},
+    destroy: () => { if (isOwner()) container.classList.remove('excalidraw-host'); },
+  };
+
   try {
     // Load CSS + all three heavy dependencies in parallel.
-    const [_, ReactMod, ReactDOMMod, ExcalidrawMod] = await Promise.all([
+    const [, ReactMod, ReactDOMMod, ExcalidrawMod] = await Promise.all([
       ensureCss(),
       import('react'),
       import('react-dom/client'),
       import('@excalidraw/excalidraw'),
     ]);
+    // Stale-render guard: the user switched tabs while the modules were
+    // downloading. Bail WITHOUT touching container again — the new tab's
+    // render owns the DOM now (and if no newer call claimed it, we're still
+    // the owner and clean up our loading state).
+    if (isStale && isStale()) {
+      if (isOwner()) {
+        container.classList.remove('excalidraw-host');
+        container.innerHTML = '';
+      }
+      return stub;
+    }
     const React = ReactMod.default;
     const ReactDOMClient = ReactDOMMod.default;
     const Excalidraw = ExcalidrawMod.Excalidraw;
     const serializeAsJSON = ExcalidrawMod.serializeAsJSON;
+    const exportToBlob = ExcalidrawMod.exportToBlob;
+    const exportToSvg = ExcalidrawMod.exportToSvg;
 
     // Parse the initial scene (if any).
     let parsedData = null;
+    let parseFailed = false;
     if (initialData && typeof initialData === 'string' && initialData.trim()) {
       try {
         parsedData = JSON.parse(initialData);
       } catch {
-        // Corrupt JSON — start with a blank canvas.
+        // Corrupt JSON — start with a blank canvas, but tell the user: their
+        // next save replaces whatever is on disk, and they should know that.
+        parseFailed = true;
       }
     }
 
-    // Clear the loading indicator.
+    // React mounts into an inner wrapper so a warning banner can live beside
+    // the canvas without React's first commit wiping it.
     container.innerHTML = '';
+    const mountDiv = document.createElement('div');
+    mountDiv.className = 'excalidraw-root';
+    container.appendChild(mountDiv);
 
     // Track the latest scene for serialization on save.
     let latestElements = parsedData?.elements || [];
@@ -68,6 +132,10 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
     // Instance-scoped debounce timer (was module-level — shared across
     // instances, which let one tab's destroy() clear another's pending save).
     let saveTimer = null;
+    // True once the user has actually changed the scene — destroy() only
+    // flushes through onSave when there's something newer to write, so a
+    // clean open→switch doesn't spuriously mark the doc dirty.
+    let sceneChanged = false;
     // Excalidraw's imperative API — captured via the `excalidrawAPI` prop
     // callback on first mount. Used for collab (updateScene from remote
     // Yjs updates) and for getSceneElements (cheap live read).
@@ -84,6 +152,7 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
       latestElements = elements;
       latestAppState = appState;
       latestFiles = files;
+      sceneChanged = true;
       // Collab: push immediately. Yjs + the network layer do their own
       // batching; adding our 1s save debounce here would make remote
       // strokes lag by a full second.
@@ -93,8 +162,10 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
       if (onSave) {
         clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
+          saveTimer = null;
           try {
-            const json = serializeAsJSON(elements, appState, files || {});
+            // 'local' keeps embedded image files + zoom/scroll appState.
+            const json = serializeAsJSON(elements, appState, files || {}, 'local');
             onSave(json);
           } catch (e) {
             console.error('Excalidraw serialize failed:', e);
@@ -104,11 +175,11 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
     };
 
     // Mount Excalidraw using React's imperative API (no JSX needed).
-    // The container must have height — Excalidraw fills 100% of its parent.
-    // If the initial render throws, we must unmount to avoid orphaning the root.
-    const root = ReactDOMClient.createRoot(container);
+    // The mount div has height (flex child of the host) — Excalidraw fills
+    // 100% of its parent. If the initial render throws, unmount to avoid
+    // orphaning the root.
+    const root = ReactDOMClient.createRoot(mountDiv);
     let currentTheme = excalidrawThemeFor(initialAppTheme);
-    let mounted = false;
 
     function renderExcalidraw() {
       root.render(
@@ -121,7 +192,6 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
           excalidrawAPI: (api) => { excalidrawAPI = api; },
         })
       );
-      mounted = true;
     }
     try {
       renderExcalidraw();
@@ -129,6 +199,23 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
       // Initial render failed — unmount to avoid a leaked root, then rethrow.
       try { root.unmount(); } catch {}
       throw renderErr;
+    }
+
+    // Corrupt-file banner (sibling of the React mount div).
+    if (parseFailed) {
+      const warn = document.createElement('div');
+      warn.className = 'canvas-warn';
+      warn.innerHTML =
+        '<span>Couldn\u2019t read this file\u2019s saved drawing — it may be corrupt or ' +
+        'from a newer version. Starting blank; saving will replace the original file.</span>';
+      const dismiss = document.createElement('button');
+      dismiss.type = 'button';
+      dismiss.className = 'canvas-warn-dismiss';
+      dismiss.setAttribute('aria-label', 'Dismiss warning');
+      dismiss.textContent = '\u00d7';
+      dismiss.addEventListener('click', () => warn.remove());
+      warn.appendChild(dismiss);
+      container.appendChild(warn);
     }
 
     return {
@@ -140,7 +227,7 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
       },
       getSceneJSON() {
         try {
-          return serializeAsJSON(latestElements, latestAppState, latestFiles || {});
+          return serializeAsJSON(latestElements, latestAppState, latestFiles || {}, 'local');
         } catch {
           return '';
         }
@@ -160,32 +247,74 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
         if (!excalidrawAPI) return [];
         try { return excalidrawAPI.getSceneElements() || []; } catch { return []; }
       },
+      // Element count for the status bar (canvas tabs have no words/chars).
+      getElementCount() {
+        return (latestElements || []).length;
+      },
+      // Render the current scene to image bytes. kind: 'png' (2x) | 'svg'.
+      // Returns { bytes: Uint8Array, mime } or null on failure.
+      async exportImage(kind) {
+        try {
+          const opts = {
+            exportPadding: 16,
+            exportWithDarkMode: currentTheme === 'dark',
+          };
+          if (kind === 'svg') {
+            const svg = await exportToSvg(latestElements, latestAppState, latestFiles || {}, opts);
+            const str = new XMLSerializer().serializeToString(svg);
+            return { bytes: new TextEncoder().encode(str), mime: 'image/svg+xml' };
+          }
+          const blob = await exportToBlob(latestElements, latestAppState, latestFiles || {}, {
+            ...opts,
+            mimeType: 'image/png',
+          });
+          return { bytes: new Uint8Array(await blob.arrayBuffer()), mime: 'image/png' };
+        } catch (e) {
+          console.error('Excalidraw export failed:', e);
+          return null;
+        }
+      },
       // Collab outbound hook registration. Bind on attach, clear on detach.
       // The hook receives the elements array on every local onChange.
       setCollabHook(fn) { collabHook = typeof fn === 'function' ? fn : null; },
       clearCollabHook() { collabHook = null; },
       destroy() {
-        clearTimeout(saveTimer);
+        // Flush a pending debounced save BEFORE unmounting — the caller is
+        // either switching tabs or closing this doc, and this is the last
+        // chance to capture edits made inside the debounce window.
+        if (saveTimer && sceneChanged && onSave) {
+          clearTimeout(saveTimer);
+          saveTimer = null;
+          try {
+            const json = serializeAsJSON(latestElements, latestAppState, latestFiles || {}, 'local');
+            if (json) onSave(json);
+          } catch (e) {
+            console.error('Excalidraw destroy-flush failed:', e);
+          }
+        } else if (saveTimer) {
+          clearTimeout(saveTimer);
+          saveTimer = null;
+        }
         collabHook = null;
         try {
           root.unmount();
         } catch {}
-        container.classList.remove('excalidraw-host');
-        container.innerHTML = '';
+        // Only mutate the shared container if no newer show* call claimed it
+        // while we were live (see _containerOwners above).
+        if (isOwner()) {
+          container.classList.remove('excalidraw-host');
+          container.innerHTML = '';
+        }
       },
     };
   } catch (e) {
     // If any module fails to load (offline, corrupt install, etc.), show a
     // clear error instead of leaving the user staring at a blank "Loading…" text.
-    container.innerHTML = `<div class="pdf-error">Could not load Excalidraw: ${escapeHtml(String(e))}</div>`;
+    if (isOwner()) {
+      container.classList.remove('excalidraw-host');
+      container.innerHTML = `<div class="pdf-error">Could not load Excalidraw: ${escapeHtml(String(e))}</div>`;
+    }
     console.error('Excalidraw load failed:', e);
-    return {
-      getSceneJSON: () => '',
-      updateScene: () => {},
-      getSceneElements: () => [],
-      setCollabHook: () => {},
-      clearCollabHook: () => {},
-      destroy: () => {},
-    };
+    return stub;
   }
 }

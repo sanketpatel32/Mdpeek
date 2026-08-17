@@ -1118,22 +1118,59 @@
 }
 
 /* Excalidraw host — fills the document pane completely. Excalidraw manages its
-   own scrolling and zoom, so we remove the markdown padding and overflow. */
-.markdown-body.excalidraw-host {
-  padding: 0;
-  margin: 0;
-  height: 100%;
+   own scrolling and zoom, so we remove the markdown padding and overflow.
+   v0.68.0: the selector used to be `.markdown-body.excalidraw-host`, which
+   could never match — the excalidraw branch strips `markdown-body` from
+   #document before adding `excalidraw-host`, so the flex sizing below was dead
+   and the canvas only worked via the generic #document rules. */
+#document.excalidraw-host {
+  flex: 1;
+  min-height: 0;
   width: 100%;
+  margin: 0;
+  padding: 0;
   overflow: hidden;
   position: relative;
   display: flex;
   flex-direction: column;
 }
-.excalidraw-host > div {
+/* v0.68.0: React mounts into an inner .excalidraw-root wrapper (so a warning
+   banner can sit beside the canvas without React's commit wiping it). */
+#document.excalidraw-host > .excalidraw-root {
   flex: 1;
   min-height: 0;
   height: 100%;
+  width: 100%;
 }
+
+/* v0.68.0: corrupt-scene warning banner above a canvas (Excalidraw viewer). */
+.canvas-warn {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2, 8px);
+  padding: var(--sp-2, 8px) var(--sp-3, 12px);
+  background: var(--surface-hover);
+  color: var(--fg);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.canvas-warn-dismiss {
+  margin-left: auto;
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color var(--dur-1, 120ms) var(--ease-out), background var(--dur-1, 120ms) var(--ease-out);
+}
+.canvas-warn-dismiss:hover { color: var(--fg); background: var(--surface-hover); }
+.canvas-warn-dismiss:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 
 /* v0.47.0: TLDraw host. TLDraw's root `.tl-container` is `width/height: 100%`
    (static layout), so it needs an ancestor with a CONCRETE resolved height.

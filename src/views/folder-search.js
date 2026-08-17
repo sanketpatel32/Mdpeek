@@ -174,6 +174,9 @@ function build() {
 
   // Click-outside dismiss (v0.67.0). The overlay card fills the panel, so the
   // old e.target === overlay check could never fire — listen on the document.
+  // v0.68.0: isOpen was referenced but never defined here — every document
+  // mousedown threw a ReferenceError (caught by the window error handler).
+  const isOpen = () => !overlay.classList.contains('hidden');
   document.addEventListener('mousedown', (e) => {
     if (isOpen() && !overlay.contains(e.target)) close();
   });

@@ -48,11 +48,19 @@ function build() {
   document.body.appendChild(mirror);
 }
 
+// v0.68.0: the active doc may have no editor at all (canvas / pdf / home
+// tabs) — getEditor() returns null there and the old unguarded chain threw
+// from renderActive's tab-switch path, aborting the whole re-render.
+function activeTextarea() {
+  const ed = ctx && ctx.getEditor ? ctx.getEditor() : null;
+  return ed && typeof ed.textarea === 'function' ? ed.textarea() : null;
+}
+
 // Show/hide the dropdown. Hiding also clears state so the next open starts
 // fresh (no stale items, no leftover selection).
 function hide() {
   if (dropdown) dropdown.classList.add('hidden');
-  const ta = ctx && ctx.getEditor && ctx.getEditor().textarea ? ctx.getEditor().textarea() : null;
+  const ta = activeTextarea();
   if (ta) ta.setAttribute('aria-expanded', 'false');
   active = null;
   items = [];
@@ -128,7 +136,7 @@ function render() {
   }).join('');
   dropdown.classList.remove('hidden');
   // v0.67.0: combobox semantics on the textarea.
-  const ta = ctx.getEditor && ctx.getEditor().textarea ? ctx.getEditor().textarea() : null;
+  const ta = activeTextarea();
   if (ta) ta.setAttribute('aria-expanded', 'true');
 }
 
@@ -231,7 +239,7 @@ export function initAutocomplete(accessors) {
   window.addEventListener('pointerdown', (e) => {
     if (!dropdown || dropdown.classList.contains('hidden')) return;
     if (dropdown.contains(e.target)) return;
-    const ta = ctx.getEditor && ctx.getEditor().textarea ? ctx.getEditor().textarea() : null;
+    const ta = activeTextarea();
     if (ta && ta.contains && ta.contains(e.target)) return;
     hide();
   });

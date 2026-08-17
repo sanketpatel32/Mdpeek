@@ -589,6 +589,12 @@ let _renderGen = 0; // monotonic counter — guards async loads against stale ta
 let _activePdf = null; // controller for the currently-shown PDF (for teardown)
 let _activeExcalidraw = null; // controller for the currently-shown Excalidraw tab
 let _activeTLDraw = null; // controller for the currently-shown TLDraw tab (v0.47.0)
+// v0.68.0: doc id each live canvas controller belongs to. renderActive can be
+// re-entered for the SAME doc (settings toggles, dirty-flag transitions) — the
+// id lets the canvas branches no-op instead of double-mounting a second React
+// root over the live one (which leaked the first root and reset the scene).
+let _activeExcalidrawDocId = null;
+let _activeTLDrawDocId = null;
 let _activeImage = null; // controller for the currently-shown annotated image
 let _activeNotebook = null; // controller for the currently-shown Jupyter notebook (v0.49.0)
 let _activeMedia = null; // controller for the currently-shown audio/video (v0.49.0)
@@ -606,14 +612,12 @@ let _closedTabs = [];
 // gated separately by syncSidebarVisibility(). This helper only handles the
 // doc-specific actions that weren't already toggled inline in each branch.
 function syncToolbarForDoc(doc) {
-  // Save: editable docs (markdown / plain / code in any mode), PLUS saved
-  // canvas tabs (.tldr / .excalidraw with a path) since Ctrl+S genuinely
-  // flushes their scene to disk. Hidden on the welcome screen, for read-only
-  // viewers (PDF / image / csv), and for UNSAVED canvas tabs (which use
-  // save-as via Ctrl+S — and that now offers the right extension, v0.48.0 F1).
-  const isCanvas = !!doc && (doc.excalidraw || doc.tldraw);
-  const canvasSaveable = isCanvas && !!doc.path;
-  const editable = !!doc && !doc.pdf && !doc.image && !doc.csv && !doc.notebook && !doc.media && (!isCanvas || canvasSaveable);
+  // Save: editable docs (markdown / plain / code in any mode) and canvas tabs
+  // (.tldr / .excalidraw) — v0.68.0 widened this to UNSAVED canvases too:
+  // Ctrl+S routes them to save-as with the right extension/filter, which is
+  // exactly what a fresh "New drawing" tab needs. Hidden on the welcome screen
+  // and for read-only viewers (PDF / image / csv).
+  const editable = !!doc && !doc.pdf && !doc.image && !doc.csv && !doc.notebook && !doc.media;
   el.save.classList.toggle('hidden', !editable);
 }
 
@@ -665,12 +669,14 @@ async function renderActive() {
       }
       _activeExcalidraw.destroy();
       _activeExcalidraw = null;
+      _activeExcalidrawDocId = null;
     }
     // v0.47.0: Tear down the outgoing TLDraw tab (unmounts React). TLDraw has
     // no collab binding to detach — collab is Excalidraw-only this release.
     if (_activeTLDraw) {
       _activeTLDraw.destroy();
       _activeTLDraw = null;
+      _activeTLDrawDocId = null;
     }
     // Tear down the outgoing CSV viewer (removes its event listeners).
     if (_activeCsv) {
@@ -708,6 +714,10 @@ async function renderActive() {
   // the welcome screen or a read-only PDF/image/csv tab). Per-branch toggles
   // below refine further (draw/export/mode).
   syncToolbarForDoc(doc);
+  // v0.68.0: reset the status bar here (it used to linger with stale word
+  // counts when switching from an edit-mode tab to PDF/image/etc). The
+  // edit-mode branch below re-shows it; canvas branches show their own.
+  el.editorStatus.classList.add('hidden');
 
   // No doc, or an empty untouched Untitled tab in VIEW mode → show the welcome
   // screen. If the user explicitly switched to edit mode, show the editor even
@@ -724,7 +734,7 @@ async function renderActive() {
     if (el.share) el.share.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = ''; // clear stale TOC from the previous document
-    el.document.classList.remove('code-viewer', 'image-viewer');
+    el.document.classList.remove('code-viewer', 'image-viewer', 'excalidraw-host', 'tldraw-host');
     el.document.classList.add('has-welcome', 'markdown-body');
     el.document.innerHTML = renderWelcome();
     setReadingProgressVisible(false);
@@ -743,7 +753,7 @@ async function renderActive() {
     if (el.share) el.share.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body');
+    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body', 'excalidraw-host', 'tldraw-host');
     setReadingProgressVisible(false);
     // showPdf is async and lazy-loads pdf.js. Store the controller so we can
     // tear it down on tab switch.
@@ -775,7 +785,7 @@ async function renderActive() {
     if (el.share) el.share.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body');
+    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body', 'excalidraw-host', 'tldraw-host');
     el.document.classList.add('image-viewer');
     setReadingProgressVisible(false);
     try {
@@ -802,7 +812,7 @@ async function renderActive() {
     if (el.share) el.share.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body');
+    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body', 'excalidraw-host', 'tldraw-host');
     el.document.classList.add('notebook-viewer');
     setReadingProgressVisible(false);
     try {
@@ -828,7 +838,7 @@ async function renderActive() {
     if (el.share) el.share.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body');
+    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body', 'excalidraw-host', 'tldraw-host');
     el.document.classList.add('media-viewer');
     setReadingProgressVisible(false);
     try {
@@ -848,7 +858,11 @@ async function renderActive() {
     el.editMode.classList.add('hidden');
     el.mode.classList.add('hidden');
     el.draw.classList.add('hidden');
-    el.export.classList.add('hidden');
+    // v0.68.0: canvas tabs CAN export — the button renders the drawing to
+    // PNG/SVG via the live controller (see exportCanvas).
+    el.export.classList.remove('hidden');
+    el.export.setAttribute('title', 'Export drawing (PNG / SVG)');
+    el.export.setAttribute('aria-label', 'Export drawing');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
     if (el.present) el.present.classList.add('hidden');
     if (el.reading) el.reading.classList.add('hidden');
@@ -856,19 +870,36 @@ async function renderActive() {
     if (el.share) el.share.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body');
+    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body', 'excalidraw-host', 'tldraw-host');
+    // Declare the host class HERE, not only inside showTLDraw — the same-doc
+    // guard below early-returns on re-renders and the cleanup above would
+    // otherwise leave a mounted canvas 0px tall (see the Excalidraw branch).
+    el.document.classList.add('tldraw-host');
     setReadingProgressVisible(false);
+    // v0.68.0: status bar for canvas tabs — shape count + save tick.
+    el.editorStatus.classList.remove('hidden');
+    updateCanvasStatus(doc);
+    // Already mounted for THIS doc (settings toggle, dirty-flag transition…):
+    // re-running showTLDraw would double-mount and leak the first React root.
+    if (_activeTLDraw && _activeTLDrawDocId === doc.id) return;
+    if (_activeTLDraw) { try { _activeTLDraw.destroy(); } catch { /* stale */ } _activeTLDraw = null; }
     // showTLDraw is async and lazy-loads React + the TLDraw SDK. The onSave
-    // callback writes the .tldr scene JSON back to doc.content (debounced).
+    // callback writes the .tldr scene JSON back to doc.content (debounced) and
+    // schedules autosave exactly like a text edit (v0.68.0: canvas tabs used
+    // to never autosave — saved files only reached disk on explicit Ctrl+S).
     showTLDraw(el.document, doc.content, (json) => {
       doc.content = json;
       store.markDirty(doc.id);
       persistSoon();
-    }, document.documentElement.dataset.theme).then((ctrl) => {
+      scheduleAutoSave();
+      updateCanvasStatus(doc);
+    }, document.documentElement.dataset.theme, () => gen !== _renderGen).then((ctrl) => {
       if (gen !== _renderGen) {
         ctrl.destroy();
       } else {
         _activeTLDraw = ctrl;
+        _activeTLDrawDocId = doc.id;
+        updateCanvasStatus(doc);
       }
     }).catch((e) => toast('Could not open TLDraw: ' + fmtErr(e)));
     return;
@@ -881,7 +912,11 @@ async function renderActive() {
     el.editMode.classList.add('hidden');
     el.mode.classList.add('hidden');
     el.draw.classList.add('hidden');
-    el.export.classList.add('hidden');
+    // v0.68.0: canvas tabs CAN export — the button renders the drawing to
+    // PNG/SVG via the live controller (see exportCanvas).
+    el.export.classList.remove('hidden');
+    el.export.setAttribute('title', 'Export drawing (PNG / SVG)');
+    el.export.setAttribute('aria-label', 'Export drawing');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
     if (el.present) el.present.classList.add('hidden');
     if (el.reading) el.reading.classList.add('hidden');
@@ -889,20 +924,38 @@ async function renderActive() {
     if (el.share) el.share.classList.toggle('hidden', collab.getStatus().active);
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body');
+    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body', 'excalidraw-host', 'tldraw-host');
+    // Declare the host class HERE, not only inside showExcalidraw: the
+    // same-doc guard below early-returns on re-renders (e.g. the boot-time
+    // double render), and without this the cleanup list above left an
+    // already-mounted canvas with no host class → 0px tall.
+    el.document.classList.add('excalidraw-host');
     setReadingProgressVisible(false);
+    // v0.68.0: status bar for canvas tabs — element count + save tick.
+    el.editorStatus.classList.remove('hidden');
+    updateCanvasStatus(doc);
+    // Already mounted for THIS doc — re-running showExcalidraw would
+    // double-mount and leak the first React root (see _activeExcalidrawDocId).
+    if (_activeExcalidraw && _activeExcalidrawDocId === doc.id) return;
+    if (_activeExcalidraw) { try { _activeExcalidraw.destroy(); } catch { /* stale */ } _activeExcalidraw = null; }
     // showExcalidraw is async and lazy-loads React + Excalidraw. The onSave
     // callback writes the scene JSON back to doc.content (debounced) so the
-    // drawing persists across tab switches.
+    // drawing persists across tab switches; v0.68.0 also schedules autosave
+    // like every text-edit path, and the stale callback stops a late
+    // lazy-load from wiping the DOM of a newly-active tab.
     showExcalidraw(el.document, doc.content, (json) => {
       doc.content = json;
       store.markDirty(doc.id);
       persistSoon();
-    }, document.documentElement.dataset.theme).then((ctrl) => {
+      scheduleAutoSave();
+      updateCanvasStatus(doc);
+    }, document.documentElement.dataset.theme, () => gen !== _renderGen).then((ctrl) => {
       if (gen !== _renderGen) {
         ctrl.destroy();
       } else {
         _activeExcalidraw = ctrl;
+        _activeExcalidrawDocId = doc.id;
+        updateCanvasStatus(doc);
         // If a collab session is active AND this doc is the shared one, bind
         // the canvas now. Handles two cases:
         //   1. Receiver cold-join: confirmJoin created the tab then waited
@@ -931,7 +984,7 @@ async function renderActive() {
     el.pdfDrawToolbar.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'markdown-body', 'image-viewer', 'code-viewer', 'notebook-viewer', 'media-viewer');
+    el.document.classList.remove('has-welcome', 'markdown-body', 'image-viewer', 'code-viewer', 'notebook-viewer', 'media-viewer', 'excalidraw-host', 'tldraw-host');
     el.document.classList.add('csv-viewer');
     setReadingProgressVisible(false);
     const tsv = /\.tsv$/i.test(doc.path || '');
@@ -968,7 +1021,7 @@ async function renderActive() {
       el.pdfDrawToolbar.classList.add('hidden');
       el.viewMode.classList.remove('hidden');
       el.toc.innerHTML = '';
-      el.document.classList.remove('has-welcome', 'markdown-body');
+      el.document.classList.remove('has-welcome', 'markdown-body', 'excalidraw-host', 'tldraw-host');
       el.document.classList.add('code-viewer');
       setReadingProgressVisible(false);
       const lang = langFromPath(doc.path);
@@ -1013,7 +1066,7 @@ async function renderActive() {
   // already active (use End instead) — the per-viewer branches above already
   // hide it for read-only formats (PDF/image/csv/welcome).
   if (el.share) el.share.classList.toggle('hidden', collab.getStatus().active);
-  el.document.classList.remove('code-viewer', 'image-viewer');
+  el.document.classList.remove('code-viewer', 'image-viewer', 'excalidraw-host', 'tldraw-host');
   el.document.classList.add('markdown-body');
 
   el.mode.title = doc.mode === 'edit'
@@ -1176,6 +1229,8 @@ function getCommands() {
     { id: 'forward', label: 'Forward', hint: 'Alt+Right', keywords: 'forward next history navigate', run: goForward },
     { id: 'quick-switch', label: 'Quick switcher (recent files)', hint: 'Ctrl+P', keywords: 'quick switch recent files open', run: () => quickSwitcher.open() },
     { id: 'new', label: 'New tab', hint: 'Ctrl+N', keywords: 'new tab untitled', run: newTab },
+    { id: 'new-excalidraw', label: 'New Excalidraw drawing', keywords: 'new excalidraw drawing canvas whiteboard sketch diagram', run: () => store.open({ path: null, content: '', excalidraw: true }) },
+    { id: 'new-tldraw', label: 'New TLDraw drawing', keywords: 'new tldraw drawing canvas whiteboard sketch diagram', run: () => store.open({ path: null, content: '', tldraw: true }) },
     { id: 'reopen-tab', label: 'Reopen closed tab', hint: 'Ctrl+Alt+T', keywords: 'reopen closed tab recent restore undo', run: reopenClosedTab },
     { id: 'close-others', label: 'Close other tabs', keywords: 'close others tabs keep active only', run: () => { const d = store.active(); if (d) ctxAction('close-others', d.id); } },
     { id: 'close-right', label: 'Close tabs to the right', keywords: 'close right tabs after', run: () => { const d = store.active(); if (d) ctxAction('close-right', d.id); } },
@@ -1186,6 +1241,8 @@ function getCommands() {
     { id: 'export-html', label: 'Export to HTML', keywords: 'export html self-contained', run: exportHtml },
     { id: 'export-txt', label: 'Export to plain text (.txt)', keywords: 'export plain text txt strip markdown', run: exportPlainText },
     { id: 'export-pdf', label: 'Export to PDF', keywords: 'export pdf print document', run: exportPdf },
+    { id: 'export-canvas-png', label: 'Export drawing as PNG', keywords: 'export drawing canvas png image excalidraw tldraw', run: () => exportCanvas('png') },
+    { id: 'export-canvas-svg', label: 'Export drawing as SVG', keywords: 'export drawing canvas svg vector excalidraw tldraw', run: () => exportCanvas('svg') },
     { id: 'start-presentation', label: 'Start presentation', keywords: 'present slideshow slides deck fullscreen', run: togglePresentation },
     { id: 'start-collab', label: 'Share for live collaboration', keywords: 'collaborate share live pair peer realtime sync', run: openShareModal },
     { id: 'end-collab', label: 'End collaboration session', keywords: 'leave stop end disconnect collab', run: endCollabSession },
@@ -1277,6 +1334,8 @@ function getCommands() {
   const collabActive = collab.getStatus().active;
   return cmds.filter((c) => {
     if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-txt' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks' || c.id === 'sort-asc' || c.id === 'sort-desc' || c.id === 'copy-html' || c.id === 'copy-plaintext' || c.id === 'open-in-browser' || c.id === 'check-links' || c.id === 'restore-version' || c.id === 'diff-version' || c.id === 'writing-goal' || c.id === 'save-as-template' || c.id === 'pin-doc-theme' || c.id === 'clear-doc-theme' || c.id === 'case-upper' || c.id === 'case-lower' || c.id === 'case-title' || c.id === 'case-toggle' || c.id === 'wrap-with' || c.id === 'edit-table' || c.id === 'toggle-prose-highlights' || c.id === 'toggle-wordfreq-underline' || c.id === 'wordfreq') && !hasDoc) return false;
+    // v0.68.0: drawing exports only make sense with a live canvas tab.
+    if ((c.id === 'export-canvas-png' || c.id === 'export-canvas-svg') && !(doc && (doc.excalidraw || doc.tldraw))) return false;
     if (c.id === 'end-collab' && !collabActive) return false;
     if (c.id === 'start-collab' && collabActive) return false;
     if ((c.id === 'start-collab' || c.id === 'end-collab') && !featureOn('collab')) return false;
@@ -1443,7 +1502,9 @@ const snapshotPicker = initQuickSwitcher(
     if (!doc || !doc.path) return;
     try {
       const content = await invoke('read_snapshot', { path: doc.path, ts: item._ts });
-      store.open({ path: null, content, mode: 'edit' });
+      // v0.68.0: carry the canvas flags so a drawing snapshot reopens as a
+      // drawing tab, not a markdown editor full of scene JSON.
+      store.open({ path: null, content, mode: 'edit', excalidraw: doc.excalidraw || undefined, tldraw: doc.tldraw || undefined });
       toast('Snapshot opened in a new tab — save to keep');
     } catch (e) {
       toast('Could not read snapshot: ' + fmtErr(e));
@@ -1518,6 +1579,9 @@ const diffVersionPicker = initQuickSwitcher(
 async function diffVersion() {
   const doc = store.active();
   if (!doc || !doc.path) { toast('Save the doc first to browse its history'); return; }
+  // The diff viewer applies changes through the text editor, which canvases
+  // don't have — point drawing users at Restore version instead.
+  if (doc.excalidraw || doc.tldraw) { toast('Version compare is text-only for now — use Restore version for drawings'); return; }
   if (!diffVersionPicker?.setItems) return;
   let entries;
   try {
@@ -2265,7 +2329,7 @@ async function reopenClosedTab() {
       await openPath(entry.path, entry.content);
     }
   } else {
-    store.open({ path: null, content: entry.content, plain: entry.plain, code: entry.code, mode: entry.mode || 'edit' });
+    store.open({ path: null, content: entry.content, plain: entry.plain, code: entry.code, mode: entry.mode || 'edit', excalidraw: entry.excalidraw, tldraw: entry.tldraw });
   }
 }
 
@@ -2288,6 +2352,16 @@ async function closeTab(id) {
       _collabDocId = null;
     }
   }
+  // v0.68.0: flush a live canvas before the dirty check so edits made inside
+  // the viewer's 1s debounce window are seen (and prompt) correctly.
+  if (doc.excalidraw && _activeExcalidraw && _lastRenderedId === id) {
+    const j = _activeExcalidraw.getSceneJSON();
+    if (j && j !== doc.content) { doc.content = j; store.markDirty(doc.id); }
+  }
+  if (doc.tldraw && _activeTLDraw && _lastRenderedId === id) {
+    const j = _activeTLDraw.flush();
+    if (j && j !== doc.content) { doc.content = j; store.markDirty(doc.id); }
+  }
   if (doc.dirty) {
     const name = basename(doc.path);
     const choice = await confirmDialog({
@@ -2308,9 +2382,10 @@ async function closeTab(id) {
   }
   // v0.45.0: snapshot the doc for "Reopen closed tab" before we tear it down.
   // Only snapshot docs worth reopening: a saved path OR non-empty content.
-  // Skip the home screen, blank untitled tabs, canvases (scene is JSON;
-  // reopening as markdown would be wrong), notebooks (JSON), and media.
-  if ((doc.path || doc.content) && !doc.excalidraw && !doc.tldraw && !doc.notebook && !doc.media) {
+  // Skip the home screen, blank untitled tabs, notebooks (JSON), and media.
+  // v0.68.0: canvases snapshot too — the flags ride along in snapshotDoc so
+  // they reopen as drawing tabs instead of a wall of scene JSON.
+  if ((doc.path || doc.content) && !doc.notebook && !doc.media) {
     const snap = snapshotDoc(doc);
     if (snap) _closedTabs = pushClosedTab(_closedTabs, snap);
   }
@@ -2358,8 +2433,9 @@ async function closeDocs(ids) {
   for (const id of toClose) {
     const doc = store.docs.find((d) => d.id === id);
     if (!doc) continue;
-    // v0.45.0: snapshot for "Reopen closed tab" (same guard as closeTab).
-    if ((doc.path || doc.content) && !doc.excalidraw && !doc.tldraw) {
+    // v0.45.0: snapshot for "Reopen closed tab" (same guard as closeTab,
+    // v0.68.0: canvases included, notebooks/media skipped — matching closeTab).
+    if ((doc.path || doc.content) && !doc.notebook && !doc.media) {
       const snap = snapshotDoc(doc);
       if (snap) _closedTabs = pushClosedTab(_closedTabs, snap);
     }
@@ -2459,10 +2535,11 @@ async function saveActive() {
 }
 
 // v0.45.0: write a version-history snapshot for the just-saved doc. Skips
-// non-text docs (Excalidraw scenes, binary). Fire-and-forget — errors are
-// logged but never surface to the user.
+// non-text docs (notebooks, binary). v0.68.0: canvas scenes snapshot too —
+// "Restore version…" reopens them with the right flags. Fire-and-forget —
+// errors are logged but never surface to the user.
 function maybeSnapshot(doc, content) {
-  if (!doc || !doc.path || doc.excalidraw || doc.tldraw || doc.notebook || doc.media) return;
+  if (!doc || !doc.path || doc.notebook || doc.media) return;
   // v0.55.0: saving a daily note counts as a writing day for the streak chip.
   // Fire-and-forget like the snapshot itself — a storage failure must never
   // surface here.
@@ -2628,6 +2705,40 @@ async function exportHtml() {
   try {
     await invoke('save_file_as_html', { content: full });
     notify('Export complete', `${title}.html`);
+  } catch (e) {
+    if (e !== 'cancelled') toast('Export failed: ' + fmtErr(e));
+  }
+}
+
+// v0.68.0: export the active drawing (Excalidraw / TLDraw) as PNG or SVG.
+// The scene-to-image work lives in the viewers' controllers (exportImage);
+// this handles the format choice and the native save dialog. `kind` omitted
+// (toolbar button) asks via dialog; the palette passes it explicitly.
+async function exportCanvas(kind) {
+  const doc = store.active();
+  if (!doc || !(doc.excalidraw || doc.tldraw)) { toast('Export drawing is for Excalidraw / TLDraw tabs'); return; }
+  const ctrl = doc.excalidraw ? _activeExcalidraw : _activeTLDraw;
+  if (!ctrl || typeof ctrl.exportImage !== 'function') { toast('Canvas is still loading — try again in a moment'); return; }
+  let fmt = kind;
+  if (fmt !== 'png' && fmt !== 'svg') {
+    const choice = await confirmDialog({
+      title: 'Export drawing',
+      text: 'Choose an image format for this drawing.',
+      buttons: [
+        { id: 'cancel', label: 'Cancel', kind: 'secondary' },
+        { id: 'svg', label: 'SVG (vector)', kind: 'primary' },
+        { id: 'png', label: 'PNG (2\u00d7)', kind: 'primary' },
+      ],
+    });
+    if (choice !== 'svg' && choice !== 'png') return;
+    fmt = choice;
+  }
+  const res = await ctrl.exportImage(fmt);
+  if (!res) { toast('Export failed: could not render the drawing'); return; }
+  const base = (doc.path ? basename(doc.path).replace(/\.(excalidraw|tldr)$/i, '') : 'drawing') || 'drawing';
+  try {
+    const path = await invoke('save_annotated_image', { bytes: Array.from(res.bytes), suggestedName: `${base}.${fmt}`, kind: fmt });
+    notify('Export complete', basename(path));
   } catch (e) {
     if (e !== 'cancelled') toast('Export failed: ' + fmtErr(e));
   }
@@ -3295,6 +3406,10 @@ function parseExcalidrawElements(json) {
 function openShareModal() {
   const doc = store.active();
   if (!doc) return;
+  // v0.68.0: the Share BUTTON is hidden on TLDraw tabs, but the command
+  // palette + other callers can still land here — a TLDraw doc would fall
+  // into the text branch and share raw scene JSON. Guard the entry point.
+  if (doc.tldraw) { toast('Live sharing isn\u2019t available for TLDraw drawings yet'); return; }
   const status = collab.getStatus();
   if (status.active) {
     // Session already running — show current state. Don't clobber the link
@@ -5532,7 +5647,9 @@ const referencePane = initReferencePane({
 function openReferencePicker() {
   if (!referencePicker?.setItems) return;
   const items = store.docs
-    .filter((d) => !d.excalidraw)
+    // v0.68.0: only text-ish docs render usefully in the pane — canvases and
+    // binary viewers would show raw JSON or nothing.
+    .filter((d) => !d.excalidraw && !d.tldraw && !d.notebook && !d.media && !d.pdf && !d.image && !d.csv)
     .map((d) => {
       const name = d.path ? d.path.replace(/[\\/]/g, ' / ').split(' / ').pop() : 'Untitled';
       return { label: name, hint: d.id === store.activeId ? 'active' : '', keywords: name, _id: d.id };
@@ -6163,7 +6280,12 @@ document.addEventListener('selectionchange', () => {
 // ---------- events ----------
 el.open.addEventListener('click', openFileDialog);
 el.save.addEventListener('click', saveActive);
-if (el.export) el.export.addEventListener('click', exportHtml);
+if (el.export) el.export.addEventListener('click', () => {
+  // v0.68.0: drawing tabs export their canvas (PNG/SVG) instead of HTML.
+  const d = store.active();
+  if (d && (d.excalidraw || d.tldraw)) { exportCanvas(); return; }
+  exportHtml();
+});
 if (el.exportPdf) el.exportPdf.addEventListener('click', exportPdf);
 document.getElementById('btn-copy-html')?.addEventListener('click', copyAsHtml);
 document.getElementById('btn-copy-plaintext')?.addEventListener('click', copyAsPlainText);
@@ -7954,6 +8076,10 @@ async function autoSaveActive() {
   setSaveStatus('saving');
   try {
     if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
+    // v0.68.0: flush the live canvas scene — its debounced save may not have
+    // fired when the autosave timer beats it to the write.
+    if (doc.excalidraw && _activeExcalidraw) { const j = _activeExcalidraw.getSceneJSON(); if (j) doc.content = j; }
+    if (doc.tldraw && _activeTLDraw) { const j = _activeTLDraw.flush(); if (j) doc.content = j; }
     await invoke('save_file', { path: doc.path, content: doc.content });
     store.clearDirty(doc.id);
     setSaveStatus('saved');
@@ -7973,6 +8099,22 @@ function setSaveStatus(state) {
   };
   tag.textContent = map[state] || '';
   tag.dataset.state = state;
+}
+
+// v0.68.0: status bar content for canvas tabs — element count + kind + the
+// shared save-status tick. Mirrors updateEditorStatus's markup shape so the
+// same .editor-status styling applies.
+function updateCanvasStatus(doc) {
+  if (!el.editorStatus || el.editorStatus.classList.contains('hidden')) return;
+  const ctrl = doc?.excalidraw ? _activeExcalidraw : _activeTLDraw;
+  const n = ctrl?.getElementCount ? ctrl.getElementCount() : 0;
+  const kind = doc?.excalidraw ? 'Excalidraw' : 'TLDraw';
+  el.editorStatus.innerHTML =
+    `<span>${n} ${n === 1 ? 'element' : 'elements'}</span>` +
+    `<span class="status-sep" aria-hidden="true">·</span>` +
+    `<span>${kind}</span>` +
+    `<span class="save-status" data-state="idle"></span>`;
+  setSaveStatus(doc?.dirty ? 'dirty' : 'saved');
 }
 
 // Keyboard shortcuts — registered on the CAPTURE phase so we intercept the
@@ -8338,7 +8480,24 @@ const TRAY_PREF_KEY = 'mdpeek-close-action'; // 'tray' | 'quit' | null
 function doMinimizeToTray() {
   invoke('hide_to_tray').catch((e) => toast('Could not minimize: ' + fmtErr(e)));
 }
-function doQuitApp() {
+async function doQuitApp() {
+  // v0.68.0: flush the active doc's live state before the process goes away —
+  // canvas scenes inside their 1s debounce window (and unsaved keystrokes)
+  // would otherwise never reach the session or disk. Awaited so quit_app
+  // can't race the final write.
+  try {
+    const d = store.active();
+    if (d) {
+      if (d.mode === 'edit' && d.editor) d.content = d.editor.getValue();
+      if (d.excalidraw && _activeExcalidraw) { const j = _activeExcalidraw.getSceneJSON(); if (j) d.content = j; }
+      if (d.tldraw && _activeTLDraw) { const j = _activeTLDraw.flush(); if (j) d.content = j; }
+      persist();
+      if (d.path && d.dirty) {
+        await invoke('save_file', { path: d.path, content: d.content });
+        store.clearDirty(d.id);
+      }
+    }
+  } catch (e) { console.error('quit flush failed:', e); }
   // Kill any live terminal PTYs before quitting so we don't leave zombie
   // PowerShell processes behind. Safe no-op if the terminal drawer was never
   // opened.
@@ -8580,6 +8739,11 @@ listen('file-changed', (event) => {
     // PDFs are binary + read-only — the text watcher isn't used for them
     // (openPath skips rewatch), but guard anyway in case an event leaks through.
     if (doc.pdf) return;
+    // v0.68.0: canvases never rewatch their own path, but the global watcher
+    // reports only content — not WHICH file changed. Without this guard a
+    // canvas tab could be clobbered by a different file's disk change and
+    // persist the foreign text 1s later.
+    if (doc.excalidraw || doc.tldraw) return;
     // Code files in view mode: re-render the syntax highlighted view on disk change.
     if (doc.code && doc.mode === 'view') {
       doc.content = event.payload;
