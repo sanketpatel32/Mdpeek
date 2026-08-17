@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.69.0] - 2026-08-17
+
+Editor text-editing fixes for the long-standing "line numbers don't sit on
+their lines" bug. The gutter measures wrapped-row heights through a hidden
+mirror of the textarea; three defects in that pipeline accumulated drift and
+one silently disabled a setting.
+
+### Fixed - editor
+- Line numbers no longer drift off their text lines after zooming:
+  syncGutter pinned an absolute inline line-height (px) on the textarea and
+  gutter, and that pin permanently outranked the CSS ratio (1.6). After any
+  zoom or font-size change the pin kept the old pixel height while the
+  glyphs grew — text overlapped and the numbers slid off their lines, a
+  little worse on every wrapped row. The pin is now re-derived from the live
+  font size × ratio on every sync, so the ratio survives zoom.
+- The "Word wrap" setting actually turns wrapping off now. The stylesheet
+  pins `white-space: pre-wrap` on the textarea, and author CSS overrides the
+  `wrap="off"` attribute — long lines kept wrapping no matter what the
+  setting said. Wrap-off now sets inline `white-space: pre` so lines really
+  stay single-row with horizontal scrolling; soft wrap restores the CSS
+  default.
+- The measurement mirror copies the textarea's computed wrapping regime
+  (`white-space`, `overflow-wrap`, `word-break`, `letter-spacing`), so gutter
+  row heights stay honest with wrapping off.
+- Toggling word wrap in Settings re-syncs the gutter immediately instead of
+  waiting for the next keystroke (numbers used to start drifting the moment
+  the setting changed).
+- The mirror is built only after the final integer-pixel line-height is
+  pinned, fixing a first-render ordering bug where rows were measured
+  against a stale height.
+
+### Changed - editor
+- The "Line spacing" setting now applies to the editor as well as the
+  preview — the editor line-height was hardcoded to 1.6 while the preview
+  honored the setting, so spacing is now consistent across edit/view modes.
+
 ## [0.68.0] - 2026-08-17
 
 Drawing overhaul: a dedicated audit of the Excalidraw + TLDraw integrations
