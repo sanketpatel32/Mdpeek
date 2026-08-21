@@ -103,7 +103,9 @@ function walk(node, out) {
       case 'del':
       case 's': out.push(`~~${inline(child)}~~`); break;
       case 'code': out.push('`' + text(child) + '`'); break;
-      case 'pre': block(out, '```\n' + text(child).replace(/\s+$/, '') + '\n```'); break;
+      // Use raw textContent (not the whitespace-collapsing `text()` helper) so
+      // the code block keeps its internal newlines and indentation.
+      case 'pre': block(out, '```\n' + (child.textContent || '').replace(/^\n+|\s+$/g, '') + '\n```'); break;
       case 'a': {
         const href = child.getAttribute('href') || '';
         out.push(`[${inline(child)}](${href})`);
@@ -124,12 +126,31 @@ function walk(node, out) {
 }
 
 // Render a <ul>/<ol> element's <li> children as markdown bullet/numbered list.
+// Nested lists are rendered recursively and indented under their parent item
+// (2 spaces under `- `, 3 under `N. `) so they parse as children, not siblings.
 function listBlock(listNode, out, ordered) {
   out.push('\n');
   let i = 1;
+  const pad = ordered ? '   ' : '  ';
   listNode.querySelectorAll(':scope > li').forEach((li) => {
     const marker = ordered ? `${i}. ` : '- ';
-    out.push(`${marker}${inline(li).trim()}\n`);
+    // Render the li's children piecewise so nested ul/ol can be re-indented.
+    const parts = [];
+    li.childNodes.forEach((child) => {
+      const tag = child.nodeType === 1 ? child.tagName.toLowerCase() : '';
+      if (tag === 'ul' || tag === 'ol') {
+        const sub = [];
+        listBlock(child, sub, tag === 'ol');
+        // Drop the blank-line padding the nested block adds, then indent
+        // every line after the first so it lines up under this item.
+        parts.push(sub.join('').replace(/\n+$/, '').replace(/\n/g, '\n' + pad));
+      } else if (child.nodeType === 3) {
+        parts.push(child.textContent.replace(/\s+/g, ' '));
+      } else if (tag) {
+        walk(child, parts);
+      }
+    });
+    out.push(`${marker}${parts.join('').trim()}\n`);
     i++;
   });
   out.push('\n');

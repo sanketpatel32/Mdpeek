@@ -22,7 +22,9 @@ export function getIndent(size) {
 
 // Returns [lineStart, lineEnd] offsets for the line(s) spanned by [start, end].
 function lineRange(text, pos) {
-  const start = text.lastIndexOf('\n', pos - 1) + 1; // -1 → 0 (first line)
+  // pos===0 must stay 0 even when text starts with '\n' (lastIndexOf clamps a
+  // negative fromIndex to 0 and would report the leading \n itself).
+  const start = pos > 0 ? text.lastIndexOf('\n', pos - 1) + 1 : 0;
   let end = text.indexOf('\n', pos);
   if (end === -1) end = text.length;
   return [start, end];
@@ -456,7 +458,7 @@ export function moveLines(text, start, end, dir) {
     // Need a line above to swap with. The separator \n sits at lineStart-1.
     if (lineStart === 0) return { text, start, end };
     const prevEnd = lineStart - 1; // index of the \n between above and block
-    const prevStart = text.lastIndexOf('\n', prevEnd - 1) + 1; // start of above line
+    const prevStart = prevEnd > 0 ? text.lastIndexOf('\n', prevEnd - 1) + 1 : 0; // start of above line
     const before = text.slice(0, prevStart); // usually "" (prevStart follows a \n or is 0)
     const above = text.slice(prevStart, prevEnd);
     const block = text.slice(lineStart, lineEnd);
@@ -599,7 +601,7 @@ export function toggleComment(text, start, end) {
 function lineRange2(text, start, end) {
   const s = Math.min(start, end);
   const e = Math.max(start, end);
-  const lineStart = text.lastIndexOf('\n', s - 1) + 1;
+  const lineStart = s > 0 ? text.lastIndexOf('\n', s - 1) + 1 : 0;
   let lineEnd = text.indexOf('\n', e);
   if (lineEnd === -1) lineEnd = text.length;
   // If the selection ends exactly at a line boundary (caret at col 0 of the
@@ -669,7 +671,7 @@ export function buildRelativeImageMarkdown(docPath, filename) {
 export function tableCellNav(text, caret, dir) {
   if (!text || typeof caret !== 'number') return null;
   // Find the line the caret is on.
-  const lineStart = text.lastIndexOf('\n', caret - 1) + 1;
+  const lineStart = caret > 0 ? text.lastIndexOf('\n', caret - 1) + 1 : 0;
   let lineEnd = text.indexOf('\n', caret);
   if (lineEnd === -1) lineEnd = text.length;
   const line = text.slice(lineStart, lineEnd);
@@ -760,7 +762,14 @@ function cellContentStart(text, [cs, ce]) {
 // v0.52.0: exported so src/lib/table.js (visual table editor) can reuse the
 // same block detection instead of re-implementing it.
 export function detectTableBlock(text, pos) {
-  const lineStart = text.lastIndexOf('\n', pos - 1) + 1;
+  const lineStart = pos > 0 ? text.lastIndexOf('\n', pos - 1) + 1 : 0;
+  let e = text.indexOf('\n', pos);
+  if (e === -1) e = text.length;
+  // The caret's own line must be a table row. Without this, a prose line
+  // sandwiched between two tables is swallowed into their block — and
+  // formatTableBlock/sortTableRows (which emit only the matched rows) would
+  // delete it.
+  if (!/^\s*\|.*\|\s*$/.test(text.slice(lineStart, e))) return null;
   // Walk backwards to the first non-table line.
   let s = lineStart;
   while (s > 0) {
@@ -770,8 +779,6 @@ export function detectTableBlock(text, pos) {
     s = prevStart;
   }
   // Walk forwards to the first non-table line.
-  let e = text.indexOf('\n', pos);
-  if (e === -1) e = text.length;
   let endLineEnd = e;
   while (endLineEnd < text.length) {
     const nextStart = endLineEnd + 1;
@@ -787,6 +794,15 @@ export function detectTableBlock(text, pos) {
   return { startLine: s, endLine: endLineEnd, lines };
 }
 
+// True when the pipe at index i is escaped by an odd run of backslashes, so
+// \| stays literal while \\| splits (e.g. a trailing Windows path separator).
+// Mirrors table.js's isEscapedPipe.
+function isEscapedPipe(s, i) {
+  let bs = 0;
+  while (bs < i && s[i - 1 - bs] === '\\') bs++;
+  return bs % 2 === 1;
+}
+
 // Split a table row into raw cell bodies (the text between the pipes, with the
 // surrounding spaces preserved so alignment can pad them). The leading/trailing
 // pipes are dropped; escaped pipes \| are preserved as-is (caller treats them
@@ -794,15 +810,20 @@ export function detectTableBlock(text, pos) {
 // a valid row.
 function splitRowCells(line) {
   const trimmed = line.replace(/^\s+/, '');
-  // Strip exactly one leading and one trailing pipe (the markdown table shape).
-  const inner = trimmed.replace(/^\|/, '').replace(/\|\s*$/, '');
+  // Strip exactly one leading pipe; the trailing pipe only when unescaped,
+  // so a cell ending in literal \| survives.
+  const stripped = trimmed.replace(/^\|/, '');
+  let end = stripped.length;
+  while (end > 0 && /\s/.test(stripped[end - 1])) end--;
+  const hasTailPipe = end > 0 && stripped[end - 1] === '|' && !isEscapedPipe(stripped, end - 1);
+  const inner = hasTailPipe ? stripped.slice(0, end - 1) : stripped;
   // Split on unescaped pipes. A simple scan avoids lookbehind portability
   // issues some engines have with /\|/ in split().
   const cells = [];
   let cur = '';
   for (let i = 0; i < inner.length; i++) {
     const ch = inner[i];
-    if (ch === '|' && !(i > 0 && inner[i - 1] === '\\')) {
+    if (ch === '|' && !isEscapedPipe(inner, i)) {
       cells.push(cur);
       cur = '';
     } else {
@@ -1000,7 +1021,7 @@ export function convertList(text, start, end, to = 'bullet') {
 export function selectLine(text, pos, { anchor = null, extend = false } = {}) {
   if (!text) return { start: 0, end: 0 };
   const base = extend && anchor != null ? Math.max(anchor, pos) : pos;
-  const lineStart = text.lastIndexOf('\n', base - 1) + 1;
+  const lineStart = base > 0 ? text.lastIndexOf('\n', base - 1) + 1 : 0;
   let lineEnd = text.indexOf('\n', base);
   if (lineEnd === -1) lineEnd = text.length;
   // When extending, push the end to the end of the FOLLOWING line (so the

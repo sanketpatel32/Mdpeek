@@ -12,6 +12,14 @@ import { detectTableBlock } from './editor-logic.js';
 
 // --- parsing -------------------------------------------------------------
 
+// True when the pipe at index i is escaped by an odd run of backslashes, so
+// \| stays literal while \\| splits (e.g. a trailing Windows path separator).
+function isEscapedPipe(s, i) {
+  let bs = 0;
+  while (bs < i && s[i - 1 - bs] === '\\') bs++;
+  return bs % 2 === 1;
+}
+
 // Split a table row's inner text (between the outer pipes) into trimmed cell
 // contents. Escaped pipes \| are kept as literal | (matches the renderer). The
 // leading/trailing pipe should already be stripped before calling.
@@ -20,7 +28,7 @@ function splitCells(inner) {
   let cur = '';
   for (let i = 0; i < inner.length; i++) {
     const ch = inner[i];
-    if (ch === '|' && !(i > 0 && inner[i - 1] === '\\')) {
+    if (ch === '|' && !isEscapedPipe(inner, i)) {
       cells.push(cur.trim());
       cur = '';
     } else {
@@ -57,11 +65,15 @@ export function parseTable(text, pos) {
   if (!block) return null;
   const { startLine, endLine, lines } = block;
 
-  // Strip exactly one leading/trailing pipe per row, then split.
+  // Strip exactly one leading/trailing pipe per row, then split. The trailing
+  // pipe only counts when unescaped, so a cell ending in literal \| survives.
   const rawRows = lines.map((line) => {
     const trimmed = line.replace(/^\s+/, '');
-    const inner = trimmed.replace(/^\|/, '').replace(/\|\s*$/, '');
-    return splitCells(inner);
+    const stripped = trimmed.replace(/^\|/, '');
+    let end = stripped.length;
+    while (end > 0 && /\s/.test(stripped[end - 1])) end--;
+    const hasTailPipe = end > 0 && stripped[end - 1] === '|' && !isEscapedPipe(stripped, end - 1);
+    return splitCells(hasTailPipe ? stripped.slice(0, end - 1) : stripped);
   });
 
   // A real table needs a header + a delimiter row (row index 1).

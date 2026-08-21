@@ -235,6 +235,7 @@ export function initTerminal({ cwdProvider, onToast }) {
     let ptyId;        // undefined until a PTY is attached (and after final failure)
     let exited = false; // true after the child exits — Enter respawns
     let lastCwd = cwdProvider() || null;
+    let spawning = false; // guards double respawn: repeated Enters while a spawn is in flight
 
     // Live cwd + tab-title tracking via OSC sequences. Shells that emit them
     // (pwsh with shell integration, git-bash, WSL + oh-my-posh) keep the PWD
@@ -279,6 +280,8 @@ export function initTerminal({ cwdProvider, onToast }) {
     // Spawn (or respawn after exit) a PTY for this terminal. Reuses the last
     // known cwd so a restarted shell lands where the user left off.
     async function attachPty() {
+      if (spawning) return false; // a respawn is already in flight — don't double-spawn
+      spawning = true;
       try {
         const chan = new Channel();
         chan.onmessage = (msg) => {
@@ -327,6 +330,8 @@ export function initTerminal({ cwdProvider, onToast }) {
       } catch (err) {
         term.write(`\x1b[31mFailed to start terminal: ${escapeHtml(String(err))}\x1b[0m\r\n`);
         return false;
+      } finally {
+        spawning = false;
       }
     }
 

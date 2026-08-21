@@ -13,6 +13,7 @@
 //   - unordered list markers (- * +)
 //   - ordered list markers (1. )
 //   - emphasis/strong/strikethrough (* _ ~)
+//   - HTML comments <!-- ... -->
 //   - raw HTML tags (<...>)
 //
 // Non-markdown prose, punctuation, and CJK pass through untouched. Returns
@@ -28,5 +29,7 @@ export function stripMarkdown(text) {
     .replace(/^\s*[-*+]\s+/gm, ' ')          // list markers
     .replace(/^\s*\d+\.\s+/gm, ' ')          // numbered lists
     .replace(/[*_~]+/g, ' ')                 // emphasis / strikethrough
-    .replace(/<[^>]+>/g, ' ');               // raw HTML tags
+    .replace(/<!--[\s\S]*?-->/g, ' ')        // HTML comments (body discarded)
+    .replace(/<(?:\/|!)?[A-Za-z][^>]*>/g, ' '); // raw HTML tags (tag-shaped only,
+                                                // so prose like "5 < 6 ... 7 > 3" survives)
 }

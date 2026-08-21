@@ -16,13 +16,17 @@
    if (!markdownText) return [];
    const lines = markdownText.split('\n');
    const headings = [];
+   const slugCounts = new Map();
    let inCodeBlock = false;
+   let fenceMarker = '';
  
    for (let i = 0; i < lines.length; i++) {
      const line = lines[i];
-     // Track code fences to avoid picking up # inside code blocks
-     if (/^\s*```/.test(line)) {
-       inCodeBlock = !inCodeBlock;
+     // Track code fences (``` or ~~~) to avoid picking up # inside code blocks
+     const fenceOpen = line.match(/^\s*(`{3,}|~{3,})/);
+     if (fenceOpen) {
+       if (!inCodeBlock) { inCodeBlock = true; fenceMarker = fenceOpen[1][0]; }
+       else if (fenceMarker && line.trim().startsWith(fenceMarker.repeat(3))) { inCodeBlock = false; }
        continue;
      }
      if (inCodeBlock) continue;
@@ -31,7 +35,14 @@
      if (match) {
        const level = match[1].length;
        const text = match[2].trim().replace(/\s+#+$/, ''); // trim trailing #
-       const slug = slugify(text);
+       let slug = slugify(text);
+       if (slug) {
+         // Dedupe like the renderer's heading ids: repeats get -1/-2 suffixes
+         // so TOC links hit the right occurrence instead of colliding.
+         const n = (slugCounts.get(slug) || 0) + 1;
+         slugCounts.set(slug, n);
+         if (n > 1) slug = `${slug}-${n}`;
+       }
        headings.push({ level, text, slug, line: i + 1 });
      }
    }

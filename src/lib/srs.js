@@ -62,7 +62,7 @@ export function review(card, rating, now = new Date()) {
   } else {
     // Subsequent reviews: interval × ease, with hard/easy nudges.
     let factor = ease;
-    if (rating === 'hard') factor = Math.max(MIN_EASE, 1.2);
+    if (rating === 'hard') factor = 1.2;
     else if (rating === 'easy') factor = ease * 1.3;
     interval = Math.max(MIN_INTERVAL, Math.round(c.interval * factor));
     // Ease nudges (SM-2 maps quality→delta; here we use a simplified 4-button form).

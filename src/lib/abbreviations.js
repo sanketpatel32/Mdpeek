@@ -86,14 +86,10 @@ function transformSpan(span, abbrs) {
   // Longest keys first so a key that is a prefix of another (e.g. "AB" vs
   // "ABC") isn't matched at a position the longer key would own.
   const keys = [...abbrs.keys()].sort((a, b) => b.length - a.length);
-  let transformed = masked;
-  for (const key of keys) {
-    const expansion = abbrs.get(key);
-    // Word boundaries via lookbehind/lookahead on \w (handles CJK and
-    // punctuation edges without needing Unicode property escapes).
-    const re = new RegExp(`(?<![\\w])(${escapeRegex(key)})(?![\\w])`, 'g');
-    transformed = transformed.replace(re, (_w, k) => `<abbr title="${attrEscape(expansion)}">${k}</abbr>`);
-  }
+  // One combined pass: sequential per-key passes would re-scan earlier
+  // insertions, letting a key nest itself inside another key's title attr.
+  const re = new RegExp(`(?<![\\w])(${keys.map(escapeRegex).join('|')})(?![\\w])`, 'g');
+  const transformed = masked.replace(re, (_w, k) => `<abbr title="${attrEscape(abbrs.get(k))}">${k}</abbr>`);
   // Restore link destinations.
   return transformed.replace(/\]\(\u0000(\d+)\u0000\)/g, (whole, i) => `](${dests[Number(i)]})`);
 }

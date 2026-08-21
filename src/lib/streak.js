@@ -94,8 +94,10 @@ export function bestStreak(store = SHIM) {
   let best = 1;
   let run = 1;
   for (let i = 1; i < sorted.length; i++) {
-    const prev = new Date(sorted[i - 1]);
-    const cur = new Date(sorted[i]);
+    // Parse as LOCAL midnight — new Date('YYYY-MM-DD') is UTC, which lands on
+    // the prior local day west of UTC and breaks the +1-day comparison below.
+    const [py, pm, pd] = sorted[i - 1].split('-').map(Number);
+    const prev = new Date(py, pm - 1, pd);
     prev.setDate(prev.getDate() + 1);
     if (dayStamp(prev) === sorted[i]) {
       run += 1;

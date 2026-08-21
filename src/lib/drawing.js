@@ -162,12 +162,23 @@ export function createStrokeController(canvas, opts = {}) {
     activeStroke = null;
   }
 
+  function onPointerCancel() {
+    // Pointer swallowed by the system (e.g. touch scroll takeover): drop the
+    // half-drawn stroke so later moves can't keep extending it.
+    if (!activeStroke) return;
+    const i = strokes.indexOf(activeStroke);
+    if (i >= 0) strokes.splice(i, 1);
+    activeStroke = null;
+    renderStrokes(canvas.getContext('2d'), strokes);
+  }
+
   return {
     attach() {
       if (attached) return;
       canvas.addEventListener('pointerdown', onPointerDown);
       canvas.addEventListener('pointermove', onPointerMove);
       canvas.addEventListener('pointerup', onPointerUp);
+      canvas.addEventListener('pointercancel', onPointerCancel);
       attached = true;
     },
     detach() {
@@ -175,6 +186,7 @@ export function createStrokeController(canvas, opts = {}) {
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerup', onPointerUp);
+      canvas.removeEventListener('pointercancel', onPointerCancel);
       attached = false;
     },
     setTool(t) { tool = t; },

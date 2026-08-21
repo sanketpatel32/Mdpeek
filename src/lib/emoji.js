@@ -91,7 +91,7 @@ const EMOJI = {
   dart: '🎯', bowling: '🎳', video_game: '🎮', slot_machine: '🎰', game_die: '🎲',
   musical_note: '🎵', notes: '🎶', saxophone: '🎷', guitar: '🎸', piano: '🎹', trumpet: '🎺',
   violin: '🎻', headphones: '🎧', radio: '📻', telephone: '☎️', mobile: '📱', computer: '💻',
-  desktop: '🖥️', printer: '🖨️', keyboard: '⌨️', mouse: '🖱️', camera: '📷', video_camera: '📹',
+  desktop: '🖥️', printer: '🖨️', keyboard: '⌨️', computer_mouse: '🖱️', camera: '📷', video_camera: '📹',
   tv: '📺', vhs: '📼', film: '🎬', dvd: '💿', md: '💽', floppy: '💾', candle: '🕯️',
   book: '📖', books: '📚', notebook: '📓', pencil: '📝', pencil2: '✏️', crayon: '🖍️',
   pen: '🖊️', ink: '🖋️', briefcase: '💼', link: '🔗', paperclip: '📎', pushpin: '📌',

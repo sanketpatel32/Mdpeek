@@ -35,7 +35,11 @@ export function getTemplates(store = SHIM) {
 }
 
 function persist(store, list) {
-  store.setItem(TEMPLATES_KEY, JSON.stringify(list));
+  try {
+    store.setItem(TEMPLATES_KEY, JSON.stringify(list));
+  } catch {
+    /* storage full or disabled — getTemplates falls back to [] */
+  }
   return list;
 }
 

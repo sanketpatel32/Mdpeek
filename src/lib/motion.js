@@ -57,6 +57,9 @@ export function transitionHidden(el, show, opts = {}) {
       if (settled) return;
       settled = true;
       cleanup();
+      // If a later show() removed the leaving class while this exit was
+      // pending, the hide is superseded — don't yank the element out.
+      if (!el.classList.contains(leavingClass)) { resolve(); return; }
       el.classList.add('hidden');
       el.classList.remove(leavingClass);
       resolve();

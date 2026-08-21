@@ -82,7 +82,7 @@ export function extractDocLinks(md) {
     }
 
     // Standard markdown links: [Display](Target) — also `<...>` angle-wrap.
-    const mdRe = /\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)|\[([^\]]*)\]\(<([^>]*)>\)/g;
+    const mdRe = /\[([^\]]*)\]\((?!<)([^)\s]+)(?:\s+"[^"]*")?\)|\[([^\]]*)\]\(<([^>]*)>(?:\s+"[^"]*")?\)/g;
     while ((m = mdRe.exec(clean)) !== null) {
       const display = (m[1] !== undefined ? m[1] : m[3]) || '';
       const target = (m[2] !== undefined ? m[2] : m[4]) || '';

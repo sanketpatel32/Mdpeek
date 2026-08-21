@@ -471,7 +471,7 @@ export async function showPdf(container, filePath) {
       if (destroyed || localGen !== pdfRenderGen) return;
       const num = parseInt(wrapper.dataset.pageNum, 10);
       // eslint-disable-next-line no-await-in-loop
-      await renderPage(pdfjsLib, pdfDoc, num, wrapper, scale, renders, textLayers, textCache);
+      await renderPage(pdfjsLib, pdfDoc, num, wrapper, scale, renders, textLayers, textCache, () => destroyed || localGen !== pdfRenderGen);
       if (destroyed || localGen !== pdfRenderGen) return;
       // Re-apply draw mode pointer-events to the fresh canvases.
       applyDrawMode();
@@ -508,10 +508,16 @@ export async function showPdf(container, filePath) {
 }
 
 // Render one page: canvas pixels + text layer + size the draw canvas.
-async function renderPage(pdfjsLib, pdfDoc, num, wrapper, scale, renders, textLayers, textCache) {
+// `isStale` — optional probe; a render started before a rerenderAll()/destroy()
+// must bail at each await instead of writing old-scale output over the newer
+// pass's canvases or deleting its live RenderTask entry.
+async function renderPage(pdfjsLib, pdfDoc, num, wrapper, scale, renders, textLayers, textCache, isStale) {
+  const stale = isStale || (() => false);
   if (renders.has(num)) return;
+  let task = null;
   try {
     const page = await pdfDoc.getPage(num);
+    if (stale()) return;
     const viewport = page.getViewport({ scale });
 
     // --- render canvas ---
@@ -526,13 +532,14 @@ async function renderPage(pdfjsLib, pdfDoc, num, wrapper, scale, renders, textLa
     wrapper.style.width = Math.floor(viewport.width) + 'px';
     wrapper.style.height = Math.floor(viewport.height) + 'px';
 
-    const task = page.render({
+    task = page.render({
       canvasContext: ctx,
       viewport,
       transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null,
     });
     renders.set(num, task);
     await task.promise;
+    if (stale()) return;
 
     // --- draw canvas (size to match) ---
     const drawCanvas = wrapper.querySelector('.pdf-draw');
@@ -547,6 +554,7 @@ async function renderPage(pdfjsLib, pdfDoc, num, wrapper, scale, renders, textLa
     // --font-height) positions spans at the right size for selection.
     textDiv.style.setProperty('--scale-factor', String(scale));
     const textContent = await page.getTextContent();
+    if (stale()) return;
     const textLayer = new pdfjsLib.TextLayer({
       textContentSource: textContent,
       container: textDiv,
@@ -566,7 +574,9 @@ async function renderPage(pdfjsLib, pdfDoc, num, wrapper, scale, renders, textLa
       console.error(`Page ${num} render failed:`, e);
     }
   } finally {
-    renders.delete(num);
+    // Only remove our own entry — a cancelled render from an older pass must
+    // not delete a newer pass's live RenderTask.
+    if (renders.get(num) === task) renders.delete(num);
   }
 }
 

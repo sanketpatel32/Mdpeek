@@ -65,11 +65,19 @@ export function expandSuperscript(md) {
   return out.join('');
 }
 
-// Apply the superscript replacement to a code-free text span.
+// Apply the superscript replacement to a code-free span. Link/image
+// destinations are masked out first so a URL containing `x^y^` is left
+// untouched (same strategy as transformSpan in abbreviations.js).
 function supReplacers(s) {
-  return s.replace(/([^\s^])\^([^\s^][^^\n]*?)\^/g, (whole, pre, body) =>
+  const dests = [];
+  const masked = s.replace(/\]\(([^)]*)\)/g, (whole, dest) => {
+    dests.push(dest);
+    return `](\u0000${dests.length - 1}\u0000)`;
+  });
+  const expanded = masked.replace(/([^\s^])\^([^\s^][^^\n]*?)\^/g, (whole, pre, body) =>
     body.includes('$') ? whole : `${pre}<sup>${body}</sup>`,
   );
+  return expanded.replace(/\]\(\u0000(\d+)\u0000\)/g, (whole, i) => `](${dests[Number(i)]})`);
 }
 
 // marked v18 tokenizer extension for SUBSCRIPT only. `level: 'inline'` runs
@@ -116,10 +124,11 @@ function spoilerReplace(s) {
 }
 
 function buildSubExt() {
-  // Body must be non-empty, single-line, not contain `~`, and start with a
+  // Body must be non-empty, single-line, not contain `~`, and START with a
   // non-space + non-`~` char (keeps `~~strikethrough~~` from being misread;
-  // in practice marked consumes `~~...~~` as GFM del first anyway).
-  const re = /^~([^~\n][^~\n]*?)~/;
+  // in practice marked consumes `~~...~~` as GFM del first anyway). Mirrors
+  // the pure helper's `[^\s~]` opening requirement.
+  const re = /^~([^\s~][^~\n]*?)~/;
   return {
     name: 'subscript',
     level: 'inline',

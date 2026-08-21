@@ -139,7 +139,7 @@ export function getLanguageIcon(ext) {
 // filenames like Dockerfile / Makefile), or null.
 export function getLanguageIconForPath(path) {
   if (!path) return null;
-  const base = (path.split(/[\/]/).pop() || '').toLowerCase();
+  const base = (path.split(/[\\/]/).pop() || '').toLowerCase();
   if (base === 'dockerfile') return LANGUAGE_ICONS.docker;
   if (base === 'makefile') return LANGUAGE_ICONS.makefile;
   if (base === 'gemfile') return LANGUAGE_ICONS.ruby;

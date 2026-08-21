@@ -102,12 +102,13 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     if (!mirror) return;
     syncMirrorBox();
     const lines = textarea.value.split('\n');
-    // Build one <div> per source line. textContent auto-escapes. Empty lines
-    // get a <br> so they occupy one line-height (a bare <div></DIV> collapses).
+    // Build one <div> per source line. Lines are HTML-escaped — they must be
+    // measured as literal text, never parsed as markup. Empty lines get a
+    // <br> so they occupy one line-height (a bare <div></div> collapses).
     let html = '';
     for (const line of lines) {
       html += '<div>';
-      html += line.length ? line : '<br>';
+      html += line.length ? line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '<br>';
       html += '</div>';
     }
     mirror.innerHTML = html;
@@ -317,8 +318,15 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     if (ctrl && (e.key === 'k' || e.key === 'K')) {
       e.preventDefault();
       e.stopPropagation();
-      const text = textarea.value;
-      const insert = (url) => applyResult(insertLink(text, s, en, url));
+      const insert = (url) => {
+        // Read state fresh: the clipboard read/fallback can resolve long after
+        // this keydown, and a captured text/selection snapshot would clobber
+        // anything the user typed in between.
+        const t = textarea.value;
+        const cs = textarea.selectionStart;
+        const ce = textarea.selectionEnd;
+        applyResult(insertLink(t, cs, ce, url));
+      };
       if (navigator.clipboard && navigator.clipboard.readText) {
         // Race the clipboard read against a short timeout so a blocked/empty
         // clipboard doesn't hang the insert. Either way, we insert exactly once.
@@ -486,8 +494,9 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     foldLayer.className = 'editor-folds';
     foldLayer.setAttribute('aria-hidden', 'true');
     // Click on a fold marker unfolds that section. The layer itself is
-    // pointer-events:none; markers re-enable pointer events.
-    foldLayer.addEventListener('click', (e) => {
+    // pointer-events:none; markers re-enable pointer events. Registered via
+    // on() so destroy() removes it (a direct listener would leak the closure).
+    on('click', foldLayer, (e) => {
       const marker = e.target.closest('.fold-marker');
       if (!marker) return;
       const line = parseInt(marker.dataset.headingLine, 10);
@@ -773,7 +782,7 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
           // 3x3 skeleton (matches the snippet). Caret lands on the first
           // header cell so the user can rename it immediately.
           const insert = '\n| Column A | Column B | Column C |\n| --- | --- | --- |\n| cell | cell | cell |\n| cell | cell | cell |\n\n';
-          return applyResult({ text: textarea.value.slice(0, s) + insert + textarea.value.slice(en), start: s + 4, end: s + 12 });
+          return applyResult({ text: textarea.value.slice(0, s) + insert + textarea.value.slice(en), start: s + 3, end: s + 11 });
         }
         case 'hr': {
           const insert = '\n---\n\n';

@@ -7,6 +7,108 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.70.0] - 2026-08-22
+
+Fifty-six bug fixes from a systematic twenty-pass audit across every module.
+Headliners: two whiteboard export paths that never worked, an XSS in the
+editor's wrap mirror, several race conditions in the PDF renderer and P2P
+collab, and a long tail of silent math and state bugs.
+
+### Fixed - rendering & markdown
+- Fences in dynamically registered highlight.js languages never highlighted:
+  the render LRU kept serving the plaintext-fallback HTML for identical input
+  after registration. The cache now clears when a language registers.
+- Front matter preceded by a UTF-8 BOM leaked into the preview as raw text -
+  the `---` opener match didn't allow the BOM that file reads preserve.
+- Quoted YAML values lost interior quotes: the quote-strip regex matched
+  across interior quotes, turning `tags: ["a", "b"]` into `a", "b`.
+- TOC counted headings inside `~~~` fences and emitted duplicate slugs that
+  jumped to the wrong heading; fence tracking and slug deduping now mirror
+  the renderer.
+- Table cells split on `\|` after any single backslash, corrupting rows with
+  Windows-style paths, and a content-ending `\|` was eaten; pipe escaping now
+  checks backslash-run parity (shared by the editor's table tools).
+- Copy-as-Markdown from the CSV viewer broke GFM tables when quoted cells
+  contained newlines; embedded line breaks are flattened to spaces.
+- HTML comments leaked into copy-as-plaintext and word counts.
+- Stripping angle-bracket markup deleted prose between comparison operators
+  (`5 < 6 and 7 > 3` lost "6 and 7").
+- Subscript matched leading-space bodies (`~ b~`) and superscript mangled
+  `^..^` sequences inside link URLs.
+- Abbreviations could nest one key's `<abbr>` inside another key's title
+  attribute; replacement is now a single longest-first pass.
+- Smart paste: nested HTML lists arrived flush-left and renumbered wrongly;
+  `<pre>` blocks had indentation and newlines collapsed.
+- Diffing against CRLF snapshots marked every line changed.
+- `:mouse:` collided with the computer-mouse emoji shortcode, making the
+  mouse face unreachable.
+
+### Fixed - editor
+- Cross-site scripting via the wrap-measurement mirror, which injected raw
+  line text as HTML instead of escaping it.
+- Ctrl+K link insertion read a stale document snapshot and could clobber
+  characters typed while the clipboard fallback ran.
+- Moving lines up/down in a document starting with a blank line appended a
+  stray newline; the position clamp misfired at offset zero.
+- Formatting a table whose caret sat on prose between two tables swallowed
+  the prose into the block and deleted it on save.
+- Formatting a table clipped one character off each side of the selection.
+- The fold gutter's click listener was never removed on destroy.
+
+### Fixed - viewers
+- Excalidraw and tldraw PNG/SVG exports always failed: calls used outdated
+  positional arguments / a Set where an array of shape ids is required.
+- PDF zoom could be silently skipped when a stale page render resumed
+  mid-flight, and cancelled renders deleted newer tasks' map entries,
+  allowing concurrent draws onto one canvas.
+- Image annotation exports drew strokes thicker than shown on screen
+  (device-pixel-ratio applied twice at different stages).
+- The diff viewer's "Use this version" button never hid: author CSS outranked
+  the UA `[hidden]` rule; it now toggles a real class.
+- Respawning the terminal with two rapid Enters spawned two PTYs and
+  orphaned one shell process.
+- Link checker falsely flagged angle-wrapped targets like `[a](<Foo.md>)` as
+  broken.
+
+### Fixed - workspace & search
+- Saved folder-expansion state bled across sibling roots sharing a path
+  prefix (`C:\work` vs `C:\work2`); boundary checks require a separator.
+- Collapsing a folder while its listing was still in flight left orphaned
+  child rows behind.
+- Folder search crashed on the first click after being closed, and switching
+  folders mid-search kept stale results as Replace-All targets.
+- Replace-All's shortcut ignored Shift/CapsLock (only lowercase `a` matched).
+- A dismissed autocomplete dropdown resurrected when its in-flight fetch
+  resolved, and re-initialising stacked duplicate window listeners.
+- Confirming an IME composition with Enter submitted the capture HUD mid-
+  typing.
+- Clipboard and external-link context-menu icons rendered empty (never
+  registered); Dockerfile/Makefile icon special-cases missed Windows-style
+  paths.
+
+### Fixed - timers, stats & data
+- Writing streaks never counted multi-day runs in timezones west of UTC:
+  date stamps parsed as UTC midnight landed on the previous local day.
+- Corrupt Pomodoro settings produced NaN countdowns instead of falling back
+  to defaults.
+- Spaced repetition scheduled "hard" reviews identically to "good" (dead
+  ease clamp).
+- The writing-goal chip displayed "100%" just before completion (rounding
+  disagreed with the done flag).
+- Snapshots younger than a minute reported "0 min ago".
+- Stale or scalar localStorage payloads crashed recents/session restore;
+  quota errors from session/template saves threw into UI handlers.
+- A stale exit animation timer force-hid elements re-shown within the same
+  window.
+
+### Fixed - collaboration
+- Local drawing edits echoed through Yjs awareness into an endless
+  updateScene loop; self-originated transactions are now skipped.
+- Joining a session that ended during the join window left a dangling
+  listener and threw from a bare timer.
+- Cancelling a pen stroke (pointercancel) left it armed so later moves kept
+  extending it.
+
 ## [0.69.0] - 2026-08-17
 
 Editor text-editing fixes for the long-standing "line numbers don't sit on

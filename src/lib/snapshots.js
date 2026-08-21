@@ -12,7 +12,7 @@ export function formatSnapshotTime(ts, now = Date.now()) {
   if (!Number.isFinite(ts)) return '';
   const diffMs = Math.max(0, now - ts);
   const sec = Math.floor(diffMs / 1000);
-  if (sec < 45) return 'just now';
+  if (sec < 60) return 'just now';
   const min = Math.floor(sec / 60);
   if (min < 60) return `${min} min ago`;
   const hr = Math.floor(min / 60);

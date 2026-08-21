@@ -255,16 +255,24 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
       // Returns { bytes: Uint8Array, mime } or null on failure.
       async exportImage(kind) {
         try {
-          const opts = {
-            exportPadding: 16,
-            exportWithDarkMode: currentTheme === 'dark',
-          };
+          // v0.68.0 exports take ONE options object (positional args throw:
+          // the helpers destructure {elements, appState, files} from it).
+          const opts = { exportPadding: 16 };
+          const appState = { ...latestAppState, exportWithDarkMode: currentTheme === 'dark' };
           if (kind === 'svg') {
-            const svg = await exportToSvg(latestElements, latestAppState, latestFiles || {}, opts);
+            const svg = await exportToSvg({
+              elements: latestElements,
+              appState,
+              files: latestFiles || {},
+              ...opts,
+            });
             const str = new XMLSerializer().serializeToString(svg);
             return { bytes: new TextEncoder().encode(str), mime: 'image/svg+xml' };
           }
-          const blob = await exportToBlob(latestElements, latestAppState, latestFiles || {}, {
+          const blob = await exportToBlob({
+            elements: latestElements,
+            appState,
+            files: latestFiles || {},
             ...opts,
             mimeType: 'image/png',
           });

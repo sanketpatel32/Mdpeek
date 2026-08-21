@@ -142,7 +142,9 @@ export function initCsvViewer(container, rows) {
   // v0.67.0: copy the visible (filtered + sorted) rows as a GFM Markdown
   // table — the usual reason to sort/filter a CSV is to take the result out.
   copyBtn?.addEventListener('click', async () => {
-    const esc = (v) => String(v ?? '').replace(/\|/g, '\\|');
+    // Escape pipes for GFM; flatten CR/LF (quoted CSV fields may embed
+    // newlines) so a cell can't break the table's row structure.
+    const esc = (v) => String(v ?? '').replace(/\|/g, '\\|').replace(/\r\n|\r|\n/g, ' ');
     const lines = [];
     lines.push(`| ${header.map((h) => esc(h)).join(' | ')} |`);
     lines.push(`| ${header.map(() => '---').join(' | ')} |`);

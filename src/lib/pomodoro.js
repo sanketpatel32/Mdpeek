@@ -171,7 +171,13 @@ export function phaseLabel(phase) {
 // --- internals ---------------------------------------------------------
 
 function normalize(parsed) {
-  const settings = { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) };
+  const merged = { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) };
+  // Corrupt/non-numeric values must fall back to defaults — otherwise
+  // phaseSeconds() yields NaN and the timer cycles phases instantly.
+  const settings = {};
+  for (const k of Object.keys(DEFAULT_SETTINGS)) {
+    settings[k] = Number.isFinite(merged[k]) ? merged[k] : DEFAULT_SETTINGS[k];
+  }
   const phase = ['focus', 'break', 'longbreak'].includes(parsed.phase) ? parsed.phase : 'focus';
   const remaining = Number.isFinite(parsed.remaining) && parsed.remaining > 0
     ? Math.floor(parsed.remaining)

@@ -32,8 +32,10 @@ import { escapeHtml } from './escape.js';
 //   extractFrontMatter('no front matter')            → { md: 'no front matter', meta: [] }
 export function extractFrontMatter(md) {
   const src = typeof md === 'string' ? md : '';
-  // The block must be the very first thing in the file. Allow \r\n line ends.
-  const m = src.match(/^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/);
+  // The block must be the very first thing in the file. Allow an optional
+  // UTF-8 BOM (Windows editors emit it; read_file preserves it) before the
+  // opening `---`, and \r\n line ends.
+  const m = src.match(/^\uFEFF?---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/);
   if (!m) return { md: src, meta: [] };
   const meta = [];
   for (const line of m[1].split(/\r?\n/)) {
@@ -51,9 +53,11 @@ function parseValue(raw) {
   // Inline array: [a, b, c] — strip brackets, keep comma display.
   const arr = v.match(/^\[(.*)\]$/);
   if (arr) v = arr[1];
-  // Quoted string: strip one matching pair of quotes.
-  const q = v.match(/^(".*"|'.*')$/);
-  if (q) v = v.slice(1, -1);
+  // Quoted string: strip one matching pair of quotes. The inner run must not
+  // contain the quote char itself, so `["a", "b"]` keeps its interior quotes
+  // verbatim instead of being sliced at the outermost characters.
+  const q = v.match(/^("([^"]*)"|'([^']*)')$/);
+  if (q) v = q[2] !== undefined ? q[2] : q[3];
   return v.trim();
 }
 

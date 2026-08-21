@@ -18,7 +18,7 @@
 // empty string diffs as zero lines.
 function toLines(text) {
   if (!text) return [];
-  const s = String(text);
+  const s = String(text).replace(/\r\n/g, '\n');
   if (s === '') return [];
   // A trailing newline indicates the line ends there; drop the empty element it
   // would otherwise produce, so {"a\n","a"} are equal.

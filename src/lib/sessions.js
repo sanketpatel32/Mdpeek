@@ -50,7 +50,11 @@ export function getSessions(store = SHIM) {
 }
 
 function persist(store, list) {
-  store.setItem(SESSIONS_KEY, JSON.stringify(list));
+  try {
+    store.setItem(SESSIONS_KEY, JSON.stringify(list));
+  } catch {
+    /* storage full or disabled — getSessions falls back to [] */
+  }
   return list;
 }
 

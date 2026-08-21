@@ -43,7 +43,7 @@ function build() {
   // While saving (awaiting onCapture), input is disabled so rapid Enter can't
   // double-submit.
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
       if (!saving) submit();
     } else if (e.key === 'Escape') {

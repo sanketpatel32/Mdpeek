@@ -16,7 +16,8 @@ export function saveSession(snapshot) {
 export function loadSession() {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? JSON.parse(raw) : null;
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' ? parsed : null;
   } catch {
     return null; // corrupt JSON — caller treats as no session
   }
@@ -27,7 +28,8 @@ export function loadSession() {
 export function loadRecents() {
   try {
     const raw = localStorage.getItem(RECENTS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }

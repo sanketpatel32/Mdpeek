@@ -51,7 +51,10 @@ export function setTreeRoot(path) {
       const saved = JSON.parse(localStorage.getItem(TREE_EXPANDED_KEY + path) || '[]');
       if (Array.isArray(saved)) {
         for (const ep of saved) {
-          if (typeof ep === 'string' && ep !== path && ep.startsWith(path)) _expanded.add(ep);
+          // Separator check: a bare startsWith would let a sibling root that
+          // shares a prefix ("C:\work" vs "C:\work2\…") restore its dirs here.
+          const sep = typeof ep === 'string' ? ep.charAt(path.length) : '';
+          if (typeof ep === 'string' && ep !== path && ep.startsWith(path) && (sep === '\\' || sep === '/')) _expanded.add(ep);
         }
       }
     } catch { /* ignore corrupt state */ }
@@ -208,6 +211,8 @@ async function expandDir(row, path) {
   row.after(loader);
   const entries = await listDir(path).catch(() => []);
   loader.remove();
+  // Collapsed while loading? Don't append children under a collapsed row.
+  if (!_expanded.has(path)) return;
   // Insert after the clicked row in document order — every entry's depth is
   // one more than the directory's depth.
   let target = row;

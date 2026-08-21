@@ -282,7 +282,9 @@ export async function showTLDraw(container, initialData, onSave, initialAppTheme
       async exportImage(kind) {
         if (!editorRef || loadFailed) return null;
         try {
-          const shapeIds = editorRef.getCurrentPageShapeIds();
+          // toImage() indexes/maps the list — getCurrentPageShapeIds() returns
+          // a Set, which has no .length/.map and would throw inside toImage.
+          const shapeIds = [...editorRef.getCurrentPageShapeIds()];
           const res = await editorRef.toImage(shapeIds, {
             format: kind === 'svg' ? 'svg' : 'png',
             pixelRatio: kind === 'svg' ? undefined : 2,

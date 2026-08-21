@@ -176,7 +176,7 @@ function build() {
   // old e.target === overlay check could never fire — listen on the document.
   // v0.68.0: isOpen was referenced but never defined here — every document
   // mousedown threw a ReferenceError (caught by the window error handler).
-  const isOpen = () => !overlay.classList.contains('hidden');
+  const isOpen = () => !!overlay && !overlay.classList.contains('hidden');
   document.addEventListener('mousedown', (e) => {
     if (isOpen() && !overlay.contains(e.target)) close();
   });
@@ -546,6 +546,10 @@ export function initFolderSearch(onOpen, { isDirty, updateOpenDoc } = {}) {
 
 function open(targetFolderPath) {
   if (!created) return;
+  // Invalidate any pending/in-flight search for the previous folder so its
+  // results can't render under the new folder's header.
+  searchGen += 1;
+  clearTimeout(debounceTimer);
   folderPath = targetFolderPath;
   overlay.classList.remove('hidden');
   // Update the folder label.

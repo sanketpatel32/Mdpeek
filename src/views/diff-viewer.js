@@ -173,7 +173,9 @@ function renderDiff() {
   renderPane(oldBodyEl, rows, 'old');
   renderPane(newBodyEl, rows, 'new');
   // Only show "Use this version" when there's a caller to apply to + changes exist.
-  applyBtn.hidden = !onApplyCb || (stats.added === 0 && stats.removed === 0);
+  // (.hidden class, not the hidden attribute — .tool-btn's display:inline-flex
+  // outranks the UA [hidden] rule and would keep the button visible.)
+  applyBtn.classList.toggle('hidden', !onApplyCb || (stats.added === 0 && stats.removed === 0));
 }
 
 function close() {

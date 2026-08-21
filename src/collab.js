@@ -317,6 +317,9 @@ export function joinSession(id, { name } = {}) {
     // resolve with what we have. If still no peer, reject (NAT failure etc).
     setTimeout(() => {
       if (resolved) return;
+      // Session may have been torn down while we waited (endSession during
+      // the join window) — bail instead of touching the dead ydoc/ytext.
+      if (!ydoc || !ytext) { off(); return; }
       if (peerMeta.size > 0 || ytext.toString().length > 0) {
         tryResolve(hostMeta);
       } else {
@@ -553,9 +556,12 @@ export function bindExcalidraw(ctrl) {
   // Inbound: Yjs changed → canvas. Reassemble the elements array and push
   // to Excalidraw via updateScene. Wrapped in suppress so the resulting
   // onChange (which calls pushLocal) is a no-op — breaks the echo loop.
-  // The 'self' transaction origin is the second layer of protection.
-  function onRemote() {
+  // The 'self' transaction origin is the second layer of protection: our own
+  // writes fire observeDeep too, and pushing them back through updateScene
+  // would re-fire onChange → hook → Yjs in an endless local echo loop.
+  function onRemote(events) {
     if (suppress) return;
+    if (events && events.length > 0 && events.every((ev) => ev.transaction?.origin === 'self')) return;
     suppress = true;
     try {
       ctrl.updateScene(readElementsFromYjs(yelements));

@@ -190,7 +190,7 @@ function wireOnce() {
   replaceInput.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { e.preventDefault(); close(); }
     else if (e.key === 'Enter' && e.altKey) { e.preventDefault(); replaceCurrent(); }
-    else if (e.key === 'a' && e.altKey) { e.preventDefault(); replaceAll(); }
+    else if (e.altKey && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); replaceAll(); }
     else if (e.key === 'Enter') { e.preventDefault(); step(true); }
   });
   overlay.querySelector('.find-replace-btn').addEventListener('click', replaceCurrent);

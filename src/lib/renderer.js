@@ -326,6 +326,10 @@ async function ensureLang(lang) {
     const mod = await import(/* @vite-ignore */ `highlight.js/lib/languages/${name}.js`);
     hljs.registerLanguage(name, mod.default);
     _registered.add(name);
+    // Registered languages change code-fence output, and cached renders may
+    // hold plaintext fallbacks for these fences. Drop the cache so the
+    // event-triggered re-render actually picks up the highlighting.
+    _cache.clear();
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('hljs-language-registered', { detail: { lang: name } }));
     }
@@ -823,7 +827,7 @@ function renderCsvTable(rows) {
   const body = rows.slice(1);
   const ths = header.map((label, i) => {
     const numeric = body.length > 0 && isNumericColumn(body, i);
-    return `<th data-col="${i}" data-sort-type="${numeric ? 'number' : 'string'}" data-state="none" tabindex="0" role="button" aria-label="Sort by ${escapeText(label)}"><span class="th-label">${escapeText(label)}</span><span class="sort-ind" aria-hidden="true"></span></th>`;
+    return `<th data-col="${i}" data-sort-type="${numeric ? 'number' : 'string'}" data-state="none" tabindex="0" role="button" aria-label="Sort by ${escapeHtml(label)}"><span class="th-label">${escapeText(label)}</span><span class="sort-ind" aria-hidden="true"></span></th>`;
   }).join('');
   const trs = body.map((row) => {
     const tds = header.map((_, i) => {

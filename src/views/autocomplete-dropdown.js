@@ -62,6 +62,10 @@ function hide() {
   if (dropdown) dropdown.classList.add('hidden');
   const ta = activeTextarea();
   if (ta) ta.setAttribute('aria-expanded', 'false');
+  // Invalidate any in-flight candidate fetch — otherwise a resolve that lands
+  // after hide() (Esc / outside click) would pass the staleness token check
+  // in refresh() and re-render the dropdown out of nowhere.
+  pending++;
   active = null;
   items = [];
   selected = 0;
@@ -229,6 +233,15 @@ function handleKeydown(e) {
   return false;
 }
 
+// Window-level outside-click hide. Module-level so destroy() can remove it.
+function onWindowPointerDown(e) {
+  if (!dropdown || dropdown.classList.contains('hidden')) return;
+  if (dropdown.contains(e.target)) return;
+  const ta = activeTextarea();
+  if (ta && ta.contains && ta.contains(e.target)) return;
+  hide();
+}
+
 export function initAutocomplete(accessors) {
   if (created) return { refresh, hide, handleKeydown, destroy };
   created = true;
@@ -236,13 +249,8 @@ export function initAutocomplete(accessors) {
   build();
   // v0.67.0: click outside (window-level) hides the dropdown — it used to
   // stay floating after clicking the toolbar/preview until the next keystroke.
-  window.addEventListener('pointerdown', (e) => {
-    if (!dropdown || dropdown.classList.contains('hidden')) return;
-    if (dropdown.contains(e.target)) return;
-    const ta = activeTextarea();
-    if (ta && ta.contains && ta.contains(e.target)) return;
-    hide();
-  });
+  // Module-level fn so destroy() can remove it (re-init must not stack copies).
+  window.addEventListener('pointerdown', onWindowPointerDown);
   // Click an item to accept it. The dropdown is non-focusable; clicks bubble.
   dropdown.addEventListener('mousedown', (e) => {
     // mousedown so we can preventDefault and keep focus on the textarea.
@@ -257,6 +265,7 @@ export function initAutocomplete(accessors) {
 
 function destroy() {
   hide();
+  window.removeEventListener('pointerdown', onWindowPointerDown);
   if (dropdown) dropdown.remove();
   if (mirror) mirror.remove();
   dropdown = null;

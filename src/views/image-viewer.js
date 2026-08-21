@@ -161,9 +161,12 @@ export function showImage(container, filePath) {
     const pts = stroke.points;
     if (!pts || pts.length === 0) return;
     // Scale the stroke width from the display size to the natural size.
+    // drawing.js draws at width*dpr*(scale/1.5) on a bitmap displayWidth*dpr
+    // wide, so the on-image fraction is width/(1.5*display); reproduce that
+    // same fraction at natural resolution (no dpr factor).
     const displayWidth = img.getBoundingClientRect().width || img.naturalWidth;
     const sizeRatio = img.naturalWidth / displayWidth;
-    const lineWidth = stroke.width * (window.devicePixelRatio || 1) * sizeRatio;
+    const lineWidth = (stroke.width / 1.5) * sizeRatio;
     ctx.save();
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';

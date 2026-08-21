@@ -23,7 +23,9 @@ export function goalProgress(words, goal, sessionWords = 0) {
   const w = Math.max(0, Number(words) || 0);
   const sw = Math.max(0, Number(sessionWords) || 0);
   const written = Math.max(0, w - sw);
-  const pct = Math.min(100, Math.round((written / g) * 100));
+  // floor (not round): pct only reaches 100 exactly when `done` flips true,
+  // so the chip never reads "(100%)" while still short of the goal.
+  const pct = Math.min(100, Math.floor((written / g) * 100));
   return {
     words: w,
     sessionWords: sw,
