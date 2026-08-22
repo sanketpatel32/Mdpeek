@@ -18,7 +18,9 @@ const CASE_KEY = 'mdpeek-folder-search-case';
 // Presentation-only: count badge pop/zero states, notify jitter guard, a
 // clearly distinct keyboard-selection row, replace-row reveal, one-shot
 // results entrance, and a highlight sweep over file groups that were just
-// written by Replace. Scoped under #folder-search-overlay.
+// written by Replace. Scoped under #folder-search-overlay. Durations/easings
+// use tokens with literal fallbacks (themes.css values); a local
+// prefers-reduced-motion guard mirrors motion.css's global kill-switch.
 const POLISH_CSS = `
 @keyframes fs-count-pop {
   0%   { transform: scale(1); }
@@ -28,10 +30,10 @@ const POLISH_CSS = `
 #folder-search-overlay .folder-search-count {
   display: inline-block;
   transform-origin: center;
-  transition: color var(--dur-2, 180ms) var(--ease-out, ease);
+  transition: color var(--dur-2, 180ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
 }
 #folder-search-overlay .folder-search-count.pop {
-  animation: fs-count-pop var(--dur-3, 240ms) var(--ease-spring, ease);
+  animation: fs-count-pop var(--dur-3, 240ms) var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1));
 }
 /* Zero matches (with a query) = warning; search error = danger. */
 #folder-search-overlay .folder-search-count.zero {
@@ -53,7 +55,7 @@ const POLISH_CSS = `
 }
 /* Keyboard-selected match must be obvious even when not hovered. */
 #folder-search-overlay .search-match.selected {
-  background: var(--accent-soft, rgba(9, 105, 218, 0.12));
+  background: var(--accent-soft, rgba(9, 105, 218, 0.14));
   box-shadow: inset 2px 0 0 var(--accent, #0969da);
 }
 /* Replace-row reveal mirrors the find bar's expand chevron. */
@@ -62,7 +64,7 @@ const POLISH_CSS = `
   to   { opacity: 1; transform: translateY(0); }
 }
 #folder-search-overlay .folder-search-replace-row:not(.hidden) {
-  animation: fs-row-in var(--dur-2, 180ms) var(--ease-out, ease);
+  animation: fs-row-in var(--dur-2, 180ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
 }
 /* One-shot results entrance after a loading/empty state — never re-triggered
    on every keystroke re-render (only when .results-appear is set). */
@@ -71,9 +73,10 @@ const POLISH_CSS = `
   to   { opacity: 1; transform: translateY(0); }
 }
 #folder-search-overlay .results-appear > .search-file-group {
-  animation: fs-results-in var(--dur-2, 180ms) var(--ease-out, ease) backwards;
+  animation: fs-results-in var(--dur-2, 180ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)) backwards;
 }
-/* Empty / loading / error states. */
+/* Empty / loading / error states. The 900ms dots cadence is intentionally
+   off-token — it is a typing-indicator rhythm, not a UI transition. */
 #folder-search-overlay .search-empty[data-state="loading"]::after {
   content: '…';
   display: inline-block;
@@ -88,14 +91,26 @@ const POLISH_CSS = `
 #folder-search-overlay .search-empty[data-state="error"] {
   color: var(--danger, #cf222e);
 }
-/* Highlight sweep across groups touched by a just-applied replace. */
+/* Highlight sweep across groups touched by a just-applied replace.
+   900ms is intentionally off-token (long enough to read across many groups). */
 @keyframes fs-apply-sweep {
   0%   { background-color: transparent; }
   25%  { background-color: var(--accent-soft, rgba(9, 105, 218, 0.14)); }
   100% { background-color: transparent; }
 }
 #folder-search-overlay .search-file-group.just-applied {
-  animation: fs-apply-sweep 900ms var(--ease-out, ease);
+  animation: fs-apply-sweep 900ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+}
+@media (prefers-reduced-motion: reduce) {
+  #folder-search-overlay .folder-search-count,
+  #folder-search-overlay .folder-search-count.pop,
+  #folder-search-overlay .folder-search-replace-row:not(.hidden),
+  #folder-search-overlay .results-appear > .search-file-group,
+  #folder-search-overlay .search-empty[data-state="loading"]::after,
+  #folder-search-overlay .search-file-group.just-applied {
+    animation: none;
+    transition: none;
+  }
 }
 `;
 

@@ -17,17 +17,19 @@ import { detectTrigger, buildCandidates, acceptSuggestion } from '../lib/autocom
 
 // Presentation polish (iteration 9). Injected once per app run; selectors are
 // two-class deep to win cascade ties against base.css regardless of import
-// order. All values reference global tokens.
+// order. All values reference global tokens with literal fallbacks
+// (light-theme values from themes.css); motion is disabled locally under
+// prefers-reduced-motion (mirrors the global kill-switch in motion.css).
 const AC_POLISH_CSS = `
   /* Snappy entrance (starts immediately on first paint — no opacity-0 delay,
      so trigger latency perception stays zero). */
   .ac-dropdown {
-    animation: mdpeek-ac-in var(--dur-1) var(--ease-out);
+    animation: mdpeek-ac-in var(--dur-1, 120ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
     transform-origin: 0 0;
     overflow: hidden;
   }
   @keyframes mdpeek-ac-in {
-    from { opacity: 0.5; transform: translateY(calc(var(--sp-0) * -1)); }
+    from { opacity: 0.5; transform: translateY(calc(var(--sp-0, 2px) * -1)); }
     to   { opacity: 1; transform: none; }
   }
   /* The list scrolls, not the card — frees the card's ::before/::after for
@@ -37,49 +39,51 @@ const AC_POLISH_CSS = `
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
-    scrollbar-color: var(--border) transparent;
+    scrollbar-color: var(--border, #d0d2da) transparent;
   }
-  .ac-dropdown .ac-list::-webkit-scrollbar { width: var(--sp-2); }
+  .ac-dropdown .ac-list::-webkit-scrollbar { width: var(--sp-2, 6px); }
   .ac-dropdown .ac-list::-webkit-scrollbar-thumb {
-    background: var(--border);
-    border-radius: var(--radius-sm);
+    background: var(--border, #d0d2da);
+    border-radius: var(--radius-sm, 5px);
   }
   /* Fade edges — only while content actually overflows (.is-scrollable),
-     top edge only once scrolled away from the start (.is-scrolled). */
+     top edge only once scrolled away from the start (.is-scrolled).
+     z-index 1: stack both gradients above the list rows inside the card
+     (the dropdown itself creates the stacking context). */
   .ac-dropdown.is-scrollable::after,
   .ac-dropdown.is-scrolled::before {
     content: "";
     position: absolute;
-    left: var(--sp-1);
-    right: var(--sp-1);
-    height: var(--sp-5);
+    left: var(--sp-1, 4px);
+    right: var(--sp-1, 4px);
+    height: var(--sp-5, 16px);
     pointer-events: none;
     z-index: 1;
   }
   .ac-dropdown.is-scrollable::after {
-    bottom: var(--sp-1);
-    background: linear-gradient(to top, var(--surface) 30%, transparent);
-    border-radius: 0 0 calc(var(--radius) - var(--sp-1)) calc(var(--radius) - var(--sp-1));
+    bottom: var(--sp-1, 4px);
+    background: linear-gradient(to top, var(--surface, #f1f2f6) 30%, transparent);
+    border-radius: 0 0 calc(var(--radius, 8px) - var(--sp-1, 4px)) calc(var(--radius, 8px) - var(--sp-1, 4px));
   }
   .ac-dropdown.is-scrolled::before {
-    top: var(--sp-1);
-    background: linear-gradient(to bottom, var(--surface) 30%, transparent);
-    border-radius: calc(var(--radius) - var(--sp-1)) calc(var(--radius) - var(--sp-1)) 0 0;
+    top: var(--sp-1, 4px);
+    background: linear-gradient(to bottom, var(--surface, #f1f2f6) 30%, transparent);
+    border-radius: calc(var(--radius, 8px) - var(--sp-1, 4px)) calc(var(--radius, 8px) - var(--sp-1, 4px)) 0 0;
   }
   /* Hover and keyboard selection share one visual treatment (parity), and
      pointermove syncs the selection index so aria-selected stays truthful. */
   .ac-list .ac-item:hover,
   .ac-list .ac-item.active {
-    background: var(--accent-soft);
-    color: var(--accent);
+    background: var(--accent-soft, rgba(0, 113, 227, 0.1));
+    color: var(--accent, #0071e3);
   }
   .ac-list .ac-item {
-    gap: var(--sp-4);
-    padding: var(--sp-2) var(--sp-3);
-    border-radius: var(--radius-sm);
+    gap: var(--sp-4, 12px);
+    padding: var(--sp-2, 6px) var(--sp-3, 8px);
+    border-radius: var(--radius-sm, 5px);
     min-width: 0;
-    transition: background-color var(--dur-1) var(--ease-out),
-      color var(--dur-1) var(--ease-out);
+    transition: background-color var(--dur-1, 120ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
+      color var(--dur-1, 120ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
   }
   /* Row rhythm: label takes the flexible middle with ellipsis; hint hugs the
      right edge without being pushed off-card by long wiki-link labels. */
@@ -96,6 +100,14 @@ const AC_POLISH_CSS = `
     white-space: nowrap;
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    .ac-dropdown {
+      animation: none;
+    }
+    .ac-list .ac-item {
+      transition: none;
+    }
+  }
 `;
 function injectAcPolishCss() {
   const id = 'mdpeek-ac-polish';

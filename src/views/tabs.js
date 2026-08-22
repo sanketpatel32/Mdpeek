@@ -60,11 +60,14 @@ function prefersReducedMotion() {
 // Short WAAPI settle (fade+scale-in). Used for pin/unpin transitions and as
 // the drag snap-back affordance. No-ops under reduced motion or where
 // Element.animate is missing. Uses only opacity/transform so it stays valid
-// across themes without reading color tokens per-frame.
+// across themes without reading color tokens per-frame. The easing is a
+// literal mirror of --ease-out because WAAPI's easing option cannot resolve
+// CSS var() — passing one throws synchronously and the catch below would
+// silently disable the whole settle.
 function settle(el, keyframes, duration) {
   if (!el || typeof el.animate !== 'function') return;
   if (prefersReducedMotion()) return;
-  try { el.animate(keyframes, { duration, easing: 'var(--ease-out, ease-out)' }); } catch { /* never fatal */ }
+  try { el.animate(keyframes, { duration, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }); } catch { /* never fatal */ }
 }
 function popIn(el) {
   settle(el, [
@@ -135,10 +138,13 @@ function showInsertBar(strip, tabEl, side) {
       width: '2px',
       borderRadius: '2px',
       background: 'var(--accent)',
+      // z-index 3: above tab backgrounds/labels within the strip's stacking
+      // context (strip is position:relative per base.css) — nothing else in
+      // the strip is layered, so any low value above content works.
       zIndex: '3',
       pointerEvents: 'none',
       opacity: '0',
-      transition: 'left var(--dur-1, 120ms) var(--ease-out, ease-out), opacity var(--dur-1, 120ms) ease',
+      transition: 'left var(--dur-1, 120ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)), opacity var(--dur-1, 120ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1))',
     });
     strip.appendChild(_insBar);
   }

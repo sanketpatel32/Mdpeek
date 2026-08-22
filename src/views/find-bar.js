@@ -18,7 +18,10 @@ const WHOLE_WORD_KEY = 'mdpeek-find-whole-word';
 // ---------- UI polish (injected once) ----------
 // Presentation-only styles for the count badge (pop on change, danger tint at
 // 0 matches) and keyboard press feedback on the nav buttons. Scoped under
-// #find-overlay so nothing leaks into the rest of the app.
+// #find-overlay so nothing leaks into the rest of the app. Durations/easings
+// use tokens with literal fallbacks (themes.css values). A local
+// prefers-reduced-motion guard mirrors motion.css's global kill-switch so the
+// sheet stays safe even if it ever loads without motion.css.
 const POLISH_CSS = `
 @keyframes fx-count-pop {
   0%   { transform: scale(1); }
@@ -28,10 +31,10 @@ const POLISH_CSS = `
 #find-overlay .find-count {
   display: inline-block;
   transform-origin: center;
-  transition: color var(--dur-2, 180ms) var(--ease-out, ease);
+  transition: color var(--dur-2, 180ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
 }
 #find-overlay .find-count.pop {
-  animation: fx-count-pop var(--dur-3, 240ms) var(--ease-spring, ease);
+  animation: fx-count-pop var(--dur-3, 240ms) var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1));
 }
 #find-overlay .find-count.zero {
   color: var(--danger, #cf222e);
@@ -43,16 +46,27 @@ const POLISH_CSS = `
   to   { opacity: 1; transform: translateY(0); }
 }
 #find-overlay .find-replace-row:not(.hidden) {
-  animation: fx-row-in var(--dur-2, 180ms) var(--ease-out, ease);
+  animation: fx-row-in var(--dur-2, 180ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
 }
 /* Keyboard navigation feedback: Enter/Shift+Enter flash the button they
-   mirror, so the direction of the jump is visible without a mouse. */
+   mirror, so the direction of the jump is visible without a mouse.
+   320ms is intentionally off-token (between --dur-3 and --dur-4): tuned by
+   eye, left literal rather than snapping it to a token. */
 @keyframes fx-kbd-flash {
   0%   { background-color: var(--accent-soft, rgba(9, 105, 218, 0.15)); color: var(--accent, #0969da); }
   100% { background-color: transparent; }
 }
 #find-overlay .tool-btn.kbd-flash {
-  animation: fx-kbd-flash 320ms var(--ease-out, ease);
+  animation: fx-kbd-flash 320ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+}
+@media (prefers-reduced-motion: reduce) {
+  #find-overlay .find-count,
+  #find-overlay .find-count.pop,
+  #find-overlay .find-replace-row:not(.hidden),
+  #find-overlay .tool-btn.kbd-flash {
+    animation: none;
+    transition: none;
+  }
 }
 `;
 

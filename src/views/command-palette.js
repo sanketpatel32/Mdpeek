@@ -9,34 +9,37 @@ import { fuzzyMatch } from '../lib/fuzzy.js';
 
 // Presentation polish (iteration 9). Injected once per app run; selectors are
 // two-class deep so they win cascade ties against base.css/motion.css
-// regardless of stylesheet import order. All values reference global tokens.
+// regardless of stylesheet import order. All values reference global tokens
+// with literal fallbacks (light-theme values from themes.css), and motion is
+// disabled locally under prefers-reduced-motion (mirrors the global
+// kill-switch in motion.css).
 const PALETTE_POLISH_CSS = `
   /* Open: scale+fade down from top-center (decelerate), not the shared
      modal spring which reads bouncy for a launcher. */
   .palette-overlay .palette-card {
-    animation: mdpeek-palette-in var(--dur-3) var(--ease-out);
+    animation: mdpeek-palette-in var(--dur-3, 240ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
     transform-origin: 50% 0;
   }
   @keyframes mdpeek-palette-in {
-    from { opacity: 0; transform: translateY(calc(var(--sp-3) * -1)) scale(0.97); }
+    from { opacity: 0; transform: translateY(calc(var(--sp-3, 8px) * -1)) scale(0.97); }
     to   { opacity: 1; transform: none; }
   }
   /* Selection crossfade over --dur-2 so arrowing through items reads as one
      highlight gliding rather than hard on/off swaps; smooth scroll follows. */
   .palette-overlay .palette-item {
-    transition-duration: var(--dur-2);
+    transition-duration: var(--dur-2, 180ms);
   }
   .palette-overlay .palette-list {
     scroll-behavior: smooth;
     scrollbar-width: thin;
-    scrollbar-color: var(--border) transparent;
+    scrollbar-color: var(--border, #d0d2da) transparent;
   }
   /* Fuzzy-match chips: tinted accent pill behind matched chars for contrast
      against both the resting and active row backgrounds. */
   .palette-list .palette-item mark {
-    background: var(--accent-soft);
-    color: var(--accent);
-    border-radius: var(--radius-sm);
+    background: var(--accent-soft, rgba(0, 113, 227, 0.1));
+    color: var(--accent, #0071e3);
+    border-radius: var(--radius-sm, 5px);
     padding: 0 1px;
     margin: 0 -1px;
     box-decoration-break: clone;
@@ -44,33 +47,45 @@ const PALETTE_POLISH_CSS = `
   /* Footer hint bar: right-aligned keycap chips instead of bare text. */
   .palette-overlay .palette-footer {
     justify-content: flex-end;
-    gap: var(--sp-4);
-    padding: var(--sp-2) var(--sp-5) var(--sp-3);
+    gap: var(--sp-4, 12px);
+    padding: var(--sp-2, 6px) var(--sp-5, 16px) var(--sp-3, 8px);
   }
   .palette-overlay .palette-footer kbd {
-    font-family: var(--font-mono);
+    font-family: var(--font-mono, monospace);
     font-size: 10.5px;
     line-height: 1;
-    padding: var(--sp-0) var(--sp-1);
-    margin-right: var(--sp-1);
-    color: var(--fg-secondary);
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-subtle);
+    padding: var(--sp-0, 2px) var(--sp-1, 4px);
+    margin-right: var(--sp-1, 4px);
+    color: var(--fg-secondary, #4d4d51);
+    background: var(--bg-elevated, #ffffff);
+    border: 1px solid var(--border-subtle, #e6e7ed);
     border-bottom-width: 2px;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-sm, 5px);
   }
   /* Empty state: title + suggestion stacked and centered. */
   .palette-overlay .palette-empty {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--sp-1);
-    padding: var(--sp-6) var(--sp-5);
-    animation: mdpeek-palette-in var(--dur-2) var(--ease-out);
+    gap: var(--sp-1, 4px);
+    padding: var(--sp-6, 20px) var(--sp-5, 16px);
+    animation: mdpeek-palette-in var(--dur-2, 180ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
   }
-  .palette-empty-title { color: var(--fg-secondary); font-size: 13px; }
-  .palette-empty-hint  { color: var(--fg-muted); font-size: 12px; }
+  .palette-overlay .palette-empty-title { color: var(--fg-secondary, #4d4d51); font-size: 13px; }
+  .palette-overlay .palette-empty-hint  { color: var(--fg-muted, #828287); font-size: 12px; }
 
+  @media (prefers-reduced-motion: reduce) {
+    .palette-overlay .palette-card,
+    .palette-overlay .palette-empty {
+      animation: none;
+    }
+    .palette-overlay .palette-item {
+      transition-duration: 0s;
+    }
+    .palette-overlay .palette-list {
+      scroll-behavior: auto;
+    }
+  }
 `;
 function injectPalettePolishCss() {
   const id = 'mdpeek-palette-polish';
