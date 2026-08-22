@@ -29,8 +29,8 @@ import { toggleTaskLine, taskLineIndex, extractHeadings, buildRelativeImageMarkd
 import { docBasename, backlinkQueries, formatBacklinkItems } from './lib/backlinks.js';
 import { extractSpeakerNotes } from './lib/slides.js';
 import { EMOJI_MAP } from './lib/emoji.js';
-import { goalProgress, formatGoalChip, GOAL_KEY, SESSION_KEY } from './lib/writing-goal.js';
-import { markWritingDay, currentStreak, formatStreakChip } from './lib/streak.js';
+import { goalProgress, formatGoalChip, applyGoalChipPresentation, GOAL_KEY, SESSION_KEY } from './lib/writing-goal.js';
+import { markWritingDay, currentStreak, formatStreakChip, applyStreakChipPresentation } from './lib/streak.js';
 import { getTemplates, saveTemplate, deleteTemplate, TEMPLATES_KEY } from './lib/templates.js';
 import { extractDocLinks, classifyLinks } from './lib/link-checker.js';
 import { buildGraph, circleLayout } from './lib/graph.js';
@@ -70,7 +70,7 @@ import {
   loadState as pomoLoad, saveState as pomoSave, clearState as pomoClear,
   start as pomoStart, pause as pomoPause, tick as pomoTick, skipPhase as pomoSkip,
   reset as pomoReset, formatTime as pomoFormat, phaseLabel as pomoPhaseLabel,
-  phaseSeconds,
+  phaseSeconds, updatePomodoroHud,
 } from './lib/pomodoro.js';
 import {
   normalizeNoteTasks, normalizeKanbanTasks, mergeTasks, filterTasks, sortTasks, taskStats,
@@ -4840,6 +4840,8 @@ function pomoSyncUi() {
   el.pomoStatus.classList.toggle('running', _pomoState.running);
   el.pomoStatus.classList.toggle('break', _pomoState.phase !== 'focus');
   if (el.pomoToggle) el.pomoToggle.innerHTML = _pomoState.running ? POMO_PAUSE_SVG : POMO_PLAY_SVG;
+  // Rich HUD: progress ring arc + phase-tone crossfade (idempotent per tick).
+  try { updatePomodoroHud(_pomoState, el.pomoStatus); } catch (e) { console.error('[mdpeek] pomoHud:', e); }
 }
 
 function pomoStartTicker() {
@@ -6471,6 +6473,20 @@ function updateEditorStatus() {
       : '') +
     posHtml +
     `<span class="save-status" data-state="${savedState}" style="margin-left:auto">${savedLabel}</span>`;
+
+  // Rich chip presentation: goal milestone flashes + streak tier flame.
+  // prevPct rides a dataset flag so re-renders at the same pct never reflash.
+  const goalEl = el.editorStatus.querySelector('.status-goal');
+  if (goalEl && p) {
+    try {
+      applyGoalChipPresentation(goalEl, Number(el.editorStatus.dataset.prevGoalPct || '0'), p);
+    } catch (e) { console.error('[mdpeek] goalChip:', e); }
+  }
+  el.editorStatus.dataset.prevGoalPct = String(p ? p.pct : 0);
+  const streakEl = el.editorStatus.querySelector('.status-streak');
+  if (streakEl) {
+    try { applyStreakChipPresentation(streakEl, currentStreak()); } catch (e) { console.error('[mdpeek] streakChip:', e); }
+  }
 }
 
 // ---------- reading progress bar ----------

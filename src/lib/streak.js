@@ -116,3 +116,188 @@ export function formatStreakChip(streak) {
   if (n < 2) return '';
   return `🔥 ${n}`;
 }
+
+// --- UI polish (presentation only — never mutates stored writing days) ----
+// Flame intensity by streak length, a today-dot ring, and milestone badge
+// chips for the status-bar chip. Shares the pill language with the pomodoro/
+// goal polish: 999px radius, --shadow-sm lift, --dur-*/--ease-* timing,
+// hairline color-mix borders. All motion is prefers-reduced-motion guarded.
+
+/** Style-element id used by the id-guarded injection (test/debug hook). */
+export const STREAK_STYLE_ID = 'mdpeek-streak-polish-style';
+
+/** Streak lengths that award a badge chip (highest reached wins). */
+export const STREAK_MILESTONES = [7, 30, 100];
+
+/**
+ * Intensity tier for a streak length. Pure + testable.
+ *   none   0–1   (chip hidden anyway)
+ *   ember  2–6    (small flame, dimmed)
+ *   flame  7–29   (warm glow)
+ *   blaze  30+    (bright glow + idle flicker)
+ */
+export function streakTier(streak) {
+  const n = Math.max(0, Math.floor(Number(streak) || 0));
+  if (n >= 30) return 'blaze';
+  if (n >= 7) return 'flame';
+  if (n >= 2) return 'ember';
+  return 'none';
+}
+
+/**
+ * Highest milestone badge reached, or null below 7 days. Pure + testable:
+ *   { days: 30, label: '30-day', metal: 'silver' }
+ */
+export function streakBadge(streak) {
+  const n = Math.max(0, Math.floor(Number(streak) || 0));
+  let badge = null;
+  for (const days of STREAK_MILESTONES) {
+    if (n >= days) {
+      badge = { days, label: `${days}-day`, metal: days >= 100 ? 'gold' : days >= 30 ? 'silver' : 'bronze' };
+    }
+  }
+  return badge;
+}
+
+/**
+ * Rich chip inner markup: intensity-tiered flame, count, today-dot ring, and
+ * milestone badge. `opts.today` drives the dot: true → filled (written
+ * today), false → hollow dashed ring (streak at risk until midnight),
+ * undefined → dot omitted (caller doesn't know). Returns '' below 2 days to
+ * match formatStreakChip's earn-its-place rule.
+ */
+export function streakChipInnerHtml(streak, opts = {}) {
+  const n = Math.max(0, Math.floor(Number(streak) || 0));
+  if (n < 2) return '';
+  const tier = streakTier(n);
+  let html = `<span class="streak-flame" aria-hidden="true">🔥</span><span class="streak-count">${n}</span>`;
+  if (opts.today === true) {
+    html += '<span class="streak-today-dot" title="Written today" aria-label="Written today"></span>';
+  } else if (opts.today === false) {
+    html += '<span class="streak-today-dot is-off" title="Not written today yet" aria-label="Not written today yet"></span>';
+  }
+  const badge = opts.badge !== undefined ? opts.badge : streakBadge(n);
+  if (badge && !opts.noBadge) {
+    html += `<span class="streak-badge streak-badge-${badge.metal}">${badge.label}</span>`;
+  }
+  // Tier lands on the host element via applyStreakChipPresentation; expose it
+  // here too so string-render callers can add `tier-${tier}` themselves.
+  void tier;
+  return html;
+}
+
+/**
+ * Upgrade a rendered `.status-streak` chip in place: sets the intensity tier
+ * class and swaps in the rich inner markup. Idempotent per element instance.
+ *   applyStreakChipPresentation(el, currentStreak(), { today: wroteToday })
+ */
+export function applyStreakChipPresentation(chipEl, streak, opts = {}) {
+  if (!chipEl || typeof document === 'undefined') return null;
+  ensureStreakStyles();
+  const n = Math.max(0, Math.floor(Number(streak) || 0));
+  const tier = streakTier(n);
+  chipEl.classList.add('status-streak-rich', `tier-${tier}`);
+  chipEl.innerHTML = streakChipInnerHtml(n, opts);
+  return tier;
+}
+
+/**
+ * Inject the streak-chip stylesheet once. Idempotent (id-guarded), DOM-safe.
+ */
+export function ensureStreakStyles() {
+  if (typeof document === 'undefined' || document.getElementById(STREAK_STYLE_ID)) return false;
+  const style = document.createElement('style');
+  style.id = STREAK_STYLE_ID;
+  style.textContent = `
+    /* Flame intensity ramp — longer streaks literally burn brighter. Metals
+       mix over theme surfaces so badges stay legible in every theme. */
+    .status-streak .streak-flame {
+      display: inline-block;
+      margin-right: 2px;
+      transform-origin: 50% 80%;
+      transition: filter var(--dur-3, 240ms) var(--ease-out, ease-out);
+    }
+    .status-streak.tier-ember .streak-flame {
+      opacity: 0.7;
+      transform: scale(0.85);
+      filter: saturate(0.7);
+    }
+    .status-streak.tier-flame .streak-flame {
+      filter: drop-shadow(0 0 3px color-mix(in srgb, #ff9d2e 45%, transparent));
+    }
+    .status-streak.tier-blaze .streak-flame {
+      filter: drop-shadow(0 0 4px color-mix(in srgb, #ff9d2e 65%, transparent)) saturate(1.15);
+    }
+    /* Today-dot ring: solid green once today is banked… */
+    .status-streak .streak-today-dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      margin-left: 5px;
+      border-radius: 50%;
+      vertical-align: 1px;
+      background: var(--success);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--success) 22%, transparent);
+    }
+    /* …hollow dashed while today is unwritten — the streak is at risk. */
+    .status-streak .streak-today-dot.is-off {
+      background: transparent;
+      border: 1.5px dashed var(--fg-muted);
+      box-shadow: none;
+    }
+    /* Milestone badge chips: tiny metal coins beside the count. */
+    .status-streak .streak-badge {
+      display: inline-block;
+      margin-left: 5px;
+      padding: 0 5px;
+      border-radius: 999px;
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      line-height: 14px;
+      vertical-align: 1px;
+      border: 1px solid;
+    }
+    .status-streak .streak-badge-bronze {
+      color: #a86a2a;
+      border-color: color-mix(in srgb, #cd7f32 55%, transparent);
+      background: color-mix(in srgb, #cd7f32 16%, transparent);
+    }
+    .status-streak .streak-badge-silver {
+      color: #66707d;
+      border-color: color-mix(in srgb, #9aa5b1 60%, transparent);
+      background: color-mix(in srgb, #9aa5b1 18%, transparent);
+    }
+    .status-streak .streak-badge-gold {
+      color: #96741d;
+      border-color: color-mix(in srgb, #d4af37 55%, transparent);
+      background: color-mix(in srgb, #d4af37 20%, transparent);
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      /* Blaze flicker + at-risk invite breathe — ambient only, both off when
+         the user asks for reduced motion. */
+      .status-streak.tier-blaze .streak-flame {
+        animation: streak-flicker 2.4s ease-in-out infinite;
+      }
+      .status-streak .streak-today-dot.is-off {
+        animation: streak-breathe 2.8s ease-in-out infinite;
+      }
+    }
+    @keyframes streak-flicker {
+      0%, 100% { transform: scale(1) rotate(-1deg); }
+      40% { transform: scale(1.06) rotate(1.5deg); }
+      70% { transform: scale(0.98); }
+    }
+    @keyframes streak-breathe {
+      0%, 100% { opacity: 0.55; }
+      50% { opacity: 0.95; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .status-streak.tier-blaze .streak-flame,
+      .status-streak .streak-today-dot.is-off { animation: none; }
+      .status-streak .streak-flame { transition: none; }
+    }
+  `;
+  document.head.appendChild(style);
+  return true;
+}
