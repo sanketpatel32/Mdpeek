@@ -1948,16 +1948,19 @@ mark.find-current {
   margin: auto;
 }
 
-/* Staggered entrance — each block rises into place, top to bottom. */
+/* Staggered entrance — each block rises into place, top to bottom.
+   Durations/delays ride the motion tokens (--dur-4 travel, half-step
+   offsets off --dur-1) so the sequence stays coherent if timing is
+   retuned globally. */
 .welcome-inner > * {
-  animation: welcome-rise 420ms var(--ease-out) both;
+  animation: welcome-rise var(--dur-4) var(--ease-out) both;
 }
 .welcome-inner > *:nth-child(1) { animation-delay: 0ms; }
-.welcome-inner > *:nth-child(2) { animation-delay: 60ms; }
-.welcome-inner > *:nth-child(3) { animation-delay: 120ms; }
-.welcome-inner > *:nth-child(4) { animation-delay: 180ms; }
+.welcome-inner > *:nth-child(2) { animation-delay: calc(var(--dur-1) * 0.5); }
+.welcome-inner > *:nth-child(3) { animation-delay: var(--dur-1); }
+.welcome-inner > *:nth-child(4) { animation-delay: calc(var(--dur-1) * 1.5); }
 @keyframes welcome-rise {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(14px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
@@ -1981,9 +1984,17 @@ mark.find-current {
   position: absolute;
   inset: -26px;
   border-radius: 50%;
-  background: radial-gradient(circle, var(--accent-soft) 0%, transparent 65%);
-  /* A whisper of accent color around the mark, present in every theme. */
-  filter: blur(2px);
+  background: radial-gradient(circle, var(--accent-soft) 0%, transparent 60%);
+  /* A whisper of accent color around the mark, present in every theme.
+     Heavy blur + reduced opacity so it reads as ambient light, never a
+     shape — it blooms in after the logo lands. */
+  filter: blur(6px);
+  opacity: 0.75;
+  animation: welcome-halo var(--dur-4) var(--ease-out) both;
+}
+@keyframes welcome-halo {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 0.75; transform: scale(1); }
 }
 .welcome-logo {
   position: relative;
@@ -2049,10 +2060,14 @@ mark.find-current {
   cursor: pointer;
   text-align: left;
   box-shadow: var(--shadow-sm);
-  transition: transform 160ms var(--ease),
-    border-color 160ms var(--ease),
-    box-shadow 160ms var(--ease),
-    background-color 160ms var(--ease);
+  /* Mirrors motion.css's tactile-button feel in token form: snappy spring
+     lift, slower shadow so the elevation change trails deliberately. */
+  transition:
+    transform var(--dur-1) var(--ease-spring),
+    border-color var(--dur-1) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-2) var(--ease-out);
 }
 .welcome-action .wa-icon {
   display: inline-flex;
@@ -2064,7 +2079,10 @@ mark.find-current {
   background: var(--accent-soft);
   color: var(--accent);
   flex-shrink: 0;
-  transition: transform 160ms var(--ease-spring);
+  transition:
+    transform var(--dur-2) var(--ease-spring),
+    background-color var(--dur-2) var(--ease-out),
+    color var(--dur-2) var(--ease-out);
 }
 .welcome-action .wa-text {
   display: flex;
@@ -2089,10 +2107,12 @@ mark.find-current {
 .welcome-action:hover {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
   transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg);
 }
+/* Icon tile warms with the card — a deeper accent wash, not just scale. */
 .welcome-action:hover .wa-icon {
   transform: scale(1.06);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 .welcome-action:active {
   transform: translateY(0);
@@ -2107,6 +2127,9 @@ mark.find-current {
 .welcome-action.primary .wa-icon {
   background: rgba(255, 255, 255, 0.18);
   color: #ffffff;
+}
+.welcome-action.primary:hover .wa-icon {
+  background: rgba(255, 255, 255, 0.28);
 }
 .welcome-action.primary .wa-hint {
   color: rgba(255, 255, 255, 0.78);
@@ -2127,11 +2150,24 @@ mark.find-current {
   color: var(--fg-muted);
   font-weight: 400;
   flex-shrink: 0;
+  /* Trailing shortcut badge nudges toward the edge on hover — the card's
+     "go" affordance in lieu of a chevron glyph. */
+  transition: transform var(--dur-2) var(--ease-spring);
+}
+.welcome-action:hover kbd {
+  transform: translateX(2px);
 }
 .welcome-action.primary kbd {
   background: rgba(255, 255, 255, 0.2);
   border: none;
   color: #ffffff;
+}
+/* Keyboard focus — soft accent halo (--focus-ring) layered over the resting
+   shadow; replaces the global outline inside these elevated cards. */
+.welcome-action:focus-visible {
+  outline: none;
+  border-color: transparent;
+  box-shadow: var(--shadow-md), var(--focus-ring);
 }
 
 /* Condensed shortcut footer — single line, low contrast, centered. */
@@ -2140,8 +2176,9 @@ mark.find-current {
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 4px 8px;
+  gap: 4px 10px;
   font-size: 11px;
+  letter-spacing: 0.01em;
   color: var(--fg-muted);
 }
 .welcome-footer .dot {
@@ -2156,6 +2193,8 @@ mark.find-current {
   padding: 1px 5px;
   font-family: var(--font-mono);
   font-size: 10px;
+  line-height: 1.5;
+  letter-spacing: 0.03em;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-bottom-width: 1.5px;
@@ -2207,20 +2246,34 @@ mark.find-current {
   color: var(--danger);
   background: var(--surface-hover);
 }
+.recent-clear:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
 .recent-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 20px 16px;
+  gap: 6px;
+  padding: 26px 16px 24px;
+  margin: 2px;
   color: var(--fg-muted);
   font-size: 12px;
   text-align: center;
-  opacity: 0.7;
+  opacity: 0.75;
+  /* Dashed inset frame marks the slot as "reserved" without competing
+     with the action cards above it. */
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius);
 }
 .recent-empty svg {
-  opacity: 0.5;
+  opacity: 0.55;
+}
+.recent-empty-sub {
+  margin: 0;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
 }
 /* The list scrolls if needed; capped so a long history never pushes the
    footer off-screen. */
@@ -2247,15 +2300,25 @@ mark.find-current {
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background-color var(--dur-2) var(--ease);
+  transition: background-color var(--dur-1) var(--ease-out);
 }
 /* Hover affordance — soft accent tint so the panel reads as interactive,
-   matching the file-tree row treatment. */
+   matching the file-tree row treatment. Content slides right a touch to
+   sell the "row" metaphor. */
 .recent-item:hover {
   background: var(--accent-soft);
 }
 .recent-item:hover .recent-name {
   color: var(--accent);
+}
+.recent-item:hover .recent-icon,
+.recent-item:hover .recent-text {
+  transform: translateX(2px);
+}
+.recent-item:focus-visible {
+  outline: none;
+  background: var(--accent-soft);
+  box-shadow: var(--focus-ring);
 }
 .recent-icon {
   flex-shrink: 0;
@@ -2265,12 +2328,14 @@ mark.find-current {
   min-width: 16px;
   min-height: 16px;
   color: var(--fg-muted);
+  transition: transform var(--dur-2) var(--ease-out);
 }
 .recent-text {
   display: flex;
   flex-direction: column;
   min-width: 0;
   flex: 1;
+  transition: transform var(--dur-2) var(--ease-out);
 }
 .recent-name {
   font-size: 13px;
@@ -2291,11 +2356,17 @@ mark.find-current {
 }
 .recent-when {
   flex-shrink: 0;
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--fg-muted);
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
   padding-left: 8px;
   white-space: nowrap;
+  transition: color var(--dur-1) var(--ease-out);
+}
+/* Timestamp deepens on hover — legible at rest, clearly secondary. */
+.recent-item:hover .recent-when {
+  color: var(--fg-secondary);
 }
 
 /* Mid-tier windows: keep the two-card grid but tighten the rhythm. */
@@ -2397,10 +2468,11 @@ mark.find-current {
 }
 
 /* Entrance choreography is decorative — reduced-motion users get static
-   content immediately. */
+   content immediately (blocks *and* the logo halo bloom). */
 @media (prefers-reduced-motion: reduce) {
   .welcome-inner > *,
-  .welcome-inner > *:nth-child(n) {
+  .welcome-inner > *:nth-child(n),
+  .welcome-logo-halo {
     animation: none;
   }
 }
@@ -2437,8 +2509,27 @@ mark.find-current {
   flex: 1 1 auto;
   /* Mouse-wheel horizontal scroll: translate vertical wheel to horizontal. */
   scroll-behavior: smooth;
-  /* The traveling active-tab indicator (motion.css) anchors here. */
+  /* The traveling active-tab indicator (motion.css) anchors here. Verified
+     there: it transitions left/width on var(--dur-3) var(--ease-spring) —
+     the correct "buttery travel" pairing; nothing to fix in this file. */
   position: relative;
+  /* Scroll edge fades — a narrow (12px) gradient veil on each side signals
+     "more tabs this way" without hiding label text (labels start ≥11px in).
+     -webkit- prefix required by the WKWebView Tauri runs on. */
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 var(--sp-4),
+    #000 calc(100% - var(--sp-4)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 var(--sp-4),
+    #000 calc(100% - var(--sp-4)),
+    transparent 100%
+  );
 }
 .tab-strip::-webkit-scrollbar {
   height: 0;
@@ -2466,7 +2557,9 @@ mark.find-current {
     color var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease);
 }
 .tab:hover {
-  background: var(--surface-hover);
+  /* Layered, not flat: a mix toward --surface keeps idle→hover→active
+     reading as three distinct depth steps instead of two jumps. */
+  background: color-mix(in srgb, var(--surface-hover) 78%, var(--surface));
   color: var(--fg);
 }
 .tab.active {
@@ -2499,6 +2592,21 @@ mark.find-current {
   font-size: 9px;
   margin-left: -3px;
 }
+/* Unsaved-changes dot: a slow opacity-only breathe (no scale — scale on a
+   9px glyph reads as jitter). Keyframes live here, scoped by name; the
+   global prefers-reduced-motion kill in motion.css silences it. */
+.tab-dot--dirty {
+  animation: tab-dirty-breathe 2.4s var(--ease) infinite;
+}
+@keyframes tab-dirty-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
 /* Shared/collab tabs get a green dot + a subtle "(shared)" suffix on the
    title to make the live-collab state visible at a glance. */
 .tab .tab-dot--shared {
@@ -2518,7 +2626,7 @@ mark.find-current {
   height: 18px;
   padding: 0;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: 999px; /* circular hover chip, matches the pill tab */
   background: none;
   font: inherit;
   font-size: 15px;
@@ -2527,6 +2635,9 @@ mark.find-current {
   opacity: 0;
   transform: scale(0.7);
   cursor: pointer;
+  /* Asymmetric reveal: appears fast (--dur-1) so it feels attached to the
+     pointer; fades out a touch slower so it doesn't flicker while the
+     pointer crosses neighboring tabs. */
   transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out),
     background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
 }
@@ -2534,6 +2645,8 @@ mark.find-current {
 .tab.active .tab-close {
   opacity: 1;
   transform: scale(1);
+  /* Reveal overrides to micro-timing; hide keeps the --dur-2 above. */
+  transition-duration: var(--dur-1);
 }
 .tab-close:hover {
   background: var(--surface-active);
@@ -2542,12 +2655,31 @@ mark.find-current {
 }
 
 /* Pinned tabs — shrink to icon-only, hide title + close, keep dirty dot as
-   an overlay on the icon. Survive bulk-close; stick to the left of the strip. */
+   an overlay on the icon. Survive bulk-close; stick to the left of the strip.
+   Tooltip affordance: the JS-rendered title attribute (full path) supplies
+   the native tooltip; a 3px pin tick below gives an always-visible "this is
+   pinned" cue, since icon-only tabs otherwise look identical to untitled
+   ones. A floating CSS tooltip isn't possible here — overflow-x on
+   .tab-strip clips anything escaping the pill. */
 .tab.pinned {
   max-width: 40px;
   min-width: 32px;
   padding: 0 6px;
   justify-content: center;
+  position: relative; /* anchors the pin tick */
+}
+.tab.pinned::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  background: currentColor;
+  opacity: 0.5;
+  pointer-events: none;
 }
 .tab.pinned .tab-title {
   display: none;
@@ -2565,15 +2697,23 @@ mark.find-current {
   font-size: 7px;
   margin-left: 0;
 }
-.tab.pinned.active::after {
-  left: 4px;
-  right: 4px;
-}
 /* Divider between pinned and unpinned groups — only when an unpinned tab
-   directly follows a pinned one. */
+   directly follows a pinned one. A short centered hairline (::before, out
+   of flow) instead of the old full-height border-left: it aligns with the
+   pill's optical center rather than clipping edge-to-edge. */
 .tab.pinned + .tab:not(.pinned) {
-  border-left: 1px solid var(--border-subtle);
-  margin-left: 4px;
+  position: relative;
+  margin-left: var(--sp-1);
+}
+.tab.pinned + .tab:not(.pinned)::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--sp-0) * -1.5); /* centered in the gap before this tab */
+  top: var(--sp-2);
+  bottom: var(--sp-2);
+  width: 1px;
+  background: var(--border-subtle);
+  pointer-events: none;
 }
 .tab-new {
   background: transparent;
@@ -2604,20 +2744,22 @@ mark.find-current {
   position: fixed;
   z-index: 1000;
   min-width: 168px;
-  padding: 4px;
+  padding: var(--sp-1);
   border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg); /* menus float above everything — deepest shadow tier */
   font-size: 13px;
   user-select: none;
   transform-origin: top left;
-  animation: ctx-in var(--dur-1) var(--ease-out);
+  /* Entrance: decelerate ease + slight scale from the open origin.
+     --dur-2 (not --dur-1) so the grow reads as intentional, not a flicker. */
+  animation: ctx-in var(--dur-2) var(--ease-out);
 }
 @keyframes ctx-in {
   from {
     opacity: 0;
-    transform: scale(0.92);
+    transform: scale(0.96);
   }
   to {
     opacity: 1;
@@ -2637,7 +2779,16 @@ mark.find-current {
   text-align: left;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background-color 100ms var(--ease), color 100ms var(--ease);
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+/* Icon gutter: a 16px ::before column on items WITHOUT an .ctx-ico so
+   text-only menus (tab ctx, tree ctx) align their labels with icon menus
+   (more-menu), where labels start after the 16px .ctx-ico column.
+   :has() is supported in WKWebView; unsupported engines simply skip it. */
+.ctx-item:not(:has(.ctx-ico))::before {
+  content: "";
+  flex: 0 0 16px;
+  height: 16px;
 }
 .ctx-item:hover:not(:disabled) {
   background: var(--accent-soft);
@@ -2648,16 +2799,29 @@ mark.find-current {
 }
 .ctx-sep {
   height: 1px;
-  margin: 4px 2px;
+  margin: var(--sp-1) var(--sp-0);
   background: var(--border-subtle);
 }
 /* Keyboard-shortcut hint shown at the right of a .ctx-item (used by the
-   file-tree context menu). Muted and right-aligned. */
+   file-tree context menu). Right-aligned; --fg-secondary (not muted) keeps
+   it legible over the accent-soft hover highlight. */
 .ctx-hint {
   margin-left: auto;
-  color: var(--fg-muted);
+  color: var(--fg-secondary);
   font-size: 11px;
   font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums; /* stable width across digit combos */
+}
+/* Destructive items (file-tree Delete): danger tint at rest and on hover,
+   with the shortcut hint tinted to match so the row reads as one unit. */
+.ctx-item[data-action="delete"] {
+  color: var(--danger);
+}
+.ctx-item[data-action="delete"] .ctx-hint {
+  color: color-mix(in srgb, var(--danger) 55%, var(--fg-secondary));
+}
+.ctx-item[data-action="delete"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 
 /* ---------- File-tree context menu extras ---------- */
