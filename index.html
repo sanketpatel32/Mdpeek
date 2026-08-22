@@ -4,6 +4,34 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>mdpeek</title>
+    <meta name="description" content="mdpeek — a fast, beautiful markdown peeker: live preview, reading mode, presentation, and more." />
+    <!-- Advertise color-scheme so native widgets (scrollbars, form controls)
+         match the app theme from the very first frame. -->
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      /* Flash-of-wrong-theme guard — mirrors main.js boot resolution:
+         manual  → saved mdpeek-theme id (any theme, e.g. "nord")
+         system  → OS prefers-color-scheme
+         time    → dark 19:00–06:59 (same window as themeForHour)
+         Runs before the stylesheets below paint, so a dark-mode user never
+         sees a white flash on launch. Failures fall back to light. */
+      (function () {
+        try {
+          var mode = localStorage.getItem('mdpeek-theme-mode') || 'manual';
+          var t;
+          if (mode === 'system') {
+            t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          } else if (mode === 'time') {
+            var h = new Date().getHours();
+            t = h >= 19 || h <= 6 ? 'dark' : 'light';
+          } else {
+            t = localStorage.getItem('mdpeek-theme');
+          }
+          if (!t) t = 'light';
+          document.documentElement.setAttribute('data-theme', t);
+        } catch (e) { /* storage unavailable → keep the light default */ }
+      })();
+    </script>
     <link rel="icon" type="image/png" href="/icon.png" />
     <link rel="stylesheet" href="/src/styles/themes.css" />
     <link rel="stylesheet" href="/src/styles/base.css" />
