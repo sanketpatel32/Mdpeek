@@ -203,9 +203,13 @@
 }
 
 /* Selection follows the active reading preset (sepia/dark get their own
-   accent-soft), not the app theme's. */
+   accent-soft), not the app theme's. Color must follow --reader-fg too: the
+   global ::selection in base.css sets color: var(--fg) (the APP theme), so an
+   app-light + reader-dark combo previously rendered dark-on-dark selected
+   text. */
 .reader ::selection {
   background: var(--accent-soft);
+  color: var(--reader-fg, var(--fg));
 }
 
 /* No fixed header above the reader — anchors shouldn't inherit the main view's
@@ -359,11 +363,17 @@
 }
 
 /* Print: reading mode shouldn't intercept printing — the export-PDF flow
-   handles that via body.printing. Hide the reader bar / hint if a print sneaks
-   through while it's open. */
+   handles that via body.printing. Hide all reader chrome (bar / hint / TOC
+   rail / progress strip) if a print sneaks through while it's open, and pin
+   black ink on white so dark/sepia presets stay legible on paper. */
 @media print {
-  .reader-bar, .reader-hint { display: none !important; }
-  .reader { position: static; background: #fff !important; color: #000 !important; }
+  .reader-bar,
+  .reader-hint,
+  .reader-toc,
+  .reader-progress-bar { display: none !important; }
+  .reader { position: static; grid-template-columns: 1fr; background: #fff !important; color: #000 !important; }
+  .reader-scroll { overflow: visible !important; height: auto !important; }
+  .reader-article { max-width: none; color: #000 !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {

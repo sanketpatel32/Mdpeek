@@ -174,6 +174,17 @@
   text-decoration-style: solid;
   text-decoration-color: var(--accent);
 }
+/* v0.69.x accessibility pass: long-content resilience. Unbreakable strings
+   (long words, file paths, URLs) wrap instead of forcing horizontal scroll;
+   links break anywhere mid-URL so a bare https://… can't blow out the measure.
+   overflow-wrap is inherited, but scoping per element keeps <pre>'s
+   white-space: pre contract intact. */
+.markdown-body :is(h1, h2, h3, h4, h5, h6, p, li, dd, dt, th, td) {
+  overflow-wrap: break-word;
+}
+.markdown-body a {
+  overflow-wrap: anywhere;
+}
 .markdown-body strong {
   font-weight: 600;
 }
@@ -300,6 +311,11 @@
   transition: color var(--dur-1) var(--ease);
 }
 .markdown-body .spoiler.revealed { color: inherit; }
+/* Spoilers are click-toggled divs; if JS gives them tabindex, keyboard users
+   still get the standard halo. No-op until the element is focusable. */
+.markdown-body .spoiler:focus-visible {
+  box-shadow: var(--focus-ring);
+}
 .markdown-body img {
   max-width: 100%;
   border-radius: var(--radius-lg);
@@ -471,6 +487,7 @@
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
   overflow: auto;
+  max-width: 100%;   /* never wider than its container; long lines scroll inside */
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.55;
@@ -572,7 +589,8 @@
   line-height: 1.55;   /* must match pre code below */
   font-size: 13px;
   font-family: inherit;
-  opacity: 0.85;
+  /* no opacity here: --fg-muted is tuned to ≥3:1 per theme, dimming it
+     dropped some themes below that threshold */
 }
 .markdown-body pre .code-row > code {
   display: block;
@@ -717,6 +735,14 @@
 .markdown-body .anchor-link.copied {
   opacity: 1;
   color: #2da44e;
+}
+/* Keyboard focus on the anchor glyph gets the app's layered halo — the hover/
+   focus reveal above only fades it in; without this the focused anchor is
+   indistinguishable from a hovered one and easy to lose track of. */
+.markdown-body .anchor-link:focus-visible {
+  outline: none;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--focus-ring);
 }
 
 /* Outline folding — a ▶ triangle prepended to every heading (h2-h6) that has
@@ -1224,7 +1250,7 @@
   transition: color var(--dur-1, 120ms) var(--ease-out), background var(--dur-1, 120ms) var(--ease-out);
 }
 .canvas-warn-dismiss:hover { color: var(--fg); background: var(--surface-hover); }
-.canvas-warn-dismiss:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.canvas-warn-dismiss:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* v0.47.0: TLDraw host. TLDraw's root `.tl-container` is `width/height: 100%`
    (static layout), so it needs an ancestor with a CONCRETE resolved height.
@@ -1785,6 +1811,45 @@
     content: " (" attr(href) ")";
     font-size: 0.85em;
     color: #57606a;
+  }
+
+  /* v0.69.x accessibility pass: guarantee ink-on-paper regardless of theme.
+     html/body are forced white above, but a DARK app theme leaves near-white
+     text, muted tiers, and dark code/surface backgrounds printing on that
+     white page — invisible output. Force a monochrome palette for the content
+     area (syntax-highlight spans included). */
+  #document.markdown-body,
+  #preview.markdown-body {
+    color: #000000 !important;
+  }
+  .markdown-body :is(a, h6, th, kbd, blockquote, dd, section.footnotes),
+  .markdown-body li:has(> input[type="checkbox"]:checked) {
+    color: #24292f !important;
+  }
+  /* Neutralize token-driven fills that go dark in dark themes. */
+  .markdown-body pre,
+  .markdown-body :not(pre) > code,
+  .markdown-body th,
+  .markdown-body td,
+  .markdown-body blockquote,
+  .markdown-body .markdown-alert,
+  .markdown-body details.mdpeek-collapsible {
+    background: transparent !important;
+    border-color: #d0d7de !important;
+  }
+  .markdown-body pre span,
+  .markdown-body pre code {
+    color: #24292f !important;
+  }
+  /* Spoilers would print as blank runs — reveal them. */
+  .markdown-body .spoiler {
+    background: transparent !important;
+    color: inherit !important;
+  }
+  /* Floating content chrome that only makes sense on screen. */
+  .code-actions,
+  .mdpeek-lightbox {
+    display: none !important;
   }
 }
 
