@@ -14,13 +14,120 @@ import { applyReplacements } from '../lib/replace.js';
 
 const CASE_KEY = 'mdpeek-folder-search-case';
 
+// ---------- UI polish (injected once) ----------
+// Presentation-only: count badge pop/zero states, notify jitter guard, a
+// clearly distinct keyboard-selection row, replace-row reveal, one-shot
+// results entrance, and a highlight sweep over file groups that were just
+// written by Replace. Scoped under #folder-search-overlay.
+const POLISH_CSS = `
+@keyframes fs-count-pop {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+#folder-search-overlay .folder-search-count {
+  display: inline-block;
+  transform-origin: center;
+  transition: color var(--dur-2, 180ms) var(--ease-out, ease);
+}
+#folder-search-overlay .folder-search-count.pop {
+  animation: fs-count-pop var(--dur-3, 240ms) var(--ease-spring, ease);
+}
+/* Zero matches (with a query) = warning; search error = danger. */
+#folder-search-overlay .folder-search-count.zero {
+  color: var(--warning, #9a6700);
+  font-weight: 600;
+}
+#folder-search-overlay .folder-search-count.error {
+  color: var(--danger, #cf222e);
+  font-weight: 600;
+}
+/* Notify messages reuse the badge as the message surface — cap its width so
+   long "Replaced N across M files" strings can't squeeze the input and jitter
+   the header layout. Full text stays available via title. */
+#folder-search-overlay .folder-search-count.search-notify {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Keyboard-selected match must be obvious even when not hovered. */
+#folder-search-overlay .search-match.selected {
+  background: var(--accent-soft, rgba(9, 105, 218, 0.12));
+  box-shadow: inset 2px 0 0 var(--accent, #0969da);
+}
+/* Replace-row reveal mirrors the find bar's expand chevron. */
+@keyframes fs-row-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+#folder-search-overlay .folder-search-replace-row:not(.hidden) {
+  animation: fs-row-in var(--dur-2, 180ms) var(--ease-out, ease);
+}
+/* One-shot results entrance after a loading/empty state — never re-triggered
+   on every keystroke re-render (only when .results-appear is set). */
+@keyframes fs-results-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+#folder-search-overlay .results-appear > .search-file-group {
+  animation: fs-results-in var(--dur-2, 180ms) var(--ease-out, ease) backwards;
+}
+/* Empty / loading / error states. */
+#folder-search-overlay .search-empty[data-state="loading"]::after {
+  content: '…';
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  animation: fs-dots 900ms steps(4, end) infinite;
+}
+@keyframes fs-dots {
+  0%  { width: 0; }
+  100% { width: 1.2em; }
+}
+#folder-search-overlay .search-empty[data-state="error"] {
+  color: var(--danger, #cf222e);
+}
+/* Highlight sweep across groups touched by a just-applied replace. */
+@keyframes fs-apply-sweep {
+  0%   { background-color: transparent; }
+  25%  { background-color: var(--accent-soft, rgba(9, 105, 218, 0.14)); }
+  100% { background-color: transparent; }
+}
+#folder-search-overlay .search-file-group.just-applied {
+  animation: fs-apply-sweep 900ms var(--ease-out, ease);
+}
+`;
+
+function injectPolishStyle() {
+  if (document.getElementById('folder-search-polish-style')) return;
+  const style = document.createElement('style');
+  style.id = 'folder-search-polish-style';
+  style.textContent = POLISH_CSS;
+  document.head.appendChild(style);
+}
+
+// Re-trigger a one-shot CSS animation class (pop / sweep).
+function pulse(el, cls) {
+  if (!el) return;
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+}
+
 // Minimal status notifier — the panel is a singleton with no access to the
-// app's toast helper. Reuses the count badge as the message surface.
+// app's toast helper. Reuses the count badge as the message surface. The
+// polish CSS caps the badge width (jitter guard), so the full message is
+// mirrored onto title where it stays readable even when ellipsized.
 function notify(msg) {
   countEl.textContent = msg;
+  countEl.title = msg;
   countEl.classList.add('search-notify');
   clearTimeout(notify._t);
-  notify._t = setTimeout(() => countEl.classList.remove('search-notify'), 2500);
+  notify._t = setTimeout(() => {
+    countEl.classList.remove('search-notify');
+    countEl.title = '';
+  }, 2500);
 }
 
 let created = false;
@@ -53,9 +160,12 @@ let updateOpenDocCb = null;  // (path, newContent) => void — sync a clean open
 let lastResults = [];       // last search result set (for currentMatchPaths)
 let focusedGroupPath = null; // hovered/keyboard-selected file group (replace-focused-file)
 let selectedIdx = -1;        // keyboard-selected .search-match index
+let justAppliedPaths = null; // Set of paths a successful replace wrote — drives the one-shot highlight sweep
+let lastCountText = null;    // previous badge text; lets us pop only on real changes
 
 // Build the DOM once. Idempotent — safe to call repeatedly.
 function build() {
+  injectPolishStyle();
   overlay = document.createElement('div');
   overlay.id = 'folder-search-overlay';
   overlay.className = 'folder-search-overlay hidden';
@@ -249,14 +359,14 @@ async function runSearch() {
   const myGen = searchGen;
   // Empty query → clear results, show empty state.
   if (!query) {
-    renderEmpty('Type to search this folder');
-    countEl.textContent = '0';
+    renderEmpty('Type to search this folder', 'idle');
+    setCount('0', []);
     return;
   }
   // Show a loading state — but only if results are currently empty (avoids
   // flicker on incremental keystrokes where results already exist).
   if (resultsEl.querySelector('.search-empty') || resultsEl.children.length === 0) {
-    renderEmpty('Searching…');
+    renderEmpty('Searching', 'loading');
   }
   inFlight = true;
   let summary;
@@ -269,8 +379,8 @@ async function runSearch() {
     });
   } catch (err) {
     if (myGen === searchGen) {
-      renderEmpty('Search failed: ' + (err?.message || err || 'unknown error'));
-      countEl.textContent = '!';
+      renderEmpty('Search failed — ' + (err?.message || err || 'unknown error'), 'error');
+      setCount('!', ['error']);
     }
     inFlight = false;
     return;
@@ -281,18 +391,37 @@ async function runSearch() {
   renderResults(summary);
 }
 
+// Badge writer: sets text, pops on change, and applies/removes the given
+// state classes ('zero' | 'error') in one place so states never fight.
+function setCount(text, stateClasses) {
+  if (countEl.textContent !== text && !countEl.classList.contains('search-notify')) {
+    countEl.textContent = text;
+    pulse(countEl, 'pop');
+  } else if (countEl.textContent !== text) {
+    countEl.textContent = text; // a notify message is showing; don't animate over it
+  }
+  lastCountText = text;
+  countEl.classList.toggle('zero', stateClasses.includes('zero'));
+  countEl.classList.toggle('error', stateClasses.includes('error'));
+}
+
 function renderResults(summary) {
   lastResults = summary.results || [];
   const { results, truncated, total_matches, files_scanned, files_with_matches } = summary;
   // Count badge: show match count (or "truncated" hint via the body text).
-  countEl.textContent = String(total_matches);
+  // Zero with a query reads as the warning state.
+  setCount(String(total_matches), total_matches === 0 ? ['zero'] : []);
   if (total_matches === 0) {
     const note = files_scanned === 0
       ? 'No searchable files in this folder'
-      : `No matches in ${files_scanned} file${files_scanned === 1 ? '' : 's'}`;
+      : `No matches for “${query}” in ${files_scanned} file${files_scanned === 1 ? '' : 's'}`;
     renderEmpty(note);
     return;
   }
+  // One-shot entrance when results replace a loading/empty state — skipped on
+  // incremental keystroke re-renders so the list never shimmers while typing.
+  const enter = lastRenderWasEmpty ? ' results-appear' : '';
+  lastRenderWasEmpty = false;
   const html = results.map((file) => {
     const matchRows = file.matches.map((m) => {
       // Highlight the match substring within m.text using m.match_start/match_end.
@@ -326,10 +455,28 @@ function renderResults(summary) {
     ? `<div class="search-truncated">Results truncated — narrow your search to see more</div>`
     : '';
   resultsEl.innerHTML = html + truncationNote;
+  // Highlight sweep over groups this panel just wrote (Replace All / per-file).
+  if (justAppliedPaths && justAppliedPaths.size) {
+    let first = null;
+    for (const group of resultsEl.querySelectorAll('.search-file-group')) {
+      if (!justAppliedPaths.has(group.dataset.path)) continue;
+      pulse(group, 'just-applied');
+      if (!first) first = group;
+    }
+    if (first) first.scrollIntoView({ block: 'nearest' });
+    justAppliedPaths = null;
+  }
+  if (enter) {
+    resultsEl.classList.add('results-appear');
+    setTimeout(() => resultsEl.classList.remove('results-appear'), 260);
+  }
 }
 
-function renderEmpty(message) {
-  resultsEl.innerHTML = `<div class="search-empty">${escapeHtml(message)}</div>`;
+let lastRenderWasEmpty = true; // was the last list render an empty/loading/error state?
+
+function renderEmpty(message, state = 'idle') {
+  lastRenderWasEmpty = true;
+  resultsEl.innerHTML = `<div class="search-empty"${state !== 'idle' ? ` data-state="${state}"` : ''}>${escapeHtml(message)}</div>`;
 }
 
 // Shorten an absolute path for display: show last 2 segments, ellipsized.
@@ -445,7 +592,10 @@ async function replaceAll() {
   notify(failed
     ? `Replaced ${totalReplacements} in ${writes.length - failed} file(s); ${failed} failed`
     : `Replaced ${totalReplacements} across ${writes.length} file(s)`);
-  // 7. Re-run the search to show remaining matches.
+  // 7. Re-run the search to show remaining matches. The paths just written
+  // get a one-shot highlight sweep in renderResults, so the user sees exactly
+  // which files were touched.
+  justAppliedPaths = new Set(writes.map((w) => w.path));
   runSearch();
 }
 
@@ -530,6 +680,8 @@ async function undoReplace() {
   notify(failed
     ? `Undid ${writes.length - failed} file(s); ${failed} failed`
     : `Undid ${writes.length} file(s)`);
+  // Sweep the restored groups too, so "what did undo touch?" is visible.
+  justAppliedPaths = new Set(writes.map((w) => w.path));
   runSearch();
 }
 
@@ -560,7 +712,7 @@ function open(targetFolderPath) {
   input.value = '';
   query = '';
   renderEmpty('Type to search this folder');
-  countEl.textContent = '0';
+  setCount('0', []);
   // Focus + select on open.
   setTimeout(() => { input.focus(); input.select(); }, 0);
 }
@@ -571,6 +723,11 @@ function close() {
   // Cancel any pending search so it doesn't write results after close.
   searchGen += 1;
   clearTimeout(debounceTimer);
+  // Drop transient badge states (pop animation, warn/error tints, notify
+  // message) so reopening starts clean instead of flashing stale state.
+  clearTimeout(notify._t);
+  countEl.classList.remove('pop', 'zero', 'error', 'search-notify');
+  countEl.title = '';
 }
 
 // v0.45.0: open the panel pre-seeded with a query and run it immediately.

@@ -15,6 +15,64 @@ const CASE_KEY = 'mdpeek-find-case';
 const REGEX_KEY = 'mdpeek-find-regex';
 const WHOLE_WORD_KEY = 'mdpeek-find-whole-word';
 
+// ---------- UI polish (injected once) ----------
+// Presentation-only styles for the count badge (pop on change, danger tint at
+// 0 matches) and keyboard press feedback on the nav buttons. Scoped under
+// #find-overlay so nothing leaks into the rest of the app.
+const POLISH_CSS = `
+@keyframes fx-count-pop {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+#find-overlay .find-count {
+  display: inline-block;
+  transform-origin: center;
+  transition: color var(--dur-2, 180ms) var(--ease-out, ease);
+}
+#find-overlay .find-count.pop {
+  animation: fx-count-pop var(--dur-3, 240ms) var(--ease-spring, ease);
+}
+#find-overlay .find-count.zero {
+  color: var(--danger, #cf222e);
+  font-weight: 600;
+}
+/* Replace-row reveal: fade + slide so Ctrl+H reads as an intentional enter. */
+@keyframes fx-row-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+#find-overlay .find-replace-row:not(.hidden) {
+  animation: fx-row-in var(--dur-2, 180ms) var(--ease-out, ease);
+}
+/* Keyboard navigation feedback: Enter/Shift+Enter flash the button they
+   mirror, so the direction of the jump is visible without a mouse. */
+@keyframes fx-kbd-flash {
+  0%   { background-color: var(--accent-soft, rgba(9, 105, 218, 0.15)); color: var(--accent, #0969da); }
+  100% { background-color: transparent; }
+}
+#find-overlay .tool-btn.kbd-flash {
+  animation: fx-kbd-flash 320ms var(--ease-out, ease);
+}
+`;
+
+function injectPolishStyle() {
+  if (document.getElementById('findbar-polish-style')) return;
+  const style = document.createElement('style');
+  style.id = 'findbar-polish-style';
+  style.textContent = POLISH_CSS;
+  document.head.appendChild(style);
+}
+
+// Re-trigger a one-shot CSS animation class (pop / flash). Removing + reflow +
+// adding restarts the keyframes even when the class was already applied.
+function pulse(el, cls) {
+  if (!el) return;
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+}
+
 let created = false;
 let overlay;        // #find-overlay — the fixed wrapper
 let input;          // .find-input
@@ -53,6 +111,7 @@ function build() {
   overlay = document.createElement('div');
   overlay.id = 'find-overlay';
   overlay.className = 'find-overlay hidden';
+  injectPolishStyle();
   overlay.innerHTML = `
     <div class="find-bar-card">
       <button class="find-toggle" id="find-case" title="Match case" aria-label="Match case" aria-pressed="false" type="button">Aa</button>
@@ -163,6 +222,7 @@ function wireOnce() {
       replaceAll();
     } else if (e.key === 'Enter') {
       e.preventDefault();
+      pulse(overlay.querySelector(e.shiftKey ? '.find-prev' : '.find-next'), 'kbd-flash');
       step(!e.shiftKey); // Enter = next, Shift+Enter = prev
     } else if (e.key === 'Escape') {
       e.preventDefault();
@@ -176,6 +236,7 @@ function wireOnce() {
       }
     } else if (e.key === 'F3') {
       e.preventDefault();
+      pulse(overlay.querySelector(e.shiftKey ? '.find-prev' : '.find-next'), 'kbd-flash');
       step(!e.shiftKey);
     }
   });
@@ -614,7 +675,13 @@ function updateCount() {
   } else {
     total = marks.length;
   }
-  countEl.textContent = total === 0 ? '0/0' : `${matchIdx + 1}/${total}`;
+  const text = total === 0 ? '0/0' : `${matchIdx + 1}/${total}`;
+  if (countEl.textContent !== text) {
+    countEl.textContent = text;
+    pulse(countEl, 'pop'); // subtle scale pop whenever the badge content changes
+  }
+  // Danger tint while a non-empty query has zero hits ("no matches" state).
+  countEl.classList.toggle('zero', query !== '' && total === 0);
 }
 
 // ---------- public API ----------
@@ -655,6 +722,7 @@ function close() {
   overlay.classList.add('hidden');
   matchIdx = -1;
   countEl.textContent = '0/0';
+  countEl.classList.remove('pop', 'zero');
   input.classList.remove('no-match');
   // Return focus to the editor/document so keyboard shortcuts keep working.
   if (ctx.getMode() === 'edit') {
