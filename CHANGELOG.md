@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-23
+
+A thirty-pass UI polish loop across every surface — foundations, chrome,
+editor, viewers, widgets, and modals — with a build + full test-suite
+verification after each pass.
+
+### Added
+- No-flash theme boot guard: the saved theme (manual / system / time-of-day)
+  resolves before first paint, plus `color-scheme` meta so native widgets and
+  scrollbars match from frame one.
+- Focus-widget presentation layer: Pomodoro progress ring with phase-tone
+  crossfade, writing-goal milestone flashes, streak flame intensity tiers
+  with bronze/silver/gold badges.
+- Flashcard review: 3D card flip, semantic rate buttons with keyboard hints,
+  cloze-deletion highlighting, session progress bar, confetti-lite finish.
+- Presentation mode: direction-aware slide transitions, auto-fading chrome,
+  deck↔reading crossfade, draggable speaker-notes panel.
+- Canvas viewers (Excalidraw/TLDraw): framed canvas well, loading shimmer,
+  edit/read-only mode chips, saved pill, friendly corrupt-file state.
+- Media viewer: custom control bar, scrub/volume thumb growth, PiP support;
+  notebook viewer: cell-type badges, inset outputs, collapse chevrons.
+- PDF viewer: stable-width page input, real prev/next disabled states,
+  page-jump ring, styled auth/error cards.
+- Graph view: node hover halos, edge-flow emphasis, tooltip cards; stats:
+  count-up numbers, staggered bars, frequency chips.
+- Terminal drawer: per-tab status dot (starting/running/exited), crash banner
+  with restart affordance, glowing resize handle.
+
+### Changed
+- Tables render as framed cards with hairline rows and eased hover; images
+  get an inner hairline ring so light screenshots read as framed figures.
+- Welcome screen choreography retimed on motion tokens; action cards lift
+  with shadow trails and accent icon washes.
+- Tab strip: scroll-edge fades, three-step hover depth, breathing dirty dot,
+  drag ghost + insertion bar, smooth into-view scrolling.
+- Command palette: dedicated open animation, gliding selection crossfade,
+  match-highlight pills, keycap footer; autocomplete dropdown fixed (its
+  list element was never wired) with hover↔keyboard parity.
+- File explorer: hover ramp, drop-target ring, indentation guides, TOC
+  marker pill; sidebar icons normalized across themes via color-mix.
+- Modals: spring settle, blurred scrim, internal scroll shadows; menus get
+  two-step hover ramps and focus-ring upgrades.
+
+### Fixed
+- Invalid WAAPI easing (`var()` in `easing:`) silently disabled tab pop/settle
+  animations — now literal token mirrors.
+- Reader selection was dark-on-dark when app theme and reader theme disagreed;
+  reader TOC is now a true left rail instead of squeezing above the article.
+- Solarized Light muted text below 3:1 contrast; GitHub theme swatch no longer
+  disagrees with its background.
+- Reduced-motion coverage extended to press/hover micro-interactions, welcome
+  halo, dropzone ants, and all injected style blocks.
+
 ## [1.0.0] - 2026-08-22
 
 Fifty-six bug fixes from a systematic twenty-pass audit across every module.
