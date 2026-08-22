@@ -15,6 +15,97 @@
 
 import { detectTrigger, buildCandidates, acceptSuggestion } from '../lib/autocomplete.js';
 
+// Presentation polish (iteration 9). Injected once per app run; selectors are
+// two-class deep to win cascade ties against base.css regardless of import
+// order. All values reference global tokens.
+const AC_POLISH_CSS = `
+  /* Snappy entrance (starts immediately on first paint — no opacity-0 delay,
+     so trigger latency perception stays zero). */
+  .ac-dropdown {
+    animation: mdpeek-ac-in var(--dur-1) var(--ease-out);
+    transform-origin: 0 0;
+    overflow: hidden;
+  }
+  @keyframes mdpeek-ac-in {
+    from { opacity: 0.5; transform: translateY(calc(var(--sp-0) * -1)); }
+    to   { opacity: 1; transform: none; }
+  }
+  /* The list scrolls, not the card — frees the card's ::before/::after for
+     static fade edges over the max-height cutoff. */
+  .ac-dropdown .ac-list {
+    max-height: 272px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .ac-dropdown .ac-list::-webkit-scrollbar { width: var(--sp-2); }
+  .ac-dropdown .ac-list::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: var(--radius-sm);
+  }
+  /* Fade edges — only while content actually overflows (.is-scrollable),
+     top edge only once scrolled away from the start (.is-scrolled). */
+  .ac-dropdown.is-scrollable::after,
+  .ac-dropdown.is-scrolled::before {
+    content: "";
+    position: absolute;
+    left: var(--sp-1);
+    right: var(--sp-1);
+    height: var(--sp-5);
+    pointer-events: none;
+    z-index: 1;
+  }
+  .ac-dropdown.is-scrollable::after {
+    bottom: var(--sp-1);
+    background: linear-gradient(to top, var(--surface) 30%, transparent);
+    border-radius: 0 0 calc(var(--radius) - var(--sp-1)) calc(var(--radius) - var(--sp-1));
+  }
+  .ac-dropdown.is-scrolled::before {
+    top: var(--sp-1);
+    background: linear-gradient(to bottom, var(--surface) 30%, transparent);
+    border-radius: calc(var(--radius) - var(--sp-1)) calc(var(--radius) - var(--sp-1)) 0 0;
+  }
+  /* Hover and keyboard selection share one visual treatment (parity), and
+     pointermove syncs the selection index so aria-selected stays truthful. */
+  .ac-list .ac-item:hover,
+  .ac-list .ac-item.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .ac-list .ac-item {
+    gap: var(--sp-4);
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    min-width: 0;
+    transition: background-color var(--dur-1) var(--ease-out),
+      color var(--dur-1) var(--ease-out);
+  }
+  /* Row rhythm: label takes the flexible middle with ellipsis; hint hugs the
+     right edge without being pushed off-card by long wiki-link labels. */
+  .ac-list .ac-item .ac-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.4;
+  }
+  .ac-list .ac-item .ac-hint {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+`;
+function injectAcPolishCss() {
+  const id = 'mdpeek-ac-polish';
+  if (document.getElementById(id)) return;
+  const style = document.createElement('style');
+  style.id = id;
+  style.textContent = AC_POLISH_CSS;
+  document.head.appendChild(style);
+}
+
 let created = false;
 let dropdown;        // .ac-dropdown
 let listEl;          // .ac-list
@@ -26,6 +117,9 @@ let active = null;   // { kind, query, start, end } or null
 let items = [];      // current candidate list
 let selected = 0;
 let pending = 0;     // monotonic token; stale fetches are dropped
+// Last fetched sources per trigger kind. Lets refresh() paint the current
+// filter synchronously (zero perceived latency) before the async fetch lands.
+let sourceCache = {};
 
 // Accessors handed in by main.js.
 let ctx = {
@@ -34,6 +128,7 @@ let ctx = {
 };
 
 function build() {
+  injectAcPolishCss();
   dropdown = document.createElement('div');
   dropdown.className = 'ac-dropdown hidden';
   dropdown.setAttribute('role', 'listbox');
@@ -46,6 +141,27 @@ function build() {
   mirror.setAttribute('aria-hidden', 'true');
   document.body.appendChild(dropdown);
   document.body.appendChild(mirror);
+  listEl = dropdown.querySelector('.ac-list');
+  // Fade-edge state (see .is-scrollable/.is-scrolled in AC_POLISH_CSS).
+  listEl.addEventListener('scroll', updateScrollEdges, { passive: true });
+  // Hover parity: moving the pointer over an item makes it the selection
+  // (same treatment, same aria-selected) — pointermove only fires on real
+  // movement, so merely appearing under a stationary cursor can't steal it.
+  listEl.addEventListener('pointermove', (e) => {
+    const li = e.target.closest('.ac-item');
+    if (!li) return;
+    const i = parseInt(li.dataset.i, 10);
+    if (!Number.isNaN(i) && i !== selected) setActive(i);
+  });
+}
+
+// Toggle the fade edges: bottom gradient while the list overflows its
+// max-height, top gradient once scrolled away from the first row.
+function updateScrollEdges() {
+  if (!listEl || !dropdown) return;
+  const scrollable = listEl.scrollHeight > listEl.clientHeight + 1;
+  dropdown.classList.toggle('is-scrollable', scrollable);
+  dropdown.classList.toggle('is-scrolled', scrollable && listEl.scrollTop > 2);
 }
 
 // v0.68.0: the active doc may have no editor at all (canvas / pdf / home
@@ -59,7 +175,10 @@ function activeTextarea() {
 // Show/hide the dropdown. Hiding also clears state so the next open starts
 // fresh (no stale items, no leftover selection).
 function hide() {
-  if (dropdown) dropdown.classList.add('hidden');
+  if (dropdown) {
+    dropdown.classList.add('hidden');
+    dropdown.classList.remove('is-scrollable', 'is-scrolled');
+  }
   const ta = activeTextarea();
   if (ta) ta.setAttribute('aria-expanded', 'false');
   // Invalidate any in-flight candidate fetch — otherwise a resolve that lands
@@ -135,9 +254,11 @@ function render() {
   listEl.innerHTML = items.map((it, i) => {
     const cls = i === selected ? 'ac-item active' : 'ac-item';
     const hint = it.hint ? `<span class="ac-hint">${escapeHtml(it.hint)}</span>` : '';
-    return `<li class="${cls}" role="option" aria-selected="${i === selected ? 'true' : 'false'}" data-i="${i}">` +
+    return `<li id="ac-opt-${i}" class="${cls}" role="option" aria-selected="${i === selected ? 'true' : 'false'}" data-i="${i}">` +
       `<span class="ac-label">${escapeHtml(it.display)}</span>${hint}</li>`;
   }).join('');
+  dropdown.setAttribute('aria-activedescendant', `ac-opt-${selected}`);
+  updateScrollEdges();
   dropdown.classList.remove('hidden');
   // v0.67.0: combobox semantics on the textarea.
   const ta = activeTextarea();
@@ -152,7 +273,9 @@ function setActive(i) {
   selected = Math.max(0, Math.min(items.length - 1, i));
   listEl.querySelectorAll('.ac-item').forEach((el, idx) => {
     el.classList.toggle('active', idx === selected);
+    el.setAttribute('aria-selected', idx === selected ? 'true' : 'false');
   });
+  dropdown.setAttribute('aria-activedescendant', `ac-opt-${selected}`);
   const activeEl = listEl.querySelector('.ac-item.active');
   if (activeEl && activeEl.scrollIntoView) activeEl.scrollIntoView({ block: 'nearest' });
 }
@@ -196,9 +319,22 @@ async function refresh() {
   }
   active = { ...trig, end: caret };
   selected = 0;
+  // Immediate paint: rebuild candidates from the cached sources for this kind
+  // and render synchronously, so the dropdown tracks each keystroke with zero
+  // perceived latency. The fresh fetch below reconciles right after.
+  const cachedSources = sourceCache[trig.kind];
+  if (cachedSources) {
+    const preItems = buildCandidates(trig.kind, trig.query, cachedSources);
+    if (preItems.length > 0) {
+      items = preItems;
+      render();
+      positionAtCaret(editor.textarea());
+    }
+  }
   const token = ++pending;
   const sources = await ctx.getSources(trig.kind, trig.query);
   if (token !== pending) return; // a newer trigger superseded us
+  sourceCache[trig.kind] = sources;
   items = buildCandidates(trig.kind, trig.query, sources);
   if (items.length === 0) { hide(); return; }
   render();
@@ -265,6 +401,7 @@ export function initAutocomplete(accessors) {
 
 function destroy() {
   hide();
+  sourceCache = {};
   window.removeEventListener('pointerdown', onWindowPointerDown);
   if (dropdown) dropdown.remove();
   if (mirror) mirror.remove();

@@ -7,6 +7,80 @@
 
 import { fuzzyMatch } from '../lib/fuzzy.js';
 
+// Presentation polish (iteration 9). Injected once per app run; selectors are
+// two-class deep so they win cascade ties against base.css/motion.css
+// regardless of stylesheet import order. All values reference global tokens.
+const PALETTE_POLISH_CSS = `
+  /* Open: scale+fade down from top-center (decelerate), not the shared
+     modal spring which reads bouncy for a launcher. */
+  .palette-overlay .palette-card {
+    animation: mdpeek-palette-in var(--dur-3) var(--ease-out);
+    transform-origin: 50% 0;
+  }
+  @keyframes mdpeek-palette-in {
+    from { opacity: 0; transform: translateY(calc(var(--sp-3) * -1)) scale(0.97); }
+    to   { opacity: 1; transform: none; }
+  }
+  /* Selection crossfade over --dur-2 so arrowing through items reads as one
+     highlight gliding rather than hard on/off swaps; smooth scroll follows. */
+  .palette-overlay .palette-item {
+    transition-duration: var(--dur-2);
+  }
+  .palette-overlay .palette-list {
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  /* Fuzzy-match chips: tinted accent pill behind matched chars for contrast
+     against both the resting and active row backgrounds. */
+  .palette-list .palette-item mark {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 0 1px;
+    margin: 0 -1px;
+    box-decoration-break: clone;
+  }
+  /* Footer hint bar: right-aligned keycap chips instead of bare text. */
+  .palette-overlay .palette-footer {
+    justify-content: flex-end;
+    gap: var(--sp-4);
+    padding: var(--sp-2) var(--sp-5) var(--sp-3);
+  }
+  .palette-overlay .palette-footer kbd {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    line-height: 1;
+    padding: var(--sp-0) var(--sp-1);
+    margin-right: var(--sp-1);
+    color: var(--fg-secondary);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-bottom-width: 2px;
+    border-radius: var(--radius-sm);
+  }
+  /* Empty state: title + suggestion stacked and centered. */
+  .palette-overlay .palette-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-1);
+    padding: var(--sp-6) var(--sp-5);
+    animation: mdpeek-palette-in var(--dur-2) var(--ease-out);
+  }
+  .palette-empty-title { color: var(--fg-secondary); font-size: 13px; }
+  .palette-empty-hint  { color: var(--fg-muted); font-size: 12px; }
+
+`;
+function injectPalettePolishCss() {
+  const id = 'mdpeek-palette-polish';
+  if (document.getElementById(id)) return;
+  const style = document.createElement('style');
+  style.id = id;
+  style.textContent = PALETTE_POLISH_CSS;
+  document.head.appendChild(style);
+}
+
 const PICKER_HTML = (placeholder) => `
   <div class="palette-card" role="dialog" aria-label="Picker">
     <input class="palette-input" type="text" placeholder="${placeholder}" autocomplete="off" spellcheck="false" />
@@ -27,6 +101,7 @@ const PICKER_HTML = (placeholder) => `
 // v0.50.0: exported so main.js can build ad-hoc pickers (e.g. the document
 // overview / heading cloud) without a dedicated wrapper per use case.
 export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage }) {
+  injectPalettePolishCss();
   const overlay = document.createElement('div');
   overlay.id = id;
   overlay.className = 'modal-overlay palette-overlay hidden';
@@ -59,13 +134,17 @@ export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage }
     selected = 0;
     const empty = filtered.length === 0;
     // Pickers can name their own no-items message (e.g. the quick switcher
-    // says "No recent files yet"); a typed query still says "No matches".
+    // says "No recent files yet"); a typed query still says "No matches" —
+    // with a suggestion line so the dead end feels actionable.
     list.innerHTML = empty
-      ? `<li class="palette-empty">${escapeHtml(query ? 'No matches' : (emptyMessage || 'No matches'))}</li>`
+      ? `<li class="palette-empty" role="presentation">
+           <span class="palette-empty-title">${query ? 'No matches for \u201C' + escapeHtml(query) + '\u201D' : escapeHtml(emptyMessage || 'No matches')}</span>
+           ${query ? '<span class="palette-empty-hint">Try fewer characters or check spelling</span>' : ''}
+         </li>`
       : filtered.map((s, i) => {
           const cls = i === selected ? 'palette-item active' : 'palette-item';
           const hint = s.item.hint ? `<span class="palette-hint">${escapeHtml(s.item.hint)}</span>` : '';
-          return `<li class="${cls}" role="option" data-i="${i}">${highlight(s.item.label, i === 0 ? s.indices : null)}${hint}</li>`;
+          return `<li class="${cls}" role="option" aria-selected="${i === selected ? 'true' : 'false'}" data-i="${i}">${highlight(s.item.label, i === 0 ? s.indices : null)}${hint}</li>`;
         }).join('');
   }
 
@@ -91,9 +170,12 @@ export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage }
     selected = Math.max(0, Math.min(filtered.length - 1, i));
     list.querySelectorAll('.palette-item').forEach((el, idx) => {
       el.classList.toggle('active', idx === selected);
+      el.setAttribute('aria-selected', idx === selected ? 'true' : 'false');
     });
     const active = list.querySelector('.palette-item.active');
-    if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
+    // Smooth scroll keeps the highlight's travel continuous with the
+    // crossfade (CSS scroll-behavior covers programmatic scrolls too).
+    if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
   function choose() {
@@ -103,14 +185,26 @@ export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage }
     try { onSelect(pick); } catch (err) { console.error('picker onSelect failed:', err); }
   }
 
+  // Leaving plays the shared overlay-out/modal-out animations from
+  // motion.css (.is-leaving) before the overlay is actually hidden — the
+  // timer covers the longer of the two (--dur-2 = 180ms) plus a frame.
+  let hideTimer = null;
   function open() {
+    if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
     overlay.classList.remove('hidden');
+    overlay.classList.remove('is-leaving');
     input.value = '';
     render('');
     requestAnimationFrame(() => input.focus());
   }
   function close() {
-    overlay.classList.add('hidden');
+    if (overlay.classList.contains('hidden') || hideTimer) return;
+    overlay.classList.add('is-leaving');
+    hideTimer = setTimeout(() => {
+      hideTimer = null;
+      overlay.classList.add('hidden');
+      overlay.classList.remove('is-leaving');
+    }, 200);
   }
   // Swap the item source (used by pickers that compute their list lazily —
   // e.g. the backlinks picker, which scans the folder on demand and then
