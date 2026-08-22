@@ -56,12 +56,394 @@ const SAVE_DELAY = 1000;
 // used to leave a mounted-but-invisible canvas (0px tall) after reload.
 const _containerOwners = new WeakMap();
 
+// ---------- UI polish (v0.69, injected once) ----------
+// Presentation-only styles for the embedded canvas editors: a rounded canvas
+// well with a subtle inset ring, a loading shimmer, a floating action cluster
+// (mode chip + quick exports + collapse) with hover lift and delayed
+// tooltips, a transient "Saved" pill, and a friendly corrupt-file panel.
+// Id-guarded like csv-viewer's polish so repeated mounts never stack
+// duplicate <style> elements. TLDraw injects the identical sheet under the
+// same id — whichever viewer loads first pays for it, both use it.
+const POLISH_CSS = `
+#document.excalidraw-host,
+#document.tldraw-host {
+  padding: var(--sp-2);
+  gap: var(--sp-2);
+}
+/* Rounded canvas well: inset ring + soft shadow frame the editor surface. */
+#document.excalidraw-host > .cvw-well,
+#document.tldraw-host > .cvw-well {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow:
+    inset 0 0 0 1px var(--border-subtle),
+    var(--shadow-sm);
+}
+/* The canvas mounts absolutely inside the well so it always resolves a
+   concrete size (both libs collapse to 0px without an explicit height). */
+.cvw-well > .excalidraw-root,
+.cvw-well > .cvw-mount {
+  position: absolute;
+  inset: 0;
+}
+
+/* Loading state: shimmer sweep across the empty well + a quiet label pill. */
+.cvw-well--loading { display: flex; align-items: center; justify-content: center; }
+.cvw-well--loading::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(100deg, transparent 25%, color-mix(in srgb, var(--fg) 7%, transparent) 50%, transparent 75%);
+  background-size: 200% 100%;
+  animation: cvw-shimmer 1400ms linear infinite;
+}
+@keyframes cvw-shimmer {
+  from { background-position-x: -50%; }
+  to   { background-position-x: 150%; }
+}
+.cvw-loading-label {
+  position: relative;
+  z-index: 1;
+  padding: var(--sp-1) var(--sp-4);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-elevated) 85%, transparent);
+  box-shadow: var(--shadow-sm);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--fg-muted);
+}
+
+/* Floating overlay chrome — top-right corner of the well. */
+.cvw-chrome {
+  position: absolute;
+  top: var(--sp-2);
+  right: var(--sp-2);
+  z-index: 800;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1);
+  border-radius: var(--radius);
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-md);
+}
+.cvw-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 24px;
+  min-width: 24px;
+  padding: 0 var(--sp-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-secondary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    transform var(--dur-1) var(--ease-spring),
+    background-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-2) var(--ease-out);
+}
+.cvw-btn:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+.cvw-btn:active { transform: translateY(0); }
+.cvw-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.cvw-btn svg { width: 13px; height: 13px; flex: none; }
+.cvw-btn--icon { width: 24px; padding: 0; }
+.cvw-btn:disabled { opacity: 0.45; cursor: default; }
+.cvw-btn:disabled:hover {
+  background: transparent;
+  color: var(--fg-secondary);
+  transform: none;
+  box-shadow: none;
+}
+
+/* Delayed tooltips below the cluster (inverted fg/bg works in every theme). */
+.cvw-btn[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--fg) 94%, transparent);
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: normal;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition:
+    opacity var(--dur-2) var(--ease-out) var(--dur-3),
+    transform var(--dur-2) var(--ease-out) var(--dur-3);
+  z-index: 5;
+}
+.cvw-btn[data-tip]:hover::after,
+.cvw-btn[data-tip]:focus-visible::after { opacity: 1; transform: none; }
+
+/* Mode chip — visual distinction between editable and locked scenes. */
+.cvw-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 var(--sp-2);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  user-select: none;
+}
+.cvw-mode::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: currentColor;
+}
+.cvw-mode[data-mode='edit'] { color: var(--accent); background: var(--accent-soft); }
+.cvw-mode[data-mode='readonly'] { color: var(--warning); background: color-mix(in srgb, var(--warning) 14%, transparent); }
+.cvw-sep { flex: none; width: 1px; height: 16px; background: var(--border-subtle); }
+
+/* Collapsed state: only the expand chevron remains of the cluster. */
+.cvw-chrome .cvw-btn--expand { display: none; }
+.cvw-chrome.cvw-collapsed :is(.cvw-mode, .cvw-sep) { display: none; }
+.cvw-chrome.cvw-collapsed .cvw-btn:not(.cvw-btn--expand) { display: none; }
+.cvw-chrome.cvw-collapsed .cvw-btn--expand { display: inline-flex; }
+
+/* "Saved" pill — bottom-right, fades in on each persisted autosave. */
+.cvw-saved {
+  position: absolute;
+  right: var(--sp-3);
+  bottom: var(--sp-3);
+  z-index: 700;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--success, #34c759) 35%, transparent);
+  background: color-mix(in srgb, var(--success, #34c759) 12%, var(--bg-elevated));
+  color: var(--success, #34c759);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow: var(--shadow-sm);
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity var(--dur-3) var(--ease-out),
+    transform var(--dur-3) var(--ease-out);
+  pointer-events: none;
+}
+.cvw-saved.cvw-show { opacity: 1; transform: none; }
+.cvw-saved svg { width: 11px; height: 11px; flex: none; }
+
+/* Friendly corrupt-file / load-failure panel (replaces bare red text). */
+.pdf-error .cvw-error { margin: 0; }
+.cvw-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  max-width: 400px;
+  padding: var(--sp-6) var(--sp-7);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+  color: var(--fg-secondary);
+  font-size: 12.5px;
+  line-height: 1.55;
+  animation: cvw-error-in var(--dur-3) var(--ease-out);
+}
+@keyframes cvw-error-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.cvw-error-icon,
+.cvw-error-icon > svg { width: 34px; height: 34px; color: var(--warning); }
+.cvw-error-title { font-size: 14px; font-weight: 650; color: var(--fg); }
+.cvw-error-note { font-size: 11.5px; color: var(--fg-muted); }
+.cvw-error .cvw-mode { margin-top: var(--sp-1); }
+`;
+
+function ensurePolishStyle() {
+  if (document.getElementById('cvw-polish-style')) return;
+  const style = document.createElement('style');
+  style.id = 'cvw-polish-style';
+  style.textContent = POLISH_CSS;
+  document.head.appendChild(style);
+}
+
+// Loading skeleton: the rounded well with a shimmer sweep + quiet label.
+const loadingWellHtml = (label) =>
+  '<div class="cvw-well cvw-well--loading" role="status" aria-live="polite">' +
+  `<span class="cvw-loading-label">${escapeHtml(label)}</span></div>`;
+
+// Friendly error-panel markup for module-load failures. `readonly` appends
+// the read-only chip — nothing in these states is editable.
+function errorPanelHtml({ title, body, note, readonly }) {
+  return (
+    '<div class="pdf-error"><div class="cvw-error" role="alert">' +
+    `<span class="cvw-error-icon">${CVW_ICONS.warn}</span>` +
+    `<div class="cvw-error-title">${escapeHtml(title)}</div>` +
+    `<div>${escapeHtml(body)}</div>` +
+    (note ? `<div class="cvw-error-note">${escapeHtml(note)}</div>` : '') +
+    (readonly ? '<span class="cvw-mode" data-mode="readonly">Read-only</span>' : '') +
+    '</div></div>'
+  );
+}
+
+// Inline stroke icons (currentColor) for the overlay cluster + panels.
+const CVW_ICONS = {
+  warn:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>' +
+    '<line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  png:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/>' +
+    '<path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>',
+  svgIcon:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M4 18C8 6 16 6 20 18"/><rect x="2" y="16" width="4" height="4" rx="1"/><rect x="18" y="16" width="4" height="4" rx="1"/></svg>',
+  collapse:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg>',
+  expand:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
+  check:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
+};
+
+// Build the floating overlay chrome into `well`: mode chip, PNG/SVG quick
+// exports, a collapse toggle, and the transient "Saved" pill. Returns small
+// imperative handles for the controller: flashSaved/setMode/setExportEnabled/
+// destroy. Exports go through ctrl.exportImage() then the Tauri native save
+// dialog (save_annotated_image — same command as main.js's header export),
+// falling back to a plain browser download when running outside Tauri.
+function mountCanvasChrome(well, opts) {
+  const bar = document.createElement('div');
+  bar.className = 'cvw-chrome';
+  bar.setAttribute('role', 'toolbar');
+  bar.setAttribute('aria-label', 'Canvas actions');
+
+  const mode = document.createElement('span');
+  mode.className = 'cvw-mode';
+  mode.dataset.mode = 'edit';
+  mode.textContent = 'Edit';
+
+  const sep = document.createElement('span');
+  sep.className = 'cvw-sep';
+  sep.setAttribute('aria-hidden', 'true');
+
+  const mkBtn = (cls, tip, icon, label) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = cls ? `cvw-btn ${cls}` : 'cvw-btn';
+    b.setAttribute('data-tip', tip);
+    b.innerHTML = icon + (label ? `<span>${escapeHtml(label)}</span>` : '');
+    return b;
+  };
+  const pngBtn = mkBtn(null, 'Export as PNG', CVW_ICONS.png, 'PNG');
+  const svgBtn = mkBtn(null, 'Export as SVG', CVW_ICONS.svgIcon, 'SVG');
+  const collapseBtn = mkBtn('cvw-btn--icon', 'Hide controls', CVW_ICONS.collapse, '');
+  collapseBtn.setAttribute('aria-label', 'Hide canvas controls');
+  const expandBtn = mkBtn('cvw-btn--icon cvw-btn--expand', 'Show controls', CVW_ICONS.expand, '');
+  expandBtn.setAttribute('aria-label', 'Show canvas controls');
+
+  async function doExport(kind) {
+    try {
+      const ctrl = typeof opts.getCtrl === 'function' ? opts.getCtrl() : null;
+      if (!ctrl || typeof ctrl.exportImage !== 'function') return;
+      const res = await ctrl.exportImage(kind);
+      if (!res || !res.bytes) return;
+      const suggestedName = `${opts.fileBase || 'drawing'}.${kind}`;
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('save_annotated_image', { bytes: Array.from(res.bytes), suggestedName, kind });
+      } catch (err) {
+        if (err === 'cancelled') return; // native save dialog dismissed
+        // Dev/browser fallback: plain blob download.
+        const url = URL.createObjectURL(new Blob([res.bytes], { type: res.mime || 'application/octet-stream' }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = suggestedName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      }
+    } catch (e) {
+      console.error('canvas export failed:', e);
+    }
+  }
+  pngBtn.addEventListener('click', () => doExport('png'));
+  svgBtn.addEventListener('click', () => doExport('svg'));
+  collapseBtn.addEventListener('click', () => bar.classList.add('cvw-collapsed'));
+  expandBtn.addEventListener('click', () => bar.classList.remove('cvw-collapsed'));
+
+  bar.append(mode, sep, pngBtn, svgBtn, collapseBtn, expandBtn);
+  well.appendChild(bar);
+
+  // Transient "Saved" pill — fades out after each persisted autosave.
+  const pill = document.createElement('div');
+  pill.className = 'cvw-saved';
+  pill.setAttribute('aria-live', 'polite');
+  pill.innerHTML = CVW_ICONS.check + '<span>Saved</span>';
+  well.appendChild(pill);
+
+  let savedTimer = null;
+  return {
+    flashSaved() {
+      if (!pill.isConnected) return;
+      pill.classList.add('cvw-show');
+      if (savedTimer) clearTimeout(savedTimer);
+      savedTimer = setTimeout(() => pill.classList.remove('cvw-show'), 1500);
+    },
+    setMode(m) {
+      mode.dataset.mode = m === 'readonly' ? 'readonly' : 'edit';
+      mode.textContent = m === 'readonly' ? 'Read-only' : 'Edit';
+    },
+    setExportEnabled(on) {
+      pngBtn.disabled = !on;
+      svgBtn.disabled = !on;
+    },
+    destroy() { if (savedTimer) clearTimeout(savedTimer); savedTimer = null; },
+  };
+}
+
 export async function showExcalidraw(container, initialData, onSave, initialAppTheme, isStale) {
+  ensurePolishStyle();
   const token = {};
   _containerOwners.set(container, token);
   const isOwner = () => _containerOwners.get(container) === token;
-  // Loading state + ensure the container has height while modules download.
-  container.innerHTML = '<div class="pdf-loading">Loading Excalidraw…</div>';
+  // Loading state: the shimmering rounded well doubles as the height donor
+  // while the modules download.
+  container.innerHTML = loadingWellHtml('Loading Excalidraw…');
   container.classList.add('excalidraw-host');
 
   // No-op controller returned when the mount is cancelled (stale render) or
@@ -119,11 +501,30 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
     }
 
     // React mounts into an inner wrapper so a warning banner can live beside
-    // the canvas without React's first commit wiping it.
+    // the canvas without React's first commit wiping it. v0.69: the wrapper
+    // sits inside a rounded .cvw-well frame which also hosts the overlay
+    // chrome (mode chip / quick exports / collapse) and the Saved pill.
     container.innerHTML = '';
+    const well = document.createElement('div');
+    well.className = 'cvw-well';
     const mountDiv = document.createElement('div');
     mountDiv.className = 'excalidraw-root';
-    container.appendChild(mountDiv);
+    well.appendChild(mountDiv);
+    container.appendChild(well);
+
+    // Overlay chrome. getCtrl is a late-bound handle: the buttons come alive
+    // as soon as the controller object below exists.
+    let ctrlRef = null;
+    const chrome = mountCanvasChrome(well, { fileBase: 'drawing', getCtrl: () => ctrlRef });
+    // Persistence hook with UI feedback: every debounced autosave that goes
+    // through onSave also flashes the "Saved" pill. The caller's flow is
+    // untouched — flash failures can never block a save.
+    const persist = onSave
+      ? (json) => {
+          onSave(json);
+          try { chrome.flashSaved(); } catch { /* cosmetic only */ }
+        }
+      : null;
 
     // Track the latest scene for serialization on save.
     let latestElements = parsedData?.elements || [];
@@ -159,14 +560,14 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
       if (collabHook) {
         try { collabHook(elements); } catch (e) { console.error('collab hook failed:', e); }
       }
-      if (onSave) {
+      if (persist) {
         clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
           saveTimer = null;
           try {
             // 'local' keeps embedded image files + zoom/scroll appState.
             const json = serializeAsJSON(elements, appState, files || {}, 'local');
-            onSave(json);
+            persist(json);
           } catch (e) {
             console.error('Excalidraw serialize failed:', e);
           }
@@ -218,7 +619,7 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
       container.appendChild(warn);
     }
 
-    return {
+    const ctrl = {
       setTheme(appTheme) {
         const next = excalidrawThemeFor(appTheme);
         if (next === currentTheme) return;
@@ -287,15 +688,17 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
       setCollabHook(fn) { collabHook = typeof fn === 'function' ? fn : null; },
       clearCollabHook() { collabHook = null; },
       destroy() {
+        // Stop any in-flight "Saved" pill fade before tearing down.
+        try { chrome.destroy(); } catch { /* already gone */ }
         // Flush a pending debounced save BEFORE unmounting — the caller is
         // either switching tabs or closing this doc, and this is the last
         // chance to capture edits made inside the debounce window.
-        if (saveTimer && sceneChanged && onSave) {
+        if (saveTimer && sceneChanged && persist) {
           clearTimeout(saveTimer);
           saveTimer = null;
           try {
             const json = serializeAsJSON(latestElements, latestAppState, latestFiles || {}, 'local');
-            if (json) onSave(json);
+            if (json) persist(json);
           } catch (e) {
             console.error('Excalidraw destroy-flush failed:', e);
           }
@@ -315,12 +718,21 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
         }
       },
     };
+    // Late-bound handle: the chrome's export buttons start working now.
+    ctrlRef = ctrl;
+    return ctrl;
   } catch (e) {
     // If any module fails to load (offline, corrupt install, etc.), show a
-    // clear error instead of leaving the user staring at a blank "Loading…" text.
+    // friendly error card instead of leaving the user staring at a blank
+    // "Loading…" text.
     if (isOwner()) {
       container.classList.remove('excalidraw-host');
-      container.innerHTML = `<div class="pdf-error">Could not load Excalidraw: ${escapeHtml(String(e))}</div>`;
+      container.innerHTML = errorPanelHtml({
+        title: 'Could not load Excalidraw',
+        body: String(e?.message || e),
+        note: 'Check your connection or reinstall the app, then reopen this tab.',
+        readonly: true,
+      });
     }
     console.error('Excalidraw load failed:', e);
     return stub;
