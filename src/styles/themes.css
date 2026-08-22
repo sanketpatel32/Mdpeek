@@ -180,7 +180,9 @@
 
   --fg: #073642;
   --fg-secondary: #52676f;
-  --fg-muted: #8a9797;
+  /* Nudged darker from base01 #93a1a1-family grey toward base02: the previous
+     value measured ~2.8:1 on the cream bg — under the 3:1 legibility floor. */
+  --fg-muted: #788585;
 
   --border: #d9d1b8;
   --border-subtle: #e8e0c6;
@@ -379,7 +381,7 @@
   --shadow-md: 0 3px 6px rgba(140, 149, 159, 0.15);
   --shadow-lg: 0 8px 24px rgba(140, 149, 159, 0.2);
 
-  --sw-bg: #f6f8fa;
+  --sw-bg: #ffffff;
   --sw-accent: #0969da;
 
   /* GFM alerts — GitHub's own palette (was missing; now matches the GitHub
