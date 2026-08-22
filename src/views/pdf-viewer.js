@@ -10,7 +10,6 @@
 // drawing toolbar need: pdfDoc, textLayers, stroke state, and mode setters.
 
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { escapeHtml } from '../lib/escape.js';
 import { classifyPasswordError } from '../lib/pdf-auth.js';
 import { clampPage } from '../lib/pdf-nav.js';
 
@@ -37,6 +36,215 @@ async function loadPdfjs() {
 const PEN_WIDTH = 2;
 const HIGHLIGHT_WIDTH = 14;
 const PALETTE = ['#1d1d1f', '#ff3b30', '#0071e3', '#34c759', '#ffcc00'];
+
+// v0.x UI polish — presentation-only layer over the structural CSS in
+// content.css/base.css. Tokens come from themes.css (--sp-*, --dur-*,
+// --radius*, --accent-soft, --surface-hover…) with literal fallbacks so the
+// sheet degrades gracefully outside the app shell. Injected once, id-guarded.
+// Scoped to .pdf-viewer where the classes are shared with other viewers
+// (.pdf-loading / .pdf-error are also used by excalidraw/tldraw/main.js).
+const POLISH_CSS = `
+  /* Page input: constant width regardless of digit count (tabular figures,
+     ch-based box), spinners removed — the Prev/Next buttons own stepping. */
+  .pdf-page-input {
+    width: 4.5ch;
+    font-variant-numeric: tabular-nums;
+    appearance: textfield;
+    transition:
+      border-color var(--dur-1, 120ms) var(--ease-out, ease),
+      box-shadow var(--dur-1, 120ms) var(--ease-out, ease);
+  }
+  .pdf-page-input::-webkit-inner-spin-button,
+  .pdf-page-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .pdf-page-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+  }
+  .pdf-page-count { font-variant-numeric: tabular-nums; }
+
+  /* Toolbar buttons (nav today; any future zoom/rotate/download buttons that
+     share .pdf-toolbar-btn inherit this): hover tint, tactile press, ring on
+     keyboard focus, muted disabled state. */
+  .pdf-toolbar-btn {
+    transition:
+      background-color var(--dur-1, 120ms) var(--ease-out, ease),
+      border-color var(--dur-1, 120ms) var(--ease-out, ease),
+      transform var(--dur-1, 120ms) var(--ease-out, ease);
+  }
+  .pdf-toolbar-btn:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  }
+  .pdf-toolbar-btn:active:not(:disabled) {
+    transform: translateY(1px) scale(0.97);
+    background: var(--accent-soft);
+  }
+  .pdf-toolbar-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--accent-soft);
+  }
+  .pdf-toolbar-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+    background: transparent;
+  }
+
+  /* Loading: spinner over the bare "Loading PDF…" text. */
+  .pdf-viewer .pdf-loading {
+    flex-direction: column;
+    gap: var(--sp-3, 8px);
+    min-height: 320px;
+    animation: pdf-fade-in var(--dur-3, 240ms) var(--ease-out, ease);
+  }
+  .pdf-load-spinner {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 3px solid var(--surface-hover);
+    border-top-color: var(--accent);
+    animation: pdf-spin 0.9s linear infinite;
+  }
+
+  /* Password card: entrance rise, icon chip, press/focus feedback. */
+  .pdf-viewer .pdf-unlock {
+    padding: var(--sp-8, 32px) var(--sp-5, 16px);
+    animation: pdf-rise-in var(--dur-3, 240ms) var(--ease-out, ease);
+  }
+  .pdf-viewer .pdf-unlock-icon {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    margin-bottom: var(--sp-1, 4px);
+    font-size: 26px;
+    border-radius: var(--radius-lg, 12px);
+    background: var(--accent-soft);
+  }
+  .pdf-viewer .pdf-unlock-input,
+  .pdf-viewer .pdf-unlock-btn,
+  .pdf-viewer .pdf-unlock-cancel {
+    transition:
+      background-color var(--dur-1, 120ms) var(--ease-out, ease),
+      border-color var(--dur-1, 120ms) var(--ease-out, ease),
+      box-shadow var(--dur-1, 120ms) var(--ease-out, ease),
+      transform var(--dur-1, 120ms) var(--ease-out, ease),
+      filter var(--dur-1, 120ms) var(--ease-out, ease);
+  }
+  .pdf-viewer .pdf-unlock-btn:active { transform: scale(0.97); filter: brightness(0.96); }
+  .pdf-viewer .pdf-unlock-cancel:active { transform: scale(0.97); background: var(--surface-hover); }
+  .pdf-viewer .pdf-unlock-btn:focus-visible,
+  .pdf-viewer .pdf-unlock-cancel:focus-visible,
+  .pdf-viewer .pdf-unlock-input:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--accent-soft);
+  }
+
+  /* Error/retry panel. */
+  .pdf-viewer .pdf-error-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-3, 8px);
+    padding: var(--sp-8, 32px) var(--sp-5, 16px);
+    text-align: center;
+    animation: pdf-rise-in var(--dur-3, 240ms) var(--ease-out, ease);
+  }
+  .pdf-viewer .pdf-error-icon { width: 40px; height: 40px; color: var(--danger); opacity: 0.9; }
+  .pdf-viewer .pdf-error-title { font-size: 14px; font-weight: 600; color: var(--fg); }
+  .pdf-viewer .pdf-error-msg {
+    font-size: 12.5px;
+    color: var(--fg-muted);
+    max-width: 420px;
+    overflow-wrap: anywhere;
+  }
+  .pdf-viewer .pdf-error-retry {
+    height: 30px;
+    margin-top: var(--sp-2, 6px);
+    padding: 0 var(--sp-5, 16px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm, 5px);
+    background: var(--surface);
+    color: var(--fg);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      background-color var(--dur-1, 120ms) var(--ease-out, ease),
+      border-color var(--dur-1, 120ms) var(--ease-out, ease),
+      transform var(--dur-1, 120ms) var(--ease-out, ease);
+  }
+  .pdf-viewer .pdf-error-retry:hover {
+    background: var(--surface-hover);
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  }
+  .pdf-viewer .pdf-error-retry:active {
+    transform: translateY(1px) scale(0.97);
+    background: var(--accent-soft);
+  }
+  .pdf-viewer .pdf-error-retry:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--accent-soft);
+  }
+
+  /* Jump-to-page landing flash on the target page wrapper. */
+  .pdf-page.pdf-jump-flash {
+    animation: pdf-jump-ring var(--dur-4, 360ms) var(--ease-out, ease);
+  }
+
+  /* Floating page indicator: longer, softer fade; spring pop on change.
+     Keyframe keeps the translateX(-50%) centering from base.css. */
+  #pdf-page-badge { transition: opacity var(--dur-4, 360ms) var(--ease-out, ease); }
+  #pdf-page-badge.pop {
+    animation: pdf-badge-pop var(--dur-3, 240ms)
+      var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1));
+  }
+
+  @keyframes pdf-spin { to { transform: rotate(360deg); } }
+  @keyframes pdf-fade-in { from { opacity: 0; } }
+  @keyframes pdf-rise-in { from { opacity: 0; transform: translateY(var(--sp-3, 8px)); } }
+  @keyframes pdf-jump-ring {
+    0% { box-shadow: 0 0 0 3px var(--accent-soft); }
+    100% { box-shadow: 0 0 0 3px transparent; }
+  }
+  @keyframes pdf-badge-pop {
+    from { transform: translateX(-50%) scale(1.18); }
+    to { transform: translateX(-50%) scale(1); }
+  }
+`;
+
+function injectPolishStyle() {
+  if (document.getElementById('pdf-viewer-polish-style')) return;
+  const style = document.createElement('style');
+  style.id = 'pdf-viewer-polish-style';
+  style.textContent = POLISH_CSS;
+  document.head.appendChild(style);
+}
+
+// Shared failure panel: icon + title + message + Retry affordance. Replaces
+// the old one-line .pdf-error banner inside THIS viewer only (other viewers
+// keep their plain .pdf-error banners). `opts.onRetry` runs before relaunch
+// (used to tear down the dead controller); the relaunch itself re-enters
+// showPdf, which owns the full load/auth/render pipeline.
+function renderPdfErrorPanel(container, filePath, titleText, messageText, opts = {}) {
+  container.innerHTML = ''
+    + '<div class="pdf-error-panel" role="alert">'
+    +   '<svg class="pdf-error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    +     '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'
+    +   '</svg>'
+    +   '<div class="pdf-error-title"></div>'
+    +   '<div class="pdf-error-msg"></div>'
+    +   '<button type="button" class="pdf-error-retry"></button>'
+    + '</div>';
+  container.querySelector('.pdf-error-title').textContent = titleText;
+  container.querySelector('.pdf-error-msg').textContent = messageText;
+  const retryBtn = container.querySelector('.pdf-error-retry');
+  retryBtn.textContent = opts.retryLabel || 'Retry';
+  retryBtn.addEventListener('click', () => {
+    if (opts.onRetry) { try { opts.onRetry(); } catch {} }
+    showPdf(container, filePath);
+  });
+}
 
 // v0.56.0: render the password-unlock card into `container` and resolve the
 // caller's promise via `resolve`: the entered password (string) on Unlock, or
@@ -84,7 +292,12 @@ function promptForPassword(container, kind, resolve) {
 }
 
 export async function showPdf(container, filePath) {
-  container.innerHTML = '<div class="pdf-loading">Loading PDF…</div>';
+  injectPolishStyle();
+  container.innerHTML = ''
+    + '<div class="pdf-loading">'
+    +   '<div class="pdf-load-spinner" aria-hidden="true"></div>'
+    +   '<div class="pdf-loading-text">Loading PDF…</div>'
+    + '</div>';
   container.classList.add('pdf-viewer');
 
   let pdfDoc = null;
@@ -109,6 +322,12 @@ export async function showPdf(container, filePath) {
   // whenever the app's zoom level changes. Kept as a `let` (not const) so
   // rerenderAll() can update it and force every page to re-render.
   let scale = getScale(container);
+
+  // Set once the controller object below is built. On load failure, the Retry
+  // button destroys this (dead) controller before relaunching showPdf so its
+  // listeners/observers don't linger; the destroy() idempotency guard keeps
+  // main.js's later destroy() from wiping the relaunched viewer's DOM.
+  let currentController = null;
 
   try {
     const pdfjsLib = await loadPdfjs();
@@ -136,7 +355,8 @@ export async function showPdf(container, filePath) {
         resolvePasswordPrompt = null;
         if (destroyed) throw new Error('cancelled');
         if (password === null) {
-          container.innerHTML = '<div class="pdf-error">PDF not opened (cancelled).</div>';
+          renderPdfErrorPanel(container, filePath, 'PDF not opened',
+            'Password prompt cancelled — the document stays encrypted.', { retryLabel: 'Reopen' });
           return { destroy: () => {} };
         }
         continue; // retry getDocument with the new password
@@ -165,13 +385,27 @@ export async function showPdf(container, filePath) {
     const prevBtn = toolbar.querySelector('.pdf-prev-btn');
     const nextBtn = toolbar.querySelector('.pdf-next-btn');
 
+    // Disabled states follow the input's page so Prev/Next gray out at the
+    // ends instead of silently no-op'ing.
+    const updateNavState = () => {
+      const cur = parseInt(pageInput.value, 10) || 1;
+      prevBtn.disabled = cur <= 1;
+      nextBtn.disabled = cur >= pdfDoc.numPages;
+    };
+    updateNavState();
+
     const scrollToPage = (pageNum) => {
       const targetPage = clampPage(pageNum, pdfDoc.numPages);
       const targetEl = container.querySelector('.pdf-page[data-page-num="' + targetPage + '"]');
       if (targetEl) {
         targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
         pageInput.value = String(targetPage);
+        // Restartable landing ring so a toolbar jump reads as "arrived".
+        targetEl.classList.remove('pdf-jump-flash');
+        void targetEl.offsetWidth; // reflow to restart the animation
+        targetEl.classList.add('pdf-jump-flash');
       }
+      updateNavState();
     };
 
     pageInput.addEventListener('change', () => scrollToPage(pageInput.value));
@@ -224,6 +458,7 @@ export async function showPdf(container, filePath) {
       badge.classList.remove('hidden', 'fading');
     }
     let badgeTimer = null;
+    let lastBadgePage = 1; // matches the initial "1 / N" text — pops only on real changes
     const onScroll = () => {
       // Find the page nearest the viewport top.
       const containerTop = container.getBoundingClientRect().top;
@@ -237,12 +472,22 @@ export async function showPdf(container, filePath) {
       }
       // v0.67.0: keep the page input in sync while scrolling — the prev/next
       // buttons compute from it, so a stale value jumped you back to page 2.
-      if (pageInput) pageInput.value = String(current);
+      if (pageInput) {
+        pageInput.value = String(current);
+        updateNavState();
+      }
       if (badge) {
         badge.textContent = `${current} / ${pdfDoc.numPages}`;
+        // Spring-pop the badge only when the number actually changed.
+        if (current !== lastBadgePage) {
+          lastBadgePage = current;
+          badge.classList.remove('pop');
+          void badge.offsetWidth; // reflow to restart the animation
+          badge.classList.add('pop');
+        }
         badge.classList.remove('hidden', 'fading');
         clearTimeout(badgeTimer);
-        badgeTimer = setTimeout(() => badge.classList.add('fading'), 1200);
+        badgeTimer = setTimeout(() => badge.classList.add('fading'), 1600);
       }
     };
     container.addEventListener('scroll', onScroll);
@@ -252,7 +497,7 @@ export async function showPdf(container, filePath) {
       clearTimeout(badgeTimer);
       if (badge) {
         badge.classList.add('hidden');
-        badge.classList.remove('fading');
+        badge.classList.remove('fading', 'pop');
       }
     });
   } catch (e) {
@@ -260,7 +505,9 @@ export async function showPdf(container, filePath) {
     // 'cancelled', and a user cancel returns early (no throw). Either way we
     // don't want a scary "Could not load PDF" banner for a deliberate action.
     if (!destroyed && String(e) !== 'cancelled') {
-      container.innerHTML = `<div class="pdf-error">Could not load PDF: ${escapeHtml(String(e))}</div>`;
+      renderPdfErrorPanel(container, filePath, 'Could not load PDF', String(e), {
+        onRetry: () => { if (currentController) currentController.destroy(); },
+      });
       console.error('PDF load failed:', e);
     }
   }
@@ -478,7 +725,7 @@ export async function showPdf(container, filePath) {
     }
   }
 
-  return {
+  const controller = {
     pdfDoc,
     textLayers,
     textCache,
@@ -489,6 +736,7 @@ export async function showPdf(container, filePath) {
     clearAll,
     rerenderAll,
     destroy() {
+      if (destroyed) return; // idempotent — a retried viewer owns the container now
       destroyed = true;
       activeStroke = null;
       for (const io of observers) io.disconnect();
@@ -505,6 +753,8 @@ export async function showPdf(container, filePath) {
       container.innerHTML = '';
     },
   };
+  currentController = controller;
+  return controller;
 }
 
 // Render one page: canvas pixels + text layer + size the draw canvas.
