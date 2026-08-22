@@ -20,6 +20,124 @@ import {
 } from '../lib/editor-logic.js';
 import { sectionRanges, foldedLineSet, foldedLineCount } from '../lib/fold.js';
 
+// ----- formatting toolbar polish (presentation only) -----
+// The .fmt-tools toolbar markup lives in index.html and its click delegation in
+// main.js — this module only layers on visual/affordance upgrades:
+//   1. Divider spans between logical button groups.
+//   2. Tooltip shortcut hints for buttons whose keybind had none.
+//   3. Active-state sync (.is-active + aria-pressed) so toggleable formats
+//      show whether the caret/selection is currently formatted that way.
+//   4. A brief accent flash on the button that triggered an apply (click OR
+//      its keyboard equivalent).
+// All rules are injected once, reference global theme tokens, and respect
+// prefers-reduced-motion. No click handlers are added here.
+const FMT_GROUPS = [
+  ['h1', 'h2', 'h3'],
+  ['bold', 'italic', 'strike', 'highlight', 'code', 'link'],
+  ['ul', 'ol', 'task', 'quote'],
+  ['fence', 'table', 'hr', 'image'],
+];
+// Only formats that actually have a keybind but lacked the hint in their title.
+const FMT_SHORTCUTS = { link: 'Ctrl+K', quote: 'Ctrl+Shift+.' };
+// Wrap markers per toggleable inline format (mirrors wrapSelection usage).
+const FMT_WRAP = { bold: '**', strike: '~~', highlight: '==', code: '`' };
+// Line prefixes per toggleable block format (mirrors toggleLinePrefix usage).
+const FMT_PREFIX = { h1: '# ', h2: '## ', h3: '### ', ul: '- ', ol: '1. ', task: '- [ ] ', quote: '> ' };
+
+let _toolbarCssInjected = false;
+const _chromeApplied = new WeakSet(); // toolbars already given dividers/titles
+const _flashing = new WeakSet();      // buttons mid-flash (don't restart)
+
+function ensureToolbarChrome(toolbar) {
+  if (!toolbar || _chromeApplied.has(toolbar)) return;
+  _chromeApplied.add(toolbar);
+
+  if (!_toolbarCssInjected && typeof document !== 'undefined' && document.head) {
+    _toolbarCssInjected = true;
+    const style = document.createElement('style');
+    style.textContent = [
+      '.fmt-divider{width:1px;height:16px;margin:0 var(--sp-1,4px);background:var(--border-subtle);flex:0 0 auto;}',
+      '.fmt-btn.is-active{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-soft);}',
+      '.fmt-btn.is-active:hover{border-color:var(--accent);}',
+      // Drag-over affordance: copy cursor while text/files hover the textarea.
+      '.editor.is-drop-target{cursor:copy;}',
+      '@media (prefers-reduced-motion: no-preference){',
+      '  @keyframes mdpeek-fmt-flash{from{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);}}',
+      '  .fmt-btn.is-flash{animation:mdpeek-fmt-flash var(--dur-3,240ms) ease-out;}',
+      '}',
+    ].join('\n');
+    document.head.appendChild(style);
+  }
+
+  // Dividers before the first button of every group after the first.
+  for (let g = 1; g < FMT_GROUPS.length; g++) {
+    const first = toolbar.querySelector(`.fmt-btn[data-fmt="${FMT_GROUPS[g][0]}"]`);
+    if (!first || first.previousElementSibling?.classList.contains('fmt-divider')) continue;
+    const divider = document.createElement('span');
+    divider.className = 'fmt-divider';
+    divider.setAttribute('aria-hidden', 'true'); // purely visual grouping
+    first.before(divider);
+  }
+
+  // Append shortcut hints to titles (keeps the existing "(Ctrl+B)" pattern).
+  for (const [fmt, shortcut] of Object.entries(FMT_SHORTCUTS)) {
+    const btn = toolbar.querySelector(`.fmt-btn[data-fmt="${fmt}"]`);
+    if (!btn || btn.title.includes(shortcut)) continue;
+    btn.title = `${btn.title} (${shortcut})`;
+  }
+}
+
+// True when [s,e) sits exactly between a pair of marker `m` (the same test
+// wrapSelection uses to decide a toggle-off).
+function wrapMarkerAround(text, s, e, m) {
+  return s >= m.length && text.slice(s - m.length, s) === m && text.slice(e, e + m.length) === m;
+}
+
+// True when every line touched by [s,e) starts with `prefix` — the exact
+// condition toggleLinePrefix uses to decide a toggle-off, so the indicator
+// always tells the truth about what clicking the button will do.
+function linePrefixOnEveryTouchedLine(text, s, e, prefix) {
+  const from = Math.min(s, e);
+  const lineStart = from > 0 ? text.lastIndexOf('\n', from - 1) + 1 : 0;
+  const block = text.slice(lineStart, Math.max(s, e));
+  if (!block) return false;
+  return block.split('\n').every((l) => l.startsWith(prefix));
+}
+
+function syncToolbarState(toolbar, textarea) {
+  if (!toolbar) return;
+  const text = textarea.value;
+  const s = textarea.selectionStart;
+  const e = textarea.selectionEnd;
+  const active = {};
+  for (const [fmt, m] of Object.entries(FMT_WRAP)) active[fmt] = wrapMarkerAround(text, s, e, m);
+  // Italic: single asterisks that are NOT part of a '**' pair on either side.
+  active.italic = s >= 1 && text[s - 1] === '*' && text.slice(s - 2, s) !== '**'
+    && text[e] === '*' && text.slice(e, e + 2) !== '**';
+  for (const [fmt, prefix] of Object.entries(FMT_PREFIX)) {
+    active[fmt] = linePrefixOnEveryTouchedLine(text, s, e, prefix);
+  }
+  for (const btn of toolbar.querySelectorAll('.fmt-btn[data-fmt]')) {
+    const on = !!active[btn.dataset.fmt];
+    btn.classList.toggle('is-active', on);
+    // Cheap aria-pressed sync — only writes when it actually changed.
+    if (btn.getAttribute('aria-pressed') !== String(on)) btn.setAttribute('aria-pressed', String(on));
+  }
+}
+
+function flashToolbarButton(toolbar, fmt) {
+  if (!toolbar || !fmt) return;
+  const btn = toolbar.querySelector(`.fmt-btn[data-fmt="${fmt}"]`);
+  if (!btn || _flashing.has(btn)) return;
+  _flashing.add(btn);
+  btn.classList.remove('is-flash');
+  void btn.offsetWidth; // force reflow so rapid repeats restart the animation
+  btn.classList.add('is-flash');
+  const clear = () => { btn.classList.remove('is-flash'); _flashing.delete(btn); };
+  btn.addEventListener('animationend', clear, { once: true });
+  setTimeout(clear, 400); // reduced-motion fallback (no animationend will fire)
+}
+
 // Wire a textarea to a live-preview target with debounced re-render, plus the
 // editor niceties: line-number gutter, smart Tab/Enter, auto-pair, markdown
 // wrap shortcuts, and an inline find bar.
@@ -31,6 +149,10 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
   let timer = null;
   const listeners = []; // [target, type, fn] — cleaned up in destroy()
   let typewriter = false; // when true, the active line stays vertically centered
+  // Toolbar chrome: the shared .fmt-tools toolbar (dividers, shortcut hints,
+  // aria-pressed sync, apply-flash). May be null (tests / plain docs).
+  const toolbar = textarea.closest('.editor-pane')?.querySelector('.fmt-tools') || null;
+  ensureToolbarChrome(toolbar);
   // v0.46.0: Ctrl+L select-line repeat detection. Tracks the last press time
   // and the selection anchor so a second Ctrl+L within 1.5s extends downward.
   let _lastSelectLineAt = 0;
@@ -157,15 +279,26 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
   }
 
   // Apply a logic result back to the textarea: set value, caret, then refresh
-  // preview + gutter. Returns false when nothing changed.
-  function applyResult(result) {
+  // preview + gutter. `fmtType` (optional) names the toolbar format that
+  // triggered the apply so the matching button can flash. Returns false when
+  // nothing changed.
+  function applyResult(result, fmtType) {
     if (!result) return false;
     if (result.text !== textarea.value) setValueUndoable(result.text);
     textarea.setSelectionRange(result.start, result.end);
+    syncEmptyHook();
+    if (fmtType) flashToolbarButton(toolbar, fmtType);
+    syncToolbarState(toolbar, textarea);
     schedule();
     syncGutter();
     centerActiveLine();
     return true;
+  }
+
+  // Placeholder styling hook: `.editor.is-empty` flips on when the doc has no
+  // content so CSS can restyle ::placeholder without JS knowing about styles.
+  function syncEmptyHook() {
+    textarea.classList.toggle('is-empty', textarea.value.length === 0);
   }
 
   // ----- gutter (line numbers synced to textarea scroll) -----
@@ -297,19 +430,19 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     if (ctrl && (e.key === 'b' || e.key === 'B')) {
       e.preventDefault();
       e.stopPropagation();
-      applyResult(wrapSelection(textarea.value, s, en, '**'));
+      applyResult(wrapSelection(textarea.value, s, en, '**'), 'bold');
       return;
     }
     if (ctrl && (e.key === 'i' || e.key === 'I')) {
       e.preventDefault();
       e.stopPropagation();
-      applyResult(wrapSelection(textarea.value, s, en, '*'));
+      applyResult(wrapSelection(textarea.value, s, en, '*'), 'italic');
       return;
     }
     if (ctrl && e.key === '`') {
       e.preventDefault();
       e.stopPropagation();
-      applyResult(wrapSelection(textarea.value, s, en, '`'));
+      applyResult(wrapSelection(textarea.value, s, en, '`'), 'code');
       return;
     }
     // Ctrl/Cmd+K → insert `[selection](url)` link. Try to read a URL from the
@@ -325,7 +458,7 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
         const t = textarea.value;
         const cs = textarea.selectionStart;
         const ce = textarea.selectionEnd;
-        applyResult(insertLink(t, cs, ce, url));
+        applyResult(insertLink(t, cs, ce, url), 'link');
       };
       if (navigator.clipboard && navigator.clipboard.readText) {
         // Race the clipboard read against a short timeout so a blocked/empty
@@ -362,14 +495,14 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     if (ctrl && e.shiftKey && (e.key === 'x' || e.key === 'X')) {
       e.preventDefault();
       e.stopPropagation();
-      applyResult(wrapSelection(textarea.value, s, en, '~~'));
+      applyResult(wrapSelection(textarea.value, s, en, '~~'), 'strike');
       return;
     }
     // Ctrl+Shift+H → highlight (wrap in ==). Renders as <mark>.
     if (ctrl && e.shiftKey && (e.key === 'h' || e.key === 'H')) {
       e.preventDefault();
       e.stopPropagation();
-      applyResult(wrapSelection(textarea.value, s, en, '=='));
+      applyResult(wrapSelection(textarea.value, s, en, '=='), 'highlight');
       return;
     }
     // Ctrl+Shift+. → toggle blockquote prefix (> ). Mirrors the toolbar button;
@@ -377,7 +510,7 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     if (ctrl && e.shiftKey && e.key === '.') {
       e.preventDefault();
       e.stopPropagation();
-      applyResult(toggleLinePrefix(textarea.value, s, en, '> '));
+      applyResult(toggleLinePrefix(textarea.value, s, en, '> '), 'quote');
       return;
     }
     // Ctrl+/ → toggle HTML comment around selection (or current line).
@@ -629,14 +762,26 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
 
   on('input', textarea, () => {
     schedule();
+    syncEmptyHook();
+    syncToolbarState(toolbar, textarea);
     syncGutter();
     centerActiveLine();
     syncFolds();
   });
   on('keydown', textarea, onKeyDown);
-  // Re-center on caret moves that don't fire input (arrow keys, clicks).
-  on('keyup', textarea, centerActiveLine);
-  on('click', textarea, centerActiveLine);
+  // Re-center on caret moves that don't fire input (arrow keys, clicks), and
+  // keep the toolbar's active-format state in step with the new selection.
+  const onCaretMoved = () => { centerActiveLine(); syncToolbarState(toolbar, textarea); };
+  on('keyup', textarea, onCaretMoved);
+  on('click', textarea, onCaretMoved);
+  // Drag-drop affordance: show a copy cursor while a drag hovers the text.
+  // Class-only — drop handling itself stays owned by main.js.
+  const dropOn = () => textarea.classList.add('is-drop-target');
+  const dropOff = () => textarea.classList.remove('is-drop-target');
+  on('dragenter', textarea, dropOn);
+  on('dragover', textarea, dropOn);
+  on('dragleave', textarea, dropOff);
+  on('drop', textarea, dropOff);
   on('scroll', textarea, onScroll);
   // Gutter click: a click on a fold caret toggles that section. Other gutter
   // clicks fall through (no default gutter-click behavior today).
@@ -665,6 +810,8 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
 
   ensureFoldLayer();
   refresh();
+  syncEmptyHook();
+  syncToolbarState(toolbar, textarea);
   syncGutter();
   updateActiveLineMarker();
   syncFolds();
@@ -676,6 +823,8 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     // and swallow the user's first character.
     setValue(text) {
       if (textarea.value !== text) textarea.value = text;
+      syncEmptyHook();
+      syncToolbarState(toolbar, textarea);
       refresh();
       syncGutter();
       syncFolds();
@@ -756,42 +905,42 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
       const s = textarea.selectionStart;
       const en = textarea.selectionEnd;
       switch (type) {
-        case 'bold': return applyResult(wrapSelection(textarea.value, s, en, '**'));
-        case 'italic': return applyResult(wrapSelection(textarea.value, s, en, '*'));
-        case 'strike': return applyResult(wrapSelection(textarea.value, s, en, '~~'));
-        case 'highlight': return applyResult(wrapSelection(textarea.value, s, en, '=='));
-        case 'code': return applyResult(wrapSelection(textarea.value, s, en, '`'));
+        case 'bold': return applyResult(wrapSelection(textarea.value, s, en, '**'), type);
+        case 'italic': return applyResult(wrapSelection(textarea.value, s, en, '*'), type);
+        case 'strike': return applyResult(wrapSelection(textarea.value, s, en, '~~'), type);
+        case 'highlight': return applyResult(wrapSelection(textarea.value, s, en, '=='), type);
+        case 'code': return applyResult(wrapSelection(textarea.value, s, en, '`'), type);
         case 'link': {
           const sel = textarea.value.slice(s, en);
           const url = sel.startsWith('http') ? sel : 'https://';
           const text = sel || 'link text';
-          return applyResult({ text: textarea.value.slice(0, s) + `[${text}](${url})` + textarea.value.slice(en), start: s + text.length + 3, end: s + text.length + 3 + url.length });
+          return applyResult({ text: textarea.value.slice(0, s) + `[${text}](${url})` + textarea.value.slice(en), start: s + text.length + 3, end: s + text.length + 3 + url.length }, type);
         }
-        case 'h1': return applyResult(toggleLinePrefix(textarea.value, s, en, '# '));
-        case 'h2': return applyResult(toggleLinePrefix(textarea.value, s, en, '## '));
-        case 'h3': return applyResult(toggleLinePrefix(textarea.value, s, en, '### '));
-        case 'ul': return applyResult(toggleLinePrefix(textarea.value, s, en, '- '));
-        case 'ol': return applyResult(toggleLinePrefix(textarea.value, s, en, '1. '));
-        case 'task': return applyResult(toggleLinePrefix(textarea.value, s, en, '- [ ] '));
-        case 'quote': return applyResult(toggleLinePrefix(textarea.value, s, en, '> '));
+        case 'h1': return applyResult(toggleLinePrefix(textarea.value, s, en, '# '), type);
+        case 'h2': return applyResult(toggleLinePrefix(textarea.value, s, en, '## '), type);
+        case 'h3': return applyResult(toggleLinePrefix(textarea.value, s, en, '### '), type);
+        case 'ul': return applyResult(toggleLinePrefix(textarea.value, s, en, '- '), type);
+        case 'ol': return applyResult(toggleLinePrefix(textarea.value, s, en, '1. '), type);
+        case 'task': return applyResult(toggleLinePrefix(textarea.value, s, en, '- [ ] '), type);
+        case 'quote': return applyResult(toggleLinePrefix(textarea.value, s, en, '> '), type);
         case 'fence': {
           const insert = '\n```\n\n```\n';
-          return applyResult({ text: textarea.value.slice(0, s) + insert + textarea.value.slice(en), start: s + 5, end: s + 5 });
+          return applyResult({ text: textarea.value.slice(0, s) + insert + textarea.value.slice(en), start: s + 5, end: s + 5 }, type);
         }
         case 'table': {
           // 3x3 skeleton (matches the snippet). Caret lands on the first
           // header cell so the user can rename it immediately.
           const insert = '\n| Column A | Column B | Column C |\n| --- | --- | --- |\n| cell | cell | cell |\n| cell | cell | cell |\n\n';
-          return applyResult({ text: textarea.value.slice(0, s) + insert + textarea.value.slice(en), start: s + 3, end: s + 11 });
+          return applyResult({ text: textarea.value.slice(0, s) + insert + textarea.value.slice(en), start: s + 3, end: s + 11 }, type);
         }
         case 'hr': {
           const insert = '\n---\n\n';
-          return applyResult({ text: textarea.value.slice(0, s) + insert + textarea.value.slice(en), start: s + insert.length, end: s + insert.length });
+          return applyResult({ text: textarea.value.slice(0, s) + insert + textarea.value.slice(en), start: s + insert.length, end: s + insert.length }, type);
         }
         case 'image': {
           // Placeholder; caret selects the alt text so the user can type it.
           const insert = `![](https://)`;
-          return applyResult({ text: textarea.value.slice(0, s) + insert + textarea.value.slice(en), start: s + 2, end: s + 2 });
+          return applyResult({ text: textarea.value.slice(0, s) + insert + textarea.value.slice(en), start: s + 2, end: s + 2 }, type);
         }
         default: return false;
       }
