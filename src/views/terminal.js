@@ -16,6 +16,12 @@
 // export signature is unchanged from the previous version so main.js needs
 // no edits at the call site. The pure helpers `readCssVar` and
 // `xtermThemeFromApp` are exported for unit testing.
+//
+// UI polish pass: drawer slide in/out on --dur-3/--ease-out tokens, larger
+// resize hit-area with accent grab-bar feedback, header status dot for the
+// live shell, ghost empty-state before the first tab exists, --focus-ring on
+// the panel, and a styled crash banner with an obvious Restart affordance.
+// All presentation-only — PTY/xterm wiring is untouched.
 
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
@@ -98,6 +104,235 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+// ---- Injected polish styles (v0.65.0 UI pass) -----------------------------
+// Everything below references global design tokens only (--sp-*, --dur-*,
+// --radius*, --accent-soft, --focus-ring, ...) so it re-skins automatically
+// with the active theme. Id-guarded: safe across HMR / repeated initTerminal.
+const TERMINAL_POLISH_CSS = `
+  /* Drawer slide in/out — the --dur-3 "panel" cadence with --ease-out. */
+  @keyframes mdpeek-term-in {
+    from { opacity: 0; transform: translateY(56px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes mdpeek-term-out {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(56px); }
+  }
+  .terminal-drawer:not(.hidden):not(.is-leaving) {
+    animation: mdpeek-term-in var(--dur-3) var(--ease-out);
+  }
+  .terminal-drawer.is-leaving {
+    animation: mdpeek-term-out var(--dur-3) var(--ease-in) forwards;
+  }
+
+  /* Resize handle — taller invisible hit-area; grab bar brightens to a
+     glowing accent pill on hover and stays lit while dragging. */
+  .terminal-resize-handle { top: -6px; height: 12px; }
+  .terminal-resize-handle::after {
+    width: 44px;
+    height: 4px;
+    border-radius: 999px;
+    transition: background-color var(--dur-1) var(--ease-out),
+      width var(--dur-1) var(--ease-out),
+      box-shadow var(--dur-1) var(--ease-out);
+  }
+  .terminal-resize-handle:hover::after,
+  .terminal-drawer.is-resizing .terminal-resize-handle::after {
+    background: var(--accent);
+    width: 60px;
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  /* Header buttons — press state (motion.css gives the spring transition)
+     plus per-button hover identity and keyboard focus rings. */
+  .terminal-action-btn:hover { background: var(--surface-hover); color: var(--fg); }
+  .terminal-action-btn:active {
+    transform: scale(0.94);
+    background: var(--surface-active);
+  }
+  .terminal-action-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+  #terminal-new-tab:hover { color: var(--accent); }
+  #terminal-clear-btn:hover { color: var(--fg); }
+  #terminal-close-btn:hover {
+    color: var(--danger);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
+  }
+  #terminal-close-btn:active { background: color-mix(in srgb, var(--danger) 20%, transparent); }
+
+  /* Title styling — prompt glyph becomes an accent chip; tab strip loses its
+     scrollbar; cwd readout sits in a quiet pill. */
+  .terminal-left-group > svg {
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: var(--sp-1);
+    border-radius: var(--radius-sm);
+    box-sizing: content-box;
+  }
+  .terminal-tab { letter-spacing: 0.01em; }
+  .terminal-tabs { scrollbar-width: none; }
+  .terminal-tabs::-webkit-scrollbar { display: none; }
+  .terminal-pwd {
+    padding: var(--sp-0) var(--sp-3);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--fg-muted) 9%, transparent);
+  }
+
+  /* Status dot — green = shell running, pulsing amber = starting,
+     red = exited / failed. Hidden entirely when no tabs exist. */
+  .terminal-status-dot {
+    flex: 0 0 auto;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 18%, transparent);
+    transition: background-color var(--dur-2) var(--ease-out),
+      box-shadow var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out);
+  }
+  .terminal-status-dot[data-state="starting"] {
+    background: var(--alert-warning);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--alert-warning) 18%, transparent);
+    animation: mdpeek-term-pulse 1.1s var(--ease) infinite;
+  }
+  .terminal-status-dot[data-state="exited"],
+  .terminal-status-dot[data-state="error"] {
+    background: var(--danger);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
+  }
+  .terminal-status-dot[data-state="idle"] { opacity: 0; }
+  @keyframes mdpeek-term-pulse { 50% { opacity: 0.35; } }
+
+  /* Focus ring on the panel body (it is tabbable). */
+  .terminal-body:focus-visible {
+    outline: none;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--focus-ring);
+  }
+
+  /* Ghost empty-state shown before the first tab exists. */
+  @keyframes mdpeek-term-fade {
+    from { opacity: 0; transform: translateY(var(--sp-1)); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .terminal-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-1);
+    pointer-events: none;
+    user-select: none;
+    color: var(--fg-muted);
+    animation: mdpeek-term-fade var(--dur-3) var(--ease-out);
+  }
+  .terminal-empty-glyph {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    opacity: 0.45;
+  }
+  .terminal-empty-title {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--fg-secondary);
+  }
+  .terminal-empty-caret {
+    width: 7px;
+    height: 14px;
+    background: var(--accent);
+    animation: mdpeek-caret-blink 1.05s steps(1) infinite;
+  }
+  @keyframes mdpeek-caret-blink { 50% { opacity: 0; } }
+  .terminal-empty-hint { font-size: 11.5px; }
+
+  /* Crash / exit banner — a danger-tinted well floating over the dimmed
+     dead terminal, with Restart as the obvious way back. */
+  .terminal-mount .xterm {
+    transition: opacity var(--dur-3) var(--ease-out), filter var(--dur-3) var(--ease-out);
+  }
+  .terminal-mount.is-dead .xterm { opacity: 0.45; filter: saturate(0.5); }
+  .terminal-exit-banner {
+    position: absolute;
+    top: var(--sp-4);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
+    max-width: min(520px, calc(100% - var(--sp-8)));
+    padding: var(--sp-3) var(--sp-4);
+    background: color-mix(in srgb, var(--danger) 9%, var(--bg-elevated));
+    border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    animation: mdpeek-term-fade var(--dur-2) var(--ease-out);
+  }
+  .terminal-exit-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    font-family: var(--font-sans);
+  }
+  .terminal-exit-head { font-size: 11.5px; font-weight: 600; color: var(--danger); }
+  .terminal-exit-sub { font-size: 11px; line-height: 1.45; color: var(--fg-secondary); }
+  .terminal-restart-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    padding: var(--sp-1) var(--sp-4);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-spring);
+  }
+  .terminal-restart-btn:hover { background: color-mix(in srgb, var(--accent) 22%, var(--bg-elevated)); }
+  .terminal-restart-btn:active { transform: scale(0.95); }
+  .terminal-restart-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .terminal-drawer:not(.hidden):not(.is-leaving),
+    .terminal-drawer.is-leaving,
+    .terminal-exit-banner,
+    .terminal-empty,
+    .terminal-status-dot[data-state="starting"] {
+      animation: none;
+    }
+  }
+`;
+
+function injectTerminalPolishCss() {
+  const id = 'mdpeek-terminal-polish';
+  if (document.getElementById(id)) return;
+  const style = document.createElement('style');
+  style.id = id;
+  style.textContent = TERMINAL_POLISH_CSS;
+  document.head.appendChild(style);
+}
+
+// Tooltip copy for each status-dot state.
+const STATUS_DOT_TITLE = {
+  running: 'Shell running',
+  starting: 'Starting shell…',
+  exited: 'Process exited — press Enter or click Restart',
+  error: 'Shell failed to start',
+  idle: '',
+};
+
 // Normalize an OSC 7 / OSC 9;9 cwd report into a display path.
 // OSC 7 payloads look like `file://hostname/C:/Users/foo` (Windows drive) or
 // `file://hostname/home/foo` (WSL/Unix); OSC 9;9 payloads are bare Windows
@@ -119,6 +354,7 @@ export function normalizeOscCwd(raw) {
 }
 
 export function initTerminal({ cwdProvider, onToast }) {
+  injectTerminalPolishCss();
   const drawer = document.getElementById('terminal-drawer');
   const body = document.getElementById('terminal-body');
   const clearBtn = document.getElementById('terminal-clear-btn');
@@ -126,6 +362,72 @@ export function initTerminal({ cwdProvider, onToast }) {
   const tabsEl = document.getElementById('terminal-tabs');
   const newTabBtn = document.getElementById('terminal-new-tab');
   const pwdEl = document.getElementById('terminal-pwd');
+
+  // ---- Presentation chrome (status dot / ghost empty-state / animated
+  // close). Purely cosmetic: nothing here alters PTY or xterm event flow.
+  const CLOSE_FALLBACK_MS = 340; // > --dur-3 (240ms); safety net if animationend never fires
+  let dotEl = null;
+  let emptyEl = null;
+  let closeTimer = null;
+
+  // Create the status dot and ghost hint once (idempotent across re-inits).
+  function ensureChrome() {
+    if (drawer) {
+      dotEl = document.getElementById('terminal-status-dot');
+      if (!dotEl) {
+        const lg = drawer.querySelector('.terminal-left-group');
+        if (lg) {
+          dotEl = document.createElement('span');
+          dotEl.id = 'terminal-status-dot';
+          dotEl.className = 'terminal-status-dot';
+          dotEl.setAttribute('data-state', 'idle');
+          dotEl.setAttribute('aria-hidden', 'true');
+          lg.insertBefore(dotEl, lg.querySelector('.terminal-tabs'));
+        }
+      }
+    }
+    if (body) {
+      emptyEl = document.getElementById('terminal-empty-state');
+      if (!emptyEl) {
+        emptyEl = document.createElement('div');
+        emptyEl.id = 'terminal-empty-state';
+        emptyEl.className = 'terminal-empty hidden';
+        emptyEl.innerHTML =
+          '<div class="terminal-empty-glyph">&gt;_</div>' +
+          '<div class="terminal-empty-title">Terminal<span class="terminal-empty-caret"></span></div>' +
+          '<div class="terminal-empty-hint">Starting shell…</div>';
+        body.appendChild(emptyEl);
+      }
+    }
+  }
+
+  // UI state of a tab, derived from flags kept in sync with the PTY closure:
+  // error > exited > running > starting.
+  function tabUiState(t) {
+    if (!t) return 'idle';
+    if (t.failed) return 'error';
+    if (t.starting) return 'starting';
+    if (t.exited) return 'exited';
+    if (t.ptyId !== undefined) return 'running';
+    return 'starting';
+  }
+
+  function paintStatusDot(state) {
+    if (!dotEl) return;
+    dotEl.setAttribute('data-state', state);
+    const title = STATUS_DOT_TITLE[state] || '';
+    if (title) dotEl.setAttribute('title', title);
+    else dotEl.removeAttribute('title');
+  }
+
+  // Refresh the status dot (active tab's state) and the ghost empty-state
+  // (visible only while no tab exists — e.g. during a spawn/restart).
+  function updateChrome() {
+    paintStatusDot(tabUiState(getActiveTab()));
+    if (emptyEl) emptyEl.classList.toggle('hidden', tabs.length > 0);
+  }
+
+  ensureChrome();
 
   // One entry per open terminal tab. The xterm.js Terminal + the PTY id + the
   // disposers for its event subscriptions are all kept here so we can fully
@@ -197,8 +499,47 @@ export function initTerminal({ cwdProvider, onToast }) {
   }
 
   async function createTab() {
+    // Thin wrapper: refresh the presentation chrome before and after the
+    // real work — the ghost hint shows while the shell is spawning.
+    ensureChrome();
+    const pending = createTabInner();
+    updateChrome();
+    const tab = await pending;
+    updateChrome();
+    return tab;
+  }
+
+  async function createTabInner() {
     const id = `term-${tabIdCounter++}`;
     const mountEl = makeMountEl();
+
+    // Crash / exit banner. Lives on this tab's mount so it follows the tab,
+    // floats over a dimmed xterm, and offers Restart as the obvious affordance.
+    // The in-scrollback ANSI line and Enter-to-restart behavior are unchanged.
+    let exitBanner = null;
+    function hideExitBanner() {
+      if (exitBanner) { exitBanner.remove(); exitBanner = null; }
+      mountEl.classList.remove('is-dead');
+    }
+    function showExitBanner(code, errMsg) {
+      hideExitBanner();
+      exitBanner = document.createElement('div');
+      exitBanner.className = 'terminal-exit-banner';
+      const head = errMsg
+        ? 'Shell error'
+        : code !== undefined && code !== null && Number(code) !== 0 ? `Exit code ${code}` : 'Process exited';
+      const sub = errMsg ? String(errMsg) : 'The session ended. Press Enter or restart to open a fresh shell.';
+      exitBanner.innerHTML =
+        '<div class="terminal-exit-text">' +
+        `<span class="terminal-exit-head">${escapeHtml(head)}</span>` +
+        `<span class="terminal-exit-sub">${escapeHtml(sub)}</span></div>` +
+        '<button type="button" class="terminal-restart-btn">Restart</button>';
+      exitBanner.querySelector('.terminal-restart-btn').addEventListener('click', () => {
+        if (!spawning) { term.focus(); attachPty(); }
+      });
+      mountEl.appendChild(exitBanner);
+      mountEl.classList.add('is-dead');
+    }
 
     const term = new Terminal({
       fontFamily: getTerminalFontFamily(),
@@ -282,6 +623,12 @@ export function initTerminal({ cwdProvider, onToast }) {
     async function attachPty() {
       if (spawning) return false; // a respawn is already in flight — don't double-spawn
       spawning = true;
+      // UI: show "starting" immediately; clear any stale crash banner.
+      tab.exited = false;
+      tab.failed = false;
+      tab.starting = true;
+      hideExitBanner();
+      updateChrome();
       try {
         const chan = new Channel();
         chan.onmessage = (msg) => {
@@ -293,6 +640,10 @@ export function initTerminal({ cwdProvider, onToast }) {
             // (scrollback preserved) instead of leaving a dead pane around.
             exited = true;
             term.write(`\r\n\x1b[90m[process exited${msg.d ? ` (code ${msg.d})` : ''} — press Enter to restart]\x1b[0m\r\n`);
+            // UI: styled banner over the dimmed terminal + red status dot.
+            tab.exited = true;
+            showExitBanner(msg.d);
+            updateChrome();
           }
         };
 
@@ -318,6 +669,10 @@ export function initTerminal({ cwdProvider, onToast }) {
         const res = await Promise.race([spawnPromise, timeoutPromise]);
         ptyId = res.id;
         exited = false;
+        tab.exited = false;
+        tab.failed = false;
+        hideExitBanner();
+        updateChrome();
         if (ptyId !== undefined) {
           requestAnimationFrame(() => {
             try {
@@ -329,9 +684,14 @@ export function initTerminal({ cwdProvider, onToast }) {
         return true;
       } catch (err) {
         term.write(`\x1b[31mFailed to start terminal: ${escapeHtml(String(err))}\x1b[0m\r\n`);
+        tab.failed = true;
+        showExitBanner(null, String(err?.message || err));
+        updateChrome();
         return false;
       } finally {
         spawning = false;
+        tab.starting = false;
+        updateChrome();
       }
     }
 
@@ -436,6 +796,7 @@ export function initTerminal({ cwdProvider, onToast }) {
     }
     renderTabs();
     updatePwdDisplay();
+    updateChrome();
   }
 
   function closeTab(id, e, opts = {}) {
@@ -456,6 +817,7 @@ export function initTerminal({ cwdProvider, onToast }) {
     tab.mountEl?.remove();
 
     tabs = tabs.filter((t) => t.id !== id);
+    updateChrome();
     if (tabs.length === 0 && !opts.destroy) {
       // Recreate a fresh tab so the drawer is never empty (matches the
       // previous version's behavior). The `destroy` opt skips this so app
@@ -483,7 +845,12 @@ export function initTerminal({ cwdProvider, onToast }) {
 
   function open() {
     if (!drawer) return;
+    // Cancel a pending close: removing .is-leaving makes the in-flight
+    // finish() a no-op, and the entrance animation replays cleanly.
+    drawer.classList.remove('is-leaving');
     drawer.classList.remove('hidden');
+    ensureChrome();
+    updateChrome();
     bootstrapIfEmpty();
     updatePwdDisplay();
     // Fit after the drawer is visible (one frame) so cols/rows are real.
@@ -497,7 +864,30 @@ export function initTerminal({ cwdProvider, onToast }) {
   }
 
   function close() {
-    if (drawer) drawer.classList.add('hidden');
+    if (!drawer || drawer.classList.contains('hidden')) return;
+    let reduced = false;
+    try {
+      reduced = typeof matchMedia === 'function'
+        && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    } catch { /* noop */ }
+    if (reduced) { drawer.classList.add('hidden'); return; }
+    if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+    const finish = () => {
+      drawer.removeEventListener('animationend', onEnd);
+      closeTimer = null;
+      // A concurrent open() removed the leaving class — don't yank the drawer.
+      if (!drawer.classList.contains('is-leaving')) return;
+      drawer.classList.add('hidden');
+      drawer.classList.remove('is-leaving');
+    };
+    const onEnd = (e) => {
+      if (e.target === drawer && e.animationName && e.animationName.endsWith('-out')) finish();
+    };
+    drawer.classList.remove('hidden');
+    void drawer.offsetWidth; // force reflow so a rapid re-close restarts the animation
+    drawer.classList.add('is-leaving');
+    drawer.addEventListener('animationend', onEnd);
+    closeTimer = setTimeout(finish, CLOSE_FALLBACK_MS);
   }
 
   function toggle() {
@@ -565,6 +955,7 @@ export function initTerminal({ cwdProvider, onToast }) {
     const onMouseUp = () => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
+      drawer.classList.remove('is-resizing');
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       // Re-fit the active terminal to its new container size, then forward
@@ -581,6 +972,7 @@ export function initTerminal({ cwdProvider, onToast }) {
       window.addEventListener('mouseup', onMouseUp);
       document.body.style.cursor = 'ns-resize';
       document.body.style.userSelect = 'none';
+      drawer.classList.add('is-resizing');
     });
   }
 
@@ -675,6 +1067,7 @@ export function initTerminal({ cwdProvider, onToast }) {
       activeTabId = null;
       invoke('kill_all_terminals').catch(() => { /* best-effort */ });
       bootstrapped = false;
+      updateChrome();
     },
     // Apply a new xterm theme to every open terminal. Called by main.js when
     // the user switches app theme.
