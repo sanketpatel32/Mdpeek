@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildGraph, circleLayout } from '../src/lib/graph.js';
+import { buildGraph, circleLayout, graphTooltipHtml, graphEmptyHtml, graphLegendHtml } from '../src/lib/graph.js';
 
 describe('buildGraph', () => {
   it('returns an empty graph for no files', () => {
@@ -182,5 +182,45 @@ describe('circleLayout', () => {
     const pos = circleLayout(nodes, 800, 600);
     expect(pos.size).toBe(4);
     for (const n of nodes) expect(pos.has(n.id)).toBe(true);
+  });
+});
+
+describe('graph presentation helpers (v0.72.0)', () => {
+  it('graphTooltipHtml renders title, path dir and pluralized degree chip', () => {
+    const html = graphTooltipHtml({ label: 'Foo', path: 'docs/deep/Foo.md', degree: 2 });
+    expect(html).toContain('gp-tip-title">Foo<');
+    expect(html).toContain('gp-tip-path">docs / deep<');
+    expect(html).toContain('2 links');
+  });
+
+  it('graphTooltipHtml omits the path row for bare paths and singularizes', () => {
+    const html = graphTooltipHtml({ label: 'Solo', path: 'Solo.md', degree: 1 });
+    expect(html).not.toContain('gp-tip-path');
+    expect(html).toContain('1 link</span>');
+    expect(html).not.toContain('1 links');
+  });
+
+  it('graphTooltipHtml escapes HTML in labels and paths', () => {
+    const html = graphTooltipHtml({
+      label: '<img src=x onerror=1>',
+      path: '<script>/Foo.md',
+      degree: 0,
+    });
+    expect(html).not.toContain('<img');
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('&lt;img');
+  });
+
+  it('graphEmptyHtml defaults to the No-links-yet copy', () => {
+    expect(graphEmptyHtml()).toContain('No links yet');
+    expect(graphEmptyHtml('Open a folder')).toContain('Open a folder');
+    expect(graphEmptyHtml('<b>x</b>')).toContain('&lt;b&gt;');
+  });
+
+  it('graphLegendHtml lists the three node treatments once each', () => {
+    const html = graphLegendHtml();
+    expect(html).toContain('Linked');
+    expect(html).toContain('Unlinked');
+    expect(html).toContain('Hub');
   });
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computeStats, computeInsights } from '../src/lib/stats.js';
+import { parseStatNumber, formatStatNumber, statSkeletonHtml } from '../src/lib/stats.js';
 
 describe('computeStats', () => {
   it('counts words and chars for a simple sentence', () => {
@@ -105,5 +106,38 @@ describe('computeInsights (v0.46.0)', () => {
   it('respects the topN limit', () => {
     const r = computeInsights('cat dog bird fish horse cow', { topN: 3 });
     expect(r.topWords.length).toBe(3);
+  });
+});
+
+describe('stats presentation helpers (v0.72.0)', () => {
+  it('parseStatNumber reads grouped integers', () => {
+    expect(parseStatNumber('1,234')).toEqual({
+      value: 1234, decimals: 0, prefix: '', suffix: '',
+    });
+  });
+
+  it('parseStatNumber keeps suffixes and decimal precision', () => {
+    expect(parseStatNumber('12 min')).toMatchObject({ value: 12, suffix: ' min' });
+    expect(parseStatNumber('0.73')).toMatchObject({ value: 0.73, decimals: 2 });
+    expect(parseStatNumber('85 (Easy)')).toMatchObject({ value: 85, suffix: ' (Easy)' });
+  });
+
+  it('parseStatNumber rejects non-numeric values like the em dash placeholder', () => {
+    expect(parseStatNumber('—')).toBeNull();
+    expect(parseStatNumber('words only')).toBeNull();
+    expect(parseStatNumber('')).toBeNull();
+  });
+
+  it('formatStatNumber restores grouping + fixed decimals around affixes', () => {
+    expect(formatStatNumber(1234)).toBe('1,234');
+    expect(formatStatNumber(1234.5, 1)).toBe('1,234.5');
+    expect(formatStatNumber(12, 0, '', ' min')).toBe('12 min');
+  });
+
+  it('statSkeletonHtml builds label/value pairs and escapes nothing weirdly', () => {
+    const html = statSkeletonHtml(3);
+    expect((html.match(/sp-skel-label/g) || []).length).toBe(3);
+    expect((html.match(/sp-skel-value/g) || []).length).toBe(3);
+    expect(html).toContain('sp-skel-title');
   });
 });
