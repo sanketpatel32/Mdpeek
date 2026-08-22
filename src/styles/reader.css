@@ -14,15 +14,20 @@
   position: fixed;
   inset: 0;
   z-index: 1150;            /* above slideshow (1100), below modal (1200) */
-  display: flex;
-  flex-direction: column;
+  /* Grid, not flex: bar + progress strip claim full rows, then the outline
+     rail shares the last row with the scroll region. The article shifts right
+     when the rail opens (see .reader-scroll below) instead of being squeezed
+     vertically by a stacked panel. */
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   background: var(--reader-bg, #ffffff);
   color: var(--reader-fg, #1d1d1f);
 }
 
 /* ---- control bar (frosted pill, mirrors app-header aesthetic) ---- */
 .reader-bar {
-  flex: 0 0 auto;
+  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -69,11 +74,14 @@
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+  transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
 }
 .reader-btn:hover {
   background: var(--reader-btn-hover, rgba(0, 0, 0, 0.06));
   color: var(--reader-fg, #1d1d1f);
+}
+.reader-btn:active {
+  transform: scale(0.94);   /* tactile press, matches app-header buttons */
 }
 .reader-btn-lg { font-size: 15px; }
 .reader-btn:focus-visible {
@@ -93,8 +101,8 @@
    via the --reader-progress custom property (set in main.js). Mirrors the
    slideshow's progress bar pattern. */
 .reader-progress-bar {
-  flex: 0 0 auto;
-  height: 2px;
+  grid-column: 1 / -1;
+  height: 3px;
   background: var(--reader-border, rgba(0, 0, 0, 0.06));
   position: relative;
   overflow: hidden;
@@ -105,6 +113,7 @@
   inset: 0 auto 0 0;
   width: var(--reader-progress, 0%);
   background: var(--accent, #007aff);
+  border-radius: 0 999px 999px 0;   /* soft leading edge while reading */
   transition: width 80ms linear;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -112,15 +121,16 @@
 }
 
 /* ---- outline / TOC sidebar (v0.41.0) ----
-   Sits below the progress bar, left of the scroll region. Hidden by default;
-   toggled with the O key. When visible, the article shifts right via the
-   .reader.toc-open class so neither overlaps the other. */
+   Left rail in grid row 3, beside the scroll region (which steps aside via
+   :has() when the rail is visible — main.js only flips .hidden on this aside,
+   so CSS and JS stay decoupled). */
 .reader-toc {
-  flex: 0 0 auto;
+  grid-column: 1;
+  grid-row: 3;
   width: 240px;
-  max-height: 100%;
+  min-height: 0;             /* allow the 1fr row to cap it; scroll inside */
   overflow-y: auto;
-  padding: 20px 12px 32px;
+  padding: 20px 10px 28px;
   background: var(--reader-surface, var(--surface, #f7f7f8));
   border-right: 1px solid var(--reader-border, rgba(0, 0, 0, 0.06));
   font-size: 13px;
@@ -140,7 +150,12 @@
 .reader-toc-item.active {
   color: var(--reader-fg, var(--fg));
   background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);   /* Linear-style section marker */
   font-weight: 600;
+}
+.reader-toc-item:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 .reader-toc-item:hover {
   background: var(--reader-surface-hover, var(--surface-hover, rgba(0, 0, 0, 0.04)));
@@ -160,11 +175,20 @@
 
 /* ---- scroll region + article ---- */
 .reader-scroll {
-  flex: 1 1 auto;
+  grid-column: 1 / -1;       /* full width while the outline is closed… */
+  grid-row: 3;
+  min-width: 0;              /* let long code blocks shrink instead of blowing
+                                out the 1fr track */
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   /* Smooth, momentum scrolling */
   scroll-behavior: smooth;
+}
+/* …and beside the outline rail when it's open. :has() mirrors the aside's
+   .hidden state with zero JS coupling. */
+.reader:has(.reader-toc:not(.hidden)) .reader-scroll {
+  grid-column: 2;
 }
 .reader-article {
   max-width: var(--reader-width, 720px);
@@ -173,20 +197,52 @@
   font-size: var(--reader-font, 19px);
   line-height: 1.7;
   color: var(--reader-fg, #1d1d1f);
+  -webkit-font-smoothing: antialiased;
   /* Reader typography: a touch more generous than the normal view */
   font-family: var(--reader-font-family, var(--content-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif));
+}
+
+/* Selection follows the active reading preset (sepia/dark get their own
+   accent-soft), not the app theme's. */
+.reader ::selection {
+  background: var(--accent-soft);
+}
+
+/* No fixed header above the reader — anchors shouldn't inherit the main view's
+   header offset from content.css. */
+.reader-article :is(h1, h2, h3, h4, h5, h6) {
+  scroll-margin-top: 16px;
 }
 
 /* Reader-specific tweaks to the shared .markdown-body typography. Headings,
    code, tables, etc. inherit from content.css; we only override sizing/spacing
    to suit the larger reading font. */
-.reader-article h1 { font-size: 2.1em; margin-top: 0.4em; }
-.reader-article h2 { font-size: 1.6em; }
-.reader-article h3 { font-size: 1.3em; }
-.reader-article p,
-.reader-article li {
-  margin: 0 0 1em;
+.reader-article h1,
+.reader-article h2,
+.reader-article h3 {
+  text-wrap: balance;   /* avoid orphaned heading words */
 }
+
+/* Chapter-title treatment: the document's first h1 reads as a title — tighter
+   tracking, a hairline rule beneath, extra room before the body starts. */
+.reader-article > h1:first-child {
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  padding-bottom: 0.45em;
+  border-bottom: 1px solid var(--reader-border);
+  margin-bottom: 0.9em;
+}
+.reader-article h1 { font-size: 2.1em; margin-top: 0.4em; }
+.reader-article h2 { font-size: 1.6em; margin-top: 2.1em; }  /* section breaks breathe more than in the compact view */
+.reader-article h3 { font-size: 1.3em; margin-top: 1.9em; }
+
+.reader-article p {
+  margin: 0 0 1.25em;
+  text-wrap: pretty;    /* softer ragged-right, fewer lone last words */
+}
+/* Lists stay dense — items shouldn't inherit the loose paragraph gap. */
+.reader-article li { margin: 0 0 0.3em; }
+.reader-article li > p { margin: 0 0 0.35em; }
 .reader-article pre {
   font-size: 0.82em;   /* scale code down relative to the larger body text */
 }
@@ -206,6 +262,7 @@
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--reader-border, rgba(0, 0, 0, 0.08));
   border-radius: 999px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.10);   /* legibility over body text */
   pointer-events: none;
   opacity: 0;
   transition: opacity var(--dur-3) var(--ease-out);
@@ -312,11 +369,14 @@
 @media (prefers-reduced-motion: reduce) {
   .reader:not(.hidden) { animation: none; }
   .reader-hint { transition: none; }
+  .reader-btn:active { transform: none; }
 }
 
-/* Small screens: collapse the bar's text + shrink article padding. */
+/* Small screens: collapse the bar's text, shrink article padding, narrow the
+   outline rail. */
 @media (max-width: 640px) {
   .reader-title { max-width: 30%; }
   .reader-meta { display: none; }
+  .reader-toc { width: 190px; padding: 14px 8px 20px; }
   .reader-article { padding: 32px 20px 120px; font-size: 17px !important; }
 }
