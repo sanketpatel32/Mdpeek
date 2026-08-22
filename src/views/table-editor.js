@@ -18,6 +18,86 @@ const ALIGN_GLYPH = { null: '·', left: '⟸', center: '⇔', right: '⟹' };
 // JS object keys are strings; map the literal null key explicitly.
 ALIGN_GLYPH['null'] = '·';
 
+// ---------- UI polish (injected once) ----------
+// Presentation-only layer scoped under #te-overlay: keyboard focus ring settle,
+// row/col hover cross-highlight bands, button press micro-interactions,
+// sticky header-row hook, and empty-cell ghost dashes. Id-guarded so repeated
+// initTableEditor() calls never stack duplicate <style> elements.
+const POLISH_CSS = `
+/* Keyboard navigation: the focused cell carries the shared --focus-ring plus
+   a quick settle animation so arrow-key travel reads as motion, not a jump. */
+@keyframes te-focus-in {
+  from { box-shadow: var(--focus-ring), 0 0 0 6px var(--accent-soft); }
+  to   { box-shadow: var(--focus-ring); }
+}
+#te-overlay .te-cell:focus-visible {
+  border-color: var(--accent);
+  background-color: var(--bg-elevated);
+  animation: te-focus-in var(--dur-2, 180ms) var(--ease-out, ease);
+}
+/* Cross-highlight: hovering a cell tints its whole row band + column cells;
+   hovering a column control tints its cells back. .te-xh is toggled from JS. */
+#te-overlay .te-row.te-xh {
+  background: var(--surface-hover);
+  border-radius: var(--radius-sm, 6px);
+}
+#te-overlay input.te-cell.te-xh:not(:focus) {
+  background-color: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+#te-overlay .te-col-ctl.te-xh {
+  background: var(--surface-hover);
+  border-radius: var(--radius-sm, 6px);
+}
+/* Button micro-interactions: springy press scale on every tool-btn in the
+   modal; disabled buttons stay inert. */
+#te-overlay .tool-btn {
+  transition:
+    transform var(--dur-1, 120ms) var(--ease-spring, ease),
+    background-color var(--dur-1, 120ms) var(--ease-out, ease),
+    color var(--dur-1, 120ms) var(--ease-out, ease);
+}
+#te-overlay .tool-btn:not(:disabled):active { transform: scale(0.94); }
+/* Add feedback: the freshly added row slides in; new column cells fade in
+   from the left so growth direction is visible. Classes are one-shot. */
+@keyframes te-enter-row {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+#te-overlay .te-row.te-enter { animation: te-enter-row var(--dur-3, 240ms) var(--ease-spring, ease); }
+@keyframes te-enter-cell {
+  from { opacity: 0; transform: translateX(-3px); }
+  to   { opacity: 1; transform: none; }
+}
+#te-overlay .te-cell.te-enter { animation: te-enter-cell var(--dur-3, 240ms) var(--ease-spring, ease); }
+/* Sticky header hook: the header row pins just below the sticky column-
+   control strip (--te-cols-h is measured per-render in render()). Sits at a
+   lower z-index than the strip so it tucks underneath, above body cells. */
+#te-overlay .te-row.te-row-head {
+  position: sticky;
+  top: calc(var(--te-cols-h, 36px) - var(--sp-4, 12px));
+  z-index: 0;
+  background: var(--bg-elevated);
+  box-shadow: 0 1px 0 var(--border);
+}
+/* Empty-cell ghost: faint dash marks blank cells so empty columns read as
+   editable, not broken. Suppressed while focused (the caret is enough). */
+#te-overlay input.te-cell.te-empty:not(:focus) {
+  background-image: linear-gradient(var(--border-subtle, transparent), var(--border-subtle, transparent));
+  background-size: 28% 1px;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+`;
+
+function injectPolishStyle() {
+  if (document.getElementById('te-polish-style')) return;
+  const style = document.createElement('style');
+  style.id = 'te-polish-style';
+  style.textContent = POLISH_CSS;
+  document.head.appendChild(style);
+}
+
 let created = false;
 let overlay;        // #te-overlay
 let headGrid;       // .te-cols (column control strip)
@@ -28,6 +108,7 @@ let onApplyCb = null;
 let prevFocus = null;
 
 function build() {
+  injectPolishStyle();
   overlay = document.createElement('div');
   overlay.id = 'te-overlay';
   overlay.className = 'te-overlay hidden';
@@ -57,7 +138,12 @@ function build() {
   applyBtn = overlay.querySelector('.te-apply');
   overlay.querySelector('.te-close').addEventListener('click', close);
   overlay.querySelector('.te-cancel').addEventListener('click', close);
-  overlay.querySelector('.te-add-row').addEventListener('click', () => { model = addRow(model); render(); });
+  overlay.querySelector('.te-add-row').addEventListener('click', () => {
+    model = addRow(model);
+    render();
+    // Flourish: the appended row slides in so the click visibly landed.
+    pulse(bodyEl.querySelector('.te-row:last-child'), 'te-enter');
+  });
   applyBtn.addEventListener('click', () => {
     if (onApplyCb) onApplyCb(emitTable(model));
     close();
@@ -84,7 +170,7 @@ function renderCols() {
   for (let c = 0; c < colCount; c++) {
     cells.push(colControlHtml(c, colCount));
   }
-  cells.push('<button class="te-col-add tool-btn" type="button" title="Add column">+ Col</button>');
+  cells.push('<button class="te-col-add tool-btn" type="button" data-act="cadd" title="Add column">+ Col</button>');
   headGrid.innerHTML = cells.join('');
 }
 
@@ -93,7 +179,7 @@ function colControlHtml(c, colCount) {
   const glyph = ALIGN_GLYPH[String(a)];
   const canRemove = model.aligns.length > 1;
   return (
-    '<div class="te-col-ctl">'
+    '<div class="te-col-ctl" data-col="' + c + '">'
     + `<button class="te-align tool-btn" type="button" data-act="align" data-col="${c}" title="Cycle alignment (none/left/center/right)">${glyph}</button>`
     + `<button class="tool-btn te-ico" type="button" data-act="cmove-l" data-col="${c}" title="Move column left" ${c === 0 ? 'disabled' : ''}>←</button>`
     + `<button class="tool-btn te-ico" type="button" data-act="cmove-r" data-col="${c}" title="Move column right" ${c === colCount - 1 ? 'disabled' : ''}>→</button>`
@@ -121,7 +207,7 @@ function rowHtml(r, isHeader, colCount) {
     cells.push('<div class="te-row-ctl te-row-ctl-head">Header</div>');
   } else {
     cells.push(
-      '<div class="te-row-ctl">'
+      '<div class="te-row-ctl" data-row="' + r + '">'
       + `<button class="tool-btn te-ico" type="button" data-act="rmove-u" data-row="${r}" title="Move row up" ${r <= 1 ? 'disabled' : ''}>↑</button>`
       + `<button class="tool-btn te-ico" type="button" data-act="rmove-d" data-row="${r}" title="Move row down" ${r === model.rows.length - 1 ? 'disabled' : ''}>↓</button>`
       + `<button class="tool-btn te-ico te-danger" type="button" data-act="rremove" data-row="${r}" title="Remove row">✕</button>`
@@ -130,9 +216,10 @@ function rowHtml(r, isHeader, colCount) {
   }
   for (let c = 0; c < colCount; c++) {
     const val = model.rows[r][c] || '';
-    cells.push(`<input class="te-cell" type="text" data-row="${r}" data-col="${c}" value="${attrEscape(val)}" />`);
+    const emptyCls = val ? '' : ' te-empty';
+    cells.push(`<input class="te-cell${emptyCls}" type="text" data-row="${r}" data-col="${c}" value="${attrEscape(val)}" />`);
   }
-  return `<div class="te-row${isHeader ? ' te-row-head' : ''}">${cells.join('')}</div>`;
+  return `<div class="te-row${isHeader ? ' te-row-head' : ''}" data-row="${r}">${cells.join('')}</div>`;
 }
 
 function attrEscape(s) {
@@ -145,12 +232,67 @@ function attrEscape(s) {
 
 // Wire up delegated clicks (column + row controls) and cell edits. Bound once
 // on the stable parent elements in build(); event delegation via data-act /
-// data-row / data-col keeps handlers in sync with each render.
+// data-row / data-col keeps handlers in sync with each render. Pointer
+// listeners drive the row/col hover cross-highlight.
 function wire() {
   headGrid.addEventListener('click', onColClick);
   bodyEl.addEventListener('click', onRowClick);
   bodyEl.addEventListener('input', onCellInput);
   bodyEl.addEventListener('keydown', onCellKeydown);
+  headGrid.addEventListener('pointerover', onHeadPointerOver);
+  bodyEl.addEventListener('pointerover', onBodyPointerOver);
+  headGrid.addEventListener('pointerleave', clearCrossHighlight);
+  bodyEl.addEventListener('pointerleave', clearCrossHighlight);
+}
+
+// ---------- hover cross-highlight ----------
+// Tracks the currently highlighted (row, col) so repeated pointerovers within
+// the same cell are no-ops instead of re-querying the DOM every move.
+let xhRow = null;
+let xhCol = null;
+
+function clearCrossHighlight() {
+  if (!overlay) return;
+  overlay.querySelectorAll('.te-xh').forEach((el) => el.classList.remove('te-xh'));
+  xhRow = null;
+  xhCol = null;
+}
+
+// r/c may be null independently: hovering a row control highlights the band,
+// hovering a column control highlights that column's cells, hovering a cell
+// lights up both axes at once.
+function setCrossHighlight(r, c) {
+  if (!isOpen()) { clearCrossHighlight(); return; }
+  if (r === xhRow && c === xhCol) return;
+  clearCrossHighlight();
+  xhRow = r;
+  xhCol = c;
+  const mark = (el) => { if (el) el.classList.add('te-xh'); };
+  if (r !== null) mark(bodyEl.querySelector(`.te-row[data-row="${r}"]`));
+  if (c !== null) {
+    mark(headGrid.querySelector(`.te-col-ctl[data-col="${c}"]`));
+    bodyEl.querySelectorAll(`input.te-cell[data-col="${c}"]`).forEach(mark);
+  }
+}
+
+function onBodyPointerOver(e) {
+  const row = e.target.closest('.te-row');
+  const inp = e.target.closest('input.te-cell');
+  setCrossHighlight(row ? Number(row.dataset.row) : null, inp ? Number(inp.dataset.col) : null);
+}
+
+function onHeadPointerOver(e) {
+  const ctl = e.target.closest('.te-col-ctl');
+  setCrossHighlight(null, ctl ? Number(ctl.dataset.col) : null);
+}
+
+// Re-trigger a one-shot CSS animation class (te-enter-*). Removing + forcing
+// reflow + adding restarts the keyframes even when the class was already set.
+function pulse(el, cls) {
+  if (!el) return;
+  el.classList.remove(cls);
+  void el.offsetWidth; // reflow
+  el.classList.add(cls);
 }
 
 function onColClick(e) {
@@ -170,6 +312,13 @@ function onColClick(e) {
   } else if (act === 'cremove') {
     if (model.aligns.length <= 1) return; // keep ≥1 column
     model = removeColumn(model, c); render();
+  } else if (act === 'cadd') {
+    model = addColumn(model);
+    render();
+    // Flourish: the new rightmost column's cells fade in from the left.
+    const lastCol = model.aligns.length - 1;
+    bodyEl.querySelectorAll(`input.te-cell[data-col="${lastCol}"]`)
+      .forEach((inp) => pulse(inp, 'te-enter'));
   }
 }
 
@@ -193,6 +342,8 @@ function onCellInput(e) {
   const r = Number(inp.dataset.row);
   const c = Number(inp.dataset.col);
   model = setCell(model, r, c, inp.value);
+  // Keep the empty-cell ghost in sync with live typing.
+  inp.classList.toggle('te-empty', inp.value === '');
 }
 
 // Tab/Arrows/Enter navigation between cells. Enter on the last row appends.
@@ -235,6 +386,9 @@ function render() {
   renderRows();
   headGrid.style.gridTemplateColumns = tracks;
   bodyEl.querySelectorAll('.te-row').forEach((row) => { row.style.gridTemplateColumns = tracks; });
+  // Measure the column-control strip for the sticky header hook: the header
+  // row pins just below it (see --te-cols-h in POLISH_CSS).
+  overlay.style.setProperty('--te-cols-h', `${headGrid.offsetHeight}px`);
 }
 
 export function initTableEditor() {
@@ -255,6 +409,7 @@ function open(opts = {}) {
   } : null;
   if (!model) return;
   onApplyCb = typeof opts.onApply === 'function' ? opts.onApply : null;
+  clearCrossHighlight();
   render();
   prevFocus = document.activeElement;
   overlay.classList.remove('hidden');
@@ -265,6 +420,7 @@ function open(opts = {}) {
 function close() {
   if (!created || !overlay) return;
   overlay.classList.add('hidden');
+  clearCrossHighlight();
   model = null;
   onApplyCb = null;
   if (prevFocus && typeof prevFocus.focus === 'function') {

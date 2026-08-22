@@ -6,6 +6,113 @@
 // Returns { destroy() } so main.js can tear it down when switching tabs,
 // mirroring the PDF / Excalidraw controllers.
 
+// ---------- UI polish (injected once) ----------
+// Presentation-only styles scoped to .csv-viewer-inner: column type badges,
+// numeric-column alignment, keyboard focus ring on headers/filter, big-file
+// busy shimmer, and the delimiter-mismatch warning bar. Id-guarded so repeated
+// initCsvViewer() calls never stack duplicate <style> elements.
+const POLISH_CSS = `
+/* Column type badges (renderer tags th[data-sort-type]) — a quiet pill that
+   makes column types scannable without adding chrome. */
+.csv-table th[data-sort-type] .th-type {
+  display: inline-block;
+  margin-left: var(--sp-1, 4px);
+  padding: 0 var(--sp-1, 4px);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 14px;
+  letter-spacing: 0.02em;
+  vertical-align: 1px;
+  color: var(--fg-muted);
+  background: color-mix(in srgb, var(--fg-muted) 12%, transparent);
+}
+.csv-table th[data-sort-type="number"] .th-type {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+/* Numeric columns: figures right-aligned in both header and body, tabular
+   digits so they line up vertically (body rule lives in content.css). */
+.csv-table th[data-sort-type="number"] { text-align: right; }
+.csv-table td[data-numeric="1"] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+/* Keyboard navigation visuals: shared --focus-ring token, inset on table
+   headers so it doesn't clip against neighbouring cells. */
+.csv-table th:focus-visible {
+  outline: none;
+  box-shadow: inset var(--focus-ring), inset 0 0 0 1px var(--accent);
+}
+.csv-filter:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* Big-file loading state: an indeterminate sweep across the top of the viewer
+   while sort/filter work, plus a dimmed, inert scroll area. .csv-busy is
+   toggled from JS only for files above the row threshold. */
+@keyframes csv-sweep {
+  from { background-position-x: -60%; }
+  to   { background-position-x: 110%; }
+}
+.csv-viewer-inner { position: relative; }
+.csv-viewer-inner.csv-busy::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  z-index: 3;
+  border-radius: var(--radius-sm, 6px);
+  background-image: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: csv-sweep 900ms linear infinite;
+}
+.csv-viewer-inner .csv-scroll {
+  transition: opacity var(--dur-2, 180ms) var(--ease-out, ease);
+}
+.csv-viewer-inner.csv-busy .csv-scroll {
+  opacity: 0.55;
+  cursor: progress;
+  pointer-events: none;
+}
+/* Delimiter error state: rows whose field count doesn't match the header
+   usually mean the delimiter was misparsed. Designed inline warning, not a
+   console-only failure. */
+@keyframes csv-warn-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+.csv-delim-warn {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2, 6px);
+  margin-bottom: var(--sp-2, 6px);
+  padding: var(--sp-2, 6px) var(--sp-3, 8px);
+  border: 1px solid color-mix(in srgb, var(--warning, #9a6700) 45%, var(--border));
+  background: color-mix(in srgb, var(--warning, #9a6700) 10%, transparent);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 12px;
+  color: var(--fg);
+  animation: csv-warn-in var(--dur-3, 240ms) var(--ease-out, ease);
+}
+.csv-delim-warn .csv-warn-glyph { color: var(--warning, #9a6700); }
+.csv-delim-warn .csv-warn-text { flex: 1; min-width: 0; }
+.csv-delim-warn .csv-warn-close {
+  padding: 0 var(--sp-2, 6px);
+  line-height: 1.4;
+  transition: background-color var(--dur-1, 120ms) var(--ease-out, ease);
+}
+`;
+
+function injectPolishStyle() {
+  if (document.getElementById('csv-polish-style')) return;
+  const style = document.createElement('style');
+  style.id = 'csv-polish-style';
+  style.textContent = POLISH_CSS;
+  document.head.appendChild(style);
+}
+
 export function initCsvViewer(container, rows) {
   // rows is the parsed 2D array from parseCsv(). The first row is the header.
   const header = rows.length > 0 ? rows[0] : [];
@@ -20,6 +127,65 @@ export function initCsvViewer(container, rows) {
   const copyBtn = container.querySelector('.csv-copy-btn');
   const tbody = container.querySelector('.csv-table tbody');
   const ths = container.querySelectorAll('.csv-table th');
+
+  injectPolishStyle();
+
+  // Big-file virtualized feel: above this many body rows, sort/filter runs get
+  // deferred one frame behind a busy sweep, so the app paints "loading" before
+  // the synchronous work blocks instead of silently freezing mid-click.
+  const BIG_FILE_ROWS = 4000;
+
+  function withLoading(run) {
+    if (originalBody.length <= BIG_FILE_ROWS) { run(); return; }
+    if (container.classList.contains('csv-busy')) return; // coalesce bursts
+    container.classList.add('csv-busy');
+    setTimeout(() => {
+      try { run(); } finally { container.classList.remove('csv-busy'); }
+    }, 16);
+  }
+
+  // Column type badges: renderer.js tags each th[data-sort-type] after
+  // sampling the column; surface it as a quiet pill (# = numeric, A = text).
+  function injectTypeBadges() {
+    ths.forEach((th) => {
+      const type = th.dataset.sortType;
+      if (!type || th.querySelector('.th-type')) return;
+      const badge = document.createElement('span');
+      badge.className = 'th-type';
+      badge.setAttribute('aria-hidden', 'true');
+      badge.title = type === 'number' ? 'Numeric column' : 'Text column';
+      badge.textContent = type === 'number' ? '#' : 'A';
+      th.appendChild(badge);
+    });
+  }
+
+  // Delimiter error state: rows whose field count differs from the header are
+  // the classic signature of a misparsed delimiter (commas inside quoted
+  // fields, semicolon exports…). Blank trailing lines don't count.
+  function checkDelimiterMismatch() {
+    let bad = 0;
+    for (const row of originalBody) {
+      const isBlank = row.length === 1 && (row[0] ?? '') === '';
+      if (!isBlank && row.length !== header.length) bad++;
+    }
+    return bad;
+  }
+
+  function showDelimiterWarning(badCount) {
+    if (!badCount) return;
+    const toolbar = container.querySelector('.csv-toolbar');
+    if (!toolbar || container.querySelector('.csv-delim-warn')) return;
+    const bar = document.createElement('div');
+    bar.className = 'csv-delim-warn';
+    bar.innerHTML =
+      '<span class="csv-warn-glyph" aria-hidden="true">⚠</span>'
+      + '<span class="csv-warn-text"><strong>' + badCount + '</strong> row'
+      + (badCount === 1 ? '' : 's')
+      + ' with a mismatched field count — the delimiter may be misparsed.</span>'
+      + '<button class="tool-btn csv-warn-close" type="button" aria-label="Dismiss warning">✕</button>';
+    bar.querySelector('.csv-warn-close').addEventListener('click', () => bar.remove());
+    toolbar.insertAdjacentElement('afterend', bar);
+  }
 
   // Compute the current visible body rows: filter, then sort.
   function computeRows() {
@@ -105,7 +271,7 @@ export function initCsvViewer(container, rows) {
       sortDir = 'asc';
     }
     updateSortIndicators();
-    renderBody(computeRows());
+    withLoading(() => renderBody(computeRows()));
   }
 
   // Click + keyboard (Enter/Space) on column headers.
@@ -130,7 +296,7 @@ export function initCsvViewer(container, rows) {
     clearTimeout(filterTimer);
     filterTimer = setTimeout(() => {
       filterText = value;
-      renderBody(computeRows());
+      withLoading(() => renderBody(computeRows()));
     }, 100);
   }
 
@@ -158,7 +324,10 @@ export function initCsvViewer(container, rows) {
     } catch { /* clipboard denied — leave the label alone */ }
   });
 
-  // Initial state: no sort, all rows visible.
+  // Initial state: no sort, all rows visible. Badges + structural check run
+  // once per file; the busy sweep only kicks in for large files on demand.
+  injectTypeBadges();
+  showDelimiterWarning(checkDelimiterMismatch());
   updateSortIndicators();
 
   return {
