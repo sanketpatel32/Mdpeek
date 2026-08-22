@@ -17,6 +17,11 @@ export const MIN_EASE = 1.3;
 export const MIN_INTERVAL = 1;       // days
 const MS = 1; // (kept for clarity; intervals are in days)
 
+// Presentation-only: the fixed keyboard mapping for the review panel's four
+// rate buttons (main.js binds keys '1'-'4' in this order). UI polish reads it;
+// scheduling math never does.
+export const RATING_KEYS = { again: '1', hard: '2', good: '3', easy: '4' };
+
 /** A fresh card state — never reviewed, due immediately. */
 export function newCard(now = new Date()) {
   return {
