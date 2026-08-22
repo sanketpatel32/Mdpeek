@@ -604,7 +604,23 @@
               <input type="checkbox" id="graph-hide-orphans"> Hide unlinked
             </label>
           </div>
-          <svg id="graph-svg" class="graph-canvas" role="img" aria-label="Note graph"></svg>
+          <!-- v0.70.0: positioned wrapper so pan/zoom controls can float over
+               the canvas (bottom-right cluster). -->
+          <div class="graph-canvas-wrap">
+            <svg id="graph-svg" class="graph-canvas" role="img" aria-label="Note graph"></svg>
+            <!-- v0.71.0: node filter overlaid top-left; live, debounced in JS.
+                 Kept separate from #kanban-search-input so graph filtering never
+                 touches the toolbar board search. -->
+            <input type="text" id="graph-search-input" class="graph-search" placeholder="Filter nodes…"
+                   aria-label="Filter graph nodes" spellcheck="false" autocomplete="off">
+            <!-- v0.71.0: hover tooltip (label + degree), positioned by JS. -->
+            <div id="graph-tooltip" class="graph-tooltip hidden" role="tooltip"></div>
+            <div class="graph-controls">
+              <button type="button" id="graph-zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+              <button type="button" id="graph-zoom-out" title="Zoom out" aria-label="Zoom out">&minus;</button>
+              <button type="button" id="graph-zoom-reset" title="Reset view (or double-click the canvas)" aria-label="Reset view">&#x27F3;</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

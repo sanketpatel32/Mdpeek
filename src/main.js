@@ -3617,6 +3617,9 @@ function saveKanbanTasks(tasks) {
 let _kanbanTasks = loadKanbanTasks();
 let _kanbanDrag = null;
 const KANBAN_DRAG_THRESHOLD = 4;
+// UI-only hint (never persisted): id of the task that was just added or moved,
+// so renderKanban can give exactly that card a one-shot entry animation.
+let _kanbanFlashId = null;
 
 function renderKanban() {
   if (!el.kanbanBoard) return;
@@ -3645,6 +3648,9 @@ function renderKanban() {
       .filter((t) => t.status === status)
       .sort((a, b) => (a.movedAt || a.createdAt) - (b.movedAt || b.createdAt));
     const count = cards.length;
+    // Column mini-bar: this column's share of all tasks (the Done column's
+    // share is effectively the completion ratio). Purely presentational.
+    const pct = totalCount > 0 ? Math.round((count / totalCount) * 100) : 0;
 
     const cardsHtml = cards.length
       ? cards.map((t) => {
@@ -3654,8 +3660,10 @@ function renderKanban() {
             ? `<div class="kanban-card-tags">${tags.map((tg) => `<span class="kanban-tag">${escapeHtml(tg)}</span>`).join('')}</div>`
             : '';
           const timeStr = formatKanbanTime(t.createdAt);
+          // Leading-space form so the class attribute stays clean when unset.
+          const enterCls = t.id === _kanbanFlashId ? ' kanban-card-enter' : '';
           return `
-            <div class="kanban-card ${isDone ? 'kanban-card-done' : ''}" data-id="${t.id}" tabindex="0">
+            <div class="kanban-card ${isDone ? 'kanban-card-done' : ''}${enterCls}" data-id="${t.id}" tabindex="0">
               <button class="kanban-card-checkbox ${isDone ? 'checked' : ''}" data-id="${t.id}" title="${isDone ? 'Mark as incomplete' : 'Mark as done'}" aria-label="Toggle status">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">${isDone ? '<polyline points="20 6 9 17 4 12"/>' : ''}</svg>
               </button>
@@ -3690,24 +3698,33 @@ function renderKanban() {
           </span>
           <span class="kanban-column-count">${count}</span>
         </div>
+        <div class="kanban-column-meter" title="${count} of ${totalCount} task${totalCount === 1 ? '' : 's'}" aria-hidden="true">
+          <span class="kanban-column-meter-fill" style="width: ${pct}%;"></span>
+        </div>
         <div class="kanban-cards">${cardsHtml}</div>
         ${footer}
       </div>`;
   }).join('');
 
   el.kanbanBoard.innerHTML = html;
+  // Entry animation is one-shot: consume the hint so re-renders (filtering,
+  // unrelated moves) don't replay it on cards that were already visible.
+  _kanbanFlashId = null;
 }
 
 function addKanbanTask(status, text) {
   const trimmed = (text || '').trim();
   if (!trimmed) return;
+  const id = `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   _kanbanTasks.push({
-    id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id,
     status: KANBAN_ADD_STATUS,
     text: trimmed,
     createdAt: Date.now(),
   });
   saveKanbanTasks(_kanbanTasks);
+  // UI-only hint so the fresh card animates in (see _kanbanFlashId).
+  _kanbanFlashId = id;
   renderKanban();
 }
 
@@ -3720,6 +3737,9 @@ function moveKanbanTask(id, newStatus) {
   // (Resetting createdAt made old cards read "just now" and reshuffled them.)
   task.movedAt = Date.now();
   saveKanbanTasks(_kanbanTasks);
+  // UI-only hint so the moved card drops into its new column with a
+  // subtle animation (see _kanbanFlashId).
+  _kanbanFlashId = id;
   renderKanban();
   // Refocus the moved card — renderKanban rebuilds the DOM and focus is lost
   // (matters for keyboard moves; harmless after a drag).
@@ -3867,11 +3887,19 @@ async function renderCalendar() {
   for (const c of cells) {
     const todayCls = isToday(c.stamp) ? ' cal-day-today' : '';
     const outCls = c.inMonth ? '' : ' cal-day-out';
-    html += `<div class="cal-day${todayCls}${outCls}" data-stamp="${c.stamp}" role="button" tabindex="0">`
+    // Tooltip starts as the full date; the word count is appended once the
+    // month scan lands below.
+    const title = c.date.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    html += `<div class="cal-day${todayCls}${outCls}" data-stamp="${c.stamp}" title="${title}" role="button" tabindex="0">`
       + `<span class="cal-day-num">${c.date.getDate()}</span>`
       + `</div>`;
   }
   el.calGrid.innerHTML = html;
+  // Replay the grid's enter animation so switching months reads as a slide
+  // (a no-op under prefers-reduced-motion).
+  el.calGrid.classList.remove('cal-enter');
+  void el.calGrid.offsetWidth; // force reflow so the animation restarts
+  el.calGrid.classList.add('cal-enter');
   el.calFoot.textContent = notesDir ? '' : 'Set a notes folder in Settings → General to see your daily notes.';
 
   // Lazily load daily-note metadata for this month + mark cells.
@@ -3882,6 +3910,12 @@ async function renderCalendar() {
         const meta = map.get(c.stamp);
         const cellEl = el.calGrid.querySelector(`.cal-day[data-stamp="${c.stamp}"]`);
         if (meta && cellEl) {
+          if (meta.words > 0) {
+            cellEl.title += ` · ${meta.words} words`;
+            // Intensity level: busier days get a stronger accent tint (CSS).
+            const level = meta.words >= 500 ? 3 : meta.words >= 150 ? 2 : 1;
+            cellEl.classList.add(`cal-day-l${level}`);
+          }
           const dot = document.createElement('span');
           dot.className = 'cal-day-dot';
           cellEl.appendChild(dot);
@@ -4242,17 +4276,44 @@ function rateCard(rating) {
 // the note and closes the hub (mirrors Tasks/Review). Cached until Refresh.
 let _graphCache = null; // { files, at } — invalidated by Refresh + tree changes
 
+// v0.70.0: pan/zoom/drag state. The view transform composes as
+// translate(tx,ty) scale(k) on a viewport <g>; node drags mutate per-node
+// positions in _graphPositions, which override circleLayout and persist across
+// redraws (hide-unlinked toggle, resize) within one cache generation — cleared
+// whenever renderGraph rebuilds from a cold cache.
+const GRAPH_DRAG_THRESHOLD = 4; // px before a press becomes a drag (mirrors kanban)
+const GRAPH_ZOOM_MIN = 0.25;
+const GRAPH_ZOOM_MAX = 3;
+let _graphView = { tx: 0, ty: 0, k: 1 };
+const _graphPositions = new Map(); // Map<nodeId, {x,y}> — layout + dragged overrides
+let _graphDrag = null;             // active pointer session { kind, ... }
+let _graphSuppressNodeId = null;   // node whose click-open is skipped after a drag
+
+// v0.71.0 (iteration 4): interactivity overlays — hover/pin neighbor focus,
+// node filter, floating tooltip. All class-additive over .graph-node/.graph-edge.
+let _graphPinId = null;        // Alt+click-pinned focus node id (Esc exits)
+let _graphHoverNodeId = null;  // node under the cursor (delegated pointerover)
+let _graphBaseSummary = '';    // raw "N notes · M links · K unlinked" from render
+let _graphQuery = '';          // active filter substring ('' = off)
+let _graphMatchCount = 0;      // nodes matching _graphQuery in the last pass
+let _graphSearchTimer = null;  // debounce handle for the filter input
+
 async function renderGraph() {
   const svg = el.graphSvg;
   if (!svg) return;
+  // v0.71.0 polish: leaving the tab while hovering a node never fires
+  // pointerout (the panel is display:none by then), so the tooltip and hover
+  // dim would linger into the next visit. Reset both on every render.
+  _graphHoverNodeId = null;
+  hideGraphTooltip();
   const root = localStorage.getItem('mdpeek-explorer-root');
   // Empty state when there's no folder open.
   if (!root) {
     svg.innerHTML = '';
-    if (el.graphSummary) el.graphSummary.textContent = 'Open a folder to see its note graph.';
+    setGraphBaseSummary('Open a folder to see its note graph.');
     return;
   }
-  if (el.graphSummary) el.graphSummary.textContent = 'Building graph…';
+  setGraphBaseSummary('Building graph…');
   try {
     // Enumerate notes recursively (walk_notes), then batch-read contents.
     // read_files_batch isolates per-file errors so one unreadable note is skipped,
@@ -4261,6 +4322,10 @@ async function renderGraph() {
     if (_graphCache) {
       files = _graphCache.files;
     } else {
+      // Cold build (first open, or Refresh/tree changes invalidated the cache):
+      // drop dragged positions + the view transform from the old generation.
+      _graphPositions.clear();
+      _graphView = { tx: 0, ty: 0, k: 1 };
       const paths = await invoke('walk_notes', { root });
       if (!paths || paths.length === 0) {
         _graphCache = { files: [], at: Date.now() };
@@ -4275,10 +4340,19 @@ async function renderGraph() {
     }
     if (files.length === 0) {
       svg.innerHTML = '';
-      if (el.graphSummary) el.graphSummary.textContent = 'No markdown notes in this folder.';
+      setGraphBaseSummary('No markdown notes in this folder.');
       return;
     }
     const built = buildGraph(files);
+    // v0.70.0: drop dragged positions for nodes that no longer exist
+    // (renamed/deleted notes). Prune against the FULL node set so positions
+    // survive hide-unlinked toggling.
+    if (_graphPositions.size > 0) {
+      const ids = new Set(built.nodes.map((n) => n.id));
+      for (const id of [..._graphPositions.keys()]) {
+        if (!ids.has(id)) _graphPositions.delete(id);
+      }
+    }
     // v0.67.0: "Hide unlinked" filter — drop degree-0 nodes + their edges
     // (none: orphans have none by definition, but keep the guard cheap).
     const hideOrphans = !!document.getElementById('graph-hide-orphans')?.checked;
@@ -4288,36 +4362,57 @@ async function renderGraph() {
       ? built.edges.filter((ed) => keptIds.has(ed.from) && keptIds.has(ed.to))
       : built.edges;
     const orphans = hideOrphans ? 0 : built.orphans;
+    // v0.71.0: a pin whose node vanished (deleted note, hidden by hide-unlinked)
+    // drops quietly rather than keeping focus on a ghost.
+    if (_graphPinId && !keptIds.has(_graphPinId)) _graphPinId = null;
     // Render into the SVG's measured box. Defer one frame if it has no size yet
     // (just-shown panel) so circleLayout has real dimensions to work with.
-    const draw = () => drawGraph(svg, nodes, edges, orphans);
+    const draw = () => {
+      drawGraph(svg, nodes, edges, orphans);
+      // v0.71.0: the innerHTML rebuild wiped hover/pin/filter classes —
+      // reapply whichever overlays are still active.
+      refreshGraphFocus();
+      applyGraphFilter();
+    };
     const box = svg.getBoundingClientRect();
     if (box.width === 0 || box.height === 0) requestAnimationFrame(draw);
     else draw();
-    if (el.graphSummary) {
-      const eCount = edges.length;
-      el.graphSummary.textContent =
-        `${nodes.length} note${nodes.length === 1 ? '' : 's'} · ${eCount} link${eCount === 1 ? '' : 's'}` +
-        (orphans > 0 ? ` · ${orphans} unlinked` : '');
-    }
+    const eCount = edges.length;
+    setGraphBaseSummary(
+      `${nodes.length} note${nodes.length === 1 ? '' : 's'} · ${eCount} link${eCount === 1 ? '' : 's'}` +
+      (orphans > 0 ? ` · ${orphans} unlinked` : '')
+    );
   } catch (e) {
     console.error('graph render:', e);
     svg.innerHTML = '';
-    if (el.graphSummary) el.graphSummary.textContent = 'Could not build graph: ' + fmtErr(e);
+    setGraphBaseSummary('Could not build graph: ' + fmtErr(e));
   }
 }
 
-// Render the node/edge model into an SVG element. Edges first (so nodes paint
+// Render the node/edge model into an SVG element. Everything lives inside a
+// <g class="graph-viewport"> carrying the pan/zoom transform, so interaction
+// code only ever touches that attribute (or per-node transforms inside the
+// group) — layout stays deterministic underneath. Edges first (so nodes paint
 // over them), then nodes as <circle> + <text> groups with a data-node-id for
-// the delegated click handler. Sizes scale with the canvas; node radius grows
+// the delegated click handler. Edges carry data-from/data-to so node drags can
+// update connected lines live. Sizes scale with the canvas; node radius grows
 // with degree so hubs stand out.
 function drawGraph(svg, nodes, edges, orphans) {
   const box = svg.getBoundingClientRect();
   const width = Math.max(200, box.width);
   const height = Math.max(200, box.height);
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-  const positions = circleLayout(nodes, width, height);
+  const layout = circleLayout(nodes, width, height);
+  // v0.70.0: user-dragged positions win over the deterministic layout.
+  const positions = new Map();
+  for (const n of nodes) {
+    positions.set(n.id, _graphPositions.get(n.id) || layout.get(n.id));
+  }
   const maxDeg = nodes.reduce((m, n) => Math.max(m, n.degree), 0);
+  // v0.71.0: 75th-percentile degree marks hub nodes (CSS glow). Guarded with
+  // degree > 0 so an all-orphans graph can't flag every node as a hub.
+  const degSorted = nodes.map((n) => n.degree).sort((a, b) => a - b);
+  const hubAt = degSorted.length ? degSorted[Math.floor(degSorted.length * 0.75)] : 0;
   const minDim = Math.min(width, height);
   const baseR = Math.max(6, minDim / 70);
   // Escape for SVG text content + attributes.
@@ -4328,14 +4423,15 @@ function drawGraph(svg, nodes, edges, orphans) {
     const a = positions.get(e.from);
     const b = positions.get(e.to);
     if (!a || !b) return '';
-    return `<line class="graph-edge" x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" />`;
+    return `<line class="graph-edge" data-from="${esc(e.from)}" data-to="${esc(e.to)}" x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" />`;
   }).join('');
   // Nodes: degree scales radius (0..maxDeg → baseR..baseR×2).
   const nodeSvg = nodes.map((n) => {
     const p = positions.get(n.id);
     if (!p) return '';
     const r = maxDeg > 0 ? baseR + (n.degree / maxDeg) * baseR : baseR;
-    const cls = n.degree === 0 ? 'graph-node graph-node-orphan' : 'graph-node';
+    let cls = n.degree === 0 ? 'graph-node graph-node-orphan' : 'graph-node';
+    if (n.degree > 0 && n.degree >= hubAt) cls += ' graph-node-hub';
     return (
       `<g class="${cls}" data-node-id="${esc(n.id)}" data-path="${esc(n.path)}">` +
       `<title>${esc(n.label)}</title>` +
@@ -4344,14 +4440,366 @@ function drawGraph(svg, nodes, edges, orphans) {
       `</g>`
     );
   }).join('');
-  svg.innerHTML = edgeSvg + nodeSvg;
+  const v = _graphView;
+  svg.innerHTML =
+    `<g class="graph-viewport" transform="translate(${v.tx.toFixed(2)} ${v.ty.toFixed(2)}) scale(${v.k})">` +
+    edgeSvg + nodeSvg +
+    '</g>';
+}
+
+// ---- v0.71.0 (iteration 4): hover/pin focus, tooltip, node filter ----
+// All overlay state lives in the module lets above; every function here is
+// class toggling + textContent writes on the already-drawn SVG, so none of it
+// re-runs layout or fights the pan/zoom/drag transform code.
+
+// Summary composition: renderGraph stores the raw stats via setGraphBaseSummary;
+// pin + filter overlays are layered on top by refreshGraphSummary.
+function setGraphBaseSummary(text) {
+  _graphBaseSummary = text;
+  refreshGraphSummary();
+}
+
+function refreshGraphSummary() {
+  if (!el.graphSummary) return;
+  if (_graphPinId) {
+    const g = graphNodeGroup(el.graphSvg, _graphPinId);
+    const label = (g && g.querySelector('title')?.textContent) || _graphPinId;
+    const { degree } = graphScanNeighbors(el.graphSvg, _graphPinId);
+    el.graphSummary.textContent =
+      `Focused: ${label} · ${degree} direct link${degree === 1 ? '' : 's'} · Esc to exit`;
+    return;
+  }
+  let text = _graphBaseSummary;
+  if (_graphQuery) text += ` · ${_graphMatchCount} match${_graphMatchCount === 1 ? '' : 'es'}`;
+  el.graphSummary.textContent = text;
+}
+
+// Look up a rendered node group by id (null when not drawn / stale id).
+function graphNodeGroup(svg, id) {
+  if (!svg || !id) return null;
+  return svg.querySelector(`g.graph-node[data-node-id="${CSS.escape(id)}"]`);
+}
+
+// Scan the drawn edges once for everything the overlays need about `id`:
+// neighbor ids + degree. O(E) per call is fine at note-graph scale.
+function graphScanNeighbors(svg, id) {
+  const neighbors = new Set();
+  let degree = 0;
+  if (!svg || !id) return { neighbors, degree };
+  for (const line of svg.querySelectorAll('line.graph-edge')) {
+    const from = line.getAttribute('data-from');
+    const to = line.getAttribute('data-to');
+    if (from === id) { neighbors.add(to); degree++; }
+    else if (to === id) { neighbors.add(from); degree++; }
+  }
+  return { neighbors, degree };
+}
+
+// Apply (or clear, centerId=null) the dim-everything-but-neighbors pass.
+// Additive classes only — .graph-node/.graph-edge stay intact for CSS/tests.
+function applyGraphFocus(svg, centerId) {
+  if (!svg) return;
+  if (!centerId || !graphNodeGroup(svg, centerId)) {
+    svg.classList.remove('graph-focus-on');
+    for (const n of svg.querySelectorAll('.graph-node.graph-dimmed')) n.classList.remove('graph-dimmed');
+    for (const n of svg.querySelectorAll('.graph-node-focus')) n.classList.remove('graph-node-focus');
+    for (const l of svg.querySelectorAll('line.graph-edge')) {
+      l.classList.remove('graph-dimmed', 'graph-edge-active');
+    }
+    return;
+  }
+  const { neighbors } = graphScanNeighbors(svg, centerId);
+  svg.classList.add('graph-focus-on');
+  for (const g of svg.querySelectorAll('g.graph-node')) {
+    const id = g.getAttribute('data-node-id');
+    const keep = id === centerId || neighbors.has(id);
+    g.classList.toggle('graph-dimmed', !keep);
+    g.classList.toggle('graph-node-focus', id === centerId);
+  }
+  for (const line of svg.querySelectorAll('line.graph-edge')) {
+    const touches = line.getAttribute('data-from') === centerId || line.getAttribute('data-to') === centerId;
+    line.classList.toggle('graph-edge-active', touches);
+    line.classList.toggle('graph-dimmed', !touches);
+  }
+}
+
+// One place decides the effective focus center: live hover wins, falling back
+// to the pinned node while the cursor roams elsewhere. Also keeps the pin ring
+// (.graph-node-pinned) on exactly one group.
+function refreshGraphFocus() {
+  const svg = el.graphSvg;
+  if (!svg) return;
+  applyGraphFocus(svg, _graphHoverNodeId || _graphPinId);
+  for (const g of svg.querySelectorAll('g.graph-node-pinned')) g.classList.remove('graph-node-pinned');
+  const pinnedG = _graphPinId ? graphNodeGroup(svg, _graphPinId) : null;
+  if (pinnedG) pinnedG.classList.add('graph-node-pinned');
+}
+
+// Floating tooltip inside .graph-canvas-wrap: label + degree near the pointer,
+// clamped to the canvas box so it never spills out.
+function showGraphTooltip(g, id, clientX, clientY) {
+  const tip = document.getElementById('graph-tooltip');
+  const wrap = document.querySelector('.graph-canvas-wrap');
+  if (!tip || !wrap) return;
+  const titleEl = g.querySelector('title');
+  const label = (titleEl ? titleEl.textContent : '') || id;
+  const { degree } = graphScanNeighbors(el.graphSvg, id);
+  tip.textContent = `${label} · ${degree} link${degree === 1 ? '' : 's'}`;
+  const rect = wrap.getBoundingClientRect();
+  const x = Math.min(clientX - rect.left + 14, rect.width - tip.offsetWidth - 8);
+  const y = Math.min(clientY - rect.top + 14, rect.height - tip.offsetHeight - 8);
+  tip.style.left = `${Math.max(8, x)}px`;
+  tip.style.top = `${Math.max(8, y)}px`;
+  tip.classList.remove('hidden');
+}
+
+function hideGraphTooltip() {
+  document.getElementById('graph-tooltip')?.classList.add('hidden');
+}
+
+// Delegated hover pass — ONE pointerover/pointerout pair on the svg covers all
+// nodes (events bubble from circle/text into the <g>). Both bail during an
+// active drag session so the dimming pass can't fight the drag writes.
+function graphPointerOver(e) {
+  if (_graphDrag) return;
+  const g = e.target.closest ? e.target.closest('[data-node-id]') : null;
+  const id = g ? g.getAttribute('data-node-id') : null;
+  if (id === _graphHoverNodeId) return; // churn among children of the same node
+  _graphHoverNodeId = id;
+  refreshGraphFocus();
+  if (id && g) showGraphTooltip(g, id, e.clientX, e.clientY);
+  else hideGraphTooltip();
+}
+
+function graphPointerOut(e) {
+  if (_graphDrag) return;
+  const from = e.target.closest ? e.target.closest('[data-node-id]') : null;
+  const to = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('[data-node-id]') : null;
+  if (from && to && from === to) return; // internal churn within one node's <g>
+  _graphHoverNodeId = null;
+  refreshGraphFocus();
+  hideGraphTooltip();
+}
+
+// Alt+click pins/unpins neighbor focus. Re-Alt+click on another node moves the
+// pin; Alt+click on the pinned node unpins. Plain click also unpins (below).
+function toggleGraphPin(id) {
+  _graphPinId = _graphPinId === id ? null : id;
+  refreshGraphFocus();
+  refreshGraphSummary();
+}
+
+function clearGraphPin() {
+  if (!_graphPinId) return;
+  _graphPinId = null;
+  refreshGraphFocus();
+  refreshGraphSummary();
+}
+
+// Node filter: label-substring match against each drawn node's <title>.
+// Matches get .graph-node-match (accent ring); non-matches dim via CSS under
+// svg.graph-search-on. Also feeds the "n matches" summary suffix.
+function applyGraphFilter() {
+  const svg = el.graphSvg;
+  if (!svg) return;
+  const q = (document.getElementById('graph-search-input')?.value || '').trim().toLowerCase();
+  _graphQuery = q;
+  let count = 0;
+  if (q) {
+    for (const g of svg.querySelectorAll('g.graph-node')) {
+      const title = g.querySelector('title');
+      const match = (title ? title.textContent : '').toLowerCase().includes(q);
+      g.classList.toggle('graph-node-match', match);
+      if (match) count++;
+    }
+  } else {
+    for (const g of svg.querySelectorAll('g.graph-node-match')) g.classList.remove('graph-node-match');
+  }
+  svg.classList.toggle('graph-search-on', !!q);
+  _graphMatchCount = count;
+  refreshGraphSummary();
+}
+
+// v0.70.0: write the current pan/zoom state onto the viewport <g>. Cheap —
+// one setAttribute, no innerHTML rebuild.
+function applyGraphView(svg) {
+  if (!svg) return;
+  const g = svg.querySelector('.graph-viewport');
+  if (!g) return;
+  const v = _graphView;
+  g.setAttribute('transform', `translate(${v.tx.toFixed(2)} ${v.ty.toFixed(2)}) scale(${v.k})`);
+}
+
+// Map client (pointer) coordinates to viewBox coordinates. The viewBox is
+// sized to the CSS pixel box, but keep the ratio math honest for scaled UIs.
+function graphClientToViewBox(svg, clientX, clientY) {
+  const rect = svg.getBoundingClientRect();
+  const vb = svg.viewBox.baseVal;
+  const sx = vb && vb.width ? vb.width / rect.width : 1;
+  const sy = vb && vb.height ? vb.height / rect.height : 1;
+  return { x: (clientX - rect.left) * sx, y: (clientY - rect.top) * sy };
+}
+
+// Zoom by `factor` keeping the graph point under the cursor pinned. Clamped
+// to GRAPH_ZOOM_MIN..MAX; at the clamp the anchor drifts, which is fine.
+function graphZoomAt(svg, clientX, clientY, factor) {
+  if (!svg || !svg.querySelector('.graph-viewport')) return;
+  // v0.71.0: the tooltip anchors to a stale screen point once zoom moves the
+  // node under it — hide rather than track.
+  hideGraphTooltip();
+  const p = graphClientToViewBox(svg, clientX, clientY);
+  const v = _graphView;
+  const k = Math.min(GRAPH_ZOOM_MAX, Math.max(GRAPH_ZOOM_MIN, v.k * factor));
+  if (k === v.k) return;
+  v.tx = p.x - ((p.x - v.tx) * k) / v.k;
+  v.ty = p.y - ((p.y - v.ty) * k) / v.k;
+  v.k = k;
+  applyGraphView(svg);
+}
+
+function resetGraphView() {
+  _graphView = { tx: 0, ty: 0, k: 1 };
+  applyGraphView(el.graphSvg);
+}
+
+// Pointer session start on the graph canvas: pressing a node arms a node drag,
+// pressing empty canvas arms a pan. Neither starts until the pointer crosses
+// GRAPH_DRAG_THRESHOLD, so plain clicks still open notes via onGraphClick.
+function graphPointerDown(e) {
+  if (e.button !== 0) return;
+  const svg = el.graphSvg;
+  if (!svg) return;
+  const nodeG = e.target.closest('[data-node-id]');
+  // v0.71.0: any press (node drag or pan) dismisses the hover tooltip; the
+  // highlight itself stays put until the next pointerover/out after release.
+  hideGraphTooltip();
+  _graphDrag = {
+    kind: nodeG ? 'node' : 'pan',
+    g: nodeG,
+    id: nodeG ? nodeG.getAttribute('data-node-id') : null,
+    startX: e.clientX,
+    startY: e.clientY,
+    started: false,
+    movedTx: _graphView.tx,
+    movedTy: _graphView.ty,
+    pos: null,      // node's position when the drag began
+    edges: [],      // connected <line>s to update live
+  };
+  window.addEventListener('pointermove', graphPointerMove);
+  window.addEventListener('pointerup', graphPointerUp, { once: true });
+}
+
+function graphPointerMove(e) {
+  const d = _graphDrag;
+  if (!d) return;
+  const svg = el.graphSvg;
+  if (!svg) return;
+  if (!d.started) {
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (Math.abs(dx) < GRAPH_DRAG_THRESHOLD && Math.abs(dy) < GRAPH_DRAG_THRESHOLD) return;
+    d.started = true;
+    if (d.kind !== 'node') return; // pan needs no further setup
+    // Snapshot the node's current model position + the edges touching it so
+    // each move is just arithmetic + direct attribute writes.
+    d.pos = _graphPositions.get(d.id);
+    if (!d.pos) {
+      const circle = d.g.querySelector('circle');
+      d.pos = circle ? { x: circle.cx.baseVal.value, y: circle.cy.baseVal.value } : null;
+    }
+    if (!d.pos) { d.kind = 'none'; return; }
+    d.edges = [...svg.querySelectorAll(`line.graph-edge[data-from="${CSS.escape(d.id)}"], line.graph-edge[data-to="${CSS.escape(d.id)}"]`)]
+      .map((line) => ({
+        line,
+        otherId: line.getAttribute('data-from') === d.id
+          ? line.getAttribute('data-to')
+          : line.getAttribute('data-from'),
+        fromEnd: line.getAttribute('data-from') === d.id,
+        other: null,
+      }));
+  }
+  // Client px → viewBox px → model px (divide out zoom; the node lives inside
+  // the transformed viewport <g>).
+  const rect = svg.getBoundingClientRect();
+  const vb = svg.viewBox.baseVal;
+  const mx = ((e.clientX - d.startX) * (vb.width / rect.width)) / _graphView.k;
+  const my = ((e.clientY - d.startY) * (vb.height / rect.height)) / _graphView.k;
+  if (d.kind === 'node') {
+    const x = d.pos.x + mx;
+    const y = d.pos.y + my;
+    _graphPositions.set(d.id, { x, y });
+    d.g.setAttribute('transform', `translate(${mx.toFixed(2)} ${my.toFixed(2)})`);
+    for (const ed of d.edges) {
+      // Resolve the other endpoint lazily — it may itself be re-dragged later.
+      const op = ed.other || (_graphPositions.get(ed.otherId) || null);
+      ed.other = op;
+      const ox = op ? op.x : parseFloat(ed.line.getAttribute(ed.fromEnd ? 'x2' : 'x1'));
+      const oy = op ? op.y : parseFloat(ed.line.getAttribute(ed.fromEnd ? 'y2' : 'y1'));
+      if (ed.fromEnd) {
+        ed.line.setAttribute('x1', x.toFixed(1)); ed.line.setAttribute('y1', y.toFixed(1));
+        ed.line.setAttribute('x2', ox.toFixed(1)); ed.line.setAttribute('y2', oy.toFixed(1));
+      } else {
+        ed.line.setAttribute('x1', ox.toFixed(1)); ed.line.setAttribute('y1', oy.toFixed(1));
+        ed.line.setAttribute('x2', x.toFixed(1)); ed.line.setAttribute('y2', y.toFixed(1));
+      }
+    }
+  } else if (d.kind === 'pan') {
+    const vx = (e.clientX - d.startX) * (vb.width / rect.width);
+    const vy = (e.clientY - d.startY) * (vb.height / rect.height);
+    _graphView.tx = d.movedTx + vx;
+    _graphView.ty = d.movedTy + vy;
+    applyGraphView(svg);
+  }
+}
+
+function graphPointerUp() {
+  const d = _graphDrag;
+  window.removeEventListener('pointermove', graphPointerMove);
+  _graphDrag = null;
+  if (!d || !d.started) return;
+  if (d.kind === 'node') {
+    // Bake the dragged position into the DOM (circle cx/cy + text x/y) so
+    // dropping the per-node translate doesn't visually snap the node back.
+    const p = _graphPositions.get(d.id);
+    const circle = d.g?.querySelector('circle');
+    const text = d.g?.querySelector('text');
+    if (p && circle) {
+      const r = circle.r.baseVal.value;
+      circle.setAttribute('cx', p.x.toFixed(1));
+      circle.setAttribute('cy', p.y.toFixed(1));
+      if (text) {
+        text.setAttribute('x', p.x.toFixed(1));
+        text.setAttribute('y', (p.y + r + 12).toFixed(1));
+      }
+    }
+    d.g?.removeAttribute('transform');
+    // Suppress the click-open that fires right after this gesture for the
+    // dragged node (click always trails pointerup).
+    _graphSuppressNodeId = d.id;
+  }
 }
 
 // Delegated click handler: open the clicked note + close the hub. Bound once
 // on init (see the workspace event wiring near the other delegated handlers).
+// v0.70.0: a node drag sets _graphSuppressNodeId so the click that trails its
+// pointerup doesn't open the note (one-shot — any click clears the flag, so a
+// stale value can't eat a later deliberate click).
 function onGraphClick(e) {
   const g = e.target.closest('[data-node-id]');
+  if (_graphSuppressNodeId) {
+    const suppressed = !!g && g.getAttribute('data-node-id') === _graphSuppressNodeId;
+    _graphSuppressNodeId = null;
+    if (suppressed) return;
+  }
   if (!g) return;
+  // v0.71.0: Alt+click pins neighbor-focus mode instead of opening the note.
+  if (e.altKey) {
+    e.preventDefault();
+    toggleGraphPin(g.getAttribute('data-node-id'));
+    return;
+  }
+  // Plain click still opens the note (and drops any pinned focus first).
+  clearGraphPin();
   const path = g.getAttribute('data-path');
   if (!path) return;
   openPath(path).catch((err) => toast('Could not open note: ' + fmtErr(err)));
@@ -6393,6 +6841,11 @@ if (el.workspaceRefresh) {
     _reviewScan = null;
     _calCacheKey = null; _calCache = null;
     _graphCache = null;
+    // v0.70.0: a cold graph rebuild also drops dragged positions + the view
+    // transform (renderGraph does this too on any cache miss — belt and
+    // suspenders so Refresh always feels like a fresh layout).
+    _graphPositions.clear();
+    _graphView = { tx: 0, ty: 0, k: 1 };
     toast('Re-scanning notes…');
     if (_wsMode === 'tasks') renderTasks();
     else if (_wsMode === 'review') renderReview();
@@ -6554,10 +7007,70 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// Graph node click → open the note + close the hub (v0.50.0).
+// Graph node click → open the note + close the hub (v0.50.0). v0.70.0 added
+// pan/zoom/drag: pointerdown arms a pan or a node drag (threshold-gated so
+// plain clicks still open notes), wheel zooms toward the cursor, and a
+// double-click on empty canvas resets the view.
 if (el.graphSvg) {
   el.graphSvg.addEventListener('click', onGraphClick);
+  el.graphSvg.addEventListener('pointerdown', graphPointerDown);
+  // Plain wheel AND Ctrl+wheel both zoom; preventDefault keeps the page from
+  // scrolling while the cursor is over the canvas. Non-passive on purpose.
+  el.graphSvg.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    graphZoomAt(el.graphSvg, e.clientX, e.clientY, Math.exp(-e.deltaY * 0.0015));
+  }, { passive: false });
+  // Double-click EMPTY canvas = reset view. Double-clicking a node stays a
+  // plain click-open (the first click already handled it).
+  el.graphSvg.addEventListener('dblclick', (e) => {
+    if (!e.target.closest('[data-node-id]')) resetGraphView();
+  });
+  // v0.71.0: delegated hover highlighting + tooltip (one listener pair for all
+  // nodes — see graphPointerOver/graphPointerOut).
+  el.graphSvg.addEventListener('pointerover', graphPointerOver);
+  el.graphSvg.addEventListener('pointerout', graphPointerOut);
 }
+// v0.71.0: Esc exits pinned focus. Registered BEFORE the global kanban-close
+// Esc handler (same target → registration order wins) and gated on
+// _graphPinId + the graph panel, so it never shadows other Esc behavior.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !_graphPinId) return;
+  if (!document.body.classList.contains('kanban-mode') || _wsMode !== 'graph') return;
+  // Focus inside the filter box: its own Esc-clear handles it instead.
+  const t = e.target;
+  if (t && t.id === 'graph-search-input') return;
+  e.preventDefault();
+  e.stopImmediatePropagation(); // keep the global handler from closing the hub
+  clearGraphPin();
+});
+// v0.71.0: dedicated node-filter box overlaid on the canvas. Live on input,
+// debounced ~150ms; Esc clears first (stopPropagation keeps this from also
+// exiting a pin or closing the workspace hub).
+const graphSearchInput = document.getElementById('graph-search-input');
+graphSearchInput?.addEventListener('input', () => {
+  clearTimeout(_graphSearchTimer);
+  _graphSearchTimer = setTimeout(applyGraphFilter, 150);
+});
+graphSearchInput?.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  e.stopPropagation();
+  e.preventDefault();
+  clearTimeout(_graphSearchTimer);
+  graphSearchInput.value = '';
+  applyGraphFilter();
+  graphSearchInput.blur();
+});
+// v0.70.0: floating zoom controls (bottom-right of the canvas). Zoom steps
+// anchor at the canvas center via the same math as wheel zoom.
+document.getElementById('graph-zoom-in')?.addEventListener('click', () => {
+  const r = el.graphSvg?.getBoundingClientRect();
+  if (r) graphZoomAt(el.graphSvg, r.left + r.width / 2, r.top + r.height / 2, 1.25);
+});
+document.getElementById('graph-zoom-out')?.addEventListener('click', () => {
+  const r = el.graphSvg?.getBoundingClientRect();
+  if (r) graphZoomAt(el.graphSvg, r.left + r.width / 2, r.top + r.height / 2, 0.8);
+});
+document.getElementById('graph-zoom-reset')?.addEventListener('click', resetGraphView);
 // v0.67.0: graph controls — hide-unlinked toggle + re-layout on window resize
 // (the SVG used to stay clipped to the old viewBox after resizing).
 document.getElementById('graph-hide-orphans')?.addEventListener('change', renderGraph);

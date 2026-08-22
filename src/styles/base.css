@@ -1822,7 +1822,10 @@ mark.find-current {
   padding: 10px 18px;
   font-size: 13px;
   box-shadow: var(--shadow-lg);
-  z-index: 60;
+  /* Above every full-screen overlay (#kanban-view hub = 1100, drag ghost =
+     1200) so toasts fired from inside those views still surface. Stays under
+     the autocomplete dropdown (1500). */
+  z-index: 1300;
   cursor: pointer;
   animation: toast-in var(--dur-4) var(--ease-spring);
 }
@@ -3978,9 +3981,23 @@ body.kanban-mode #kanban-view { display: flex; }
 .kanban-column[data-status="done"]::before { background: var(--kanban-done); }
 
 .kanban-column.kanban-column-drop {
-  background: var(--surface-hover);
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent),
+    0 0 24px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+/* Dashed inner ring marks the exact landing zone while a card is in flight.
+   (The column's ::before top stripe stays free for the status color.) */
+.kanban-column.kanban-column-drop::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border: 1.5px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: calc(var(--radius) - 3px);
+  pointer-events: none;
 }
 
 .kanban-column-header {
@@ -4013,16 +4030,51 @@ body.kanban-mode #kanban-view { display: flex; }
 .kanban-column[data-status="done"]    .kanban-column-dot { background: var(--kanban-done); box-shadow: 0 0 8px color-mix(in srgb, var(--kanban-done) 50%, transparent); }
 
 .kanban-column-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--bg);
   border: 1px solid var(--border-subtle);
   border-radius: 999px;
-  padding: 1px 9px;
-  font-size: 11px;
-  font-weight: 600;
+  padding: 0 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
   color: var(--fg-muted);
-  min-width: 20px;
-  text-align: center;
+  min-width: 22px;
+  height: 18px;
+  line-height: 1;
 }
+
+/* Tint the pill with its column color so headers scan at a glance. */
+.kanban-column[data-status="todo"]    .kanban-column-count { color: var(--kanban-todo);  border-color: color-mix(in srgb, var(--kanban-todo) 32%, transparent);  background: color-mix(in srgb, var(--kanban-todo) 9%, transparent); }
+.kanban-column[data-status="progress"] .kanban-column-count { color: var(--kanban-doing); border-color: color-mix(in srgb, var(--kanban-doing) 32%, transparent); background: color-mix(in srgb, var(--kanban-doing) 10%, transparent); }
+.kanban-column[data-status="done"]    .kanban-column-count { color: var(--kanban-done);  border-color: color-mix(in srgb, var(--kanban-done) 32%, transparent);  background: color-mix(in srgb, var(--kanban-done) 10%, transparent); }
+
+/* Per-column mini progress bar (column share of all tasks; Done's share is
+   the completion ratio). Markup comes from renderKanban's header template. */
+.kanban-column-meter {
+  flex: 0 0 auto;
+  height: 3px;
+  margin: 0 16px 10px;
+  border-radius: 999px;
+  background: var(--surface-hover);
+  overflow: hidden;
+}
+
+.kanban-column-meter-fill {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  /* --dur-3 (240ms) matches the toolbar progress bar's fill speed. */
+  transition: width var(--dur-3) var(--ease);
+}
+
+.kanban-column[data-status="todo"]    .kanban-column-meter-fill { background: linear-gradient(90deg, color-mix(in srgb, var(--kanban-todo) 70%, transparent), var(--kanban-todo)); }
+.kanban-column[data-status="progress"] .kanban-column-meter-fill { background: linear-gradient(90deg, color-mix(in srgb, var(--kanban-doing) 70%, transparent), var(--kanban-doing)); }
+.kanban-column[data-status="done"]    .kanban-column-meter-fill { background: linear-gradient(90deg, color-mix(in srgb, var(--kanban-done) 70%, transparent), var(--kanban-done)); }
 
 .kanban-cards {
   flex: 1;
@@ -4042,7 +4094,8 @@ body.kanban-mode #kanban-view { display: flex; }
   background: var(--bg);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  padding: 12px;
+  /* Extra left padding clears the status stripe. */
+  padding: 12px 12px 12px 16px;
   font-size: 13px;
   line-height: 1.45;
   color: var(--fg);
@@ -4050,13 +4103,43 @@ body.kanban-mode #kanban-view { display: flex; }
   cursor: grab;
   touch-action: none;
   box-shadow: var(--shadow-sm);
-  transition: transform 140ms var(--ease), border-color 140ms var(--ease), box-shadow 140ms var(--ease), opacity 140ms var(--ease);
+  transition: transform 160ms var(--ease), border-color 160ms var(--ease), box-shadow 160ms var(--ease), opacity 160ms var(--ease);
 }
+
+/* Left accent stripe colored by the owning column's status. Softened so a
+   full column of cards doesn't shout; it grows slightly on hover. */
+.kanban-card::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--border-subtle);
+  transition: top 160ms var(--ease), bottom 160ms var(--ease), background-color 160ms var(--ease);
+}
+
+.kanban-column[data-status="todo"]    .kanban-card::before { background: color-mix(in srgb, var(--kanban-todo) 60%, transparent); }
+.kanban-column[data-status="progress"] .kanban-card::before { background: color-mix(in srgb, var(--kanban-doing) 60%, transparent); }
+.kanban-column[data-status="done"]    .kanban-card::before { background: color-mix(in srgb, var(--kanban-done) 60%, transparent); }
 
 .kanban-card:hover {
   transform: translateY(-2px);
   border-color: var(--border);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-md);
+}
+
+.kanban-card:hover::before {
+  top: 6px;
+  bottom: 6px;
+}
+
+/* Keyboard parity for hover (cards are tabindex=0). */
+.kanban-card:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow-sm);
 }
 
 .kanban-card.kanban-card-done {
@@ -4069,23 +4152,40 @@ body.kanban-mode #kanban-view { display: flex; }
 }
 
 .kanban-card.kanban-card-dragging {
-  opacity: 0.5;
+  opacity: 0.35;
   cursor: grabbing;
+  transform: scale(0.97) rotate(-1deg);
+  border-style: dashed;
+  border-color: var(--accent);
+  box-shadow: none;
+}
+
+/* One-shot entry animation for freshly added/moved cards only (the flag is
+   set in addKanbanTask/moveKanbanTask and consumed by renderKanban). */
+@keyframes kanban-card-enter {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.kanban-card.kanban-card-enter {
+  animation: kanban-card-enter 260ms var(--ease) backwards;
 }
 
 .kanban-card-ghost {
   position: fixed;
-  transform: translate(-50%, -50%) rotate(2deg) scale(1.02);
+  transform: translate(-50%, -50%) rotate(3deg) scale(1.04);
   pointer-events: none;
   z-index: 1200;
   max-width: 340px;
   width: 280px;
-  padding: 12px 14px;
+  padding: 12px 14px 12px 20px;
   background: var(--bg-elevated);
   color: var(--fg);
-  border: 1px solid var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
   border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-lg);
+  box-shadow:
+    var(--shadow-lg),
+    0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent);
   font-size: 13px;
   line-height: 1.45;
   word-break: break-word;
@@ -4097,7 +4197,7 @@ body.kanban-mode #kanban-view { display: flex; }
   flex: 0 0 auto;
   width: 18px;
   height: 18px;
-  border-radius: 4px;
+  border-radius: calc(var(--radius-sm) - 1px);
   border: 1.5px solid var(--border);
   background: transparent;
   color: #ffffff;
@@ -4107,16 +4207,36 @@ body.kanban-mode #kanban-view { display: flex; }
   cursor: pointer;
   margin-top: 1px;
   padding: 0;
-  transition: background-color 120ms var(--ease), border-color 120ms var(--ease);
+  transition: background-color 140ms var(--ease), border-color 140ms var(--ease), transform 140ms var(--ease);
 }
 
 .kanban-card-checkbox:hover {
-  border-color: var(--accent);
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+/* Little "settle" pop the moment the card is marked done. */
+@keyframes kanban-check-pop {
+  0%   { transform: scale(0.8); }
+  60%  { transform: scale(1.12); }
+  100% { transform: scale(1); }
 }
 
 .kanban-card-checkbox.checked {
   background: var(--success);
   border-color: var(--success);
+  animation: kanban-check-pop 240ms var(--ease);
+}
+
+/* Tick draws itself in (polyline length ≈ 23 → dasharray 24). */
+@keyframes kanban-check-draw {
+  from { stroke-dashoffset: 24; }
+  to   { stroke-dashoffset: 0; }
+}
+
+.kanban-card-checkbox.checked svg polyline {
+  stroke-dasharray: 24;
+  animation: kanban-check-draw 220ms var(--ease) backwards;
 }
 
 .kanban-card-body {
@@ -4180,15 +4300,17 @@ body.kanban-mode #kanban-view { display: flex; }
   justify-content: center;
   border-radius: var(--radius-sm);
   font-size: 14px;
-  opacity: 0.5;
-  transition: opacity 120ms var(--ease), background-color 120ms var(--ease), color 120ms var(--ease);
+  /* Hidden until the card is hovered or focused — keeps the card face calm.
+     Stays focusable (opacity only), so keyboard users still reach it. */
+  opacity: 0;
+  transform: translateX(2px);
+  transition: opacity 140ms var(--ease), transform 140ms var(--ease), background-color 120ms var(--ease), color 120ms var(--ease);
 }
 
-.kanban-card:focus-within .kanban-card-delete {
-  opacity: 1;
-}
+.kanban-card:focus-within .kanban-card-delete,
 .kanban-card:hover .kanban-card-delete {
   opacity: 1;
+  transform: translateX(0);
 }
 
 .kanban-card-delete:hover {
@@ -4215,31 +4337,60 @@ body.kanban-mode #kanban-view { display: flex; }
   background: var(--bg);
   color: var(--fg);
   min-width: 0;
-  transition: border-color 140ms var(--ease), box-shadow 140ms var(--ease);
+  transition: border-color 140ms var(--ease), box-shadow 140ms var(--ease), background-color 140ms var(--ease);
+}
+
+.kanban-add-input:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
 }
 
 .kanban-add-input:focus {
   outline: none;
+  background: var(--surface);
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.kanban-add-input::placeholder {
+  color: var(--fg-muted);
+  opacity: 0.8;
 }
 
 .kanban-add-btn {
   flex: 0 0 auto;
   border: none;
-  background: var(--accent);
+  background: linear-gradient(180deg, color-mix(in srgb, #ffffff 12%, var(--accent)), var(--accent));
   color: #ffffff;
   border-radius: var(--radius-sm);
-  padding: 0 14px;
+  padding: 0 16px;
   font-size: 13px;
   cursor: pointer;
   font-weight: 600;
-  transition: filter 120ms var(--ease), transform 120ms var(--ease);
+  letter-spacing: 0.01em;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 1px 2px rgba(0, 0, 0, 0.12);
+  transition: filter 120ms var(--ease), transform 120ms var(--ease), box-shadow 120ms var(--ease);
 }
 
 .kanban-add-btn:hover {
   filter: brightness(1.08);
   transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 3px 8px rgba(0, 0, 0, 0.16);
+}
+
+.kanban-add-btn:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.kanban-add-btn:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px var(--accent-soft),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .kanban-empty {
@@ -4247,19 +4398,42 @@ body.kanban-mode #kanban-view { display: flex; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
   color: var(--fg-muted);
   font-size: 12.5px;
   padding: 32px 16px;
   text-align: center;
-  border: 1.5px dashed var(--border-subtle);
-  border-radius: var(--radius-sm);
+  border: 1.5px dashed color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: var(--radius);
   margin: 10px 0;
-  opacity: 0.7;
 }
 
+/* Soft circular chip behind the icon so the glyph reads as an illustration,
+   not stray line-art. */
 .kanban-empty svg {
-  opacity: 0.6;
+  width: 36px;
+  height: 36px;
+  padding: 8px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--surface-hover);
+  opacity: 0.75;
+}
+
+/* Calmer board under reduced-motion: skip entry/check flourishes and hover
+   lifts, keep everything else (colors, layout) intact. */
+@media (prefers-reduced-motion: reduce) {
+  .kanban-card.kanban-card-enter,
+  .kanban-card-checkbox.checked,
+  .kanban-card-checkbox.checked svg polyline {
+    animation: none;
+  }
+
+  .kanban-card:hover,
+  .kanban-card.kanban-card-dragging,
+  .kanban-card-delete {
+    transform: none;
+  }
 }
 
 /* ========================================================================
@@ -4379,17 +4553,31 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   flex: 1;
   font-size: 16px;
   font-weight: 600;
+  letter-spacing: -0.01em;
   text-align: center;
   border-radius: var(--radius-sm);
   cursor: pointer;
+  /* Padding gives the hover wash shape without shifting the centered label. */
+  padding: 4px 10px;
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
 }
 .calendar-header .cal-label:hover {
   color: var(--accent);
+  background: var(--accent-soft);
 }
 .calendar-header .cal-label:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
 }
+
+/* Month-switch entrance: gentle fade + rise. JS re-toggles .cal-enter on
+   every render so it replays per month change. */
+@keyframes cal-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.calendar-grid.cal-enter { animation: cal-enter 180ms var(--ease-out); }
+
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -4404,7 +4592,12 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   color: var(--fg-muted);
   padding: 6px 0;
 }
+/* Weekend headers (Mon-start: cols 6/7 = Sat/Sun) carry a faint accent hint. */
+.cal-dow:nth-child(7n + 6),
+.cal-dow:nth-child(7n) { color: color-mix(in srgb, var(--accent) 40%, var(--fg-muted)); }
+
 .cal-day {
+  position: relative;
   aspect-ratio: 1 / 1;
   min-height: 64px;
   border: 1px solid var(--border-subtle);
@@ -4412,24 +4605,63 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   padding: 6px 8px;
   display: flex;
   flex-direction: column;
-  background: var(--bg-elevated);
   cursor: pointer;
-  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-spring);
+  /* Layered paint: optional --cal-tint wash over a soft vertical gradient.
+     The hover `background` shorthand clears both at once for a clean return. */
+  background-color: var(--bg-elevated);
+  background-image:
+    var(--cal-tint, none),
+    linear-gradient(180deg, transparent, color-mix(in srgb, var(--surface-hover) 26%, transparent));
+  transition:
+    background-color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out),
+    opacity var(--dur-2) var(--ease-out),
+    transform var(--dur-1) var(--ease-spring);
 }
-.cal-day:hover { background: var(--surface-hover); border-color: var(--border); }
+.cal-day:hover {
+  background: var(--surface-hover);
+  border-color: var(--border);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px -4px color-mix(in srgb, var(--fg) 22%, transparent);
+}
 .cal-day:active { transform: scale(0.97); }
 .cal-day:focus-visible {
   outline: none;
   border-color: var(--accent);
   box-shadow: var(--focus-ring);
 }
-/* Out-month cells: dim less (0.4 failed 3:1 on light themes) and mute only
-   the number, so the accent today ring survives in leading/trailing weeks. */
-.cal-day-out { opacity: 0.55; }
+/* Weekend columns get a whisper of neutral tint (every 7th child starting at
+   col 6 = Sat; the .cal-day class keeps the dow headers out of this). */
+.cal-day:nth-child(7n + 6),
+.cal-day:nth-child(7n) {
+  --cal-tint: linear-gradient(color-mix(in srgb, var(--fg) 4%, transparent) 0 0);
+}
+/* Note-intensity tint: busier writing days glow more strongly. Declared after
+   the weekend rule (and one class more specific) so real notes win ties. */
+.cal-day.cal-day-l1 { --cal-tint: linear-gradient(color-mix(in srgb, var(--accent) 8%, transparent) 0 0); }
+.cal-day.cal-day-l2 { --cal-tint: linear-gradient(color-mix(in srgb, var(--accent) 15%, transparent) 0 0); }
+.cal-day.cal-day-l3 { --cal-tint: linear-gradient(color-mix(in srgb, var(--accent) 24%, transparent) 0 0); }
+/* Out-month cells: dimmer but still clickable; hover eases them back toward
+   full strength (0.4 failed 3:1 on light themes, so we stop at 0.5). */
+.cal-day-out { opacity: 0.5; }
+.cal-day-out:hover { opacity: 0.85; }
 .cal-day-out .cal-day-num { color: var(--fg-muted); }
 .cal-day-today {
   border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  /* Double ring — crisp inset line plus a soft outer halo — so today reads
+     instantly even among tinted or dimmed neighbours. */
+  box-shadow:
+    inset 0 0 0 1px var(--accent),
+    0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 0 12px -2px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.cal-day-today:hover {
+  border-color: var(--accent);
+  box-shadow:
+    inset 0 0 0 1px var(--accent),
+    0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 4px 14px -3px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 .cal-day-num { font-size: 13px; font-weight: 600; color: var(--fg-secondary); }
 /* Today reads as a pill — consistent with the app's pill vocabulary and
@@ -4442,26 +4674,46 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   margin: -1px -6px;
   align-self: flex-start;
 }
+/* Note dot: bottom-left corner with a soft accent glow that scales with the
+   day's intensity level. */
 .cal-day-dot {
-  width: 5px; height: 5px; border-radius: 50%;
+  width: 6px; height: 6px; border-radius: 50%;
   background: var(--accent);
   margin-top: auto;
   align-self: flex-start;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 55%, transparent);
 }
+.cal-day-l2 .cal-day-dot { box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 70%, transparent); }
+.cal-day-l3 .cal-day-dot { box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 85%, transparent); }
+/* Word-count chip: tiny muted pill pinned bottom-right, opposite the dot.
+   Absolutely positioned so it never fights the dot's auto margin for space. */
 .cal-day-words {
-  font-size: 11px;
-  color: var(--fg-secondary);
-  margin-top: 2px;
-  max-width: 100%;
+  position: absolute;
+  right: 6px;
+  bottom: 5px;
+  max-width: 62%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--fg-muted);
+  background: var(--surface-hover);
+  border-radius: 999px;
+  padding: 3px 6px;
 }
 .cal-foot {
   text-align: center;
   font-size: 12px;
   color: var(--fg-muted);
   margin: 16px 0 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .calendar-grid.cal-enter { animation: none; }
+  /* Same neutralization the kanban cards get: no hover lift / press squash. */
+  .cal-day:hover,
+  .cal-day:active { transform: none; }
 }
 
 /* ---- Tasks inbox ---- */
@@ -4633,9 +4885,63 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 .graph-shell { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; height: 100%; }
 .graph-header { text-align: center; margin-bottom: 12px; }
 .graph-summary { font-size: 13px; color: var(--fg-muted); }
-.graph-canvas { width: 100%; flex: 1; min-height: 420px; display: block; }
-/* Edges: subtle lines so the nodes read as the figure. */
-.graph-edge { stroke: var(--border); stroke-width: 1; }
+/* v0.70.0: positioned wrapper so the zoom control cluster can float over the
+   canvas. The wrapper takes over the old flex sizing of .graph-canvas. */
+.graph-canvas-wrap { position: relative; flex: 1; min-height: 420px; }
+.graph-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* Panning/dragging are pointer-driven; don't let touch gestures scroll. */
+  touch-action: none;
+  cursor: grab;
+}
+.graph-canvas:active { cursor: grabbing; }
+/* v0.70.0: floating pan/zoom controls, bottom-right over the canvas. */
+.graph-controls {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.graph-controls button {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--fg-muted);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out), transform 100ms var(--ease);
+}
+.graph-controls button:hover { color: var(--fg); border-color: var(--accent); }
+.graph-controls button:active { transform: scale(0.94); }
+/* Edges: subtle lines so the nodes read as the figure. v0.71.0: rounded caps
+   + slight transparency so highlighted edges pop against them. */
+.graph-edge {
+  stroke: var(--border);
+  stroke-width: 1;
+  stroke-linecap: round;
+  opacity: 0.55;
+  transition:
+    opacity var(--dur-1) var(--ease-out),
+    stroke var(--dur-1) var(--ease-out),
+    stroke-width var(--dur-1) var(--ease-out);
+}
+.graph-edge.graph-edge-active {
+  opacity: 1;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
 /* Nodes: filled circles, accent-coloured; orphan notes are dimmed. */
 .graph-node circle {
   fill: var(--accent);
@@ -4658,6 +4964,77 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   stroke-width: 2.5;
 }
 .graph-node:hover text { fill: var(--fg); font-weight: 600; }
+
+/* ---- v0.71.0 (iteration 4): graph interactivity overlays ----
+   Hover/pin focus, node filter, hub glow, floating tooltip. Everything is
+   additive classes over .graph-node/.graph-edge; layout is untouched. */
+
+.graph-node { transition: opacity var(--dur-1) var(--ease-out); }
+
+/* Focus passes (live hover OR pinned node): everything not connected fades
+   back; connected edges brighten via .graph-edge-active above. */
+#graph-svg.graph-focus-on .graph-node.graph-dimmed { opacity: 0.18; }
+#graph-svg.graph-focus-on .graph-node.graph-dimmed text { opacity: 0.4; }
+#graph-svg.graph-focus-on line.graph-edge.graph-dimmed { opacity: 0.12; }
+.graph-node.graph-node-focus circle { stroke-width: 2.5; }
+
+/* Alt+click pin: accent ring marks the locked node while focus is held. */
+.graph-node.graph-node-pinned circle {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+/* Hubs (degree ≥ 75th percentile): soft glow halo + stronger label. */
+.graph-node-hub circle {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 65%, transparent));
+}
+.graph-node-hub text { fill: var(--fg); font-weight: 600; }
+
+/* Node filter: matches ringed in accent, non-matches fade under
+   svg.graph-search-on (set by JS only while the query is non-empty). */
+#graph-svg.graph-search-on .graph-node:not(.graph-node-match) { opacity: 0.18; }
+#graph-svg.graph-search-on .graph-node:not(.graph-node-match) text { opacity: 0.4; }
+.graph-node.graph-node-match circle {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+/* Filter box overlaid top-left of the canvas (mirrors .graph-controls sizing). */
+.graph-search {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 180px;
+  padding: 5px 9px;
+  font-size: 12px;
+  color: var(--fg);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
+}
+.graph-search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.graph-search::placeholder { color: var(--fg-muted); }
+
+/* Floating node tooltip (label + degree), positioned by JS inside
+   .graph-canvas-wrap; pointer-events:none so it never steals hover. */
+.graph-tooltip {
+  position: absolute;
+  z-index: 5;
+  max-width: 240px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--fg);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 
 /* ---------- Settings dialog (v0.65.0 redesign) ----------
