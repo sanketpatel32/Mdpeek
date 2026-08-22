@@ -3385,15 +3385,8 @@ body.presenting #slideshow { display: flex; }
   font-weight: 600;
   color: var(--fg);
 }
-/* v0.32.1: the Settings dialog title is a header bar — bigger type, more
-   bottom margin, and a hairline divider separating it from the two-pane shell.
-   Scoped to .modal-wide so small confirm dialogs keep their compact title. */
-.modal-wide .modal-title {
-  margin: 0 0 16px;
-  padding-bottom: 14px;
-  font-size: 19px;
-  border-bottom: 1px solid var(--border-subtle);
-}
+/* The Settings dialog (.modal-wide) styles its title through the
+   .settings-header bar below — no extra rules needed here. */
 .modal-text {
   margin: 0 0 16px;
   font-size: 13px;
@@ -4675,7 +4668,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   align-items: center;
   gap: 14px;
   padding-bottom: 12px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   border-bottom: 1px solid var(--border-subtle);
 }
 .settings-header .modal-title {
@@ -4784,16 +4777,21 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   justify-content: center;
   width: 30px;
   height: 30px;
-  border-radius: 50%;
-  border: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
   background: transparent;
   color: var(--fg-muted);
   cursor: pointer;
-  transition: background-color var(--dur-1) ease, color var(--dur-1) ease;
+  transition: background-color var(--dur-1) ease, color var(--dur-1) ease,
+    border-color var(--dur-1) ease, transform 100ms ease;
 }
 .settings-close-btn:hover {
   background: var(--surface-hover);
   color: var(--fg);
+  border-color: var(--border-subtle);
+}
+.settings-close-btn:active {
+  transform: scale(0.94);
 }
 
 /* Two-pane shell: category sidebar on the left, content on the right. */
@@ -4885,10 +4883,8 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 .settings-cat.active svg {
   color: var(--accent);
 }
-.settings-cat:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
+/* Focus: no local override — the global :focus-visible ring (v0.62.1)
+   covers keyboard users, same as every other control in the app. */
 
 /* Content pane — holds one panel per category with smooth tab transition */
 .settings-content {
@@ -4926,8 +4922,8 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 }
 .panel-head .panel-title {
   margin: 0 0 2px;
-  font-size: 16.5px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 650;
   letter-spacing: -0.01em;
   color: var(--fg);
 }
