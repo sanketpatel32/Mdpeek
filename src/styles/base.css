@@ -4420,8 +4420,8 @@ body.kanban-mode #kanban-view { display: flex; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 12px 24px;
+  gap: var(--sp-5);
+  padding: var(--sp-4) var(--sp-7);
   border-bottom: 1px solid var(--border-subtle);
   background: var(--surface);
   user-select: none;
@@ -4538,8 +4538,8 @@ body.kanban-mode #kanban-view { display: flex; }
   flex: 1;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-  padding: 20px 24px;
+  gap: var(--sp-6);
+  padding: var(--sp-6) var(--sp-7);
   overflow: hidden;
 }
 
@@ -4694,7 +4694,10 @@ body.kanban-mode #kanban-view { display: flex; }
   cursor: grab;
   touch-action: none;
   box-shadow: var(--shadow-sm);
-  transition: transform 160ms var(--ease), border-color 160ms var(--ease), box-shadow 160ms var(--ease), opacity 160ms var(--ease);
+  /* Shadow trails the lift: transform snaps in fast while the elevation
+     eases on the slower --dur-3 leg, so the card reads as rising off the
+     column instead of teleporting. */
+  transition: transform 160ms var(--ease), border-color 160ms var(--ease), box-shadow var(--dur-3) var(--ease-out), opacity 160ms var(--ease);
 }
 
 /* Left accent stripe colored by the owning column's status. Softened so a
@@ -5011,6 +5014,19 @@ body.kanban-mode #kanban-view { display: flex; }
   opacity: 0.75;
 }
 
+/* Empty wells join the drop conversation: while a card is in flight over the
+   column, the dashed frame warms to accent so the landing zone stays legible
+   even with zero cards on the board. */
+.kanban-column.kanban-column-drop .kanban-empty {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* Add-composer affordance reveals on column hover — entering the column
+   anywhere hints the input is ready before a precise hover on the field. */
+.kanban-column:hover .kanban-add-input {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+
 /* Calmer board under reduced-motion: skip entry/check flourishes and hover
    lifts, keep everything else (colors, layout) intact. */
 @media (prefers-reduced-motion: reduce) {
@@ -5077,7 +5093,7 @@ body.kanban-mode #kanban-view { display: flex; }
 .workspace-panel[data-mode="tasks"],
 .workspace-panel[data-mode="review"],
 .workspace-panel[data-mode="graph"] {
-  padding: 20px 24px;
+  padding: var(--sp-6) var(--sp-7);
 }
 
 /* Per-mode toolbar button visibility (toggled by JS, but provide the class). */
@@ -5137,8 +5153,8 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 .calendar-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
 }
 .calendar-header .cal-label {
   flex: 1;
@@ -5266,14 +5282,17 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   align-self: flex-start;
 }
 /* Note dot: bottom-left corner with a soft accent glow that scales with the
-   day's intensity level. */
+   day's intensity level. Springs up slightly when the cell is hovered so the
+   marker feels attached to the day under the pointer. */
 .cal-day-dot {
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--accent);
   margin-top: auto;
   align-self: flex-start;
   box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 55%, transparent);
+  transition: transform var(--dur-1) var(--ease-spring);
 }
+.cal-day:hover .cal-day-dot { transform: scale(1.3); }
 .cal-day-l2 .cal-day-dot { box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 70%, transparent); }
 .cal-day-l3 .cal-day-dot { box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 85%, transparent); }
 /* Word-count chip: tiny muted pill pinned bottom-right, opposite the dot.
@@ -5298,13 +5317,14 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   text-align: center;
   font-size: 12px;
   color: var(--fg-muted);
-  margin: 16px 0 0;
+  margin: var(--sp-5) 0 0;
 }
 @media (prefers-reduced-motion: reduce) {
   .calendar-grid.cal-enter { animation: none; }
   /* Same neutralization the kanban cards get: no hover lift / press squash. */
   .cal-day:hover,
   .cal-day:active { transform: none; }
+  .cal-day:hover .cal-day-dot { transform: none; }
 }
 
 /* ---- Tasks inbox ---- */
@@ -5312,11 +5332,16 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 .tasks-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-5);
 }
-.tasks-summary { font-size: 12.5px; color: var(--fg-muted); }
-.tasks-list { display: flex; flex-direction: column; gap: 8px; }
+/* Counts read width-stable while filters change ("3 open · 1 done"). */
+.tasks-summary {
+  font-size: 12.5px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+.tasks-list { display: flex; flex-direction: column; gap: var(--sp-3); }
 .task-row {
   display: flex;
   align-items: flex-start;
@@ -5328,7 +5353,13 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   cursor: pointer;
   transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-spring);
 }
-.task-row:hover { background: var(--surface-hover); border-color: var(--border); }
+/* Hover ramp: wash + border step, then a 1px spring lift (the transition
+   already carries the transform leg). Active row squashes back down. */
+.task-row:hover {
+  background: var(--surface-hover);
+  border-color: var(--border);
+  transform: translateY(-1px);
+}
 .task-row:active { transform: scale(0.99); }
 .task-check {
   width: 18px; height: 18px;
@@ -5341,7 +5372,18 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   display: inline-flex; align-items: center; justify-content: center;
   transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
 }
-.task-check.checked { background: var(--success); border-color: var(--success); }
+.task-check.checked {
+  background: var(--success);
+  border-color: var(--success);
+  /* Same settle-pop the kanban checkbox uses, so both task surfaces share
+     one completion gesture. */
+  animation: task-check-pop 240ms var(--ease);
+}
+@keyframes task-check-pop {
+  0%   { transform: scale(0.8); }
+  60%  { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
 .task-check.checked::after {
   content: '✓'; color: #fff; font-size: 12px; font-weight: 700; line-height: 1;
 }
@@ -5374,12 +5416,17 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   color: var(--fg-muted);
   font-size: 13px;
 }
+/* Row lift + checkbox pop are decorative — strip them under reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .task-row:hover { transform: none; }
+  .task-check.checked { animation: none; }
+}
 
 /* ---- Review / flashcards ---- */
 .review-shell { max-width: 640px; margin: 0 auto; }
-.review-header { text-align: center; margin-bottom: 20px; }
+.review-header { text-align: center; margin-bottom: var(--sp-6); }
 .review-summary { font-size: 13px; color: var(--fg-muted); }
-.review-stage { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+.review-stage { display: flex; flex-direction: column; align-items: center; gap: var(--sp-6); }
 .review-card {
   width: 100%;
   min-height: 220px;
@@ -5403,7 +5450,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 32px;
+  padding: var(--sp-8);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
@@ -5430,7 +5477,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 .review-hint {
   font-size: 12px;
   color: var(--fg-muted);
-  margin-top: 16px;
+  margin-top: var(--sp-5);
 }
 .review-actions {
   display: flex;
@@ -5474,7 +5521,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 
 /* ---- Graph view (v0.50.0) ---- */
 .graph-shell { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; height: 100%; }
-.graph-header { text-align: center; margin-bottom: 12px; }
+.graph-header { text-align: center; margin-bottom: var(--sp-4); }
 .graph-summary { font-size: 13px; color: var(--fg-muted); }
 /* v0.70.0: positioned wrapper so the zoom control cluster can float over the
    canvas. The wrapper takes over the old flex sizing of .graph-canvas. */
@@ -5491,11 +5538,11 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 /* v0.70.0: floating pan/zoom controls, bottom-right over the canvas. */
 .graph-controls {
   position: absolute;
-  right: 12px;
-  bottom: 12px;
+  right: var(--sp-4);
+  bottom: var(--sp-4);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--sp-2);
 }
 .graph-controls button {
   width: 28px;
