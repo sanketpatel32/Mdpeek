@@ -97,6 +97,7 @@
   --accent-hover: #0060c0;
   --accent-soft: rgba(0, 113, 227, 0.1);
   --danger: #ff3b30;
+  --warning: #9a6700;
   --success: #34c759;
 
   /* code */
@@ -112,6 +113,12 @@
      Uses the theme's own bg + accent so the swatch always matches reality. */
   --sw-bg: #f8f8fa;
   --sw-accent: #0071e3;
+
+  /* Kanban accents — macOS system light-mode colors, matching this theme's
+     accent/success family instead of the cool-spectrum defaults. */
+  --kanban-todo:  #0071e3;
+  --kanban-doing: #ff9500;
+  --kanban-done:  #34c759;
 }
 
 /* Design tokens — Dark
@@ -134,17 +141,26 @@
   --accent-hover: #409cff;
   --accent-soft: rgba(10, 132, 255, 0.16);
   --danger: #ff453a;
+  --warning: #d29922;
   --success: #30d158;
 
   --code-bg: #232326;
   --code-border: #3d3d41;
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+  /* Layered like the light theme: a tight contact shadow + a soft ambient
+     one, so elevated panels read as physically stacked on dark too. */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.35);
 
   --sw-bg: #1b1b1e;
   --sw-accent: #0a84ff;
+
+  /* Kanban accents — macOS system dark-mode colors, matching this theme's
+     accent/success family instead of the cool-spectrum defaults. */
+  --kanban-todo:  #0a84ff;
+  --kanban-doing: #ff9f0a;
+  --kanban-done:  #30d158;
 
   --alert-note: #4493f8;        --alert-note-bg: rgba(68, 147, 248, 0.12);
   --alert-tip: #3fb950;         --alert-tip-bg: rgba(63, 185, 80, 0.12);
@@ -173,14 +189,17 @@
   --accent-hover: #1e6fa7;
   --accent-soft: rgba(38, 139, 210, 0.12);
   --danger: #dc322f;
+  --warning: #b58900;
   --success: #859900;
 
   --code-bg: #eee8d5;
   --code-border: #ddd6c1;
 
-  --shadow-sm: 0 1px 3px rgba(101, 123, 131, 0.08);
-  --shadow-md: 0 4px 12px rgba(101, 123, 131, 0.1);
-  --shadow-lg: 0 12px 32px rgba(101, 123, 131, 0.14);
+  /* Solarized's shadows are tinted with base01 (101,123,131), never black —
+     layered here too so elevation reads on cream paper like on dark UIs. */
+  --shadow-sm: 0 1px 3px rgba(101, 123, 131, 0.08), 0 1px 2px rgba(101, 123, 131, 0.05);
+  --shadow-md: 0 4px 12px rgba(101, 123, 131, 0.1), 0 1px 3px rgba(101, 123, 131, 0.06);
+  --shadow-lg: 0 12px 32px rgba(101, 123, 131, 0.14), 0 4px 12px rgba(101, 123, 131, 0.08);
 
   --sw-bg: #fdf6e3;
   --sw-accent: #268bd2;
@@ -218,14 +237,15 @@
   --accent-hover: #4099d7;
   --accent-soft: rgba(38, 139, 210, 0.18);
   --danger: #dc322f;
+  --warning: #b58900;
   --success: #859900;
 
   --code-bg: #073642;
   --code-border: #0e4654;
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.3);
 
   --sw-bg: #002b36;
   --sw-accent: #268bd2;
@@ -261,14 +281,15 @@
   --accent-hover: #caa6ff;
   --accent-soft: rgba(189, 147, 249, 0.15);
   --danger: #ff5555;
+  --warning: #f1fa8c;
   --success: #50fa7b;
 
   --code-bg: #21222c;
   --code-border: #44475a;
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.35);
 
   --sw-bg: #282a36;
   --sw-accent: #bd93f9;
@@ -304,14 +325,15 @@
   --accent-hover: #9bcbd8;
   --accent-soft: rgba(136, 192, 208, 0.15);
   --danger: #bf616a;
+  --warning: #ebcb8b;
   --success: #a3be8c;
 
   --code-bg: #2e3440;
   --code-border: #434c5e;
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.3);
 
   --sw-bg: #2e3440;
   --sw-accent: #88c0d0;
@@ -347,6 +369,7 @@
   --accent-hover: #0860ca;
   --accent-soft: rgba(9, 105, 218, 0.08);
   --danger: #cf222e;
+  --warning: #9a6700;
   --success: #1a7f37;
 
   --code-bg: #f6f8fa;
@@ -392,6 +415,7 @@
   --accent-hover: #4493f8;
   --accent-soft: rgba(47, 129, 247, 0.15);
   --danger: #f85149;
+  --warning: #d29922;
   --success: #3fb950;
 
   --code-bg: #0d1117;
@@ -435,14 +459,15 @@
   --accent-hover: #89b4fa;
   --accent-soft: rgba(122, 162, 247, 0.15);
   --danger: #f7768e;
+  --warning: #e0af68;
   --success: #9ece6a;
 
   --code-bg: #16161e;
   --code-border: #414868;
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.35);
 
   --sw-bg: #1a1b26;
   --sw-accent: #7aa2f7;
@@ -478,14 +503,15 @@
   --accent-hover: #b4befe;
   --accent-soft: rgba(137, 180, 250, 0.15);
   --danger: #f38ba8;
+  --warning: #f9e2af;
   --success: #a6e3a1;
 
   --code-bg: #181825;
   --code-border: #45475a;
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.3);
 
   --sw-bg: #1e1e2e;
   --sw-accent: #89b4fa;
@@ -526,14 +552,17 @@
   --accent-hover: #7ab5fb;
   --accent-soft: rgba(79, 156, 249, 0.16);
   --danger: #ff5147;
+  --warning: #e3b341;
   --success: #3ddc84;
 
   --code-bg: #08080a;
   --code-border: #1f1f24;
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.6);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.65);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.8);
+  /* OLED needs stronger second layers — against true black even soft shadows
+     must stay dense enough to separate elevated panels from the void. */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.65), 0 1px 3px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.8), 0 4px 12px rgba(0, 0, 0, 0.5);
 
   --sw-bg: #000000;
   --sw-accent: #4f9cf9;
@@ -547,6 +576,21 @@
   --kanban-todo:  #58a6ff;
   --kanban-doing: #e3b341;
   --kanban-done:  #3ddc84;
+}
+
+/* Focus halo on dark themes — the shared :root token mixes the accent at 55%,
+   which can sink into low-luminance backgrounds. Dark themes lift the halo to
+   70% so keyboard focus stays clearly visible; light themes keep 55%. */
+:root[data-theme="dark"],
+:root[data-theme="solar-dark"],
+:root[data-theme="dracula"],
+:root[data-theme="nord"],
+:root[data-theme="github-dark"],
+:root[data-theme="tokyo-night"],
+:root[data-theme="catppuccin"],
+:root[data-theme="oled"] {
+  --focus-ring: 0 0 0 2px var(--bg-elevated),
+    0 0 0 4px color-mix(in srgb, var(--accent) 70%, transparent);
 }
 
 /* Smooth theme switch — scoped to UI chrome only (NOT markdown content,

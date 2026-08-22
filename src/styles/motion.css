@@ -146,6 +146,7 @@
 .fmt-btn:active,
 .about-link:active,
 .theme-card:active,
+.slide-arrow:active,
 .btn-more:active {
   transform: scale(0.96);
 }
@@ -244,12 +245,28 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-  /* The press/hover transforms feel jarring when instant; neutralize them. */
+  /* The press/hover transforms feel jarring when instant; neutralize every
+     selector from §2 (press) and §3 (hover lift), not just a sample —
+     .about-link:hover and the seg/tab/fmt/btn-more presses were previously
+     left snapping while their transitions were clamped. */
   .tool-btn:active,
   .modal-btn:active,
+  .seg-btn:active,
+  .settings-cat:active,
+  .tab-new:active,
+  .welcome-action:active,
+  .kanban-card:active:not(.kanban-card-dragging),
+  .kanban-add-btn:active,
+  .pomo-status:active,
+  .fmt-btn:active,
+  .about-link:active,
+  .about-link:hover,
+  .theme-card:active,
+  .theme-card:hover,
   .kanban-card:hover,
   .welcome-action:hover,
-  .theme-card:hover {
+  .slide-arrow:active,
+  .btn-more:active {
     transform: none;
   }
   /* v0.62.1: the new global press-scale feedback (base.css) too. */
