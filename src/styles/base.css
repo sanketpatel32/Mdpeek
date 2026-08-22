@@ -533,11 +533,24 @@ main {
   background: transparent;
   color: var(--fg-muted);
   cursor: pointer;
+  /* Anchors the ::after hit-area extender below. */
+  position: relative;
   transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
 }
 .file-tree-action-btn:hover {
   background: var(--surface-hover);
   color: var(--fg);
+}
+/* Invisible +3px halo keeps the 22px visual size while giving the pointer a
+   ~28px target — these sit in a dense header row. */
+.file-tree-action-btn::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+}
+.file-tree-action-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 .file-tree-body {
   flex: 1 1 auto;
@@ -582,8 +595,15 @@ main {
   cursor: pointer;
   color: var(--fg-secondary);
   white-space: nowrap;
-  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+  /* box-shadow joins the ramp so the drop-target inset ring (painted by
+     file-tree.js's injected styles) eases in/out instead of popping. */
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
 }
+/* Hover ramp: rest (muted fg) → hover (raised surface + full fg) → active
+   (accent). Active rows get their own hover step because the .active fill
+   comes later in source order and would otherwise cancel hover feedback
+   entirely when re-hovering the open file. */
 .tree-row:hover {
   background: var(--surface-hover);
   color: var(--fg);
@@ -591,15 +611,38 @@ main {
 .tree-row.active {
   background: var(--accent-soft);
   color: var(--accent);
+  /* Left accent bar mirroring the TOC's active marker — file-tree.js injects
+     an identical rule; kept in sync so the shared sheet stays canonical. */
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.tree-row.active:hover {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+/* Icons and chevron tint along with the row so nothing stays muted gray on an
+   accent-filled active row. */
+.tree-row.active .tree-chevron,
+.tree-row.active .tree-icon,
+.tree-row.active .file-icon.md {
+  color: var(--accent);
 }
 .tree-row.is-dir {
   font-weight: 500;
   color: var(--fg);
 }
+/* Source-order guard: .is-dir would otherwise out-color .active on an
+   open-folder row; keep the accent treatment winning in every combination. */
+.tree-row.active.is-dir {
+  color: var(--accent);
+}
 .tree-chevron {
   flex-shrink: 0;
+  /* Explicit 10px box + centered origin keep the 90° flip aligned with the
+     10px spacer that reserves its footprint on leaf rows. */
+  width: 10px;
+  height: 10px;
+  transform-origin: center;
   color: var(--fg-muted);
-  transition: transform var(--dur-2) var(--ease-out);
+  transition: transform var(--dur-1) var(--ease-out);
 }
 .tree-chevron.open {
   transform: rotate(90deg);
@@ -622,13 +665,16 @@ main {
   flex-shrink: 0;
   color: var(--fg-muted);
 }
+/* Each hue mixes 85/15 toward --fg: light themes deepen slightly, dark themes
+   lighten — one formula gives even apparent saturation across all themes
+   without per-theme overrides. .md stays on --accent by design. */
 .file-icon.md { color: var(--accent); }
-.file-icon.pdf { color: #d04a4a; }
-.file-icon.img { color: #2da44e; }
-.file-icon.code { color: #6f42c1; }
-.file-icon.ex { color: #e07a5f; }
-.file-icon.txt { color: #f4a261; }
-.file-icon.csv { color: #16a34a; }
+.file-icon.pdf { color: color-mix(in srgb, #d04a4a 85%, var(--fg)); }
+.file-icon.img { color: color-mix(in srgb, #2da44e 85%, var(--fg)); }
+.file-icon.code { color: color-mix(in srgb, #6f42c1 85%, var(--fg)); }
+.file-icon.ex { color: color-mix(in srgb, #e07a5f 85%, var(--fg)); }
+.file-icon.txt { color: color-mix(in srgb, #f4a261 85%, var(--fg)); }
+.file-icon.csv { color: color-mix(in srgb, #16a34a 85%, var(--fg)); }
 
 /* Material-design language icons (.js, .py, .rs, .go, ...).
    Real SVGs from material-extensions/vscode-material-icon-theme, bundled
@@ -672,11 +718,18 @@ main {
   min-height: 0;
   border-right: 1px solid var(--border-subtle);
   padding: 20px 14px;
+  /* x-axis clipped so the fixed-width list track can't flash a horizontal
+     scrollbar while the collapse animation shrinks the panel under it. */
   overflow: auto;
+  overflow-x: hidden;
   font-size: 13px;
   background: var(--surface);
   transition: width var(--dur-3) var(--ease-out), min-width var(--dur-3) var(--ease-out),
-    flex-basis var(--dur-3) var(--ease-out), padding var(--dur-3) var(--ease-out), opacity var(--dur-2) var(--ease-out);
+    flex-basis var(--dur-3) var(--ease-out), padding var(--dur-3) var(--ease-out), opacity var(--dur-2) var(--ease-out),
+    box-shadow var(--dur-3) var(--ease-out);
+  /* Soft elevation that grows with the panel on expand — the "shadow reveal"
+     edge cue; theme-aware via the --shadow-sm stack. */
+  box-shadow: var(--shadow-sm);
 }
 /* Collapsed sidebar: slides away smoothly, document expands to full width. */
 .toc.collapsed {
@@ -688,6 +741,7 @@ main {
   opacity: 0;
   overflow: hidden;
   pointer-events: none;
+  box-shadow: none;
 }
 .toc-empty {
   padding: var(--sp-2) var(--sp-3);
@@ -698,6 +752,9 @@ main {
   list-style: none;
   padding: 0;
   margin: 0;
+  /* Lock the expanded content track (240px − 2×14px padding) so entries clip
+     during the collapse animation instead of re-wrapping per frame. */
+  min-width: 212px;
 }
 .toc li a {
   display: block;
@@ -706,31 +763,61 @@ main {
   color: var(--fg-secondary);
   text-decoration: none;
   line-height: 1.4;
+  /* Reserved rail; the ::before marker paints inside it (left:0, since
+     overflow:hidden below would clip anything at negative offsets). */
   border-left: 2px solid transparent;
-  transition: background-color 150ms var(--ease), color 150ms var(--ease), border-color 150ms var(--ease);
+  position: relative;
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
 }
 .toc li a {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Hover slides the entry 2px toward the content — a quiet directional cue
+   that pairs with the tint. */
 .toc li a:hover {
   background: var(--surface-hover);
   color: var(--fg);
+  transform: translateX(2px);
+}
+/* Active-heading marker bar: rounded accent pill on the left rail, scaled in
+   so section changes read as motion rather than a hard swap. */
+.toc li a::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  border-radius: 999px;
+  background: var(--accent);
+  opacity: 0;
+  transform: scaleY(0.4);
+  transition: opacity var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
 }
 .toc li a.active {
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 500;
-  border-left-color: var(--accent);
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
 }
+.toc li a.active::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .toc li a:hover { transform: none; }
+  .toc li a::before { transition: opacity var(--dur-1) var(--ease-out); }
+}
+/* Uniform +12px steps (8 → 20 → 32) make nesting depth legible at a glance;
+   H3 drops a point size to reinforce hierarchy without extra indent cost. */
 .toc-h2 {
-  padding-left: 14px;
+  padding-left: 20px;
 }
 .toc-h3 {
-  padding-left: 26px;
+  padding-left: 32px;
+  font-size: 12px;
 }
 /* An empty TOC (no headings) takes no space, but is still toggleable. */
 #document {
