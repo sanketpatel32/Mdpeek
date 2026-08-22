@@ -3423,6 +3423,42 @@ mark.find-current {
 .ctx-item .ctx-label { flex: 1 1 auto; }
 .ctx-item.hidden { display: none; }
 
+/* Dropdown polish (scoped to #more-menu so the tab/tree context menus keep
+   their plainer look): a two-step hover ramp — accent-tinted wash on hover,
+   a deeper well on press — icons that brighten in lockstep with their label
+   so each row reads as one unit, hairline separators that fade at both ends,
+   and the shared --focus-ring for keyboard users stepping through items. */
+.more-menu .ctx-item:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface-hover));
+}
+.more-menu .ctx-item:active:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface-active));
+}
+.more-menu .ctx-item .ctx-ico {
+  align-self: center;
+  transition: color var(--dur-1) var(--ease-out);
+}
+.more-menu .ctx-item:hover:not(:disabled) .ctx-ico,
+.more-menu .ctx-item:focus-visible .ctx-ico {
+  color: var(--fg);
+}
+.more-menu .ctx-item:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* Group separators read as fading hairlines, not hard rules — the macOS menu
+   convention where the line dissolves toward its ends. */
+.more-menu .ctx-sep {
+  margin: var(--sp-2) var(--sp-3);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--border) 20%,
+    var(--border) 80%,
+    transparent
+  );
+}
+
 /* ---------- Command-K pill (topbar center, v0.32.0) ----------
    A faux search input styled as a pill. Clicking opens the command palette.
    Fills the dead center space and is the Linear/macOS signature affordance. */
@@ -3443,11 +3479,21 @@ mark.find-current {
   font-size: 12.5px;
   cursor: pointer;
   text-align: left;
+  transition: background-color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-2) var(--ease-out), transform var(--dur-1) var(--ease-spring);
 }
 .cmd-k-pill:hover {
   background: var(--surface-hover);
-  border-color: var(--border);
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--border));
   color: var(--fg-secondary);
+  /* Subtle halo, not a glow-stick: one soft accent-soft step, the same
+     treatment as the settings search pill's :focus-within ring. */
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.cmd-k-pill:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 .cmd-k-pill:active {
   transform: scale(0.98);
@@ -3469,6 +3515,15 @@ mark.find-current {
   border: 1px solid var(--border-subtle);
   border-radius: 5px;
   font-family: inherit;
+  /* Keycap bevel: a 1px inset lip along the bottom edge sells "pressable
+     key" without a second border or hardcoded colors. */
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--border) 60%, transparent);
+}
+/* The suffix brightens with its pill on hover so the whole affordance warms
+   together instead of the label shifting while the kbd stays flat. */
+.cmd-k-pill:hover .cmd-k-kbd {
+  border-color: var(--border);
+  color: var(--fg-secondary);
 }
 
 /* ---------- Updates panel (Settings → Updates, v0.32.0) ---------- */
@@ -3491,10 +3546,40 @@ mark.find-current {
   color: var(--fg-muted);
   background: var(--surface);
 }
-.updates-badge.state-checking { color: var(--fg-secondary); }
+.updates-badge.state-checking {
+  color: var(--fg-secondary);
+  /* "Checking…" breathes while the network round-trip runs — a quiet
+     opacity pulse, not motion. Clamped by the global reduced-motion kill. */
+  animation: updates-pulse 1.5s ease-in-out infinite;
+}
+@keyframes updates-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
 .updates-badge.state-latest { color: var(--success); border-color: color-mix(in srgb, var(--success) 40%, transparent); }
 .updates-badge.state-update { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
 .updates-badge.state-error { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+
+/* Button hierarchy in the panel: "Check now" is ghost — quiet, repeatable,
+   never competes with content; only when an update exists does the filled
+   accent install button appear, weighted heavier with a shadow lift on
+   hover so the single next step is unambiguous. */
+#updates-check-btn {
+  background: transparent;
+  border-color: var(--border-subtle);
+  color: var(--fg-secondary);
+}
+#updates-check-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--border);
+  color: var(--fg);
+}
+#updates-install-btn {
+  font-weight: 600;
+}
+#updates-install-btn:hover {
+  box-shadow: var(--shadow-md);
+}
 
 /* Pending-update indicator on the Settings gear (replaces the old topbar
    update button). A small accent dot in the corner. */
@@ -3822,28 +3907,41 @@ body.presenting #slideshow { display: flex; }
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.35);
-  -webkit-backdrop-filter: blur(2px);
-  backdrop-filter: blur(2px);
+  /* v0.66.x: scrim tint is theme-aware (was flat black 35%) so light themes
+     get a soft paper wash instead of a harsh void, and the blur deepened
+     2px → 6px — the macOS sheet cue where the app visibly recedes. */
+  background: color-mix(in srgb, var(--bg) 40%, rgba(0, 0, 0, 0.45));
+  -webkit-backdrop-filter: blur(6px) saturate(120%);
+  backdrop-filter: blur(6px) saturate(120%);
   animation: overlay-in var(--dur-1) var(--ease-out);
 }
 .modal {
   width: 380px;
   max-width: calc(100vw - 48px);
+  /* Short-window guard: a tall confirm dialog scrolls internally instead of
+     clipping against the viewport edge. contain stops scroll chaining from
+     bleeding into the page behind the scrim. */
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 24px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
-  animation: modal-in var(--dur-2) var(--ease-spring);
+  animation: modal-in var(--dur-4) var(--ease-spring);
 }
 @keyframes overlay-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+/* Settle entrance: pure scale 0.96→1 on --ease-spring + fade. The old
+   translateY(8px) drop fought the spring's overshoot (slide+boing reads as
+   mush); Linear-style cards land in place instead. Shared by every
+   .modal / .palette-card instance — motion.css pairs it with modal-out. */
 @keyframes modal-in {
-  from { opacity: 0; transform: scale(0.94) translateY(8px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
 }
 .modal-title {
   margin: 0 0 8px;
@@ -3916,6 +4014,15 @@ body.presenting #slideshow { display: flex; }
 }
 .modal-btn-danger:hover {
   filter: brightness(1.08);
+}
+/* Dialog form controls render the layered --focus-ring (box-shadow) instead
+   of the global outline so the ring hugs the rounded controls and stays
+   inside the elevated card instead of straddling its edge. */
+.modal-btn:focus-visible,
+.modal-remember input:focus-visible {
+  outline: none;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--focus-ring);
 }
 
 /* ---------- Collaboration (v0.21.0) ---------- */
@@ -4258,6 +4365,27 @@ body.presenting #slideshow { display: flex; }
    grid breathes (3-up at full card width) without crowding the sidebar. */
 #settings-dialog .modal-wide {
   width: 920px;
+}
+/* Internal scroll edges: when the category sidebar or a panel overflows its
+   540px track, 12px fade veils at the top/bottom hint there is more content
+   (same pattern as the tab strip). The mask goes on these inner scrollers —
+   never on .modal-wide itself — so the card's floating box-shadow survives. */
+.modal-wide .settings-content,
+.modal-wide .settings-sidebar {
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    transparent 0,
+    #000 var(--sp-4),
+    #000 calc(100% - var(--sp-4)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    180deg,
+    transparent 0,
+    #000 var(--sp-4),
+    #000 calc(100% - var(--sp-4)),
+    transparent 100%
+  );
 }
 
 /* ---------- Global Kanban board (v0.22.2) ----------
