@@ -14,6 +14,10 @@ Headliners: two whiteboard export paths that never worked, an XSS in the
 editor's wrap mirror, several race conditions in the PDF renderer and P2P
 collab, and a long tail of silent math and state bugs.
 
+### Added - workspace
+- Polished the kanban board, calendar and interactive graph views.
+- Polished the Settings panel's top section (#1).
+
 ### Fixed - rendering & markdown
 - Fences in dynamically registered highlight.js languages never highlighted:
   the render LRU kept serving the plaintext-fallback HTML for identical input
