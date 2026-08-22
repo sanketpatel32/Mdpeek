@@ -107,20 +107,31 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  /* Consistent hit area: every caption control spans the full header band
+     edge-to-edge and zeroes UA padding, so min/max/close/pin all present the
+     same vertical target regardless of icon size. */
   width: 46px;
+  padding: 0;
   background: transparent;
   border: none;
   color: var(--fg-secondary);
   cursor: default;
   -webkit-app-region: no-drag;
-  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+  transition:
+    background-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
 }
+/* Traffic-light feel: a two-step tint ramp — soft wash on hover, deeper well
+   on press — with press snapping faster than release for that deliberate
+   macOS-caption-button tactility. No scale here: native chrome never moves. */
 .window-btn:hover {
   background: var(--surface-hover);
   color: var(--fg);
 }
 .window-btn:active {
   background: var(--surface-active);
+  color: var(--fg);
+  transition-duration: calc(var(--dur-1) / 2);
 }
 .window-btn:focus-visible {
   outline: 2px solid var(--accent);
@@ -134,8 +145,11 @@ body {
   color: #ffffff;
 }
 .window-btn.win-close:active {
-  background: var(--danger);
-  filter: brightness(0.92);
+  /* Deepen the red rather than filtering the whole button, so the white glyph
+     stays crisp while the surface reads as pressed. */
+  background: color-mix(in srgb, var(--danger) 86%, #000000);
+  color: #ffffff;
+  transition-duration: calc(var(--dur-1) / 2);
 }
 /* v0.36.0: Always-on-top pin button. Narrower than min/max/close, icon-sized.
    Active state (pinned) fills with the accent color so the user can tell at a
@@ -152,9 +166,15 @@ body {
   color: var(--accent);
   background: var(--accent-soft);
 }
+/* Pressing a pinned pin layers the tint over the shared pressed well instead
+   of a brightness filter (invisible on translucent accent-soft) — reads as
+   one deeper, accent-colored press consistent with the other caption buttons. */
 .window-btn.win-pin.active:hover {
-  background: var(--accent-soft);
-  filter: brightness(0.96);
+  background: color-mix(in srgb, var(--accent-soft) 70%, var(--surface-active));
+  color: var(--accent);
+}
+.window-btn.win-pin.active:active {
+  background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface-active));
 }
 
 /* Focus / zen mode — hide the header + sidebar for distraction-free reading.
@@ -170,6 +190,30 @@ body.focus-mode #file-tree {
 body.focus-mode .tag-pane,
 body.focus-mode .reference-pane {
   top: 0;
+}
+/* v0.78 polish: zen-mode entry/exit glide. The panes' top offset is a real
+   length in both states, so it can transition — they slide up under the
+   vanishing header instead of snapping. Declared once here so BOTH
+   directions animate (a transition on body.focus-mode alone would only
+   cover entering zen). */
+.tag-pane,
+.reference-pane {
+  transition: top var(--dur-3) var(--ease-out);
+}
+/* Leaving zen re-reveals chrome from display:none — no exit transition can
+   cross display, but a soft fade+rise entrance keeps the return from being a
+   hard cut. Same rise distance as mode-enter further down this file. */
+body:not(.focus-mode) .app-header {
+  animation: zen-return var(--dur-3) var(--ease-out);
+}
+@keyframes zen-return {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tag-pane,
+  .reference-pane { transition: none; }
+  body:not(.focus-mode) .app-header { animation: none; }
 }
 
 /* ---------- Toolbar ---------- */
@@ -215,10 +259,15 @@ body.focus-mode .reference-pane {
   width: 14px;
   height: 14px;
 }
+/* Internal dividers: the badge carries matching hairlines on both sides so
+   − / % / + read as one machined unit; slightly stronger than the well's own
+   border so they survive the translucent layering. */
 .tool-group.zoom-widget .zoom-indicator {
   min-width: 34px;
   height: 26px;
   border-radius: calc(var(--radius) - 3px);
+  border-left: 1px solid color-mix(in srgb, var(--border-subtle) 75%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--border-subtle) 75%, transparent);
 }
 
 .tool-btn {
@@ -239,6 +288,12 @@ body.focus-mode .reference-pane {
 .tool-btn:hover {
   background: var(--surface-hover);
   color: var(--fg);
+}
+/* Icon-only buttons take one extra tint layer over the shared hover wash —
+   mixing a whisper of accent into surface-hover separates "pointed at" from
+   resting without adding a second visual language next to text buttons. */
+.tool-btn.icon-only:hover {
+  background: color-mix(in srgb, var(--accent-soft) 35%, var(--surface-hover));
 }
 .tool-btn:active {
   background: var(--accent-soft);
@@ -266,8 +321,10 @@ body.focus-mode .reference-pane {
   pointer-events: none;
 }
 .tool-btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  /* --focus-ring is a box-shadow value (gap ring + accent halo), not an
+     outline color — applied as box-shadow so the token renders as designed. */
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 /* Zoom percentage badge — sits between the zoom-out / zoom-in buttons.
@@ -288,11 +345,21 @@ body.focus-mode .reference-pane {
   cursor: pointer;
   border-radius: 6px;
   user-select: none;
-  transition: background 120ms ease, color 120ms ease;
+  transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
 }
 .zoom-indicator:hover {
   background: var(--surface-hover, rgba(0, 0, 0, 0.05));
   color: var(--fg);
+}
+/* Click-to-reset press feedback (mirrors .tool-btn:active) + the shared
+   focus ring — it's a span with a click handler, so it needs both. */
+.zoom-indicator:active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.zoom-indicator:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 .zoom-indicator.active {
   color: var(--accent);
@@ -310,10 +377,14 @@ body.focus-mode .reference-pane {
   color: var(--fg-muted);
   border: 1px solid var(--border-subtle);
   border-radius: 999px;
+  /* Same pointer affordance as toolbar buttons — it opens the update flow,
+     so the cursor should agree with the tooltip. */
+  cursor: pointer;
 }
 .update-btn:hover {
   color: var(--fg);
   border-color: var(--border);
+  background: var(--surface-hover);
 }
 .update-dot {
   width: 7px;
@@ -344,6 +415,15 @@ body.focus-mode .reference-pane {
 @keyframes dot-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.5; transform: scale(0.8); }
+}
+/* Reduced motion: kill the looping pulse outright (motion.css clamps global
+   durations, but an infinite 0.01ms iteration is still churn — off is right
+   for checking/update dots, which already carry state via color). */
+@media (prefers-reduced-motion: reduce) {
+  .update-btn.state-checking .update-dot,
+  .update-btn.state-update .update-dot {
+    animation: none;
+  }
 }
 .tool-separator {
   width: 1px;
