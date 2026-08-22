@@ -16,6 +16,7 @@ let _container = null;     // the DOM element we render into
 let _activePath = null;    // file path that should render as active
 let _onOpenFile = null;    // callback: (path) => void
 let _expanded = new Set(); // directory paths the user has expanded
+let _dragRow = null;       // dir row currently highlighted as a drop target
 // v0.67.0: expansion state persists per root so deep vaults survive restarts
 // and folder re-picks (previously collapsed back to nothing).
 const TREE_EXPANDED_KEY = 'mdpeek-tree-expanded:';
@@ -38,7 +39,93 @@ export function initFileTree(container, onOpenFile) {
   _container.addEventListener('keydown', onTreeKeydown);
   _container.setAttribute('role', 'tree');
   _container.setAttribute('aria-label', 'File explorer');
+  injectPolishStyles();
+  wireDragHighlight();
   renderEmpty();
+}
+
+// UI-polish styles owned by this view (iteration: presentation only). Injected
+// once as a <style> tag — the shared stylesheets stay untouched, and every
+// value references the global :root custom properties from themes.css, so all
+// themes pick these up automatically. Idempotent: guarded by element id.
+function injectPolishStyles() {
+  if (document.getElementById('file-tree-polish')) return;
+  const style = document.createElement('style');
+  style.id = 'file-tree-polish';
+  style.textContent = `
+    /* Drop-target highlight while dragging a file over a folder row. */
+    .tree-row.drop-target {
+      background: var(--accent-soft);
+      color: var(--accent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+    }
+    /* Active-file row: keep base accent-soft fill, add a left accent bar and
+       a slightly bolder name so the open doc reads at a glance. */
+    .tree-row.active {
+      box-shadow: inset 2px 0 0 var(--accent);
+    }
+    .tree-row.active .tree-name { font-weight: 600; }
+    /* Chevron rotation snaps at the micro duration (was --dur-2 — too slow
+       for a 90° flip next to the row's --dur-1 hover tint). */
+    .tree-chevron { transition-duration: var(--dur-1); }
+    /* Inline rename editor: soft accent glow while focused, eased in/out. */
+    .tree-name-input {
+      transition: box-shadow var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+    }
+    .tree-name-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    /* Ghost text for expanded-but-empty folders (see treeEmptyGhost()). */
+    .tree-empty-ghost {
+      font-size: 11px;
+      font-style: italic;
+      color: var(--fg-muted);
+      opacity: 0.7;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: default;
+      animation: ft-ghost-in var(--dur-3) var(--ease-out);
+    }
+    @keyframes ft-ghost-in {
+      from { opacity: 0; }
+      to { opacity: 0.7; }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+// Delegated drag-over tracking: highlight whichever directory row the drag is
+// currently over (presentation only). We never preventDefault or stop
+// propagation — main.js's window-level handlers keep owning drop semantics;
+// we only paint the target. Cleanup listens on document too so a drag that
+// ends/cancels outside the tree can't leave a stale highlight behind.
+function wireDragHighlight() {
+  if (!_container || wireDragHighlight._wired) return;
+  wireDragHighlight._wired = true;
+  _container.addEventListener('dragover', (e) => {
+    // Only directory rows are valid drop targets (paste-into-folder model).
+    const row = e.target.closest && e.target.closest('.tree-row.is-dir');
+    if (row === _dragRow) return;
+    clearDragHighlight();
+    if (!row) return;
+    _dragRow = row;
+    row.classList.add('drop-target');
+  });
+  _container.addEventListener('dragleave', (e) => {
+    // Only clear when the pointer actually left the tree (child→parent moves
+    // also fire dragleave; relatedTarget tells them apart).
+    if (!_container.contains(e.relatedTarget)) clearDragHighlight();
+  });
+  // drop/dragend can fire anywhere; sweep the highlight regardless of where.
+  document.addEventListener('drop', clearDragHighlight);
+  document.addEventListener('dragend', clearDragHighlight);
+}
+
+function clearDragHighlight() {
+  if (_dragRow) _dragRow.classList.remove('drop-target');
+  _dragRow = null;
 }
 
 export function setTreeRoot(path) {
@@ -132,6 +219,7 @@ async function render() {
   const frag = document.createDocumentFragment();
   frag.appendChild(headerRow());
   for (const e of entries) frag.appendChild(rowFor(e, 0));
+  if (entries.length === 0) frag.appendChild(treeEmptyGhost(1, 'Empty folder'));
   _container.innerHTML = '';
   _container.appendChild(frag);
   reapplyActive();
@@ -163,7 +251,37 @@ function rowFor(entry, depth) {
   const chevron = entry.is_dir ? '<svg class="tree-chevron" viewBox="0 0 16 16" width="10" height="10" aria-hidden="true"><polyline points="6 4 10 8 6 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '<span class="tree-chevron-spacer"></span>';
   const icon = entry.is_dir ? dirIcon() : fileIcon(entry.name);
   row.innerHTML = `${chevron}${icon}<span class="tree-name">${escapeHtml(entry.name)}</span>`;
+  applyIndentGuides(row, depth);
   return row;
+}
+
+// Faint vertical guides under each ancestor indent level (Explorer-style).
+// Cheap: per-row background layers instead of extra DOM. Layer k sits at the
+// same x as depth-k's text start so children visibly nest under parents.
+function applyIndentGuides(row, depth) {
+  if (!depth) return; // top level has nothing to align with
+  const layers = [];
+  const xs = [];
+  for (let k = 0; k < depth; k++) {
+    layers.push('linear-gradient(var(--border-subtle), var(--border-subtle))');
+    xs.push(`${k * 14 + 9}px 0`);
+  }
+  row.style.backgroundImage = layers.join(', ');
+  row.style.backgroundSize = `1px calc(100% - ${2 * 3}px)`; // inset by row padding
+  row.style.backgroundPosition = xs.join(', ');
+  row.style.backgroundRepeat = 'no-repeat';
+}
+
+// Ghost row shown inside an expanded folder that contains no entries.
+// Carries dataset.depth so collapseDir's depth-based descendant sweep removes
+// it exactly like a real child row would be.
+function treeEmptyGhost(depth, label) {
+  const ghost = document.createElement('div');
+  ghost.className = 'tree-empty-ghost';
+  ghost.dataset.depth = String(depth);
+  ghost.textContent = label || 'No files';
+  ghost.style.paddingLeft = `${depth * 14 + 10}px`;
+  return ghost;
 }
 
 function dirIcon() {
@@ -228,6 +346,8 @@ async function expandDir(row, path) {
       target = lastDescendantOf(child);
     }
   }
+  // Empty folder: leave a quiet ghost instead of dead space under the row.
+  if (entries.length === 0) target.after(treeEmptyGhost(depth + 1));
 }
 
 function collapseDir(row, path) {
