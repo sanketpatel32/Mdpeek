@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.70.0] - 2026-08-22
+## [1.0.0] - 2026-08-22
 
 Fifty-six bug fixes from a systematic twenty-pass audit across every module.
 Headliners: two whiteboard export paths that never worked, an XSS in the
