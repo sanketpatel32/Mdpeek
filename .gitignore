@@ -24,6 +24,10 @@ app-icon-*-concept.svg
 v0*_preview.png
 v0*-full-preview.png
 v0*-full.png
-.zcode/v0*.png
+# Agent session artifacts (plans, screenshots) — not part of the app.
+.zcode/
+
+# AI-generated design plans/specs — historical scratch work.
+docs/superpowers/
 eng.traineddata
 
