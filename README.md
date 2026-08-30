@@ -2,14 +2,9 @@
 
 # mdpeek
 
-**A tiny but mighty file viewer, Markdown editor, integrated PowerShell terminal, reading mode, and collaboration tool for Windows.**
+**A native Windows workspace for Markdown, documents, code, notes, and collaboration.**
 
-Render Markdown beautifully, view PDFs / code / images / CSV / Excalidraw / tldraw /
-Jupyter notebooks, edit with live preview, run PowerShell commands, present slideshows,
-read distraction-free, sketch on PDFs, link notes with `[[wiki-links]]`, browse a graph
-of your knowledge, time-travel through snapshots, share a document for real-time P2P
-editing, and manage a Workspace hub (board, calendar, tasks, review, pomodoro) — all in
-a ~7 MB package that installs in seconds.
+Open and edit Markdown, PDFs, code, images, CSV, Excalidraw, tldraw, and Jupyter notebooks from one lightweight application. mdpeek also includes a real PowerShell terminal, knowledge tools, presentations, local snapshots, and peer-to-peer editing in a roughly 7 MB installer.
 
 [![Made with Tauri](https://img.shields.io/badge/made%20with-tauri%202-orange)](https://tauri.app)
 [![License: MIT](https://img.shields.io/github/license/sanketpatel32/Mdpeek)](LICENSE)
