@@ -8,11 +8,15 @@ const source = readFileSync(process.env.MDPEEK_REGRESSION_SOURCE || 'src/main.js
 const start = source.indexOf('// ---------- save ----------');
 const end = source.indexOf('// v0.45.0: write a version-history snapshot');
 
-it.each(['src/main.js'])('untitled plain-text notes default to a .txt Save As dialog', async () => {
-  const store = { active: () => ({ plain: true, content: 'hello' }) };
+it('untitled plain-text notes request the text Save As kind and complete the save', async () => {
+  const doc = { id: 'plain-note', path: null, plain: true, content: 'hello' };
+  const store = { active: () => doc, clearDirty: vi.fn() };
   const invoke = vi.fn().mockResolvedValue('C:\\notes\\hello.txt');
   const deps = { store, invoke, toast: vi.fn(), fmtErr: String, maybeSnapshot: vi.fn(), _activeExcalidraw: null, _activeTLDraw: null };
   const saveActive = new Function(...Object.keys(deps), `${source.slice(start, end)}\nreturn saveActive;`)(...Object.values(deps));
   await saveActive();
-  expect(invoke).toHaveBeenCalledWith('save_file_as', { content: 'hello', kind: 'text' });
+  expect(invoke).toHaveBeenCalledExactlyOnceWith('save_file_as', { content: 'hello', kind: 'text' });
+  expect(doc.path).toBe('C:\\notes\\hello.txt');
+  expect(store.clearDirty).toHaveBeenCalledWith(doc.id);
+  expect(deps.toast).toHaveBeenCalledExactlyOnceWith('Saved');
 });

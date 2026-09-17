@@ -2225,7 +2225,7 @@ dependencies = [
 
 [[package]]
 name = "mdpeek"
-version = "0.11.1"
+version = "1.1.1"
 dependencies = [
  "notify",
  "portable-pty",
