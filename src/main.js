@@ -2511,7 +2511,7 @@ async function saveActive() {
       // filter + default extension (.tldr / .excalidraw) for canvas tabs —
       // otherwise a TLDraw/Excalidraw scene would be saved as .md and reopen
       // as a broken markdown doc.
-      const kind = doc.tldraw ? 'tldraw' : doc.excalidraw ? 'excalidraw' : undefined;
+      const kind = doc.tldraw ? 'tldraw' : doc.excalidraw ? 'excalidraw' : doc.plain ? 'text' : undefined;
       const path = await invoke('save_file_as', { content, kind });
       doc.path = path;
       store.clearDirty(doc.id);

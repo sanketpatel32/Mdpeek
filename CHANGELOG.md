@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-09-17
+
+### Fixed
+- Saving an untitled plain-text note now opens the Save As dialog with the
+  "Plain text" filter and a `untitled.txt` default name. Previously the
+  dialog offered Markdown only, so a `.txt` note could be saved with a `.md`
+  extension and reopen as Markdown.
+
 ## [1.1.0] - 2026-08-23
 
 A thirty-pass UI polish loop across every surface — foundations, chrome,

@@ -99,6 +99,9 @@ pub async fn save_file_as(content: String, kind: Option<String>) -> Result<Strin
     // which would reopen as a markdown doc and corrupt the scene JSON.
     let mut dialog = rfd::AsyncFileDialog::new();
     match kind.as_deref() {
+        Some("text") => {
+            dialog = dialog.add_filter("Plain text", &["txt"]).set_file_name("untitled.txt");
+        }
         Some("tldraw") => {
             dialog = dialog.add_filter("TLDraw", &["tldr"]).set_file_name("untitled.tldr");
         }
