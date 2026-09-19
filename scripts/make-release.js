@@ -37,11 +37,15 @@ if (!existsSync(setupExe)) {
 console.log(`[make-release] Signing ${setupExe}...`);
 const signEnv = {
   ...process.env,
-  // Prefer the key file on disk if env var isn't set.
-  TAURI_SIGNING_PRIVATE_KEY_PATH:
-    process.env.TAURI_SIGNING_PRIVATE_KEY_PATH || join(root, '.tauri', 'mdpeek.key'),
+  // Prefer the key file on disk if env var isn't set. When CI provides
+  // TAURI_SIGNING_PRIVATE_KEY directly, don't also set the path — the tauri
+  // CLI rejects `--private-key` and `--private-key-path` together.
   TAURI_SIGNING_PRIVATE_KEY_PASSWORD: process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '',
 };
+if (!signEnv.TAURI_SIGNING_PRIVATE_KEY) {
+  signEnv.TAURI_SIGNING_PRIVATE_KEY_PATH =
+    process.env.TAURI_SIGNING_PRIVATE_KEY_PATH || join(root, '.tauri', 'mdpeek.key');
+}
 const sign = spawnSync(
   process.platform === 'win32' ? 'npx.cmd' : 'npx',
   ['tauri', 'signer', 'sign', `releases/mdpeek-${version}-setup.exe`, '-v'],
