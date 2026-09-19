@@ -37,7 +37,10 @@ jobs:
           workspaces: src-tauri
 
       - name: Install dependencies
-        run: npm ci
+        # ci prefers the lockfile, but a release tag whose lock root-version
+        # drifted from package.json (bumped together with the app version)
+        # would fail the sync check — fall back to a self-healing install.
+        run: npm ci --no-fund --no-audit || npm install --no-fund --no-audit
 
       - name: Build installer + portable
         run: npm run tauri:build
