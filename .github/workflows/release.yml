@@ -1,0 +1,80 @@
+# Windows release pipeline. The dev machine no longer has the MSVC C++
+# toolchain (rc.exe / link.exe), so installers are built on GitHub's
+# windows-latest runners and published through the same make-release.js flow
+# the local builds used (sign → latest.json → gh release upload).
+#
+# Triggered by pushing a vX.Y.Z tag. The tag version must match package.json
+# and src-tauri/tauri.conf.json (bump both together, per CHANGELOG policy).
+# The updater fetches
+# https://github.com/sanketpatel32/Mdpeek/releases/latest/download/latest.json,
+# so the release must be created non-draft — make-release.js's `gh release
+# upload --clobber` keeps the manifest fresh if assets are re-published.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build installer + portable
+        run: npm run tauri:build
+
+      - name: Resolve version
+        id: ver
+        shell: bash
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Extract release notes from CHANGELOG
+        shell: bash
+        run: |
+          VERSION='${{ steps.ver.outputs.version }}'
+          awk -v tag="$VERSION" 'index($0, "## [" tag "]") == 1 { f = 1; next } f && /^## \[/ { exit } f' \
+            CHANGELOG.md > release-notes.md
+          # Fallback so a missing/renamed section never fails the release.
+          if [ ! -s release-notes.md ]; then
+            echo "mdpeek v$VERSION. See CHANGELOG.md for details." > release-notes.md
+          fi
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          VERSION='${{ steps.ver.outputs.version }}'
+          ASSETS="releases/mdpeek-$VERSION-setup.exe"
+          if [ -f "releases/mdpeek-$VERSION-portable.exe" ]; then
+            ASSETS="$ASSETS releases/mdpeek-$VERSION-portable.exe"
+          fi
+          gh release view "v$VERSION" >/dev/null 2>&1 || \
+          gh release create "v$VERSION" $ASSETS \
+            --title "mdpeek v$VERSION" \
+            --notes-file release-notes.md
+
+      - name: Sign + publish the updater manifest (latest.json)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: npm run make-release
