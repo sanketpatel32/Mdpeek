@@ -31,6 +31,7 @@ import { extractSpeakerNotes } from './lib/slides.js';
 import { EMOJI_MAP } from './lib/emoji.js';
 import { goalProgress, formatGoalChip, applyGoalChipPresentation, GOAL_KEY, SESSION_KEY } from './lib/writing-goal.js';
 import { markWritingDay, currentStreak, formatStreakChip, applyStreakChipPresentation } from './lib/streak.js';
+import { saveActiveDoc } from './lib/save-doc.js';
 import { getTemplates, saveTemplate, deleteTemplate, TEMPLATES_KEY } from './lib/templates.js';
 import { extractDocLinks, classifyLinks } from './lib/link-checker.js';
 import { buildGraph, circleLayout } from './lib/graph.js';
@@ -450,11 +451,20 @@ function fmtErr(e) {
 // shows a visible error instead of throwing and rejecting the whole render
 // (which would leave the tab blank). `kind` labels the doc type in the message.
 function showViewerError(container, kind, e) {
+  const raw = fmtErr(e);
+  console.error(`viewer load failed (${kind}):`, e);
+  // JS-internal failures (missing Tauri API outside the desktop shell, engine
+  // quirks) read as gibberish in the UI — show a plain sentence there and
+  // keep the raw detail in the console. Backend errors (e.g. "file not
+  // found") stay user-meaningful and pass through.
+  const internal =
+    /__TAURI_INTERNALS__|is not a function|is not defined|TypeError|ReferenceError|Cannot read/.test(raw);
+  const detail = internal ? 'The format may be unsupported, or the file could not be read.' : raw;
   container.classList.add('markdown-body');
   container.innerHTML =
     `<div class="pdf-error">` +
     `<strong>Couldn't open this ${kind}.</strong><br>` +
-    `<span>${fmtErr(e)}</span>` +
+    `<span>${escapeHtml(detail)}</span>` +
     `</div>`;
 }
 
@@ -1219,9 +1229,28 @@ function caretInTable() {
   return !!parseTable(doc.editor.getValue(), start);
 }
 
+// Full (unfiltered) command list, stashed by getCommands() — read by the
+// palette's Minimal-mode empty-state hint below.
+let _allCommands = [];
+
+// Command id → feature flag whose Minimal-mode suppression hides it (mirrors
+// the featureOn clauses inside getCommands' filter).
+const CMD_MINIMAL_FEATURE = {
+  kanban: 'kanban',
+  'start-presentation': 'present',
+  snippet: 'snippets',
+  daily: 'daily',
+  capture: 'capture',
+  'edit-table': 'table-editor',
+  'toggle-prose-highlights': 'prose-highlights',
+  wordfreq: 'wordfreq',
+  'toggle-wordfreq-underline': 'wordfreq',
+  'start-collab': 'collab',
+  'end-collab': 'collab',
+};
+
 function getCommands() {
-  const cmds = [
-    { id: 'open', label: 'Open file', hint: 'Ctrl+O', keywords: 'open file load', run: openFileDialog },
+  const cmds = [    { id: 'open', label: 'Open file', hint: 'Ctrl+O', keywords: 'open file load', run: openFileDialog },
     { id: 'open-folder', label: 'Open folder in explorer', hint: 'Ctrl+Shift+E', keywords: 'open folder explorer tree workspace project', run: openFolderForExplorer },
     { id: 'save-workspace', label: 'Save workspace as…', keywords: 'save workspace session tabs project', run: saveCurrentWorkspace },
     { id: 'open-workspace', label: 'Open workspace…', keywords: 'open switch workspace session tabs project', run: () => { workspacePicker.setItems(getWorkspacePickerItems()); workspacePicker.open(); } },
@@ -1332,7 +1361,7 @@ function getCommands() {
   const doc = store.active();
   const hasDoc = !!doc;
   const collabActive = collab.getStatus().active;
-  return cmds.filter((c) => {
+  const filtered = cmds.filter((c) => {
     if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-txt' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks' || c.id === 'sort-asc' || c.id === 'sort-desc' || c.id === 'copy-html' || c.id === 'copy-plaintext' || c.id === 'open-in-browser' || c.id === 'check-links' || c.id === 'restore-version' || c.id === 'diff-version' || c.id === 'writing-goal' || c.id === 'save-as-template' || c.id === 'pin-doc-theme' || c.id === 'clear-doc-theme' || c.id === 'case-upper' || c.id === 'case-lower' || c.id === 'case-title' || c.id === 'case-toggle' || c.id === 'wrap-with' || c.id === 'edit-table' || c.id === 'toggle-prose-highlights' || c.id === 'toggle-wordfreq-underline' || c.id === 'wordfreq') && !hasDoc) return false;
     // v0.68.0: drawing exports only make sense with a live canvas tab.
     if ((c.id === 'export-canvas-png' || c.id === 'export-canvas-svg') && !(doc && (doc.excalidraw || doc.tldraw))) return false;
@@ -1362,9 +1391,25 @@ function getCommands() {
     if (minimalModeOn() && MINIMAL_NONCORE_COMMANDS.has(c.id)) return false;
     return true;
   });
+  _allCommands = cmds;
+  return filtered;
 }
 
-const palette = initCommandPalette(getCommands);
+const palette = initCommandPalette(getCommands, {
+  // Minimal mode filters whole feature families out of the list; the generic
+  // "No matches / check spelling" empty state reads like a mistake when the
+  // user typed the exact command name. Name the real cause instead.
+  emptyHint: (query) => {
+    if (!minimalModeOn() || !query) return null;
+    const q = query.toLowerCase();
+    const hidden = _allCommands.some((c) =>
+      `${c.label} ${c.keywords || ''}`.toLowerCase().includes(q) && (
+        MINIMAL_NONCORE_COMMANDS.has(c.id) ||
+        (CMD_MINIMAL_FEATURE[c.id] && MINIMAL_SUPPRESSED.has(CMD_MINIMAL_FEATURE[c.id]))
+      ));
+    return hidden ? 'Hidden by Minimal mode — turn it off in Settings' : null;
+  },
+});
 
 // v0.49.0: "Show keyboard shortcuts" cheat-sheet. A read-only picker seeded with
 // every command that carries a `hint` (≈22 entries), rendered as label + the
@@ -1373,7 +1418,8 @@ const palette = initCommandPalette(getCommands);
 // two-step launcher (look up the shortcut, then either use it or pick it).
 const shortcutsPicker = initQuickSwitcher(
   () => getCommands().filter((c) => c.hint).map((c) => ({ label: c.label, hint: c.hint, keywords: (c.label + ' ' + c.hint + ' ' + (c.keywords || '')) })),
-  (_item) => { /* read-only — dismiss; the user looked up the shortcut */ }
+  (_item) => { /* read-only — dismiss; the user looked up the shortcut */ },
+  { placeholder: 'Search a shortcut…', ariaLabel: 'Keyboard shortcuts' }
 );
 
 // ---------- snippet picker (Ctrl+Shift+S) ----------
@@ -1418,7 +1464,8 @@ const WRAP_ITEMS = [
 ];
 const wrapPicker = initQuickSwitcher(
   () => WRAP_ITEMS.map((w) => ({ label: w.label, hint: w.hint, keywords: w.label + ' ' + w.hint, _kind: w._kind })),
-  (item) => { if (item._kind) wrapSelectionApply(item._kind); }
+  (item) => { if (item._kind) wrapSelectionApply(item._kind); },
+  { placeholder: 'Choose a wrap style…', ariaLabel: 'Text wrap' }
 );
 
 // v0.38.0: jump-to-heading picker. Reads the active doc's source fresh on each
@@ -1443,7 +1490,8 @@ const headingPicker = initQuickSwitcher(
     const doc = store.active();
     if (!doc || !doc.editor || !item._line) return;
     scrollEditorToLine(doc, item._line);
-  }
+  },
+  { placeholder: 'Jump to heading…', ariaLabel: 'Document outline' }
 );
 
 // v0.40.0: Backlinks picker. Lists files that link to the active doc (both
@@ -1459,7 +1507,8 @@ const backlinksPicker = initQuickSwitcher(
     } catch (e) {
       toast('Could not open: ' + fmtErr(e));
     }
-  }
+  },
+  { placeholder: 'Links to this note…', ariaLabel: 'Backlinks' }
 );
 
 // v0.44.0: Template picker. Lazily populated from getTemplates(localStorage)
@@ -1475,7 +1524,8 @@ const templatePicker = initQuickSwitcher(
     if (!item || typeof item._content !== 'string') return;
     // Open a fresh untitled doc seeded with the template content, in edit mode.
     store.open({ path: null, content: item._content, mode: 'edit' });
-  }
+  },
+  { placeholder: 'Insert a template…', ariaLabel: 'Templates' }
 );
 
 // v0.44.0: Broken-link picker (link checker results). Items carry the line
@@ -1487,7 +1537,8 @@ const brokenLinkPicker = initQuickSwitcher(
     const doc = store.active();
     if (!doc || !doc.editor) return;
     scrollEditorToLine(doc, item.line);
-  }
+  },
+  { placeholder: 'Broken links in this note…', ariaLabel: 'Link checker' }
 );
 
 // v0.45.0: Snapshot picker (version history). Items are populated lazily from
@@ -1509,7 +1560,8 @@ const snapshotPicker = initQuickSwitcher(
     } catch (e) {
       toast('Could not read snapshot: ' + fmtErr(e));
     }
-  }
+  },
+  { placeholder: 'Restore a snapshot…', ariaLabel: 'Version history' }
 );
 
 // v0.45.0: list snapshots for the active doc and open the picker. Requires a
@@ -1548,7 +1600,15 @@ const diffVersionPicker = initQuickSwitcher(
   async (item) => {
     if (!item || !item._ts) return;
     const doc = store.active();
-    if (!doc || !doc.path || !doc.editor) return;
+    if (!doc || !doc.path) return;
+    // View mode lazy-inits the editor only on entering edit mode, so the old
+    // `!doc.editor → return` made this command a silent dead end for saved
+    // docs (the default open mode). Flip to edit first, then compare.
+    if (!doc.editor) {
+      doc.mode = 'edit';
+      await renderActive();
+    }
+    if (!doc.editor) return;
     try {
       const snap = await invoke('read_snapshot', { path: doc.path, ts: item._ts });
       // Show current on the left, snapshot on the right so "Use this version"
@@ -2260,6 +2320,7 @@ const workspacePicker = initQuickSwitcher(
     if (item._action === 'save') { saveCurrentWorkspace(); return; }
     if (item._action === 'open' && item._name) { await openWorkspaceByName(item._name); }
   },
+  { placeholder: 'Save or open a workspace…', ariaLabel: 'Workspaces' },
 );
 
 // v0.46.0: extract the selection into a new untitled markdown note and leave a
@@ -2487,51 +2548,21 @@ async function openFileDialog() {
 }
 
 // ---------- save ----------
+// v1.1.2: the pipeline lives in src/lib/save-doc.js (DOM-free, unit-testable);
+// this wrapper binds it to the app's live collaborators.
 async function saveActive() {
   const doc = store.active();
   if (!doc) return;
-  // Sync editor content back into the doc before saving.
-  if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
-  // Flush the Excalidraw scene (the onChange save is debounced — force it now).
-  if (doc.excalidraw && _activeExcalidraw) {
-    const json = _activeExcalidraw.getSceneJSON();
-    if (json) doc.content = json;
-  }
-  // v0.47.0: force-flush the TLDraw scene synchronously so Ctrl+S captures any
-  // edits inside the debounce window (the store listener save is debounced 1s).
-  if (doc.tldraw && _activeTLDraw) {
-    const json = _activeTLDraw.flush();
-    if (json) doc.content = json;
-  }
-  const { content } = doc;
-
-  if (!doc.path) {
-    try {
-      // v0.48.0: pass the doc kind so the save-as dialog offers the right
-      // filter + default extension (.tldr / .excalidraw) for canvas tabs —
-      // otherwise a TLDraw/Excalidraw scene would be saved as .md and reopen
-      // as a broken markdown doc.
-      const kind = doc.tldraw ? 'tldraw' : doc.excalidraw ? 'excalidraw' : doc.plain ? 'text' : undefined;
-      const path = await invoke('save_file_as', { content, kind });
-      doc.path = path;
-      store.clearDirty(doc.id);
-      toast('Saved');
-      // v0.45.0: snapshot for version history (markdown text only; fire-and-
-      // forget — a snapshot miss must never block a save).
-      maybeSnapshot(doc, content);
-    } catch (e) {
-      if (e !== 'cancelled') toast('Save failed: ' + fmtErr(e));
-    }
-    return;
-  }
-  try {
-    await invoke('save_file', { path: doc.path, content });
-    store.clearDirty(doc.id);
-    toast('Saved');
-    maybeSnapshot(doc, content);
-  } catch (e) {
-    toast('Save failed: ' + fmtErr(e));
-  }
+  await saveActiveDoc({
+    invoke,
+    toast,
+    fmtErr,
+    clearDirty: (id) => store.clearDirty(id),
+    maybeSnapshot,
+    // Captured per call so canvas flushes see the live controllers.
+    excalidraw: _activeExcalidraw,
+    tldraw: _activeTLDraw,
+  }, doc);
 }
 
 // v0.45.0: write a version-history snapshot for the just-saved doc. Skips
@@ -3417,6 +3448,8 @@ function openShareModal() {
     // "waiting" if peers are already connected.
     refreshShareModal(status);
     el.shareDialog.classList.remove('hidden');
+    // Focus the panel so its own Esc/scrim paths own the keyboard.
+    (el.shareLinkInput || el.shareDialog.querySelector('button, input'))?.focus();
     return;
   }
   // Capture the host's current state before seeding Yjs.
@@ -3438,6 +3471,7 @@ function openShareModal() {
   el.shareStatus.classList.remove('connected', 'error');
   el.shareEndBtn.classList.add('hidden');
   el.shareDialog.classList.remove('hidden');
+  (el.shareLinkInput || el.shareDialog.querySelector('button, input'))?.focus();
   try {
     let result;
     if (doc.excalidraw) {
@@ -3790,6 +3824,9 @@ function closeKanban() {
   document.body.classList.remove('kanban-mode');
   // Remove any per-mode body class too.
   VALID_MODES.forEach((m) => document.body.classList.remove(`ws-mode-${m}`));
+  // A graph pinned focus must not outlive the hub — a stale pin suppressed
+  // the summary display after the hub was reopened.
+  try { clearGraphPin(); } catch { /* not open — nothing to clear */ }
 }
 
 // =====================================================================
@@ -4010,7 +4047,9 @@ async function renderTasks() {
     // v0.67.0: Open/Done/All filter — done Kanban cards + note checkboxes
     // used to be completely invisible.
     const filter = el.tasksFilter ? el.tasksFilter.value : 'open';
-    const kanbanOnly = normalizeKanbanTasks(_kanbanTasks, filter !== 'open');
+    let kanbanOnly = normalizeKanbanTasks(_kanbanTasks, filter !== 'open');
+    if (filter === 'open') kanbanOnly = kanbanOnly.filter((t) => !t.done);
+    else if (filter === 'done') kanbanOnly = kanbanOnly.filter((t) => t.done);
     let noteTasks = [];
     const notesDir = localStorage.getItem('mdpeek-notes-dir');
     if (notesDir && _tasksNoteScan === null) {
@@ -4198,6 +4237,12 @@ async function renderReview() {
       ? `All caught up — ${total} card${total === 1 ? '' : 's'} tracked.`
       : `${dueCount} card${dueCount === 1 ? '' : 's'} due of ${total}`;
     renderReviewCard();
+    // renderReviewCard sets "Session complete." when the queue is empty; the
+    // richer all-caught-up line above (with the tracked-deck count) must win
+    // on a fresh open, so it goes last.
+    if (el.reviewSummary && dueCount > 0) {
+      el.reviewSummary.textContent = `${dueCount} card${dueCount === 1 ? '' : 's'} due of ${total}`;
+    }
   } catch (e) {
     console.error('review render:', e);
     el.reviewStage.innerHTML = `<div class="review-done"><p>Could not load flashcards: ${fmtErr(e)}</p></div>`;
@@ -4265,8 +4310,12 @@ function rateCard(rating) {
   _reviewIndex++;
   _reviewRevealed = false;
   renderReviewCard();
-  const dueCount = Math.max(0, _reviewQueue.length - _reviewIndex);
-  if (el.reviewSummary) el.reviewSummary.textContent = `${dueCount} card${dueCount === 1 ? '' : 's'} due`;
+  // When the queue is exhausted renderReviewCard has already written
+  // "Session complete." — don't overwrite it with "0 cards due".
+  if (_reviewIndex < _reviewQueue.length) {
+    const dueCount = Math.max(0, _reviewQueue.length - _reviewIndex);
+    if (el.reviewSummary) el.reviewSummary.textContent = `${dueCount} card${dueCount === 1 ? '' : 's'} due`;
+  }
 }
 
 // ---------- Graph view (v0.50.0) ----------
@@ -6115,6 +6164,7 @@ const referencePicker = initQuickSwitcher(
     _referenceDocId = item._id;
     referencePane.open();
   },
+  { placeholder: 'Pick a reference document…', ariaLabel: 'Reference pane' },
 );
 
 function openBeside() {
@@ -6442,10 +6492,11 @@ function updateEditorStatus() {
   // Writing-goal chip (v0.44.0). Reflects words written since the goal was
   // set, against the target. Turns green when the goal is met.
   let goalHtml = '';
+  let p = null;
   const goalRaw = localStorage.getItem(GOAL_KEY);
   if (goalRaw) {
     const sessionWords = parseInt(localStorage.getItem(SESSION_KEY) || '0', 10);
-    const p = goalProgress(words, goalRaw, sessionWords);
+    p = goalProgress(words, goalRaw, sessionWords);
     if (p) {
       const cls = p.done ? 'status-goal done' : 'status-goal';
       goalHtml = `<span class="status-sep" aria-hidden="true">·</span><span class="${cls}" title="Words written since goal was set">🎯 ${formatGoalChip(p)}</span>`;
@@ -6800,6 +6851,10 @@ document.getElementById('slide-exit-btn')?.addEventListener('click', exitPresent
 if (el.share) el.share.addEventListener('click', openShareModal);
 if (el.shareCopyBtn) el.shareCopyBtn.addEventListener('click', copyShareLink);
 if (el.shareCancelBtn) el.shareCancelBtn.addEventListener('click', closeShareModal);
+// Scrim click closes, matching the settings dialog's behavior.
+el.shareDialog?.addEventListener('click', (e) => {
+  if (e.target === el.shareDialog) closeShareModal();
+});
 if (el.shareEndBtn) el.shareEndBtn.addEventListener('click', endCollabSession);
 if (el.joinConfirmBtn) el.joinConfirmBtn.addEventListener('click', confirmJoin);
 if (el.joinCancelBtn) el.joinCancelBtn.addEventListener('click', closeJoinDialog);
@@ -7046,9 +7101,9 @@ if (el.graphSvg) {
   el.graphSvg.addEventListener('pointerover', graphPointerOver);
   el.graphSvg.addEventListener('pointerout', graphPointerOut);
 }
-// v0.71.0: Esc exits pinned focus. Registered BEFORE the global kanban-close
-// Esc handler (same target → registration order wins) and gated on
-// _graphPinId + the graph panel, so it never shadows other Esc behavior.
+// v0.71.0: Esc exits pinned focus. The capture-phase global keymap owns Esc
+// while the hub is open (it unpins before closing); this bubble handler stays
+// as a fallback for events that never reach the keymap.
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || !_graphPinId) return;
   if (!document.body.classList.contains('kanban-mode') || _wsMode !== 'graph') return;
@@ -7423,6 +7478,26 @@ if (el.themeGrid) {
 
 // v0.44.0: theme-mode segmented control (Manual / Match system / By time).
 const themeModeSeg = document.getElementById('theme-mode-seg');
+
+// Live OS-theme follow for "Match system" mode. Installed once, gated at fire
+// time by the saved mode — so it also covers switching to system mode
+// mid-session (the seg handler used to apply the theme once and never install
+// the listener, leaving OS changes ignored until restart).
+let _systemThemeListenerInstalled = false;
+function ensureSystemThemeListener() {
+  if (_systemThemeListenerInstalled) return;
+  try {
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    mql.addEventListener('change', (ev) => {
+      if ((localStorage.getItem(THEME_MODE_KEY) || 'manual') !== 'system') return;
+      // Don't fight a per-doc override.
+      if (_appliedDocTheme) return;
+      applyTheme(prefersDarkFromMedia(ev) ? 'dark' : 'light');
+    });
+    _systemThemeListenerInstalled = true;
+  } catch { /* no matchMedia — theme stays static */ }
+}
+
 function syncThemeModeSeg() {
   const mode = localStorage.getItem(THEME_MODE_KEY) || 'manual';
   themeModeSeg?.querySelectorAll('.seg-btn').forEach((btn) => {
@@ -7444,6 +7519,7 @@ if (themeModeSeg) {
         const mql = window.matchMedia('(prefers-color-scheme: dark)');
         applyTheme(prefersDarkFromMedia(mql) ? 'dark' : 'light');
       } catch { applyTheme(DEFAULT_THEME); }
+      ensureSystemThemeListener();
     } else if (mode === 'time') {
       applyTheme(themeForHour(new Date().getHours()));
     } else {
@@ -7532,6 +7608,10 @@ function openSettings() {
   // Always open on the General category for predictability
   const firstCat = el.settingsDialog.querySelector('.settings-cat[data-cat="general"]');
   if (firstCat && !firstCat.classList.contains('active')) firstCat.click();
+  // Put focus inside the dialog: its Esc handler is dialog-scoped, so with
+  // focus left on the opening button Esc was dead until the user Tabbed in.
+  const searchInput = el.settingsDialog.querySelector('#settings-search');
+  (searchInput || el.settingsDialog.querySelector('button, input, select, [tabindex]'))?.focus();
 }
 function closeSettings() {
   el.settingsDialog.classList.add('hidden');
@@ -8966,10 +9046,55 @@ window.addEventListener('keydown', (e) => {
     // v0.41.0: toggle the outline sidebar.
     if (e.key === 'o' || e.key === 'O') { e.preventDefault(); toggleReaderToc(); return; }
   }
+  // Esc peels open modal layers, topmost first, BEFORE the workspace-hub
+  // branch below — a dialog stacked over the hub must close the dialog, not
+  // the hub. Scoped dialog handlers still work when focus is inside them;
+  // this global path covers focus left outside (e.g. after the palette
+  // closed and restored focus to chrome).
+  if (e.key === 'Escape') {
+    if (!el.shareDialog.classList.contains('hidden')) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeShareModal();
+      return;
+    }
+    if (!el.closeDialog.classList.contains('hidden')) {
+      e.preventDefault();
+      e.stopPropagation();
+      hideCloseDialog();
+      return;
+    }
+    if (!el.settingsDialog.classList.contains('hidden')) {
+      // The settings search input owns Esc (clears the query first, then
+      // blurs; a later Esc closes the dialog). Don't slam the dialog shut
+      // from above it.
+      if (e.target && _settingsSearchInput && e.target === _settingsSearchInput) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      closeSettings();
+      return;
+    }
+  }
   // Esc → close the Kanban board (full-page view). Only fires when the board
   // is open. Lives here (the global keydown handler) so it works regardless
-  // of focus inside the board.
+  // of focus inside the board. This capture-phase handler runs BEFORE any
+  // document-level bubble handler, so scoped exits must be resolved here:
   if (e.key === 'Escape' && document.body.classList.contains('kanban-mode')) {
+    // Focus inside a kanban inline edit: the input's own Esc handler cancels
+    // the edit. Bail (no preventDefault) so that handler sees the key instead
+    // of the whole hub closing under it.
+    if (e.target && e.target.closest && e.target.closest('.kanban-inline-edit')) {
+      return;
+    }
+    // Graph pinned focus: the pinned tooltip promises "Esc to exit" — unpin
+    // first; a second Esc then closes the hub.
+    if (_wsMode === 'graph' && _graphPinId && !(e.target && e.target.id === 'graph-search-input')) {
+      e.preventDefault();
+      clearGraphPin();
+      return;
+    }
     e.preventDefault();
     closeKanban();
     return;
@@ -9062,6 +9187,8 @@ function showCloseDialog() {
   // No saved preference → show the dialog.
   el.closeRemember.checked = false;
   el.closeDialog.classList.remove('hidden');
+  // Focus Cancel (the safe choice) so Esc/Enter act without a blind Tab first.
+  document.getElementById('close-cancel')?.focus();
 }
 
 function hideCloseDialog() {
@@ -9403,14 +9530,10 @@ if (themeMode === 'system') {
   try {
     const mql = window.matchMedia('(prefers-color-scheme: dark)');
     applyTheme(prefersDarkFromMedia(mql) ? 'dark' : 'light');
-    mql.addEventListener('change', (ev) => {
-      // Don't fight a per-doc override.
-      if (_appliedDocTheme) return;
-      applyTheme(prefersDarkFromMedia(ev) ? 'dark' : 'light');
-    });
   } catch {
     applyTheme(DEFAULT_THEME);
   }
+  ensureSystemThemeListener();
 } else if (themeMode === 'time') {
   applyTheme(themeForHour(new Date().getHours()));
   // Re-check every 5 minutes so a long-running session crosses day/night.

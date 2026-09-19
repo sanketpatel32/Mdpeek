@@ -96,9 +96,9 @@ function injectPalettePolishCss() {
   document.head.appendChild(style);
 }
 
-const PICKER_HTML = (placeholder) => `
-  <div class="palette-card" role="dialog" aria-label="Picker">
-    <input class="palette-input" type="text" placeholder="${placeholder}" autocomplete="off" spellcheck="false" />
+const PICKER_HTML = (placeholder, ariaLabel) => `
+  <div class="palette-card" role="dialog" aria-label="${escapeHtml(ariaLabel)}">
+    <input class="palette-input" type="text" placeholder="${escapeHtml(placeholder)}" autocomplete="off" spellcheck="false" />
     <ul class="palette-list" role="listbox"></ul>
     <div class="palette-footer">
       <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
@@ -108,6 +108,14 @@ const PICKER_HTML = (placeholder) => `
   </div>
 `;
 
+// Several pickers are built per app boot; ids must stay unique in the DOM.
+let _pickerSeq = 0;
+
+// Module-level so PICKER_HTML can escape interpolated attrs too.
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
 // Build a modal picker. `getItems()` returns the current list of items, each
 // shaped { label, hint?, keywords?, indices? }. `onSelect(item)` runs when the
 // user confirms. The returned { open, close, setItems } controls visibility
@@ -115,12 +123,16 @@ const PICKER_HTML = (placeholder) => `
 // in a fresh item list before opening.
 // v0.50.0: exported so main.js can build ad-hoc pickers (e.g. the document
 // overview / heading cloud) without a dedicated wrapper per use case.
-export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage }) {
+export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage, ariaLabel, emptyHint }) {
   injectPalettePolishCss();
   const overlay = document.createElement('div');
-  overlay.id = id;
+  // Same-id overlays must not collide (invalid HTML; getElementById returns
+  // the wrong one) — suffix repeats.
+  overlay.id = id && !document.getElementById(id)
+    ? id
+    : `${id || 'picker'}-${++_pickerSeq}`;
   overlay.className = 'modal-overlay palette-overlay hidden';
-  overlay.innerHTML = PICKER_HTML(placeholder);
+  overlay.innerHTML = PICKER_HTML(placeholder || '', ariaLabel || placeholder || 'Picker');
   document.body.append(overlay);
 
   const input = overlay.querySelector('.palette-input');
@@ -150,11 +162,18 @@ export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage }
     const empty = filtered.length === 0;
     // Pickers can name their own no-items message (e.g. the quick switcher
     // says "No recent files yet"); a typed query still says "No matches" —
-    // with a suggestion line so the dead end feels actionable.
+    // with a suggestion line so the dead end feels actionable. An optional
+    // emptyHint(query) adds a cause-specific line (e.g. "hidden by Minimal
+    // mode") when the generic "try fewer characters" advice would be wrong.
+    let extraHint = '';
+    if (empty && typeof emptyHint === 'function') {
+      try { extraHint = emptyHint(query) || ''; } catch { extraHint = ''; }
+    }
     list.innerHTML = empty
       ? `<li class="palette-empty" role="presentation">
            <span class="palette-empty-title">${query ? 'No matches for \u201C' + escapeHtml(query) + '\u201D' : escapeHtml(emptyMessage || 'No matches')}</span>
            ${query ? '<span class="palette-empty-hint">Try fewer characters or check spelling</span>' : ''}
+           ${extraHint ? `<span class="palette-empty-hint palette-empty-extra">${escapeHtml(extraHint)}</span>` : ''}
          </li>`
       : filtered.map((s, i) => {
           const cls = i === selected ? 'palette-item active' : 'palette-item';
@@ -176,9 +195,6 @@ export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage }
       }
     }
     return out;
-  }
-  function escapeHtml(s) {
-    return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
   }
 
   function setActive(i) {
@@ -235,6 +251,13 @@ export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(selected - 1); }
     else if (e.key === 'Enter') { e.preventDefault(); choose(); }
   });
+  // Esc works from anywhere in the card: Tab can move focus off the input
+  // (the list is natively focusable in Chromium) and the input-scoped handler
+  // would never see the key. close() is idempotent, so this is safe even when
+  // both handlers fire.
+  overlay.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && e.target !== input) { e.preventDefault(); close(); }
+  });
   list.addEventListener('click', (e) => {
     const item = e.target.closest('.palette-item');
     if (!item) return;
@@ -249,22 +272,27 @@ export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage }
 }
 
 // Command palette — actions.
-export function initCommandPalette(getCommands) {
+export function initCommandPalette(getCommands, opts = {}) {
   return makePicker({
     id: 'palette',
     placeholder: 'Type a command…',
     getItems: getCommands,
     onSelect: (cmd) => cmd.run(),
+    emptyHint: opts.emptyHint,
   });
 }
 
 // Quick switcher — files. Items have { label, hint, path }; onSelect gets the
-// item so the caller can open the path.
-export function initQuickSwitcher(getItems, onSelect) {
+// item so the caller can open the path. Reused for most ad-hoc pickers; the
+// third arg names the picker (placeholder + dialog aria-label) so each
+// instance describes itself instead of every overlay reading "Type a file
+// name…" / "Picker".
+export function initQuickSwitcher(getItems, onSelect, opts = {}) {
   return makePicker({
-    id: 'quick-switcher',
-    placeholder: 'Type a file name…',
-    emptyMessage: 'No recent files yet — open something first',
+    id: opts.id || 'quick-switcher',
+    placeholder: opts.placeholder || 'Type a file name…',
+    ariaLabel: opts.ariaLabel || opts.placeholder,
+    emptyMessage: opts.emptyMessage || 'No recent files yet — open something first',
     getItems,
     onSelect,
   });

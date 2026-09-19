@@ -16,6 +16,11 @@ const SHIM = {
   setItem() {},
 };
 
+// Default store: real localStorage when running in a browser (app call sites
+// rely on this), the inert SHIM otherwise (plain-node imports, old tests).
+const DEFAULT_STORE =
+  typeof localStorage !== 'undefined' ? localStorage : SHIM;
+
 // Day stamp in local time as "YYYY-MM-DD" (matches dates.dateStamp). Kept local
 // so a writing day tracks the user's clock, not UTC.
 function dayStamp(now) {
@@ -49,7 +54,7 @@ function persist(store, set) {
 // Record `now`'s day as a writing day. Idempotent for the same day (calling
 // twice in one day adds one stamp). Persists to `store` and returns the updated
 // Set (so callers/tests can inspect without a fresh read).
-export function markWritingDay(store = SHIM, now = Date.now()) {
+export function markWritingDay(store = DEFAULT_STORE, now = Date.now()) {
   const set = readSet(store);
   set.add(dayStamp(now));
   persist(store, set);
@@ -60,7 +65,7 @@ export function markWritingDay(store = SHIM, now = Date.now()) {
 // is a writing day; otherwise anchors on *yesterday* so the visible streak
 // doesn't drop to 0 at 00:01 before the user has written today. Returns 0 when
 // there's no streak (no days, or a gap before the anchor).
-export function currentStreak(store = SHIM, now = Date.now()) {
+export function currentStreak(store = DEFAULT_STORE, now = Date.now()) {
   const set = readSet(store);
   const today = dayStamp(now);
   let cursor;
@@ -87,7 +92,7 @@ export function currentStreak(store = SHIM, now = Date.now()) {
 // Longest run of consecutive writing days ever recorded. Walks the stamps in
 // ascending order, tracking the current run length and the best seen. Returns 0
 // for an empty store.
-export function bestStreak(store = SHIM) {
+export function bestStreak(store = DEFAULT_STORE) {
   const set = readSet(store);
   if (set.size === 0) return 0;
   const sorted = [...set].sort();

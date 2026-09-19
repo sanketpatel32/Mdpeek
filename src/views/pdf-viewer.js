@@ -21,6 +21,12 @@ function getScale(container) {
 
 // Lazy pdf.js loader — resolves the module + worker once, caches the promise.
 let _pdfjsPromise = null;
+
+// Mount sequence: each showPdf() claims the next number. destroy() only clears
+// the shared container when its viewer is still the newest mount — a stale
+// controller (tab switched away before the load resolved, boot double-render)
+// must not wipe the container, because a newer viewer owns its DOM now.
+let _showPdfSeq = 0;
 async function loadPdfjs() {
   if (_pdfjsPromise) return _pdfjsPromise;
   _pdfjsPromise = (async () => {
@@ -292,6 +298,7 @@ function promptForPassword(container, kind, resolve) {
 }
 
 export async function showPdf(container, filePath) {
+  const mountSeq = ++_showPdfSeq;
   injectPolishStyle();
   container.innerHTML = ''
     + '<div class="pdf-loading">'
@@ -748,9 +755,14 @@ export async function showPdf(container, filePath) {
       for (const tl of textLayers.values()) { try { tl.cancel(); } catch {} }
       textLayers.clear();
       if (pdfDoc) { try { pdfDoc.destroy(); } catch {} }
-      container.classList.remove('pdf-viewer', 'drawing-active');
-      delete container.dataset.pdfPages;
-      container.innerHTML = '';
+      // A newer showPdf mount owns the container when our seq is stale — its
+      // DOM (error panel, pages, or another doc entirely) must survive our
+      // teardown.
+      if (mountSeq === _showPdfSeq) {
+        container.classList.remove('pdf-viewer', 'drawing-active');
+        delete container.dataset.pdfPages;
+        container.innerHTML = '';
+      }
     },
   };
   currentController = controller;

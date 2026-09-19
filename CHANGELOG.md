@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-09-19
+
+Fourteen fixes from a four-agent UI/UX audit that probed the editor, workspace
+widgets, modals/settings/palette, and every viewer across all eleven themes in
+a real browser.
+
+### Fixed
+- **Editor crash on every keystroke**: `updateEditorStatus` referenced a
+  block-scoped writing-goal variable outside its block, throwing on every
+  status update. The first typed character kicked the user to the welcome
+  screen (swallowing the keystroke), restoring an edit-mode session wiped all
+  tabs at boot, and autocomplete plus autosave never ran while typing.
+- Writing-day streak was inert — all call sites wrote to a no-op store, so
+  the 🔥 chip never appeared. Now persists to localStorage.
+- A restored PDF tab that fails to load showed a completely blank viewer: a
+  stale PDF controller's teardown wiped the shared document container (this
+  also hit when switching tabs while a PDF was still loading). Destroy is now
+  ownership-scoped and can only clear its own mount.
+- Tasks inbox "Done" filter listed open Kanban cards; summary counts were
+  wrong with the filter active.
+- Flashcard review summary: "Session complete." was overwritten with
+  "0 cards due" after the last card, and the richer "All caught up — N cards
+  tracked." line was overwritten the moment Review opened.
+- "Compare version…" silently did nothing from view mode (the default open
+  mode); it now switches the doc to edit mode before diffing.
+- Esc didn't close Settings, the close/quit dialog, or the share panel when
+  focus was outside them; those dialogs now take focus on open and a global
+  Esc peels open modal layers before touching the workspace hub.
+- Kanban inline edit's Esc closed the entire workspace hub, and the graph's
+  pinned focus ("Esc to exit") was unreachable with the pin surviving hub
+  close/reopen. Both are now handled in the capture-phase keymap and the pin
+  clears on close.
+- Command palette: Esc was dead when focus moved to the results list; the 12
+  picker overlays shared one duplicate DOM id (`quick-switcher`); every picker
+  was labelled "Picker" — ids are now unique and each picker names itself.
+- "Match system" theme mode ignored OS theme changes when switched
+  mid-session (the live listener was only installed at boot).
+- Code comments were nearly invisible in four themes — contrast 1.69 (nord),
+  2.51 (dracula), 2.51 (catppuccin, reusing the dracula sheet) and 2.93
+  (Solarized Light) vs the 3:1 floor; muted overrides keep the hierarchy
+  while passing.
+- Viewer error panels (image/media/notebook/CSV) no longer dump raw JS error
+  text like `convertFileSrc is not a function`; internals go to the console
+  and the panel shows a plain sentence.
+- The 240px TOC rail no longer squeezes the document below 700px window
+  width, where it consumed 37%+ of a minimum-size window.
+
 ## [1.1.1] - 2026-09-17
 
 ### Fixed

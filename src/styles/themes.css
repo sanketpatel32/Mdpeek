@@ -623,3 +623,14 @@ html {
   transition: background-color var(--transition), border-color var(--transition),
     color var(--transition);
 }
+
+/* Comment-token contrast overrides. The bundled upstream hljs sheets ship
+   comment colors that fail 3:1 on their own code backgrounds in four themes
+   (measured: nord 1.69, dracula 2.51, catppuccin 2.51 — it reuses the dracula
+   sheet — and solarized-light 2.93). Attribute+class specificity beats the
+   .hljs sheets regardless of link order; the values stay gray-muted so
+   comments keep their visual hierarchy against regular code text. */
+:root[data-theme="nord"] .hljs-comment { color: #8a99ad; }
+:root[data-theme="dracula"] .hljs-comment,
+:root[data-theme="catppuccin"] .hljs-comment { color: #7d85b0; }
+:root[data-theme="solar-light"] .hljs-comment { color: #5f7676; }

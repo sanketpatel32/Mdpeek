@@ -2180,6 +2180,10 @@ mark.find-current {
   .tab-title { max-width: 70px; }
   /* Hide the cmd-k kbd badge too — just the search icon remains. */
   .cmd-k-kbd { display: none; }
+  /* The 240px TOC rail eats 37%+ of a min-width (640px) window and has no
+     collapse affordance that small — drop it; the palette's heading jump and
+     reader-mode outline remain. */
+  .toc { display: none; }
 }
 @media (max-width: 520px) {
   /* Below this width, hide the sidebar toggle group — explorer is still
