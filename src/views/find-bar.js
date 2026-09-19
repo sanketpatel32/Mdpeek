@@ -303,8 +303,8 @@ function run() {
 
 // Edit mode: find over textarea content, select + scroll to current match.
 // Does NOT steal focus from the find input — we only set the selection range
-// and scroll the textarea so the match is visible. Focus moves to the editor
-// only on explicit navigation (Enter / next-prev button) via jumpEditFocus.
+// and scroll the textarea so the match is visible. Focus always stays in the
+// find bar; Esc closes it and hands focus back to the editor.
 function runEdit() {
   const editor = ctx.getEditor();
   if (!editor || !query) {
@@ -322,17 +322,29 @@ function runEdit() {
   showMatch(editor, ms[matchIdx], text, false);
 }
 
-// Visually show a match in the textarea: set selection + scroll. When
-// `focusEditor` is true (explicit navigation), move focus to the textarea;
-// otherwise leave focus where it is (find input keeps focus while typing).
-function showMatch(editor, m, text, focusEditor) {
-  if (focusEditor) editor.focus();
-  editor.setState({ start: m.start, end: m.end });
-  // Best-effort vertical centering: line-based, ignores wrapping.
-  const lineNum = text.slice(0, m.start).split('\n').length - 1;
-  const lineHeight = parseFloat(getComputedStyle(editor.textarea()).lineHeight) || 20;
+// Visually show a match in the textarea: set selection + scroll. Focus ALWAYS
+// stays where it is (the find input) — like VS Code. An earlier design jumped
+// focus into the editor on Enter, but the match stayed selected, so a second
+// Enter (or any Enter landing on a focused textarea) typed a newline right
+// over the highlighted match. Navigation stays in the find bar; Esc closes it
+// and returns focus to the editor. Selection updates never steal focus or snap
+// scroll on their own (see editor.setSelectionRange).
+function showMatch(editor, m, text) {
+  editor.setSelectionRange(m.start, m.end);
+  // Wrap-aware vertical centering: read the match's line top from the editor's
+  // hidden mirror (per-line divs account for soft wrapping). Fall back to the
+  // line-based estimate when no mirror exists.
   const ta = editor.textarea();
-  ta.scrollTop = Math.max(0, lineNum * lineHeight - ta.clientHeight / 2);
+  const lineNum = text.slice(0, m.start).split('\n').length - 1;
+  let top = null;
+  const mirror = ta.closest('.editor-wrap')?.querySelector('.editor-mirror');
+  const lineEl = mirror && mirror.children[lineNum];
+  if (lineEl && lineEl.offsetTop > 0) top = lineEl.offsetTop;
+  if (top == null) {
+    const lineHeight = parseFloat(getComputedStyle(ta).lineHeight) || 20;
+    top = lineNum * lineHeight;
+  }
+  ta.scrollTop = Math.max(0, top - ta.clientHeight / 2);
 }
 
 // View mode: walk text nodes of #document, wrap matches in <mark>.
@@ -530,9 +542,9 @@ function stepEdit(forward) {
   }
   const caret = editor.getState().end;
   matchIdx = nextMatchIndex(ms, forward ? caret : editor.getState().start, forward);
-  // Explicit navigation (Enter / next-prev): move focus to the editor so the
-  // user can keep typing there if they wish.
-  showMatch(editor, ms[matchIdx], text, true);
+  // Explicit navigation (Enter / next-prev): focus stays in the find input so
+  // continued navigation is one keypress away; Esc returns to the editor.
+  showMatch(editor, ms[matchIdx], text);
 }
 
 // ---------- PDF search ----------
@@ -807,9 +819,16 @@ function replaceCurrent() {
   }
   if (!isMatch) { step(true); return; }
   const replacement = replaceInput.value;
-  const next = text.slice(0, start) + replacement + text.slice(end);
-  ta.value = next;
-  editor.setState({ start, end: start + replacement.length });
+  // Apply via execCommand so Chromium's native undo stack survives — a direct
+  // value assignment made Ctrl+Z do nothing after any replace.
+  ta.focus();
+  ta.setSelectionRange(start, end);
+  let applied = false;
+  try { applied = document.execCommand('insertText', false, replacement); } catch { applied = false; }
+  if (!applied) {
+    ta.value = text.slice(0, start) + replacement + text.slice(end);
+    ta.setSelectionRange(start + replacement.length, start + replacement.length);
+  }
   // Mark the doc dirty + re-run the search so count + highlight update.
   ta.dispatchEvent(new Event('input', { bubbles: true }));
   run();
@@ -826,16 +845,26 @@ function replaceAll() {
   const replacement = replaceInput.value;
   const ms = findMatches(text, query, matchOpts());
   if (ms.length === 0) return;
-  // Walk matches right-to-left so earlier offsets stay valid as we splice.
-  let out = text;
+  // Compose the replacement segment, then apply as ONE native-undoable edit by
+  // selecting the whole affected span and inserting the spliced text (a direct
+  // value assignment destroyed Chromium's undo stack — Ctrl+Z did nothing).
+  const first = ms[0];
+  const last = ms[ms.length - 1];
+  let segNew = text.slice(first.start, last.end);
   for (let i = ms.length - 1; i >= 0; i--) {
     const m = ms[i];
-    out = out.slice(0, m.start) + replacement + out.slice(m.end);
+    segNew = segNew.slice(0, m.start - first.start) + replacement + segNew.slice(m.end - first.start);
   }
   const ta = editor.textarea();
-  ta.value = out;
-  // Caret to end-of-doc is the safest default; the user can re-find from there.
-  editor.setState({ start: 0, end: 0 });
+  ta.focus();
+  ta.setSelectionRange(first.start, last.end);
+  let applied = false;
+  try { applied = document.execCommand('insertText', false, segNew); } catch { applied = false; }
+  if (!applied) {
+    ta.value = text.slice(0, first.start) + segNew + text.slice(last.end);
+  }
+  // Anchor the caret at the first replacement (was: thrown to the doc top).
+  ta.setSelectionRange(first.start, first.start + replacement.length);
   ta.dispatchEvent(new Event('input', { bubbles: true }));
   run();
 }
@@ -883,5 +912,17 @@ export function initFindBar(accessors) {
   created = true;
   ctx = { ...ctx, ...accessors };
   build();
-  return { close, toggle, open, refresh, setCaseSensitive, setRegex, setWholeWord, openReplace, findNext: () => step(true), findPrev: () => step(false) };
+// Open the find bar with the query pre-seeded (word-frequency word click and
+// other callers that know what to search for).
+function openWithQuery(q) {
+  open();
+  if (!q) return;
+  input.value = q;
+  query = q;
+  run();
+  input.focus();
+  input.select();
+}
+
+  return { close, toggle, open, openWithQuery, refresh, setCaseSensitive, setRegex, setWholeWord, openReplace, findNext: () => step(true), findPrev: () => step(false) };
 }

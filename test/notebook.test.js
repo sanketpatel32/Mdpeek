@@ -36,8 +36,10 @@ describe('normalizeOutput', () => {
       .toEqual({ kind: 'stream', name: 'stdout', text: 'hi\n' });
   });
   it('defaults stream name to stdout', () => {
+    // v1.2.0: array sources without trailing newlines get one inserted, so
+    // sloppy nbformat files no longer collapse their lines together.
     expect(normalizeOutput({ output_type: 'stream', text: ['a', 'b'] }))
-      .toEqual({ kind: 'stream', name: 'stdout', text: 'ab' });
+      .toEqual({ kind: 'stream', name: 'stdout', text: 'a\nb' });
   });
   it('classifies an execute_result with text/plain', () => {
     const o = normalizeOutput({ output_type: 'execute_result', execution_count: 3, data: { 'text/plain': '42' } });

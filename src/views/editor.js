@@ -258,7 +258,18 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     let lineNumbers = false;
     try { lineNumbers = localStorage.getItem('mdpeek-code-line-numbers') === '1'; }
     catch { /* jsdom / SSR — default off */ }
-    await enhanceDom(preview, { mermaid: false, folding: false, lineNumbers });
+    // Re-read the prose/wordfreq prefs on every render so toggling them from
+    // the palette applies live in the edit-mode preview too (they used to
+    // require a switch to view mode before the underlines appeared). Both are
+    // suppressed under Minimal mode, mirroring the palette pref helpers.
+    const minimal = localStorage.getItem('mdpeek-minimal-mode') === '1';
+    await enhanceDom(preview, {
+      mermaid: false,
+      folding: false,
+      lineNumbers,
+      proseHighlights: !minimal && localStorage.getItem('mdpeek-prose-highlights') === '1',
+      wordFreq: !minimal && localStorage.getItem('mdpeek-wordfreq-underline') === '1',
+    });
   }
   function schedule() {
     clearTimeout(timer);
@@ -888,6 +899,12 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
       textarea.focus();
       textarea.setSelectionRange(state.start || 0, state.end || 0);
       textarea.scrollTop = state.scrollTop || 0;
+    },
+    // Selection-only update used by the find bar's live match highlighting:
+    // unlike setState it never steals focus or snaps scroll, so typing in the
+    // find input keeps the input focused and the editor scroll stays put.
+    setSelectionRange(start, end) {
+      textarea.setSelectionRange(start, end);
     },
     // Apply a markdown formatting action from the toolbar. Supports wrap-based
     // (bold/italic/code/link) and line-prefix (headings/lists/quote) styles,

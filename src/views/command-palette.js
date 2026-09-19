@@ -28,6 +28,25 @@ const PALETTE_POLISH_CSS = `
      highlight gliding rather than hard on/off swaps; smooth scroll follows. */
   .palette-overlay .palette-item {
     transition-duration: var(--dur-2, 180ms);
+    padding: var(--sp-3, 8px) var(--sp-4, 12px);
+  }
+  /* Inline wrapper so per-char <mark> elements flow as normal inline text —
+     as bare flex children they'd be distributed across the whole row. */
+  .palette-overlay .palette-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* Destructive commands (close all tabs, quit) carry a warm label so they
+     read as irreversible before Enter is pressed. */
+  .palette-overlay .palette-item.danger {
+    color: var(--danger, #d30f45);
+  }
+  .palette-overlay .palette-item.danger mark {
+    background: color-mix(in srgb, var(--danger, #d30f45) 14%, transparent);
+    color: var(--danger, #d30f45);
   }
   .palette-overlay .palette-list {
     scroll-behavior: smooth;
@@ -146,16 +165,19 @@ export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage, 
   function render(query) {
     const all = _getItems();
     const scored = [];
-    for (const item of all) {
+    for (let i = 0; i < all.length; i++) {
+      const item = all[i];
       const hay = (item.label + ' ' + (item.keywords || '')).toLowerCase();
       const labelMatch = fuzzyMatch(query, item.label);
       if (!labelMatch && !hay.includes(query.toLowerCase())) continue;
       const m = labelMatch || { score: 0, indices: [] };
-      scored.push({ item, score: m.score, indices: m.indices });
+      scored.push({ item, idx: i, score: m.score, indices: m.indices });
     }
     scored.sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
-      return a.item.label.length - b.item.label.length;
+      // Ties keep the source order: the empty-query list then reflects the
+      // curated command order instead of floating 3-letter labels to the top.
+      return a.idx - b.idx;
     });
     filtered = scored.slice(0, 12);
     selected = 0;
@@ -176,18 +198,34 @@ export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage, 
            ${extraHint ? `<span class="palette-empty-hint palette-empty-extra">${escapeHtml(extraHint)}</span>` : ''}
          </li>`
       : filtered.map((s, i) => {
-          const cls = i === selected ? 'palette-item active' : 'palette-item';
+          const cls = (i === selected ? 'palette-item active' : 'palette-item') + (s.item.danger ? ' danger' : '');
           const hint = s.item.hint ? `<span class="palette-hint">${escapeHtml(s.item.hint)}</span>` : '';
-          return `<li class="${cls}" role="option" aria-selected="${i === selected ? 'true' : 'false'}" data-i="${i}">${highlight(s.item.label, i === 0 ? s.indices : null)}${hint}</li>`;
+          // The label lives in its own inline span: the row is a flex box
+          // with space-between, so bare text nodes interleaved with <mark>
+          // elements would be laid out as separate flex items and scatter
+          // across the row.
+          return `<li class="${cls}" role="option" aria-selected="${i === selected ? 'true' : 'false'}" data-i="${i}"><span class="palette-label">${highlight(s.item.label, i === 0 ? s.indices : null, query)}</span>${hint}</li>`;
         }).join('');
   }
 
-  function highlight(label, indices) {
+  function highlight(label, indices, query) {
     if (!indices || indices.length === 0) return escapeHtml(label);
+    // Multi-word queries: subsequence marks scattered through words read as
+    // rendering corruption — keep only contiguous runs of 2+ characters and
+    // word-start hits so rows stay scannable.
+    let marks = indices;
+    if (query && query.includes(' ')) {
+      marks = indices.filter((idx) => {
+        const prevIsLetter = idx > 0 && /\w/.test(label[idx - 1]);
+        if (!prevIsLetter) return true; // word start or boundary hit
+        return indices.includes(idx - 1); // inside a contiguous run
+      });
+    }
+    if (marks.length === 0) return escapeHtml(label);
     let out = '';
     let mi = 0;
     for (let i = 0; i < label.length; i++) {
-      if (mi < indices.length && indices[mi] === i) {
+      if (mi < marks.length && marks[mi] === i) {
         out += `<mark>${escapeHtml(label[i])}</mark>`;
         mi++;
       } else {

@@ -31,3 +31,7 @@ v0*-full.png
 docs/superpowers/
 eng.traineddata
 
+
+# tool artifacts
+.mimosa/
+graphify-out/

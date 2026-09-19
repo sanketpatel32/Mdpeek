@@ -32,6 +32,7 @@ import { EMOJI_MAP } from './lib/emoji.js';
 import { goalProgress, formatGoalChip, applyGoalChipPresentation, GOAL_KEY, SESSION_KEY } from './lib/writing-goal.js';
 import { markWritingDay, currentStreak, formatStreakChip, applyStreakChipPresentation } from './lib/streak.js';
 import { saveActiveDoc } from './lib/save-doc.js';
+import { SAMPLE_DOC } from './lib/sample-doc.js';
 import { getTemplates, saveTemplate, deleteTemplate, TEMPLATES_KEY } from './lib/templates.js';
 import { extractDocLinks, classifyLinks } from './lib/link-checker.js';
 import { buildGraph, circleLayout } from './lib/graph.js';
@@ -159,6 +160,7 @@ function renderWelcome() {
           <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
           <span>No recent files</span>
           <p class="recent-empty-sub">Opened files will appear here</p>
+          <button class="recent-sample" data-action="sample" type="button">See a sample document</button>
         </div>
       ` : `<div class="recent-list">${recents.map((r) => {
         const path = r.path || '';
@@ -239,14 +241,19 @@ function renderWelcome() {
       </div>
 
       <div class="welcome-footer" aria-hidden="true">
+        <span><kbd>Ctrl+Shift+P</kbd> search everything</span>
+        <span class="dot">·</span>
         <span><kbd>Ctrl+E</kbd> edit/view</span>
         <span class="dot">·</span>
-        <span><kbd>Ctrl+P</kbd> switch</span>
-        <span class="dot">·</span>
-        <span><kbd>F11</kbd> focus</span>
+        <span><kbd>Ctrl+P</kbd> switch files</span>
         <span class="dot">·</span>
         <span class="welcome-drop">drop a file anywhere to open</span>
       </div>
+      ${minimalModeOn() ? `
+      <div class="welcome-minimal-hint">
+        <span>Minimal mode is on — only the essentials are shown.</span>
+        <button class="welcome-minimal-explore" data-action="explore-features" type="button">Explore all features</button>
+      </div>` : ''}
     </div>
   </div>
 `;
@@ -450,9 +457,20 @@ function fmtErr(e) {
 // load). Used by the sync viewer branches in renderActive() so a malformed doc
 // shows a visible error instead of throwing and rejecting the whole render
 // (which would leave the tab blank). `kind` labels the doc type in the message.
-function showViewerError(container, kind, e) {
+function showViewerError(container, kind, e, opts = {}) {
   const raw = fmtErr(e);
   console.error(`viewer load failed (${kind}):`, e);
+  container.classList.add('markdown-body');
+  // An empty file is not a broken one — a calm neutral message beats a red
+  // alert that blames the format.
+  if (opts.empty) {
+    container.innerHTML =
+      `<div class="pdf-error">` +
+      `<strong>This ${kind} is empty.</strong><br>` +
+      `<span>There is nothing to display yet.</span>` +
+      `</div>`;
+    return;
+  }
   // JS-internal failures (missing Tauri API outside the desktop shell, engine
   // quirks) read as gibberish in the UI — show a plain sentence there and
   // keep the raw detail in the console. Backend errors (e.g. "file not
@@ -460,7 +478,6 @@ function showViewerError(container, kind, e) {
   const internal =
     /__TAURI_INTERNALS__|is not a function|is not defined|TypeError|ReferenceError|Cannot read/.test(raw);
   const detail = internal ? 'The format may be unsupported, or the file could not be read.' : raw;
-  container.classList.add('markdown-body');
   container.innerHTML =
     `<div class="pdf-error">` +
     `<strong>Couldn't open this ${kind}.</strong><br>` +
@@ -483,12 +500,29 @@ function toast(msg, opts = {}) {
   // visual differentiation without each passing a type.
   if (!opts.type) {
     const l = msg.toLowerCase();
-    if (/^(saved|copied|exported|inserted|created|deleted|renamed|moved|downloaded|link copied|done|complete)/.test(l)) opts.type = 'success';
+    if (/^(saved|copied|exported|inserted|created|deleted|renamed|moved|downloaded|link copied|done|complete|settings reset|imported|cleared|reopened|restored|task restored)/.test(l)) opts.type = 'success';
     else if (/(fail|could not|error|invalid|unable|not found|too large)/.test(l)) opts.type = 'error';
   }
   // Errors stay visible longer — the user needs time to read them.
   const timeout = opts.type === 'error' ? 4500 : TOAST_TIMEOUT_MS;
+  // Optional one-shot action button (e.g. "Undo" after a kanban delete) —
+  // rendered beside the message; clicking it never dismisses mid-run.
   el.toast.textContent = msg;
+  el.toast.querySelector('.toast-action')?.remove();
+  if (opts.action) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-action';
+    btn.textContent = opts.action.label || 'Undo';
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      clearTimeout(toast._t);
+      el.toast.classList.add('hidden');
+      el.toast.classList.remove('success', 'error', 'warn', 'leaving');
+      try { opts.action.run(); } catch (err) { console.error('toast action:', err); }
+    });
+    el.toast.appendChild(btn);
+  }
   el.toast.classList.remove('success', 'error', 'warn', 'leaving');
   if (opts.type) el.toast.classList.add(opts.type);
   el.toast.classList.remove('hidden');
@@ -502,6 +536,7 @@ function toast(msg, opts = {}) {
     setTimeout(() => {
       el.toast.classList.add('hidden');
       el.toast.classList.remove('leaving', 'success', 'error', 'warn');
+      el.toast.querySelector('.toast-action')?.remove();
     }, 200);
   };
   // Click-to-dismiss when the toast has no action — persistent toasts
@@ -514,6 +549,15 @@ function toast(msg, opts = {}) {
 
 function basename(p) {
   return p ? p.split(/[\\/]/).pop() : 'Untitled';
+}
+
+// Display title for a doc: filename from the path, or — for untitled notes —
+// a title derived from the content (first heading / first line) so tabs, the
+// window title and the quick switcher stay meaningful while the user writes
+// before saving (they used to all say "Untitled" forever).
+function docDisplayName(doc) {
+  if (doc && doc.path) return basename(doc.path);
+  return deriveNoteTitle(doc ? doc.content : '') || 'Untitled';
 }
 
 // Reusable in-app confirmation dialog (replaces native confirm()). Returns a
@@ -998,13 +1042,18 @@ async function renderActive() {
     el.document.classList.add('csv-viewer');
     setReadingProgressVisible(false);
     const tsv = /\.tsv$/i.test(doc.path || '');
-    try {
-      el.document.innerHTML = renderCsv(doc.content, { tsv });
-      const parsedRows = parseCsv(doc.content, tsv);
-      _activeCsv = initCsvViewer(el.document, parsedRows);
-    } catch (e) {
-      console.error('[mdpeek] csv viewer load failed:', e);
-      showViewerError(el.document, 'CSV/TSV file', e);
+    if (!doc.content || !doc.content.trim()) {
+      // An empty file is not a broken one — say so calmly.
+      showViewerError(el.document, 'CSV/TSV file', null, { empty: true });
+    } else {
+      try {
+        el.document.innerHTML = renderCsv(doc.content, { tsv });
+        const parsedRows = parseCsv(doc.content, tsv);
+        _activeCsv = initCsvViewer(el.document, parsedRows);
+      } catch (e) {
+        console.error('[mdpeek] csv viewer load failed:', e);
+        showViewerError(el.document, 'CSV/TSV file', e);
+      }
     }
     if (doc.scrollY) el.document.scrollTop = doc.scrollY;
     return;
@@ -1076,7 +1125,7 @@ async function renderActive() {
   // already active (use End instead) — the per-viewer branches above already
   // hide it for read-only formats (PDF/image/csv/welcome).
   if (el.share) el.share.classList.toggle('hidden', collab.getStatus().active);
-  el.document.classList.remove('code-viewer', 'image-viewer', 'excalidraw-host', 'tldraw-host');
+  el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'excalidraw-host', 'tldraw-host');
   el.document.classList.add('markdown-body');
 
   el.mode.title = doc.mode === 'edit'
@@ -1135,6 +1184,13 @@ async function renderActive() {
     if (doc.editorState) doc.editor.setState(doc.editorState);
     // Re-apply typewriter mode to the freshly-bound editor.
     doc.editor.setTypewriter(localStorage.getItem('mdpeek-typewriter') === '1');
+    // Keyboard-first: entering edit mode should land the caret in the text.
+    // Only when focus wasn't deliberately placed elsewhere (a dialog, the
+    // sidebar…). Session restore used to leave focus on <body> so the first
+    // keystroke went nowhere.
+    if (doc.editorState == null && document.activeElement === document.body) {
+      doc.editor.focus();
+    }
     el.editorStatus.classList.remove('hidden');
     updateEditorStatus();
     // v0.44.0: restore the editor outline visibility for edit-mode docs.
@@ -1261,9 +1317,9 @@ function getCommands() {
     { id: 'new-excalidraw', label: 'New Excalidraw drawing', keywords: 'new excalidraw drawing canvas whiteboard sketch diagram', run: () => store.open({ path: null, content: '', excalidraw: true }) },
     { id: 'new-tldraw', label: 'New TLDraw drawing', keywords: 'new tldraw drawing canvas whiteboard sketch diagram', run: () => store.open({ path: null, content: '', tldraw: true }) },
     { id: 'reopen-tab', label: 'Reopen closed tab', hint: 'Ctrl+Alt+T', keywords: 'reopen closed tab recent restore undo', run: reopenClosedTab },
-    { id: 'close-others', label: 'Close other tabs', keywords: 'close others tabs keep active only', run: () => { const d = store.active(); if (d) ctxAction('close-others', d.id); } },
-    { id: 'close-right', label: 'Close tabs to the right', keywords: 'close right tabs after', run: () => { const d = store.active(); if (d) ctxAction('close-right', d.id); } },
-    { id: 'close-all', label: 'Close all tabs', keywords: 'close all tabs every', run: () => ctxAction('close-all', store.active()?.id) },
+    { id: 'close-others', label: 'Close other tabs', danger: true, keywords: 'close others tabs keep active only', run: () => { const d = store.active(); if (d) ctxAction('close-others', d.id); } },
+    { id: 'close-right', label: 'Close tabs to the right', danger: true, keywords: 'close right tabs after', run: () => { const d = store.active(); if (d) ctxAction('close-right', d.id); } },
+    { id: 'close-all', label: 'Close all tabs', danger: true, keywords: 'close all tabs every', run: () => ctxAction('close-all', store.active()?.id) },
     { id: 'daily', label: 'Open daily note (today\'s .md)', keywords: 'daily note today date journal', run: openDailyNote },
     { id: 'capture', label: 'Capture thought…', hint: 'Ctrl+Shift+I', keywords: 'capture inbox thought quick note task idea journal', run: openCaptureHud },
     { id: 'save', label: 'Save', hint: 'Ctrl+S', keywords: 'save write', run: saveActive },
@@ -1354,7 +1410,7 @@ function getCommands() {
     { id: 'pin-doc-theme', label: 'Pin theme to this doc…', keywords: 'pin theme per document override color sepia', run: pinCurrentDocTheme },
     { id: 'clear-doc-theme', label: 'Clear pinned doc theme', keywords: 'clear remove pin theme per document override', run: clearCurrentDocTheme },
     { id: 'check-updates', label: 'Check for updates', keywords: 'update version check', run: () => checkForUpdates(false) },
-    { id: 'quit', label: 'Quit mdpeek', keywords: 'quit exit close', run: doQuitApp },
+    { id: 'quit', label: 'Quit mdpeek', danger: true, keywords: 'quit exit close', run: doQuitApp },
   ];
   // Hide actions that don't make sense in the current state. The palette
   // doesn't need to be exhaustive — it's a power-user shortcut, not a menu.
@@ -1603,7 +1659,9 @@ const diffVersionPicker = initQuickSwitcher(
     if (!doc || !doc.path) return;
     // View mode lazy-inits the editor only on entering edit mode, so the old
     // `!doc.editor → return` made this command a silent dead end for saved
-    // docs (the default open mode). Flip to edit first, then compare.
+    // docs (the default open mode). Flip to edit first, then compare — and
+    // restore the original mode when the diff closes without applying.
+    const wasMode = doc.mode;
     if (!doc.editor) {
       doc.mode = 'edit';
       await renderActive();
@@ -1619,6 +1677,13 @@ const diffVersionPicker = initQuickSwitcher(
         newContent: snap,
         oldLabel: 'Current',
         newLabel: `Snapshot ${item.label}`,
+        onClose: () => {
+          const d = store.active();
+          if (d && d.id === doc.id && d.mode !== wasMode && !d.dirty) {
+            d.mode = wasMode;
+            renderActive().catch(() => {});
+          }
+        },
         onApply: (newText) => {
           const d = store.active();
           if (!d || !d.editor) return;
@@ -2726,7 +2791,7 @@ async function exportHtml() {
   // Sync editor content before exporting so unsaved edits are included.
   if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
   const bodyHtml = renderMarkdown(doc.content);
-  const title = doc.path ? basename(doc.path).replace(/\.(md|markdown|mdx)$/i, '') : 'Untitled';
+  const title = docDisplayName(doc);
   const css = `/* mdpeek export */ ${exportThemeVars()} ${EXPORT_CSS} ${await exportHljsCss()}`;
   const full =
     `<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8">\n` +
@@ -2734,10 +2799,12 @@ async function exportHtml() {
     `<title>${escapeHtml(title)}</title>\n<style>\n${css}\n</style>\n</head>\n<body>\n` +
     `${bodyHtml}\n</body>\n</html>`;
   try {
-    await invoke('save_file_as_html', { content: full });
-    notify('Export complete', `${title}.html`);
+    const res = await invoke('save_file_as_html', { content: full });
+    // Use the real saved filename (the user may have renamed it in the save
+    // dialog) — never a fabricated one.
+    notify('Export complete', basename(res) || `${title}.html`);
   } catch (e) {
-    if (e !== 'cancelled') toast('Export failed: ' + fmtErr(e));
+    if (e !== 'cancelled') toast('Export failed — the file may be open in another program');
   }
 }
 
@@ -3147,10 +3214,8 @@ async function enterReading() {
   }
   // Sync any pending editor changes before rendering.
   if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
-  // Title: the doc's filename, or "Untitled".
-  el.readerTitle.textContent = doc.path
-    ? basename(doc.path).replace(/\.(md|markdown|mdx)$/i, '')
-    : 'Untitled';
+  // Title: the doc's filename, or a content-derived title for untitled notes.
+  el.readerTitle.textContent = docDisplayName(doc);
   refreshReaderMeta();
   // Render the doc into the reader article, then enhance (Mermaid, KaTeX, code
   // badges/gutter) exactly as the normal view does.
@@ -3782,10 +3847,15 @@ function moveKanbanTask(id, newStatus) {
 
 function deleteKanbanTask(id) {
   const before = _kanbanTasks.length;
+  const removed = _kanbanTasks.find((t) => t.id === id);
   _kanbanTasks = _kanbanTasks.filter((t) => t.id !== id);
   if (_kanbanTasks.length === before) return;
   saveKanbanTasks(_kanbanTasks);
   renderKanban();
+  // A hover-revealed ✕ is one stray click from destroying data — offer a
+  // one-shot undo window instead of a silent removal.
+  if (!removed) return;
+  toast(`Task deleted — ${removed.text.slice(0, 40)}`, { action: { label: 'Undo', run: () => { _kanbanTasks.push(removed); saveKanbanTasks(_kanbanTasks); renderKanban(); toast('Task restored', { type: 'success' }); } } });
 }
 
 function clearDoneKanbanTasks() {
@@ -3881,6 +3951,12 @@ function setWorkspaceMode(mode, opts = {}) {
   VALID_MODES.forEach((m) => document.body.classList.remove(`ws-mode-${m}`));
   document.body.classList.add(`ws-mode-${mode}`);
 
+  // The toolbar's "Filter…" box only filters the Board and Tasks lists —
+  // in Calendar/Review it was a dead control and in Graph it duplicated the
+  // dedicated node filter. Hide it everywhere it does nothing.
+  const searchWrap = document.querySelector('.kanban-search-wrap');
+  if (searchWrap) searchWrap.classList.toggle('hidden', mode !== 'board' && mode !== 'tasks');
+
   // Hide tabs whose feature flag is off.
   document.querySelectorAll('.workspace-tab').forEach((t) => {
     const m = t.dataset.mode;
@@ -3906,6 +3982,19 @@ function setWorkspaceMode(mode, opts = {}) {
   else if (mode === 'review') renderReview();
   else if (mode === 'graph') renderGraph();
 }
+
+// Arrow keys switch workspace tabs — the tablist advertises tab semantics
+// (role="tablist"/aria-selected) without actually being arrow-operable.
+el.workspaceTabs?.addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  const tabs = [...el.workspaceTabs.querySelectorAll('.workspace-tab')].filter((t) => t.style.display !== 'none');
+  const idx = tabs.findIndex((t) => t.dataset.mode === _wsMode);
+  if (idx === -1) return;
+  e.preventDefault();
+  const next = tabs[(idx + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+  next.focus();
+  setWorkspaceMode(next.dataset.mode);
+});
 
 // ---------- Calendar ----------
 let _calYear = new Date().getFullYear();
@@ -4100,6 +4189,7 @@ async function renderTasks() {
 function taskRowHtml(t) {
   const check = `<span class="task-check${t.done ? ' checked' : ''}" data-id="${t.id}"></span>`;
   let badges = '';
+  const isNote = t.kind !== 'kanban';
   if (t.kind === 'kanban') {
     badges += `<span class="task-badge task-badge-kanban">Kanban</span>`;
     if (t.column === 'todo') badges += `<span class="task-badge task-badge-todo">To do</span>`;
@@ -4110,7 +4200,10 @@ function taskRowHtml(t) {
   const meta = `<div class="task-meta">${badges}${
     t.source && t.source.path ? `<span class="task-src">${basename(t.source.path)}:${t.source.line}</span>` : ''
   }</div>`;
-  return `<div class="task-row${t.done ? ' done' : ''}" data-id="${t.id}">${check}<div class="task-body"><div class="task-text">${escapeHtml(t.text)}</div>${meta}</div></div>`;
+  // Only note rows open their source on click — scope the pointer cursor and
+  // the affordance to them so kanban rows stop advertising a dead click.
+  const openHint = isNote && t.source && t.source.path ? ' title="Open note"' : '';
+  return `<div class="task-row${t.done ? ' done' : ''}${isNote ? ' task-row-note' : ''}" data-id="${t.id}"${openHint}>${check}<div class="task-body"><div class="task-text">${escapeHtml(t.text)}</div>${meta}</div></div>`;
 }
 
 async function toggleNoteCheckbox(path, line, currentDone) {
@@ -4292,6 +4385,10 @@ function renderReviewCard() {
 // Hint shows the REAL next interval from the SRS math. The old static hints
 // lied — "again" schedules +1 day here (SM-2), not "<1m".
 function rateHint(r, prev) {
+  // "Again" on a new/lapsed card re-queues it for THIS session (rateCard) —
+  // advertise "Today" instead of the same "1d" as Good, which gave a beginner
+  // no basis to choose between the buttons.
+  if (r === 'again' && (!prev || prev.reps === 0)) return 'Today';
   let days;
   try { days = srsReview(prev || newCard(), r).interval; } catch { days = 0; }
   return days >= 1 ? `${days}d` : '<1d';
@@ -4481,11 +4578,17 @@ function drawGraph(svg, nodes, edges, orphans) {
     const r = maxDeg > 0 ? baseR + (n.degree / maxDeg) * baseR : baseR;
     let cls = n.degree === 0 ? 'graph-node graph-node-orphan' : 'graph-node';
     if (n.degree > 0 && n.degree >= hubAt) cls += ' graph-node-hub';
+    // Daily-note nodes carry a raw YYYY-MM-DD id as their label — render it
+    // as a readable "Sep 15" instead of a date stamp.
+    const isDailyStamp = /^\d{4}-\d{2}-\d{2}$/.test(n.label);
+    const display = isDailyStamp
+      ? new Date(n.label + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      : n.label;
     return (
       `<g class="${cls}" data-node-id="${esc(n.id)}" data-path="${esc(n.path)}">` +
       `<title>${esc(n.label)}</title>` +
       `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r.toFixed(1)}" />` +
-      `<text x="${p.x.toFixed(1)}" y="${(p.y + r + 12).toFixed(1)}">${esc(n.label.length > 18 ? n.label.slice(0, 17) + '…' : n.label)}</text>` +
+      `<text x="${p.x.toFixed(1)}" y="${(p.y + r + 12).toFixed(1)}">${esc(display.length > 18 ? display.slice(0, 17) + '…' : display)}</text>` +
       `</g>`
     );
   }).join('');
@@ -5209,7 +5312,7 @@ async function openDailyNote() {
       localStorage.setItem('mdpeek-notes-dir', dir);
       toast('Notes folder set: ' + basename(dir));
     } catch (e) {
-      toast('Could not set notes folder');
+      toast('Set a notes folder in Settings → General first');
       return;
     }
   }
@@ -5448,7 +5551,7 @@ async function openInBrowser() {
   }
   if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
   const bodyHtml = renderMarkdown(doc.content);
-  const title = doc.path ? basename(doc.path).replace(/\.(md|markdown|mdx)$/i, '') : 'Untitled';
+  const title = docDisplayName(doc);
   const css = `/* mdpeek preview */ ${exportThemeVars()} ${EXPORT_CSS} ${await exportHljsCss()}`;
   const full =
     `<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8">\n` +
@@ -6135,7 +6238,7 @@ const referencePane = initReferencePane({
     const doc = store.docs.find((d) => d.id === _referenceDocId);
     if (!doc) return null;
     const content = doc.mode === 'edit' && doc.editor ? doc.editor.getValue() : doc.content;
-    const name = doc.path ? doc.path.replace(/[\\/]/g, ' / ').split(' / ').pop() : 'Untitled';
+    const name = doc.path ? doc.path.replace(/[\\/]/g, ' / ').split(' / ').pop() : docDisplayName(doc);
     return { name, content: content || '' };
   },
   onNavigate: () => { openReferencePicker(); },
@@ -6150,7 +6253,7 @@ function openReferencePicker() {
     // binary viewers would show raw JSON or nothing.
     .filter((d) => !d.excalidraw && !d.tldraw && !d.notebook && !d.media && !d.pdf && !d.image && !d.csv)
     .map((d) => {
-      const name = d.path ? d.path.replace(/[\\/]/g, ' / ').split(' / ').pop() : 'Untitled';
+      const name = d.path ? d.path.replace(/[\\/]/g, ' / ').split(' / ').pop() : docDisplayName(d);
       return { label: name, hint: d.id === store.activeId ? 'active' : '', keywords: name, _id: d.id };
     });
   if (items.length === 0) { toast('Open a second doc to use as a reference'); return; }
@@ -6420,7 +6523,7 @@ function openWordFreqPopover() {
   if (!doc) { toast('Open a document first'); return; }
   const text = doc.mode === 'edit' && doc.editor ? doc.editor.getValue() : doc.content;
   const items = topWords(text, { limit: 20 });
-  wordFreqPopover.open({ items, onWord: () => { wordFreqPopover.close(); } });
+  wordFreqPopover.open({ items, onWord: (word) => { wordFreqPopover.close(); if (word) find.openWithQuery(word); } });
 }
 
 function setDocStatsVisible(on) {
@@ -7283,10 +7386,13 @@ if (el.kanbanBoard) {
     if (input) {
       if (e.key !== 'Enter') return;
       e.preventDefault();
-      addKanbanTask(input.dataset.status, input.value);
-      input.value = '';
-      // Keep focus on the To-Do input for rapid entry.
-      input.focus();
+      const status = input.dataset.status;
+      addKanbanTask(status, input.value);
+      // renderKanban rebuilds the board DOM, detaching the input — re-query
+      // the live one so rapid entry keeps working (focus used to drop to
+      // <body> and the next typed task was silently lost).
+      const freshInput = el.kanbanBoard.querySelector(`.kanban-add-input[data-status="${status}"]`);
+      if (freshInput) freshInput.focus();
       return;
     }
     // v0.67.0: card keyboard operation. Cards are tabindex=0 (see
@@ -7602,11 +7708,12 @@ const SETTING_KEYS = [
 ];
 
 let _changelogRendered = false;
-function openSettings() {
+function openSettings(cat) {
   syncSettingsControls();
   el.settingsDialog.classList.remove('hidden');
-  // Always open on the General category for predictability
-  const firstCat = el.settingsDialog.querySelector('.settings-cat[data-cat="general"]');
+  // Open on the requested category (or General for predictability)
+  const firstCat = el.settingsDialog.querySelector(`.settings-cat[data-cat="${cat || 'general'}"]`) ||
+    el.settingsDialog.querySelector('.settings-cat[data-cat="general"]');
   if (firstCat && !firstCat.classList.contains('active')) firstCat.click();
   // Put focus inside the dialog: its Esc handler is dialog-scoped, so with
   // focus left on the opening button Esc was dead until the user Tabbed in.
@@ -7801,8 +7908,28 @@ const closeBtn = document.getElementById('settings-close-btn');
 if (closeBtn) closeBtn.addEventListener('click', closeSettings);
 const resetBtn = document.getElementById('settings-reset');
 if (resetBtn) {
-  resetBtn.addEventListener('click', () => {
-    for (const k of SETTING_KEYS) localStorage.removeItem(k);
+  resetBtn.addEventListener('click', async () => {
+    // Destructive + irreversible (custom CSS dies too) — confirm first, and
+    // actually reset everything: SETTING_KEYS alone missed Minimal mode,
+    // the feature flags and the notes folder, so the label lied.
+    const ok = await confirmDialog({
+      title: 'Reset all settings?',
+      text: 'This restores every setting to its default, including your custom CSS and feature toggles. This can\u2019t be undone.',
+      buttons: [
+        { id: 'cancel', label: 'Cancel', kind: 'secondary' },
+        { id: 'reset', label: 'Reset everything', kind: 'danger' },
+      ],
+    }).catch(() => null);
+    if (ok !== 'reset') return;
+    // Wipe every app-pref key except user data (open tabs, SRS progress,
+    // writing days, recents) so "settings" never means "your notes".
+    const keep = new Set(['mdpeek-session', 'mdpeek-srs-cards', 'mdpeek-writing-days', 'mdpeek-recents']);
+    const wipe = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('mdpeek-') && !keep.has(k)) wipe.push(k);
+    }
+    for (const k of wipe) localStorage.removeItem(k);
     // Apply defaults live.
     applyTheme('light');
     if (find) find.setCaseSensitive(false);
@@ -7811,7 +7938,7 @@ if (resetBtn) {
     applyWordWrap();
     applySpellcheck();
     syncSettingsControls();
-    toast('Settings reset to defaults');
+    toast('Settings reset to defaults', { type: 'success' });
   });
 }
 
@@ -8353,14 +8480,37 @@ async function createAndOpenMissingLink(fullPath, displayName) {
   }
 }
 
+// In-document anchors (footnote refs, [x](#heading) links) scroll in place
+// with a brief target flash — the DOMPurify hook no longer forces target=_blank
+// on hash-only hrefs, so without this they'd be dead default jumps.
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a[href^="#"]');
+  if (!a) return;
+  const target = el.document.querySelector(decodeURIComponent(a.getAttribute('href')));
+  if (!target) return;
+  e.preventDefault();
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  target.classList.remove('anchor-flash');
+  void target.offsetWidth;
+  target.classList.add('anchor-flash');
+  setTimeout(() => target.classList.remove('anchor-flash'), 1600);
+});
+
 // Welcome-screen action buttons (Open / New / Daily / Clear recents) —
 // delegated so they work regardless of when the welcome HTML is (re)rendered.
 document.addEventListener('click', async (e) => {
-  const btn = e.target.closest('.welcome-action, .recent-clear');
+  const btn = e.target.closest('.welcome-action, .recent-clear, .recent-sample, .welcome-minimal-explore');
   if (!btn) return;
   const action = btn.dataset.action;
   if (action === 'open') openFileDialog();
-  else if (action === 'new') newTab();
+  else if (action === 'new') {
+    // The welcome card promises "Start writing instantly" — honor it by
+    // landing in the editor, not on another welcome screen (Ctrl+N and the
+    // tab-strip + still honor the new-tab-format setting).
+    store.open({ path: null, content: '', mode: 'edit' });
+  }
+  else if (action === 'sample') store.open({ path: null, content: SAMPLE_DOC, mode: 'view' });
+  else if (action === 'explore-features') openSettings('features');
   else if (action === 'daily') openDailyNote();
   else if (action === 'open-folder') openFolderForExplorer();
   else if (action === 'clear-recents') {

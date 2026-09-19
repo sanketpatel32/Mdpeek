@@ -219,7 +219,9 @@ export function initCsvViewer(container, rows) {
       const tds = header.map((_, i) => {
         const v = row[i] ?? '';
         const numeric = Number.isFinite(Number(v)) && v !== '';
-        return `<td${numeric ? ' data-numeric="1"' : ''}>${escapeForHtml(v)}</td>`;
+        // Cells truncate via CSS — carry the full value as a tooltip so the
+        // content stays reachable without a copy-paste round-trip.
+        return `<td${numeric ? ' data-numeric="1"' : ''} title="${escapeForHtml(v)}">${escapeForHtml(v)}</td>`;
       }).join('');
       return `<tr>${tds}</tr>`;
     }).join('');
@@ -229,11 +231,13 @@ export function initCsvViewer(container, rows) {
 
   function escapeForHtml(s) {
     // Output is inserted via innerHTML; renderer.js already uses DOMPurify
-    // globally, but a small inline escape keeps this self-contained.
+    // globally, but a small inline escape keeps this self-contained. Quotes
+    // are escaped too — cell values now also land inside title attributes.
     return String(s)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 
   function updateCount(visible) {

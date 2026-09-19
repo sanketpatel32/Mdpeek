@@ -7,6 +7,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-20
+
+A UX-quality round driven by six parallel design audits (onboarding, editor,
+workspace, visual system, modals/settings, viewers), implementing the
+highest-impact recommendations, then re-verified by two independent QA
+subagents.
+
+### Added
+- "See a sample document" action on the welcome screen's empty recents panel
+  (`src/lib/sample-doc.js`) — a first-run user sees mdpeek render before they
+  have any file at hand.
+- First-run transparency: when Minimal mode is on, the welcome screen says so
+  with an "Explore all features" shortcut that deep-links to Settings →
+  Features (`openSettings()` now accepts a category).
+- Undo for Kanban card deletion: a toast with an inline "Undo" action
+  replaces the silent one-click destroy; the toast system gained an action
+  button.
+- Destructive palette commands ("Close other tabs", "Close all tabs", "Quit
+  mdpeek") render with a danger label.
+- Arrow keys switch workspace tabs; "Again" on a new flashcard advertises
+  "Today" instead of a misleading "1d".
+
+### Changed
+- The welcome "New Note" card now lands directly in the editor (its own
+  promise); Ctrl+N and the tab-strip "+" still honor the new-tab-format
+  setting.
+- Command palette default (empty-query) list keeps the curated command order
+  instead of floating short labels to the top; multi-word query highlighting
+  renders as contiguous word runs inside a proper inline label span.
+- The welcome footer leads with Ctrl+Shift+P (the palette), the app's
+  flagship shortcut.
+- Reading measure: on wide viewports (≥960px) rendered prose is capped to
+  ~736px and centered instead of running 125+ characters per line.
+- Code comments on accent-colored buttons: new `--on-accent`/`--on-danger`
+  tokens per theme — pastel-accent themes (nord, dracula, catppuccin,
+  tokyo-night, oled) now render dark ink on accent/danger fills, fixing
+  white-on-pastel contrast as low as 2.0:1.
+- Untitled notes derive their tab/window/quick-switcher title from the first
+  heading or line while writing (they used to say "Untitled" forever).
+- Kanban board columns fill the pane height with per-column scrolling; the
+  toolbar's dead "Filter…" box hides on Calendar/Review/Graph; tasks rows
+  scope the pointer affordance to the rows that actually open notes.
+- Export toasts report the real saved filename; export failures show plain
+  copy with the detail in the console; more success toasts classify as
+  success.
+- Nord's code blocks get a tonally lifted background (was identical to the
+  page background); kanban stats and calendar chips use tabular numerals;
+  context-menu/palette/kanban-input paddings normalized to one rhythm.
+
+### Fixed
+- Find bar: pressing Enter while navigating matches could insert a newline
+  over the highlighted match (focus jumped into the editor mid-keypress);
+  focus now stays in the find bar, and match navigation no longer steals
+  focus or snaps scroll during live search.
+- Find bar: "Replace" and "Replace all" wiped the native undo stack (Ctrl+Z
+  did nothing) and replace-all threw the caret to the document top — replaces
+  are now native-undoable single edits with the caret anchored at the first
+  replacement.
+- Find bar: scroll-to-match now uses the wrap-aware editor mirror instead of
+  line-number math that ignored soft wrapping.
+- Audio files crashed the media viewer mid-render ("Cannot read properties
+  of null") and read as an unsupported format; the fullscreen control is now
+  guarded for audio's control bar.
+- In-document anchors (footnotes, `[x](#heading)`) no longer open a new
+  window — they scroll in place with a brief target flash.
+- "Compare version…" from view mode flips the doc to edit mode for the diff
+  and now restores the original mode when the diff closes without applying.
+- An empty CSV shows a calm "This file is empty" state instead of a red
+  "Couldn't open" error; notebook array sources without trailing newlines no
+  longer collapse cell lines together; CSV cells carry their full value as a
+  tooltip.
+- Entering edit mode focuses the textarea when nothing else holds focus (the
+  first keystroke used to go nowhere after session restore).
+- Prose-highlight and word-frequency toggles now apply live in the
+  edit-mode preview; clicking a word in the word-frequency popover seeds the
+  find bar.
+
 ## [1.1.2] - 2026-09-19
 
 Fourteen fixes from a four-agent UI/UX audit that probed the editor, workspace

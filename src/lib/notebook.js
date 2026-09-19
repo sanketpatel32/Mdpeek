@@ -21,12 +21,21 @@
 // of a blank canvas. Unit-tested in test/notebook.test.js.
 
 // Join a source field that may be a string or an array of line-strings.
-// Jupyter stores line-strings WITHOUT trailing newlines (the newline is
-// implicit between array entries), so we join with '\n'. A bare string is
-// returned as-is. Returns '' for missing/odd shapes.
+// Well-formed nbformat arrays end each entry with '\n' and are preserved
+// byte-for-byte; sloppy writers omit the newline between entries — insert
+// one so cells don't collapse into a single line. A bare string is returned
+// as-is. Returns '' for missing/odd shapes.
 export function joinSource(src) {
   if (typeof src === 'string') return src;
-  if (Array.isArray(src)) return src.map((s) => (typeof s === 'string' ? s : '')).join('');
+  if (Array.isArray(src)) {
+    let out = '';
+    for (const s of src) {
+      if (typeof s !== 'string') continue;
+      if (out && !out.endsWith('\n')) out += '\n';
+      out += s;
+    }
+    return out;
+  }
   return '';
 }
 

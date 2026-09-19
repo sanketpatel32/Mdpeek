@@ -7,20 +7,24 @@
 
 import { escapeHtml } from '../lib/escape.js';
 import { getIconForPath } from '../lib/file-type.js';
+import { deriveNoteTitle } from '../lib/editor-logic.js';
 
 function titleFor(doc) {
   if (doc.path) {
     const parts = doc.path.split(/[\\/]/);
     return parts[parts.length - 1];
   }
-  return 'Untitled';
+  // Untitled notes derive a title from their content (first heading / first
+  // line) so the tab strip stays meaningful while writing before saving.
+  const derived = deriveNoteTitle(doc.content || '');
+  return derived === 'Untitled' ? 'Untitled' : derived.slice(0, 24);
 }
 
 // Native tooltip text: full path first (the filename alone is ambiguous when
 // several folders are open), then state suffixes. The dirty marker mirrors
 // the status bar's "· edited" wording so both cues read the same way.
 function tooltipFor(doc) {
-  let t = doc.path || (doc.shared ? 'Shared document' : 'Untitled');
+  let t = doc.path || (doc.shared ? 'Shared document' : deriveNoteTitle(doc.content || ''));
   if (doc.dirty) t += ' — unsaved changes';
   if (doc.pinned) t += ' — pinned';
   return t;

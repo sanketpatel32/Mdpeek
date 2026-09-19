@@ -21,6 +21,19 @@
   font-size: var(--content-font-size, 15px);
   font-family: var(--content-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", sans-serif) !important;
 }
+/* Comfortable measure: on wide panes, prose running edge-to-edge reaches
+   ~125 characters per line, which reads poorly. Cap each top-level block on
+   wide viewports (46rem ≈ 736px) and center it — cap lives on the CHILDREN
+   because a padding/max-width on .markdown-body itself resolves against the
+   whole flex row (including the outline rail) and lands too narrow. Narrow
+   panes are unaffected. */
+@media (min-width: 960px) {
+  .markdown-body > * {
+    max-width: 46rem;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
 /* width:0 + flex:1 lets #document fill the row in view mode and prevents
    long unbroken lines from overflowing horizontally. */
 .view-mode > .markdown-body,
@@ -1078,7 +1091,7 @@
 }
 .pdf-unlock-btn {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border: 1px solid var(--accent);
 }
 .pdf-unlock-btn:hover { filter: brightness(1.05); }

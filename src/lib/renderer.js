@@ -601,15 +601,19 @@ function cacheSet(key, val) {
 }
 
 // --------------------------- DOMPurify hardening --------------------------
-// One-time hook: force every link to open safely (target=_blank + noopener).
-// Belt-and-suspenders alongside the opener-plugin click handler that already
-// routes external URLs to the system browser.
+// One-time hook: force every external link to open safely (target=_blank +
+// noopener). Belt-and-suspenders alongside the opener-plugin click handler
+// that already routes external URLs to the system browser. Hash-only hrefs
+// (footnotes, [x](#heading)) are in-document anchors — they must scroll in
+// place, never open a new window.
 let _purifyHookAdded = false;
 function ensurePurifyHook() {
   if (_purifyHookAdded || typeof window === 'undefined') return;
   _purifyHookAdded = true;
   DOMPurify.addHook('afterSanitizeAttributes', (node) => {
     if (node.tagName === 'A' && node.getAttribute('href')) {
+      const href = node.getAttribute('href');
+      if (href.startsWith('#')) return;
       node.setAttribute('target', '_blank');
       node.setAttribute('rel', 'noopener noreferrer');
     }

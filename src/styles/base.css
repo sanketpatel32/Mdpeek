@@ -142,13 +142,13 @@ body {
 }
 .window-btn.win-close:hover {
   background: var(--danger);
-  color: #ffffff;
+  color: var(--on-danger);
 }
 .window-btn.win-close:active {
-  /* Deepen the red rather than filtering the whole button, so the white glyph
+  /* Deepen the red rather than filtering the whole button, so the glyph
      stays crisp while the surface reads as pressed. */
   background: color-mix(in srgb, var(--danger) 86%, #000000);
-  color: #ffffff;
+  color: var(--on-danger);
   transition-duration: calc(var(--dur-1) / 2);
 }
 /* v0.36.0: Always-on-top pin button. Narrower than min/max/close, icon-sized.
@@ -1125,11 +1125,11 @@ main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 9px 12px;
+  padding: 8px 12px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   color: var(--fg);
-  font-size: 13.5px;
+  font-size: 13px;
   border-left: 3px solid transparent;
   transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
 }
@@ -2087,6 +2087,34 @@ mark.find-current {
   cursor: pointer;
   animation: toast-in var(--dur-4) var(--ease-spring);
 }
+/* One-shot action inside a toast (e.g. "Undo" after a kanban delete). */
+.toast .toast-action {
+  margin-left: var(--sp-3);
+  padding: 3px 12px;
+  border: 1px solid color-mix(in srgb, currentColor 45%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+.toast .toast-action:hover {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+/* Target flash for in-document anchor jumps (footnotes, [x](#heading)). */
+.anchor-flash {
+  animation: anchor-flash 1.6s var(--ease-out);
+}
+@keyframes anchor-flash {
+  0%, 60% { background: var(--accent-soft); }
+  100% { background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .anchor-flash { animation: none; }
+}
 .toast.success {
   border-left-color: var(--success);
   box-shadow: var(--shadow-lg),
@@ -2424,12 +2452,12 @@ mark.find-current {
 .welcome-action.primary {
   background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 82%, #000 18%));
   border-color: transparent;
-  color: #ffffff;
+  color: var(--on-accent);
   box-shadow: 0 8px 20px -6px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 .welcome-action.primary .wa-icon {
   background: rgba(255, 255, 255, 0.18);
-  color: #ffffff;
+  color: var(--on-accent);
 }
 .welcome-action.primary:hover .wa-icon {
   background: rgba(255, 255, 255, 0.28);
@@ -2463,7 +2491,7 @@ mark.find-current {
 .welcome-action.primary kbd {
   background: rgba(255, 255, 255, 0.2);
   border: none;
-  color: #ffffff;
+  color: var(--on-accent);
 }
 /* Keyboard focus — soft accent halo (--focus-ring) layered over the resting
    shadow; replaces the global outline inside these elevated cards. */
@@ -2577,6 +2605,50 @@ mark.find-current {
   margin: 0;
   font-size: 10.5px;
   letter-spacing: 0.02em;
+}
+/* Ghost action in the empty-recents panel: opens the built-in sample doc so
+   a first-run user sees the app render before they have a file at hand. */
+.recent-sample {
+  margin-top: var(--sp-3);
+  padding: 5px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fg-secondary);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out);
+}
+.recent-sample:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+/* Quiet first-run note: Minimal mode hides most features and never said so. */
+.welcome-minimal-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  color: var(--fg-muted);
+  font-size: 11.5px;
+}
+.welcome-minimal-explore {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+}
+.welcome-minimal-explore:hover {
+  text-decoration: underline;
 }
 /* The list scrolls if needed; capped so a long history never pushes the
    footer off-screen. */
@@ -3074,7 +3146,7 @@ mark.find-current {
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 7px 10px;
+  padding: 8px 12px;
   border: none;
   background: transparent;
   color: var(--fg);
@@ -3384,7 +3456,7 @@ mark.find-current {
   padding: 2px;
   border-radius: 50%;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   opacity: 0;
   transform: scale(0.6);
   transition: opacity var(--dur-2) var(--ease-spring), transform var(--dur-2) var(--ease-spring);
@@ -4005,7 +4077,7 @@ body.presenting #slideshow { display: flex; }
 .modal-btn-primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #ffffff;
+  color: var(--on-accent);
 }
 .modal-btn-primary:hover {
   background: var(--accent-hover);
@@ -4014,7 +4086,7 @@ body.presenting #slideshow { display: flex; }
 .modal-btn-danger {
   background: var(--danger);
   border-color: var(--danger);
-  color: #ffffff;
+  color: var(--on-danger);
 }
 .modal-btn-danger:hover {
   filter: brightness(1.08);
@@ -4198,7 +4270,7 @@ body.presenting #slideshow { display: flex; }
 #share-end-btn.active {
   background: var(--danger);
   border-color: var(--danger);
-  color: #ffffff;
+  color: var(--on-danger);
   font-weight: 500;
 }
 #share-end-btn.active:hover {
@@ -4473,6 +4545,7 @@ body.kanban-mode #kanban-view { display: flex; }
   font-size: 12px;
   color: var(--fg-muted);
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -4530,7 +4603,7 @@ body.kanban-mode #kanban-view { display: flex; }
 
 .kanban-toolbar .tool-btn.primary-btn {
   background: var(--accent);
-  color: #ffffff;
+  color: var(--on-accent);
   border: none;
 }
 
@@ -4929,7 +5002,7 @@ body.kanban-mode #kanban-view { display: flex; }
   flex: 1;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 7px 10px;
+  padding: 8px 12px;
   font-size: 13px;
   font-family: inherit;
   background: var(--bg);
@@ -4958,7 +5031,7 @@ body.kanban-mode #kanban-view { display: flex; }
   flex: 0 0 auto;
   border: none;
   background: linear-gradient(180deg, color-mix(in srgb, #ffffff 12%, var(--accent)), var(--accent));
-  color: #ffffff;
+  color: var(--on-accent);
   border-radius: var(--radius-sm);
   padding: 0 16px;
   font-size: 13px;
@@ -5089,6 +5162,22 @@ body.kanban-mode #kanban-view { display: flex; }
 .workspace-panel.active {
   display: block;
   animation: settings-panel-in var(--dur-2) var(--ease-out);
+}
+/* The board is a column trio — flex so columns fill the pane height (they
+   used to stop at content height, leaving ~40% dead space below) and cards
+   scroll inside their column instead of stretching the page. */
+.workspace-panel[data-mode="board"].active {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.workspace-panel[data-mode="board"].active .kanban-board {
+  flex: 1;
+  min-height: 0;
+}
+.workspace-panel[data-mode="board"].active .kanban-cards {
+  overflow-y: auto;
+  min-height: 0;
 }
 /* Board panel keeps the original kanban-board layout. */
 .workspace-panel[data-mode="board"] { padding: 0; }
@@ -5309,7 +5398,8 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 10px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
   font-weight: 600;
   line-height: 1;
   color: var(--fg-muted);
@@ -5354,7 +5444,13 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
+  /* Only note rows open their source — the affordance follows the behavior. */
+  cursor: default;
+}
+.task-row.task-row-note {
   cursor: pointer;
+}
+.task-row {
   transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-spring);
 }
 /* Hover ramp: wash + border step, then a 1px spring lift (the transition
@@ -5389,7 +5485,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   100% { transform: scale(1); }
 }
 .task-check.checked::after {
-  content: '✓'; color: #fff; font-size: 12px; font-weight: 700; line-height: 1;
+  content: '✓'; color: var(--on-accent); font-size: 12px; font-weight: 700; line-height: 1;
 }
 .task-body { flex: 1; min-width: 0; }
 .task-text { font-size: 13px; color: var(--fg); line-height: 1.4; }
@@ -6572,7 +6668,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 .about-link.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #ffffff;
+  color: var(--on-accent);
   box-shadow: 0 4px 12px var(--accent-soft);
 }
 .about-link.primary:hover {

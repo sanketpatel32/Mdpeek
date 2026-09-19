@@ -550,7 +550,11 @@ export function showMedia(container, filePath) {
       if (el.muted && el.volume > 0) el.muted = false;
     });
     muteBtn.addEventListener('click', () => { el.muted = !el.muted; });
-    $('full').addEventListener('click', toggleFullscreen);
+    // Audio files have no fullscreen button in their control bar — guard so a
+    // perfectly valid .mp3 doesn't die mid-render with "cannot read properties
+    // of null" and read as an unsupported format.
+    const fullBtn = $('full');
+    if (fullBtn) fullBtn.addEventListener('click', toggleFullscreen);
     if (pipBtn) {
       if (document.pictureInPictureEnabled && typeof el.requestPictureInPicture === 'function') {
         pipBtn.addEventListener('click', () => {

@@ -97,6 +97,8 @@
   --accent-hover: #0060c0;
   --accent-soft: rgba(0, 113, 227, 0.1);
   --danger: #ff3b30;
+  --on-accent: #ffffff;
+  --on-danger: #ffffff;
   --warning: #9a6700;
   --success: #34c759;
 
@@ -141,6 +143,8 @@
   --accent-hover: #409cff;
   --accent-soft: rgba(10, 132, 255, 0.16);
   --danger: #ff453a;
+  --on-accent: #ffffff;
+  --on-danger: #ffffff;
   --warning: #d29922;
   --success: #30d158;
 
@@ -191,6 +195,8 @@
   --accent-hover: #1e6fa7;
   --accent-soft: rgba(38, 139, 210, 0.12);
   --danger: #dc322f;
+  --on-accent: #ffffff;
+  --on-danger: #ffffff;
   --warning: #b58900;
   --success: #859900;
 
@@ -239,6 +245,8 @@
   --accent-hover: #4099d7;
   --accent-soft: rgba(38, 139, 210, 0.18);
   --danger: #dc322f;
+  --on-accent: #ffffff;
+  --on-danger: #ffffff;
   --warning: #b58900;
   --success: #859900;
 
@@ -283,6 +291,8 @@
   --accent-hover: #caa6ff;
   --accent-soft: rgba(189, 147, 249, 0.15);
   --danger: #ff5555;
+  --on-accent: #282a36;
+  --on-danger: #282a36;
   --warning: #f1fa8c;
   --success: #50fa7b;
 
@@ -327,10 +337,12 @@
   --accent-hover: #9bcbd8;
   --accent-soft: rgba(136, 192, 208, 0.15);
   --danger: #bf616a;
+  --on-accent: #2e3440;
+  --on-danger: #ffffff;
   --warning: #ebcb8b;
   --success: #a3be8c;
 
-  --code-bg: #2e3440;
+  --code-bg: #333a4a;
   --code-border: #434c5e;
 
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.2);
@@ -371,6 +383,8 @@
   --accent-hover: #0860ca;
   --accent-soft: rgba(9, 105, 218, 0.08);
   --danger: #cf222e;
+  --on-accent: #ffffff;
+  --on-danger: #ffffff;
   --warning: #9a6700;
   --success: #1a7f37;
 
@@ -417,6 +431,8 @@
   --accent-hover: #4493f8;
   --accent-soft: rgba(47, 129, 247, 0.15);
   --danger: #f85149;
+  --on-accent: #ffffff;
+  --on-danger: #ffffff;
   --warning: #d29922;
   --success: #3fb950;
 
@@ -461,6 +477,8 @@
   --accent-hover: #89b4fa;
   --accent-soft: rgba(122, 162, 247, 0.15);
   --danger: #f7768e;
+  --on-accent: #1a1b26;
+  --on-danger: #1a1b26;
   --warning: #e0af68;
   --success: #9ece6a;
 
@@ -505,6 +523,8 @@
   --accent-hover: #b4befe;
   --accent-soft: rgba(137, 180, 250, 0.15);
   --danger: #f38ba8;
+  --on-accent: #1e1e2e;
+  --on-danger: #1e1e2e;
   --warning: #f9e2af;
   --success: #a6e3a1;
 
@@ -554,6 +574,8 @@
   --accent-hover: #7ab5fb;
   --accent-soft: rgba(79, 156, 249, 0.16);
   --danger: #ff5147;
+  --on-accent: #000000;
+  --on-danger: #000000;
   --warning: #e3b341;
   --success: #3ddc84;
 

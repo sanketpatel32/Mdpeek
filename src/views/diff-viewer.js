@@ -368,11 +368,14 @@ export function initDiffViewer() {
 
 // Show the diff overlay. opts: { title?, oldContent, newContent, oldLabel?, newLabel?, onApply? }.
 // onApply(newText) is called if the user clicks "Use this version".
+// onClose() (optional) runs when the overlay closes by any path.
+let onCloseCb = null;
 function open(opts = {}) {
   if (!created) return;
   oldContent = opts.oldContent ?? '';
   newContent = opts.newContent ?? '';
   onApplyCb = typeof opts.onApply === 'function' ? opts.onApply : null;
+  onCloseCb = typeof opts.onClose === 'function' ? opts.onClose : null;
   if (opts.title) titleEl.textContent = opts.title;
   oldHeadEl.textContent = opts.oldLabel || 'Old';
   newHeadEl.textContent = opts.newLabel || 'Current';
@@ -432,5 +435,10 @@ function close() {
   if (lastFocus && lastFocus.focus) {
     try { lastFocus.focus(); } catch { /* detached */ }
     lastFocus = null;
+  }
+  if (typeof onCloseCb === 'function') {
+    const cb = onCloseCb;
+    onCloseCb = null;
+    try { cb(); } catch (e) { console.error('diff onClose:', e); }
   }
 }
