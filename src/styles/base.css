@@ -276,17 +276,17 @@ body:not(.focus-mode) .app-header {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 28px;
-  padding: 0 8px;
+  height: 30px;
+  padding: 0 10px;
   background: transparent;
   color: var(--fg-secondary);
   border: none;
-  border-radius: calc(var(--radius) - 2px);
+  border-radius: 8px;
   font: inherit;
   font-size: 12.5px;
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-spring);
 }
 .tool-btn:hover {
   background: var(--surface-hover);
@@ -896,19 +896,19 @@ main {
 }
 /* Status bar at the bottom of the editor pane: word count, chars, read time. */
 .editor-status {
-  flex: 0 0 28px;
+  flex: 0 0 30px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 18px;
+  gap: 12px;
+  padding: 0 20px;
   font-size: 11.5px;
   color: var(--fg-muted);
   border-top: 1px solid var(--border-subtle);
   font-variant-numeric: tabular-nums;
   user-select: none;
   background: var(--bg-elevated);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
 }
 .editor-status.hidden {
   display: none;
@@ -970,19 +970,19 @@ main {
   opacity: 1;
 }
 .pane-header {
-  flex: 0 0 32px;
+  flex: 0 0 36px;
   display: flex;
   align-items: center;
-  padding: 0 16px;
+  padding: 0 18px;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.08em;
   color: var(--fg-muted);
   background: var(--surface);
   border-bottom: 1px solid var(--border-subtle);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
 }
 .pane-header.edit-toolbar {
   gap: 12px;
@@ -1001,11 +1001,11 @@ main {
   display: none;
 }
 .fmt-btn {
-  height: 26px;
-  min-width: 26px;
-  padding: 0 5px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0 6px;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
   background: transparent;
   color: var(--fg-muted);
   font-size: 13px;
@@ -1093,23 +1093,26 @@ main {
 }
 .ac-caret-mark { display: inline; }
 .palette-card {
-  width: 560px;
+  width: 600px;
   max-width: calc(100vw - 48px);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg), 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent);
+  border-radius: 20px;
+  box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.25),
+    0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent),
+    0 0 40px -8px color-mix(in srgb, var(--accent) 15%, transparent);
   overflow: hidden;
   animation: modal-in var(--dur-2) var(--ease-spring);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
 }
 .palette-input {
   width: 100%;
   border: none;
   border-bottom: 1px solid var(--border-subtle);
-  padding: 14px 18px;
-  font-size: 15px;
+  padding: 18px 22px;
+  font-size: 16px;
+  font-weight: 500;
   background: transparent;
   color: var(--fg);
   outline: none;
@@ -1134,11 +1137,11 @@ main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
-  border-radius: var(--radius);
+  padding: 12px 16px;
+  border-radius: 12px;
   cursor: pointer;
   color: var(--fg);
-  font-size: 13px;
+  font-size: 14px;
   border-left: 3px solid transparent;
   transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
 }
@@ -1146,7 +1149,7 @@ main {
   background: var(--accent-soft);
   color: var(--accent);
   border-left-color: var(--accent);
-  font-weight: 500;
+  font-weight: 600;
 }
 .palette-item mark {
   background: transparent;
@@ -2271,15 +2274,16 @@ mark.find-current {
   flex: 1;
   min-height: 0;
   width: 100%;
-  padding: clamp(20px, 4vh, 44px) 20px;
+  padding: clamp(32px, 6vh, 72px) 32px;
   text-align: left;
   color: var(--fg-secondary);
   overflow: auto;
   /* Ambient depth: two soft accent glows bleeding in from the top corners.
      Uses --accent-soft so every theme tints the room in its own accent. */
   background:
-    radial-gradient(600px 300px at 12% -6%, var(--accent-soft) 0%, transparent 70%),
-    radial-gradient(600px 300px at 88% -6%, var(--accent-soft) 0%, transparent 70%);
+    radial-gradient(1000px 500px at 8% -12%, var(--accent-soft) 0%, transparent 55%),
+    radial-gradient(1000px 500px at 92% -12%, var(--accent-soft) 0%, transparent 55%),
+    radial-gradient(800px 400px at 50% 115%, color-mix(in srgb, var(--accent) 7%, transparent) 0%, transparent 45%);
 }
 
 /* Premium backdrop blur layer — adds depth behind the welcome content */
@@ -2296,9 +2300,9 @@ mark.find-current {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 22px;
+  gap: 32px;
   width: 100%;
-  max-width: 600px;
+  max-width: 680px;
   margin: auto;
 }
 
@@ -2323,40 +2327,38 @@ mark.find-current {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 16px;
   text-align: center;
-  padding-top: 6px;
+  padding-top: 12px;
 }
 .welcome-logo-wrap {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 .welcome-logo-halo {
   position: absolute;
-  inset: -26px;
+  inset: -32px;
   border-radius: 50%;
-  background: radial-gradient(circle, var(--accent-soft) 0%, transparent 60%);
-  /* A whisper of accent color around the mark, present in every theme.
-     Heavy blur + reduced opacity so it reads as ambient light, never a
-     shape — it blooms in after the logo lands. */
-  filter: blur(6px);
-  opacity: 0.75;
+  background: radial-gradient(circle, var(--accent-soft) 0%, transparent 55%);
+  filter: blur(8px);
+  opacity: 0.85;
   animation: welcome-halo var(--dur-4) var(--ease-out) both;
 }
 @keyframes welcome-halo {
-  from { opacity: 0; transform: scale(0.85); }
-  to   { opacity: 0.75; transform: scale(1); }
+  from { opacity: 0; transform: scale(0.8); }
+  to   { opacity: 0.85; transform: scale(1); }
 }
 .welcome-logo {
   position: relative;
-  width: 68px;
-  height: 68px;
-  border-radius: 16px;
-  box-shadow: 0 10px 28px -8px color-mix(in srgb, var(--accent) 40%, transparent),
-    var(--shadow-md);
+  width: 76px;
+  height: 76px;
+  border-radius: 20px;
+  box-shadow: 0 16px 40px -10px color-mix(in srgb, var(--accent) 50%, transparent),
+    0 4px 16px -4px color-mix(in srgb, var(--accent) 25%, transparent),
+    var(--shadow-lg);
   flex-shrink: 0;
   margin: 0;
 }
@@ -2368,58 +2370,56 @@ mark.find-current {
 }
 .welcome-title {
   /* v0.63.0: hero-scale brand name — the welcome screen's loudest element. */
-  font-size: 34px;
-  font-weight: 700;
-  letter-spacing: -0.05em;
+  font-size: 42px;
+  font-weight: 800;
+  letter-spacing: -0.06em;
   color: var(--fg);
   margin: 0;
-  line-height: 1.1;
+  line-height: 1.05;
   background: linear-gradient(135deg, var(--fg) 0%, var(--fg-secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 .version-badge {
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 10.5px;
+  font-weight: 700;
   color: var(--accent);
   background: var(--accent-soft);
-  padding: 2px 7px;
+  padding: 3px 8px;
   border-radius: 10px;
-  letter-spacing: 0.03em;
-  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  letter-spacing: 0.04em;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
   font-variant-numeric: tabular-nums;
 }
 .welcome-tagline {
-  font-size: 13.5px;
+  font-size: 14.5px;
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.6;
   color: var(--fg-secondary);
-  max-width: 40ch;
+  max-width: 42ch;
 }
 
 /* Action cards — 2×2 grid; each card leads with an icon in a tinted tile. */
 .welcome-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
   width: 100%;
 }
 .welcome-action {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
+  gap: 18px;
+  padding: 20px 22px;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  border-radius: 18px;
   background: var(--bg-elevated);
   color: var(--fg);
   font: inherit;
   cursor: pointer;
   text-align: left;
-  box-shadow: var(--shadow-sm);
-  /* Mirrors motion.css's tactile-button feel in token form: snappy spring
-     lift, slower shadow so the elevation change trails deliberately. */
+  box-shadow: var(--shadow-md);
   transition:
     transform var(--dur-1) var(--ease-spring),
     border-color var(--dur-1) var(--ease-out),
@@ -2430,14 +2430,13 @@ mark.find-current {
   overflow: hidden;
 }
 
-/* Subtle sheen sweep on hover — premium tactile feedback */
 .welcome-action::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.08) 50%, transparent 60%);
+  background: linear-gradient(135deg, transparent 35%, rgba(255,255,255,0.15) 50%, transparent 65%);
   transform: translateX(-100%);
-  transition: transform 0.6s var(--ease-out);
+  transition: transform 0.8s var(--ease-out);
   pointer-events: none;
 }
 .welcome-action:hover::after {
@@ -2447,9 +2446,9 @@ mark.find-current {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 11px;
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
   background: var(--accent-soft);
   color: var(--accent);
   flex-shrink: 0;
@@ -2466,70 +2465,71 @@ mark.find-current {
   flex: 1;
 }
 .welcome-action .wa-label {
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.25;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
 }
 .welcome-action .wa-hint {
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--fg-muted);
-  line-height: 1.3;
+  line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .welcome-action:hover {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px -12px color-mix(in srgb, var(--accent) 30%, transparent),
+    var(--shadow-lg);
 }
 /* Icon tile warms with the card — a deeper accent wash, not just scale. */
 .welcome-action:hover .wa-icon {
-  transform: scale(1.06);
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  transform: scale(1.1);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 .welcome-action:active {
   transform: translateY(0);
   box-shadow: var(--shadow-sm);
 }
 .welcome-action.primary {
-  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 82%, #000 18%));
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 75%, #000 25%));
   border-color: transparent;
   color: var(--on-accent);
-  box-shadow: 0 8px 20px -6px color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 12px 32px -8px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 .welcome-action.primary .wa-icon {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.22);
   color: var(--on-accent);
 }
 .welcome-action.primary:hover .wa-icon {
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.32);
 }
 .welcome-action.primary .wa-hint {
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(255, 255, 255, 0.82);
 }
 .welcome-action.primary:hover {
   border-color: transparent;
-  filter: brightness(1.06);
-  box-shadow: 0 12px 26px -6px color-mix(in srgb, var(--accent) 65%, transparent);
+  filter: brightness(1.08);
+  box-shadow: 0 20px 48px -10px color-mix(in srgb, var(--accent) 70%, transparent);
 }
 .welcome-action kbd {
   margin-left: auto;
-  padding: 2px 6px;
+  padding: 3px 7px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 10.5px;
   background: var(--surface);
   border: 1px solid var(--border-subtle);
-  border-radius: 5px;
+  border-radius: 6px;
   color: var(--fg-muted);
-  font-weight: 400;
+  font-weight: 500;
   flex-shrink: 0;
-  /* Trailing shortcut badge nudges toward the edge on hover — the card's
-     "go" affordance in lieu of a chevron glyph. */
-  transition: transform var(--dur-2) var(--ease-spring);
+  transition: transform var(--dur-2) var(--ease-spring), background-color var(--dur-1) var(--ease-out);
 }
 .welcome-action:hover kbd {
-  transform: translateX(2px);
+  transform: translateX(3px);
+  background: var(--surface-hover);
 }
 .welcome-action.primary kbd {
   background: rgba(255, 255, 255, 0.2);
@@ -2550,8 +2550,8 @@ mark.find-current {
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 4px 10px;
-  font-size: 11px;
+  gap: 6px 12px;
+  font-size: 11.5px;
   letter-spacing: 0.01em;
   color: var(--fg-muted);
 }
@@ -2564,14 +2564,14 @@ mark.find-current {
 }
 .welcome kbd {
   display: inline-block;
-  padding: 1px 5px;
+  padding: 2px 6px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 10.5px;
   line-height: 1.5;
   letter-spacing: 0.03em;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-bottom-width: 1.5px;
+  border-bottom-width: 2px;
   border-radius: var(--radius-sm);
   color: var(--fg);
 }
@@ -2590,21 +2590,21 @@ mark.find-current {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   min-height: 0;
 }
 .recent-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
-  padding: 2px 8px 4px;
+  margin-bottom: 8px;
+  padding: 2px 10px 6px;
 }
 .recent-title {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 11.5px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   color: var(--fg-muted);
 }
 .recent-clear {
@@ -5968,25 +5968,25 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 .settings-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 12px 12px 12px 10px;
+  gap: 3px;
+  padding: 14px 14px 14px 12px;
   height: 540px;
   max-height: calc(100vh - 200px);
   background: color-mix(in srgb, var(--surface) 55%, transparent);
   border-right: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg) 0 0 var(--radius-lg);
   overflow-y: auto;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
 }
 .settings-group-label {
-  padding: 8px 12px 4px;
-  font-size: 10px;
+  padding: 10px 14px 6px;
+  font-size: 10.5px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   color: var(--fg-muted);
-  opacity: 0.85;
+  opacity: 0.9;
 }
 .settings-group-label:first-child {
   padding-top: 2px;
@@ -5994,16 +5994,16 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 .settings-cat {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  height: 34px;
-  padding: 0 11px;
+  height: 42px;
+  padding: 0 14px;
   background: transparent;
   border: none;
-  border-radius: var(--radius);
+  border-radius: 12px;
   color: var(--fg-secondary);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   text-align: left;
   cursor: pointer;
@@ -6013,6 +6013,7 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
 .settings-cat:hover {
   background: var(--surface-hover);
   color: var(--fg);
+  transform: translateX(2px);
 }
 .settings-cat:active {
   transform: scale(0.985);
@@ -6021,17 +6022,18 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   background: var(--bg-elevated);
   color: var(--accent);
   font-weight: 600;
-  box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--border-subtle);
+  box-shadow: var(--shadow-md), inset 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 .settings-cat.active::before {
   content: '';
   position: absolute;
   left: -8px;
-  top: 7px;
-  bottom: 7px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
   background: var(--accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 .settings-cat svg {
   flex-shrink: 0;

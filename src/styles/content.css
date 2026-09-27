@@ -14,7 +14,7 @@
   overflow-y: auto;
   min-width: 0;
   margin: 0;
-  padding: 48px 56px 112px;
+  padding: 56px 64px 128px;
   scroll-padding-top: 16px;
   line-height: var(--content-line-height, 1.7) !important;
   color: var(--fg);
@@ -118,18 +118,18 @@
 .markdown-body h4,
 .markdown-body h5,
 .markdown-body h6 {
-  font-weight: 650;
-  line-height: 1.25;
-  margin-top: 1.8em;
-  margin-bottom: 0.65em;
-  letter-spacing: -0.02em;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-top: 2em;
+  margin-bottom: 0.7em;
+  letter-spacing: -0.025em;
   scroll-margin-top: calc(var(--header-h) + 16px);
 }
 .markdown-body h1 {
-  font-size: 2em;
-  letter-spacing: -0.03em;
-  padding-bottom: 0.35em;
-  border-bottom: 1px solid var(--border-subtle);
+  font-size: 2.25em;
+  letter-spacing: -0.035em;
+  padding-bottom: 0.4em;
+  border-bottom: 2px solid var(--border-subtle);
 }
 .markdown-body h1:first-child {
   margin-top: 0;
@@ -456,13 +456,14 @@
    The stripe ties quotes to the app accent; the tint separates them from
    body text without adding another hard box. */
 .markdown-body blockquote {
-  margin: 0 0 1em;
-  padding: 0.75em 1.2em;
+  margin: 0 0 1.25em;
+  padding: 1em 1.4em;
   border: 1px solid var(--border-subtle);
-  border-left: 3px solid color-mix(in srgb, var(--accent) 65%, transparent);
-  background: color-mix(in srgb, var(--surface) 60%, transparent);
-  border-radius: 0 var(--radius) var(--radius) 0;
+  border-left: 4px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
   color: var(--fg-secondary);
+  box-shadow: var(--shadow-sm);
 }
 .markdown-body blockquote p {
   margin: 0.4em 0;
@@ -499,15 +500,15 @@
 .markdown-body pre {
   background: var(--code-bg);
   border: 1px solid var(--code-border);
-  padding: 14px 16px;
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
   overflow: auto;
   max-width: 100%;   /* never wider than its container; long lines scroll inside */
   font-family: var(--font-mono);
-  font-size: 13px;
-  line-height: 1.55;
-  margin: 0 0 1em;
+  font-size: 13.5px;
+  line-height: 1.6;
+  margin: 0 0 1.25em;
   position: relative;
 }
 /* Code block action buttons (Save / Copy) — appear on hover, top-right */
@@ -803,10 +804,11 @@
 }
 .markdown-body :not(pre) > code {
   background: var(--code-bg);
-  border: 1px solid color-mix(in srgb, var(--code-border) 70%, transparent);
-  padding: 0.1em 0.4em;
-  border-radius: var(--radius-sm);
-  font-size: 0.88em;
+  border: 1px solid color-mix(in srgb, var(--code-border) 75%, transparent);
+  padding: 0.15em 0.45em;
+  border-radius: 6px;
+  font-size: 0.87em;
+  font-weight: 500;
 }
 /* Keyboard keys in rendered docs — <kbd>Ctrl</kbd> + <kbd>S</kbd> */
 .markdown-body kbd {
@@ -834,14 +836,16 @@
   border-collapse: separate;
   border-spacing: 0;
   width: 100%;
-  margin: 0 0 1em;
+  margin: 0 0 1.25em;
   font-size: 0.94em;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 .markdown-body th,
 .markdown-body td {
-  padding: var(--sp-3) var(--sp-4);
+  padding: 10px 14px;
   text-align: left;
   border-bottom: 1px solid var(--border-subtle);
 }
@@ -957,11 +961,12 @@
 /* GFM alerts: > [!NOTE] / [!TIP] / [!IMPORTANT] / [!WARNING] / [!CAUTION].
    Each gets a colored left border + tinted background + a bold title. */
 .markdown-body .markdown-alert {
-  margin: 0 0 1em;
-  padding: 0.7em 1.1em;
-  border-left: 3px solid var(--border);
-  border-radius: 0 var(--radius) var(--radius) 0;
+  margin: 0 0 1.25em;
+  padding: 1em 1.3em;
+  border-left: 4px solid var(--border);
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
   background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 .markdown-body .markdown-alert > p:first-child {
   margin-top: 0;

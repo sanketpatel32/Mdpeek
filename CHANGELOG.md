@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-09-28
+
+A dramatic UI overhaul across all major surfaces — welcome screen, command palette, settings dialog, editor experience, and overall visual polish — bringing a more sophisticated, premium feel to the app.
+
+### Changed
+- Welcome screen: larger logo (76px), bolder title (42px/800w), more generous spacing, refined card design with stronger shadows and smoother hover sheen
+- Command palette: wider card (600px), larger border radius (20px), stronger layered shadows with accent glow, bolder active items
+- Settings: taller category items (42px), slide-on-hover effect, glowing active indicator with accent halo
+- Editor: taller pane headers (36px), refined toolbar buttons with spring transitions, improved status bar
+- Visual polish: increased markdown body padding, bolder headings with thicker borders, refined code blocks with larger radius and stronger shadows, improved tables with overflow hidden and shadows, better blockquotes with thicker borders
+
 ## [1.3.0] - 2026-09-27
 
 A premium UI overhaul across all major surfaces — welcome screen, command
