@@ -45,7 +45,7 @@
   animation: modal-out var(--dur-2) var(--ease-in) forwards;
 }
 @keyframes modal-out {
-  to { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to { opacity: 0; transform: translateY(6px) scale(0.97); }
 }
 
 /* --- context menus + theme menu + more-menu --- */

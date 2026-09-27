@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-27
+
+A premium UI overhaul across all major surfaces — welcome screen, command
+palette, settings dialog, editor experience, and overall visual polish —
+bringing a more sophisticated, Linear/Things 3-level feel to the app.
+
+### Changed
+- Welcome screen: gradient brand title, sheen-sweep hover animation on action
+  cards, backdrop blur depth layers, more generous spacing throughout
+- Command palette: wider card (560px) with accent ring glow and backdrop blur,
+  increased item padding, font-weight on active items
+- Settings dialog: frosted-glass backdrop blur on the sidebar, more padding
+- Editor: taller status bar with backdrop blur, wider letter-spacing on pane
+  headers, token-based transitions on toolbar buttons, smoother hover surfaces
+- Visual polish: markdown body font-smoothing and text-rendering optimizations,
+  tighter heading letter-spacing, refined blockquote padding, find bar backdrop
+  blur, smoother modal exit animations, app header theme-transition support
+
 ## [1.2.0] - 2026-09-20
 
 A UX-quality round driven by six parallel design audits (onboarding, editor,

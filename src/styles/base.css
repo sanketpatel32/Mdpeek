@@ -83,6 +83,7 @@ body {
   user-select: none;
   position: relative;
   z-index: 20;
+  transition: background-color var(--transition), border-color var(--transition);
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .app-header {
@@ -234,6 +235,7 @@ body:not(.focus-mode) .app-header {
   background: color-mix(in srgb, var(--surface) 72%, transparent);
   border: 1px solid color-mix(in srgb, var(--border-subtle) 55%, transparent);
   border-radius: var(--radius);
+  transition: background-color var(--transition), border-color var(--transition);
 }
 
 .tool-separator {
@@ -284,6 +286,7 @@ body:not(.focus-mode) .app-header {
   font-size: 12.5px;
   cursor: pointer;
   white-space: nowrap;
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
 }
 .tool-btn:hover {
   background: var(--surface-hover);
@@ -717,7 +720,7 @@ main {
   flex: 0 0 240px;
   min-height: 0;
   border-right: 1px solid var(--border-subtle);
-  padding: 20px 14px;
+  padding: 22px 14px;
   /* x-axis clipped so the fixed-width list track can't flash a horizontal
      scrollbar while the collapse animation shrinks the panel under it. */
   overflow: auto;
@@ -893,17 +896,19 @@ main {
 }
 /* Status bar at the bottom of the editor pane: word count, chars, read time. */
 .editor-status {
-  flex: 0 0 26px;
+  flex: 0 0 28px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 16px;
+  gap: 10px;
+  padding: 0 18px;
   font-size: 11.5px;
   color: var(--fg-muted);
   border-top: 1px solid var(--border-subtle);
   font-variant-numeric: tabular-nums;
   user-select: none;
   background: var(--bg-elevated);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 .editor-status.hidden {
   display: none;
@@ -972,10 +977,12 @@ main {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   color: var(--fg-muted);
   background: var(--surface);
   border-bottom: 1px solid var(--border-subtle);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 .pane-header.edit-toolbar {
   gap: 12px;
@@ -1007,10 +1014,10 @@ main {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+  transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
 }
 .fmt-btn:hover {
-  background: var(--bg);
+  background: var(--surface-hover);
   color: var(--fg);
   border-color: var(--border);
 }
@@ -1086,14 +1093,16 @@ main {
 }
 .ac-caret-mark { display: inline; }
 .palette-card {
-  width: 520px;
+  width: 560px;
   max-width: calc(100vw - 48px);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-lg), 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent);
   overflow: hidden;
   animation: modal-in var(--dur-2) var(--ease-spring);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 .palette-input {
   width: 100%;
@@ -1125,8 +1134,8 @@ main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  border-radius: var(--radius);
   cursor: pointer;
   color: var(--fg);
   font-size: 13px;
@@ -1137,6 +1146,7 @@ main {
   background: var(--accent-soft);
   color: var(--accent);
   border-left-color: var(--accent);
+  font-weight: 500;
 }
 .palette-item mark {
   background: transparent;
@@ -1197,11 +1207,13 @@ main {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  padding: 6px 8px;
+  padding: 8px 10px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
 }
 .find-replace-row {
   display: flex;
@@ -1294,14 +1306,14 @@ main {
 .find-input {
   width: 200px;
   height: 26px;
-  padding: 0 8px;
+  padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg);
   color: var(--fg);
   font-size: 12.5px;
   outline: none;
-  transition: border-color 120ms var(--ease);
+  transition: border-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
 }
 .find-input:focus-visible {
   border-color: var(--accent);
@@ -2269,6 +2281,17 @@ mark.find-current {
     radial-gradient(600px 300px at 12% -6%, var(--accent-soft) 0%, transparent 70%),
     radial-gradient(600px 300px at 88% -6%, var(--accent-soft) 0%, transparent 70%);
 }
+
+/* Premium backdrop blur layer — adds depth behind the welcome content */
+.welcome::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
+  pointer-events: none;
+  z-index: -1;
+}
 .welcome-inner {
   display: flex;
   flex-direction: column;
@@ -2345,12 +2368,16 @@ mark.find-current {
 }
 .welcome-title {
   /* v0.63.0: hero-scale brand name — the welcome screen's loudest element. */
-  font-size: 30px;
+  font-size: 34px;
   font-weight: 700;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.05em;
   color: var(--fg);
   margin: 0;
-  line-height: 1.15;
+  line-height: 1.1;
+  background: linear-gradient(135deg, var(--fg) 0%, var(--fg-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 .version-badge {
   font-size: 10px;
@@ -2381,8 +2408,8 @@ mark.find-current {
 .welcome-action {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
+  gap: 14px;
+  padding: 14px 16px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   background: var(--bg-elevated);
@@ -2399,6 +2426,22 @@ mark.find-current {
     background-color var(--dur-1) var(--ease-out),
     color var(--dur-1) var(--ease-out),
     box-shadow var(--dur-2) var(--ease-out);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle sheen sweep on hover — premium tactile feedback */
+.welcome-action::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.08) 50%, transparent 60%);
+  transform: translateX(-100%);
+  transition: transform 0.6s var(--ease-out);
+  pointer-events: none;
+}
+.welcome-action:hover::after {
+  transform: translateX(100%);
 }
 .welcome-action .wa-icon {
   display: inline-flex;
@@ -2538,8 +2581,10 @@ mark.find-current {
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  padding: 8px;
+  padding: 10px;
   box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 .recent-files {
   width: 100%;
@@ -2667,7 +2712,7 @@ mark.find-current {
   align-items: center;
   gap: 11px;
   width: 100%;
-  padding: 7px 10px;
+  padding: 8px 10px;
   background: transparent;
   border: none;
   border-radius: var(--radius);
@@ -5924,13 +5969,15 @@ body.ws-mode-graph .workspace-view .mode-graph-only { display: inline-flex; }
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 10px 10px 10px 8px;
+  padding: 12px 12px 12px 10px;
   height: 540px;
   max-height: calc(100vh - 200px);
   background: color-mix(in srgb, var(--surface) 55%, transparent);
   border-right: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg) 0 0 var(--radius-lg);
   overflow-y: auto;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 .settings-group-label {
   padding: 8px 12px 4px;

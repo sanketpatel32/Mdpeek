@@ -14,12 +14,15 @@
   overflow-y: auto;
   min-width: 0;
   margin: 0;
-  padding: 40px 48px 96px;
+  padding: 48px 56px 112px;
   scroll-padding-top: 16px;
   line-height: var(--content-line-height, 1.7) !important;
   color: var(--fg);
   font-size: var(--content-font-size, 15px);
   font-family: var(--content-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", sans-serif) !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 /* Comfortable measure: on wide panes, prose running edge-to-edge reaches
    ~125 characters per line, which reads poorly. Cap each top-level block on
@@ -119,13 +122,13 @@
   line-height: 1.25;
   margin-top: 1.8em;
   margin-bottom: 0.65em;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.02em;
   scroll-margin-top: calc(var(--header-h) + 16px);
 }
 .markdown-body h1 {
   font-size: 2em;
-  letter-spacing: -0.025em;
-  padding-bottom: 0.3em;
+  letter-spacing: -0.03em;
+  padding-bottom: 0.35em;
   border-bottom: 1px solid var(--border-subtle);
 }
 .markdown-body h1:first-child {
@@ -454,7 +457,7 @@
    body text without adding another hard box. */
 .markdown-body blockquote {
   margin: 0 0 1em;
-  padding: 0.7em 1.1em;
+  padding: 0.75em 1.2em;
   border: 1px solid var(--border-subtle);
   border-left: 3px solid color-mix(in srgb, var(--accent) 65%, transparent);
   background: color-mix(in srgb, var(--surface) 60%, transparent);
