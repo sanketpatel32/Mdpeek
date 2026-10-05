@@ -543,8 +543,18 @@ export function showMedia(container, filePath) {
       curEl.textContent = fmtTime(frac * d);
       el.currentTime = frac * d;
     });
-    scrub.addEventListener('pointerdown', () => { seeking = true; });
-    scrub.addEventListener('pointerup', () => { seeking = false; });
+    scrub.addEventListener('pointerdown', (e) => {
+      seeking = true;
+      try { scrub.setPointerCapture(e.pointerId); } catch {}
+    });
+    const stopSeeking = (e) => {
+      if (seeking) {
+        seeking = false;
+        try { scrub.releasePointerCapture(e.pointerId); } catch {}
+      }
+    };
+    scrub.addEventListener('pointerup', stopSeeking);
+    scrub.addEventListener('pointercancel', stopSeeking);
     vol.addEventListener('input', () => {
       el.volume = Number(vol.value);
       if (el.muted && el.volume > 0) el.muted = false;

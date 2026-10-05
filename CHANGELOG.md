@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-10-05
+
+### Fixed
+- Save and Save As are hidden for read-only PDF, image, CSV, notebook, and media tabs, preventing empty viewer content from replacing source files.
+- The welcome screen switches to a compact layout at the default window height so its recents, shortcuts, and feature hint stay in view.
+- Save As, media seeking, graph node selection, and command-palette result highlighting now handle their interactive states correctly.
+
 ## [1.4.0] - 2026-09-28
 
 A dramatic UI overhaul across all major surfaces — welcome screen, command palette, settings dialog, editor experience, and overall visual polish — bringing a more sophisticated, premium feel to the app.

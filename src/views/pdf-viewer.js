@@ -724,7 +724,6 @@ export async function showPdf(container, filePath) {
     for (const wrapper of container.querySelectorAll('.pdf-page')) {
       if (destroyed || localGen !== pdfRenderGen) return;
       const num = parseInt(wrapper.dataset.pageNum, 10);
-      // eslint-disable-next-line no-await-in-loop
       await renderPage(pdfjsLib, pdfDoc, num, wrapper, scale, renders, textLayers, textCache, () => destroyed || localGen !== pdfRenderGen);
       if (destroyed || localGen !== pdfRenderGen) return;
       // Re-apply draw mode pointer-events to the fresh canvases.

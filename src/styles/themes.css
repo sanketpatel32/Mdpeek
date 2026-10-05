@@ -6,6 +6,7 @@
   /* shape — larger radii for friendlier corners */
   --radius-sm: 5px;
   --radius: 8px;
+  --radius-md: 8px;
   --radius-lg: 12px;
 
   --header-h: 52px;
@@ -17,6 +18,10 @@
     "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SFMono-Regular", "Cascadia Code", Consolas, "Liberation Mono",
     monospace;
+  --mono-font: var(--font-mono);
+
+  --reader-surface: var(--surface);
+  --reader-surface-hover: var(--surface-hover);
 
   /* Unified focus treatment — a soft accent halo instead of a hard outline.
      Use with :focus-visible for a calmer, premium keyboard affordance. */

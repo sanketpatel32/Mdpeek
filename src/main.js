@@ -82,7 +82,7 @@ import {
   nextWidth, prevWidth, nextFont, prevFont, nextTheme, nextFontFamily,
   readingTimeLabel, loadReaderPrefs,
 } from './lib/reading.js';
-import { DocumentStore, isPdfPath, isImagePath, isExcalidrawPath, isTLDrawPath, isNotebookPath, isMediaPath, langFromPath, langForEdit } from './lib/documents.js';
+import { DocumentStore, canSaveDoc, isPdfPath, isImagePath, isExcalidrawPath, isTLDrawPath, isNotebookPath, isMediaPath, langFromPath, langForEdit } from './lib/documents.js';
 import { renderMarkdown, renderCode, renderCsv, parseCsv, prepareCodeLang, enhanceDom } from './lib/renderer.js';
 import { saveSession, loadSession, loadRecents, addRecent, removeRecent, saveRecents } from './lib/persistence.js';
 // v0.49.0: named workspace sessions. Aliased to avoid clashing with the
@@ -671,8 +671,7 @@ function syncToolbarForDoc(doc) {
   // Ctrl+S routes them to save-as with the right extension/filter, which is
   // exactly what a fresh "New drawing" tab needs. Hidden on the welcome screen
   // and for read-only viewers (PDF / image / csv).
-  const editable = !!doc && !doc.pdf && !doc.image && !doc.csv && !doc.notebook && !doc.media;
-  el.save.classList.toggle('hidden', !editable);
+  el.save.classList.toggle('hidden', !canSaveDoc(doc));
 }
 
 async function renderActive() {
@@ -1323,6 +1322,7 @@ function getCommands() {
     { id: 'daily', label: 'Open daily note (today\'s .md)', keywords: 'daily note today date journal', run: openDailyNote },
     { id: 'capture', label: 'Capture thought…', hint: 'Ctrl+Shift+I', keywords: 'capture inbox thought quick note task idea journal', run: openCaptureHud },
     { id: 'save', label: 'Save', hint: 'Ctrl+S', keywords: 'save write', run: saveActive },
+    { id: 'save-as', label: 'Save as…', hint: 'Ctrl+Alt+S', keywords: 'save as copy write duplicate rename new file', run: saveActiveAs },
     { id: 'export-html', label: 'Export to HTML', keywords: 'export html self-contained', run: exportHtml },
     { id: 'export-txt', label: 'Export to plain text (.txt)', keywords: 'export plain text txt strip markdown', run: exportPlainText },
     { id: 'export-pdf', label: 'Export to PDF', keywords: 'export pdf print document', run: exportPdf },
@@ -1418,7 +1418,8 @@ function getCommands() {
   const hasDoc = !!doc;
   const collabActive = collab.getStatus().active;
   const filtered = cmds.filter((c) => {
-    if ((c.id === 'save' || c.id === 'export-html' || c.id === 'export-txt' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks' || c.id === 'sort-asc' || c.id === 'sort-desc' || c.id === 'copy-html' || c.id === 'copy-plaintext' || c.id === 'open-in-browser' || c.id === 'check-links' || c.id === 'restore-version' || c.id === 'diff-version' || c.id === 'writing-goal' || c.id === 'save-as-template' || c.id === 'pin-doc-theme' || c.id === 'clear-doc-theme' || c.id === 'case-upper' || c.id === 'case-lower' || c.id === 'case-title' || c.id === 'case-toggle' || c.id === 'wrap-with' || c.id === 'edit-table' || c.id === 'toggle-prose-highlights' || c.id === 'toggle-wordfreq-underline' || c.id === 'wordfreq') && !hasDoc) return false;
+    if ((c.id === 'save' || c.id === 'save-as' || c.id === 'export-html' || c.id === 'export-txt' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks' || c.id === 'sort-asc' || c.id === 'sort-desc' || c.id === 'copy-html' || c.id === 'copy-plaintext' || c.id === 'open-in-browser' || c.id === 'check-links' || c.id === 'restore-version' || c.id === 'diff-version' || c.id === 'writing-goal' || c.id === 'save-as-template' || c.id === 'pin-doc-theme' || c.id === 'clear-doc-theme' || c.id === 'case-upper' || c.id === 'case-lower' || c.id === 'case-title' || c.id === 'case-toggle' || c.id === 'wrap-with' || c.id === 'edit-table' || c.id === 'toggle-prose-highlights' || c.id === 'toggle-wordfreq-underline' || c.id === 'wordfreq') && !hasDoc) return false;
+    if ((c.id === 'save' || c.id === 'save-as') && !canSaveDoc(doc)) return false;
     // v0.68.0: drawing exports only make sense with a live canvas tab.
     if ((c.id === 'export-canvas-png' || c.id === 'export-canvas-svg') && !(doc && (doc.excalidraw || doc.tldraw))) return false;
     if (c.id === 'end-collab' && !collabActive) return false;
@@ -2617,8 +2618,9 @@ async function openFileDialog() {
 // this wrapper binds it to the app's live collaborators.
 async function saveActive() {
   const doc = store.active();
-  if (!doc) return;
-  await saveActiveDoc({
+  if (!canSaveDoc(doc)) return;
+  const oldPath = doc.path;
+  const savedPath = await saveActiveDoc({
     invoke,
     toast,
     fmtErr,
@@ -2628,6 +2630,50 @@ async function saveActive() {
     excalidraw: _activeExcalidraw,
     tldraw: _activeTLDraw,
   }, doc);
+  if (savedPath && !oldPath) {
+    addRecent(savedPath);
+    if (!isPdfPath(savedPath) && !isExcalidrawPath(savedPath) && !isTLDrawPath(savedPath) && !isMediaPath(savedPath)) {
+      await rewatch(savedPath);
+    }
+    updateTitle();
+    renderTabs();
+    updateEditorStatus();
+    revealPath(savedPath);
+  }
+}
+
+async function saveActiveAs() {
+  const doc = store.active();
+  if (!canSaveDoc(doc)) return;
+  if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
+  if (doc.excalidraw && _activeExcalidraw) {
+    const json = _activeExcalidraw.getSceneJSON();
+    if (json) doc.content = json;
+  }
+  if (doc.tldraw && _activeTLDraw) {
+    const json = _activeTLDraw.flush();
+    if (json) doc.content = json;
+  }
+  const { content } = doc;
+  try {
+    const kind = doc.tldraw ? 'tldraw' : doc.excalidraw ? 'excalidraw' : doc.plain ? 'text' : undefined;
+    const path = await invoke('save_file_as', { content, kind });
+    if (!path) return;
+    doc.path = path;
+    store.clearDirty(doc.id);
+    toast('Saved as ' + basename(path));
+    maybeSnapshot(doc, content);
+    addRecent(path);
+    if (!isPdfPath(path) && !isExcalidrawPath(path) && !isTLDrawPath(path) && !isMediaPath(path)) {
+      await rewatch(path);
+    }
+    updateTitle();
+    renderTabs();
+    updateEditorStatus();
+    revealPath(path);
+  } catch (e) {
+    if (e !== 'cancelled') toast('Save failed: ' + fmtErr(e));
+  }
 }
 
 // v0.45.0: write a version-history snapshot for the just-saved doc. Skips
@@ -4626,10 +4672,15 @@ function refreshGraphSummary() {
   el.graphSummary.textContent = text;
 }
 
+function safeCssEscape(s) {
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') return CSS.escape(s);
+  return String(s).replace(/["\\]/g, '\\$&');
+}
+
 // Look up a rendered node group by id (null when not drawn / stale id).
 function graphNodeGroup(svg, id) {
   if (!svg || !id) return null;
-  return svg.querySelector(`g.graph-node[data-node-id="${CSS.escape(id)}"]`);
+  return svg.querySelector(`g.graph-node[data-node-id="${safeCssEscape(id)}"]`);
 }
 
 // Scan the drawn edges once for everything the overlays need about `id`:
@@ -4860,7 +4911,7 @@ function graphPointerMove(e) {
       d.pos = circle ? { x: circle.cx.baseVal.value, y: circle.cy.baseVal.value } : null;
     }
     if (!d.pos) { d.kind = 'none'; return; }
-    d.edges = [...svg.querySelectorAll(`line.graph-edge[data-from="${CSS.escape(d.id)}"], line.graph-edge[data-to="${CSS.escape(d.id)}"]`)]
+    d.edges = [...svg.querySelectorAll(`line.graph-edge[data-from="${safeCssEscape(d.id)}"], line.graph-edge[data-to="${safeCssEscape(d.id)}"]`)]
       .map((line) => ({
         line,
         otherId: line.getAttribute('data-from') === d.id
@@ -9105,6 +9156,13 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     e.stopPropagation();
     reopenClosedTab();
+    return;
+  }
+  // Ctrl+Alt+S → Save As…
+  if ((e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey && (e.key === 'S' || e.key === 's')) {
+    e.preventDefault();
+    e.stopPropagation();
+    saveActiveAs();
     return;
   }
   // Ctrl+Shift+C → copy as rich text (formatted HTML + plain markdown).
