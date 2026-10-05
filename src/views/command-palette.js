@@ -204,7 +204,7 @@ export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage, 
           // with space-between, so bare text nodes interleaved with <mark>
           // elements would be laid out as separate flex items and scatter
           // across the row.
-          return `<li class="${cls}" role="option" aria-selected="${i === selected ? 'true' : 'false'}" data-i="${i}"><span class="palette-label">${highlight(s.item.label, i === 0 ? s.indices : null, query)}</span>${hint}</li>`;
+          return `<li class="${cls}" role="option" aria-selected="${i === selected ? 'true' : 'false'}" data-i="${i}"><span class="palette-label">${highlight(s.item.label, s.indices, query)}</span>${hint}</li>`;
         }).join('');
   }
 

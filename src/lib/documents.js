@@ -52,6 +52,12 @@ export function isMediaPath(path) {
   return !!path && /\.(mp3|wav|ogg|flac|m4a|aac|mp4|webm|mov|avi|m4v|mkv)$/i.test(path);
 }
 
+// Read-only viewers have no editable source to save. Keep this decision shared
+// by the toolbar, command palette, and keyboard shortcuts.
+export function canSaveDoc(doc) {
+  return !!doc && !doc.pdf && !doc.image && !doc.csv && !doc.notebook && !doc.media;
+}
+
 // A doc is "csv" when it's a .csv or .tsv — rendered as a sortable, filterable
 // table by renderCsv(). Treated as a distinct type (not code) so it doesn't
 // fall into the highlight.js path.

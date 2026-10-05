@@ -2827,7 +2827,7 @@ mark.find-current {
 
 /* Short viewports or expanded terminal drawer: compress the hero so the
    actions + recents stay reachable without scrolling. */
-@media (max-height: 600px) {
+@media (max-height: 800px) {
   .welcome {
     padding: 14px 16px;
   }

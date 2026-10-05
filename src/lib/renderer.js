@@ -1456,9 +1456,10 @@ function ensureLightbox() {
   // because closeLightbox no-ops when the overlay isn't open. v0.45.0: arrow
   // keys move through the gallery when more than one image is present.
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { closeLightbox(); return; }
-    if (e.key === 'ArrowLeft') { lightboxNav(-1); return; }
-    if (e.key === 'ArrowRight') { lightboxNav(1); return; }
+    if (!overlay.classList.contains('open')) return;
+    if (e.key === 'Escape') { e.preventDefault(); closeLightbox(); return; }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); lightboxNav(-1); return; }
+    if (e.key === 'ArrowRight') { e.preventDefault(); lightboxNav(1); return; }
   });
   return overlay;
 }

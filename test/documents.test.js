@@ -1,5 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DocumentStore, createDocument, isPlainPath, isCodePath, isImagePath, isCsvPath, isExcalidrawPath, isTLDrawPath, isNotebookPath, isMediaPath, ancestorsUnder, langFromPath, langForEdit } from '../src/lib/documents.js';
+import { DocumentStore, canSaveDoc, createDocument, isPlainPath, isCodePath, isImagePath, isCsvPath, isExcalidrawPath, isTLDrawPath, isNotebookPath, isMediaPath, ancestorsUnder, langFromPath, langForEdit } from '../src/lib/documents.js';
+
+describe('canSaveDoc', () => {
+  it('allows editable documents and canvas scenes', () => {
+    expect(canSaveDoc(createDocument({ path: '/notes/a.md' }))).toBe(true);
+    expect(canSaveDoc(createDocument({ path: null, tldraw: true }))).toBe(true);
+    expect(canSaveDoc(createDocument({ path: null, excalidraw: true }))).toBe(true);
+  });
+
+  it('rejects missing documents and read-only viewers', () => {
+    expect(canSaveDoc(null)).toBe(false);
+    for (const path of ['/a.pdf', '/a.png', '/a.csv', '/a.ipynb', '/a.mp4']) {
+      expect(canSaveDoc(createDocument({ path }))).toBe(false);
+    }
+  });
+});
 
 describe('createDocument', () => {
   it('creates a doc with defaults', () => {
