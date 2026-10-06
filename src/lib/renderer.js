@@ -430,8 +430,14 @@ function isHardWrapped(text) {
   const max = Math.max(...lens);
   if (max < 40) return false;
   const nonFinal = lens.slice(0, -1);
-  const full = nonFinal.filter((n) => n >= max * 0.6).length;
-  return full > nonFinal.length / 2;
+  // Fixed-column wrapping pads every line to the wrap width; only the last
+  // line of the paragraph is short.
+  if (nonFinal.filter((n) => n >= max * 0.6).length > nonFinal.length / 2) return true;
+  // Label-value wraps: agent-authored docs put a long URL/code path on its own
+  // line under a short "…:" label because label + value exceeds the wrap
+  // column ("Web URL pattern:\nhttps://…"). Every non-final line ending in a
+  // colon marks that layout.
+  return lines.slice(0, -1).every((l) => /:\s*$/.test(l));
 }
 
 // Rewrite br → a single-space text token, recursing through inline containers

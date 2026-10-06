@@ -1033,6 +1033,18 @@ describe('renderMarkdown — hard-wrapped paragraph reflow', () => {
     expect(html).toContain('<li>first item is a genuinely long line of text that keeps going well past the column and its wrapped continuation lands here</li>');
   });
 
+  it('joins a label line with its long wrapped value', () => {
+    const html = renderMarkdown(
+      'Web URL pattern:\n`https://bitbucket.org/piyooshalgo/{repo_slug}/pull-requests/{id}`'
+    );
+    expect(html).not.toContain('<br>');
+  });
+
+  it('keeps the break for a short hand-typed label + short value', () => {
+    const html = renderMarkdown('Next steps:\nfollow up tomorrow');
+    expect(html).toContain('<br>');
+  });
+
   it('leaves single-line paragraphs untouched', () => {
     const html = renderMarkdown('A single line that is quite long but has no newline at all in it whatsoever');
     expect(html).not.toContain('<br>');
