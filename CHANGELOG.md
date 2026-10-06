@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-10-06
+
+### Fixed
+- Hard-wrapped markdown (documents authored at a fixed wrap column, e.g. agent-generated or `fmt`-style prose) now reflows into flowing paragraphs in the preview instead of rendering a staircase of chopped lines at every source newline. Hand-typed short lines keep the single-Enter line break, and explicit two-trailing-space breaks are always honoured.
+
 ## [1.4.1] - 2026-10-05
 
 ### Fixed

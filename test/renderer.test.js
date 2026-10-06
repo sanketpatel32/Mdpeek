@@ -988,3 +988,61 @@ describe('renderMarkdown — line breaks (breaks:true)', () => {
     expect(html).not.toContain('<br>');
   });
 });
+
+// v1.4.2: hard-wrapped paragraphs (authored at a fixed wrap column — agent
+// output, fmt-style prose) reflow to flowing text, while short hand-typed
+// lines keep the breaks:true behavior. See isHardWrapped in renderer.js.
+describe('renderMarkdown — hard-wrapped paragraph reflow', () => {
+  const WRAPPED = [
+    'Purpose: stop agents from failing on Bitbucket PRs. Every remote in this',
+    'workspace is **Bitbucket Cloud**, not GitHub. `gh` never works here. This guide',
+    'is the verified path, tested on 2026-10-06 against `piyooshalgo/claire-frontend`.',
+  ].join('\n');
+
+  it('joins a fixed-column paragraph into flowing text (no <br>)', () => {
+    const html = renderMarkdown(WRAPPED);
+    expect(html).not.toContain('<br>');
+    expect(html).toContain('<strong>Bitbucket Cloud</strong>');
+    expect(html).toContain('<code>gh</code>');
+  });
+
+  it('keeps line breaks for short hand-typed lines', () => {
+    const html = renderMarkdown('Meeting notes\naction items below');
+    expect(html).toContain('<br>');
+  });
+
+  it('honours an explicit two-space hard break inside a long paragraph', () => {
+    const html = renderMarkdown(
+      'A deliberately long first line that wraps past the comfortable column  \nsecond line continues here'
+    );
+    expect(html).toContain('<br>');
+  });
+
+  it('reflows a break nested inside a bold span that crosses the wrap', () => {
+    const html = renderMarkdown(
+      'Memorize: **404 = not authenticated, 401 with basic auth = wrong auth scheme,\nBearer = works.**'
+    );
+    expect(html).not.toContain('<br>');
+    expect(html).toContain('wrong auth scheme, Bearer = works.');
+  });
+
+  it('reflows a wrapped continuation inside a tight list item', () => {
+    const html = renderMarkdown(
+      '- first item is a genuinely long line of text that keeps going well past the column\n  and its wrapped continuation lands here'
+    );
+    expect(html).toContain('<li>first item is a genuinely long line of text that keeps going well past the column and its wrapped continuation lands here</li>');
+  });
+
+  it('leaves single-line paragraphs untouched', () => {
+    const html = renderMarkdown('A single line that is quite long but has no newline at all in it whatsoever');
+    expect(html).not.toContain('<br>');
+  });
+
+  it('leaves fenced code blocks untouched', () => {
+    const md = '```\n' + WRAPPED + '\n```';
+    const html = renderMarkdown(md);
+    // Code keeps its literal newlines inside <pre> — no reflow, no <br>.
+    expect(html).toContain('Every remote in this\nworkspace');
+    expect(html).not.toContain('<br>');
+  });
+});

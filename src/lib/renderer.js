@@ -403,6 +403,50 @@ function wrapHighlightedLines(html, lines) {
   return out.join('\n');
 }
 
+// v1.4.2: soft-break reflow for hard-wrapped paragraphs. breaks:true below
+// renders EVERY single newline as <br> — right for hand-typed notes, wrong for
+// documents authored at a fixed wrap column (agent/tool-generated markdown,
+// `fmt`-style prose): every source line ends mid-sentence and the preview
+// fills only ~60% of the reader column in a staircase of chopped lines.
+// walkTokens (which runs after inline lexing, before parsing) detects those
+// paragraphs and rewrites their `br` tokens into plain spaces (GitHub-style
+// flow), while deliberately-broken lines keep rendering as line breaks.
+//
+// Detection is per-paragraph and conservative — a paragraph counts as
+// hard-wrapped only when ALL of these hold:
+//   • it has ≥2 lines and its longest line is ≥ 40 chars (typed
+//     one-phrase-per-line notes are short, so they never reflow);
+//   • a STRICT majority of its non-final lines reach 60% of that longest
+//     line (fixed-column wrapping pads every line to the wrap width; only
+//     the last line of the paragraph is short);
+//   • no line ends with two or more spaces — an explicit GFM hard break is
+//     always honoured, and its presence marks the paragraph as hand-authored.
+// Escape hatch when detection ever misfires: end the line with two spaces.
+function isHardWrapped(text) {
+  const lines = text.split('\n');
+  if (lines.length < 2) return false;
+  if (lines.some((l) => /  $/.test(l))) return false;
+  const lens = lines.map((l) => l.length);
+  const max = Math.max(...lens);
+  if (max < 40) return false;
+  const nonFinal = lens.slice(0, -1);
+  const full = nonFinal.filter((n) => n >= max * 0.6).length;
+  return full > nonFinal.length / 2;
+}
+
+// Rewrite br → a single-space text token, recursing through inline containers
+// (a line break can sit inside a **bold**/**em**/link span that itself spans
+// the wrap). A `{ type: 'text', text: ' ' }` renders through the escaped-text
+// path as a plain space.
+function softenBreaks(token) {
+  if (!Array.isArray(token.tokens)) return;
+  token.tokens = token.tokens.map((t) => {
+    if (t.type === 'br') return { type: 'text', raw: ' ', text: ' ' };
+    softenBreaks(t);
+    return t;
+  });
+}
+
 function buildMarked() {
   const marked = new Marked();
   marked.use(markedKatex({ throwOnError: false }));
@@ -418,7 +462,21 @@ function buildMarked() {
     // break — without this, a single Enter is invisible in the preview and you
     // must end the line with two spaces (CommonMark/GitHub strict mode), which
     // no one does. Two newlines still make a new paragraph as usual.
+    // v1.4.2: walkTokens reflows hard-wrapped paragraphs — see isHardWrapped.
     breaks: true,
+    walkTokens(token) {
+      // 'paragraph' covers normal blocks and loose list items; block-level
+      // 'text' tokens are tight-list item content, whose `.text` still spans
+      // the item's wrapped lines. Inline text tokens are single-line, so the
+      // multi-line check in isHardWrapped filters them out on its own.
+      if (
+        (token.type === 'paragraph' || token.type === 'text') &&
+        typeof token.text === 'string' &&
+        isHardWrapped(token.text)
+      ) {
+        softenBreaks(token);
+      }
+    },
     renderer: {
       // Override heading to inject slug-based ids. The token carries `text`
       // (plain) and `tokens` (for inline rendering); we slugify the plain text
