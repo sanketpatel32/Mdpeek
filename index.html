@@ -47,10 +47,10 @@
   </head>
   <body>
     <header class="app-header" data-tauri-drag-region>
-      <div class="app-brand" data-tauri-drag-region><span class="brand-mark" aria-hidden="true"></span><span data-tauri-drag-region>mdpeek</span></div>
+      <div class="app-brand" data-tauri-drag-region><span class="brand-mark" aria-hidden="true" data-tauri-drag-region></span><span data-tauri-drag-region>mdpeek</span></div>
       <div class="header-file-tools"><button id="btn-open" class="tool-btn" type="button" title="Open file (Ctrl+O)"><span data-icon="folder-open"></span><span>Open</span></button></div>
-      <div id="tab-strip-container" class="tab-strip-container">
-        <div id="tab-strip" class="tab-strip" role="tablist" aria-label="Open tabs">
+      <div id="tab-strip-container" class="tab-strip-container" data-tauri-drag-region>
+        <div id="tab-strip" class="tab-strip" role="tablist" aria-label="Open tabs" data-tauri-drag-region>
           <span class="tab-indicator is-hidden" aria-hidden="true"></span>
         </div>
         <button id="tab-new" class="tab-new" title="New tab (Ctrl+N)" aria-label="New tab"><span data-icon="plus" data-icon-size="14"></span></button>
