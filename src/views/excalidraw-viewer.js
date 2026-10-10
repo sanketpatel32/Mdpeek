@@ -374,19 +374,25 @@ function mountCanvasChrome(well, opts) {
   collapseBtn.setAttribute('aria-label', 'Hide canvas controls');
   const expandBtn = mkBtn('cvw-btn--icon cvw-btn--expand', 'Show controls', CVW_ICONS.expand, '');
   expandBtn.setAttribute('aria-label', 'Show canvas controls');
+  const exportError = document.createElement('span');
+  exportError.setAttribute('role', 'alert');
+  exportError.hidden = true;
 
   async function doExport(kind) {
+    exportError.hidden = true;
+    pngBtn.disabled = svgBtn.disabled = true;
     try {
       const ctrl = typeof opts.getCtrl === 'function' ? opts.getCtrl() : null;
       if (!ctrl || typeof ctrl.exportImage !== 'function') return;
       const res = await ctrl.exportImage(kind);
-      if (!res || !res.bytes) return;
+      if (!res || !res.bytes) throw new Error('Could not export this drawing. Add a shape and try again.');
       const suggestedName = `${opts.fileBase || 'drawing'}.${kind}`;
       try {
         const { invoke } = await import('@tauri-apps/api/core');
         await invoke('save_annotated_image', { bytes: Array.from(res.bytes), suggestedName, kind });
       } catch (err) {
         if (err === 'cancelled') return; // native save dialog dismissed
+        if (window.__TAURI_INTERNALS__) throw err;
         // Dev/browser fallback: plain blob download.
         const url = URL.createObjectURL(new Blob([res.bytes], { type: res.mime || 'application/octet-stream' }));
         const a = document.createElement('a');
@@ -399,6 +405,10 @@ function mountCanvasChrome(well, opts) {
       }
     } catch (e) {
       console.error('canvas export failed:', e);
+      exportError.textContent = `Export failed: ${e?.message || String(e)}`;
+      exportError.hidden = false;
+    } finally {
+      pngBtn.disabled = svgBtn.disabled = false;
     }
   }
   pngBtn.addEventListener('click', () => doExport('png'));
@@ -406,14 +416,14 @@ function mountCanvasChrome(well, opts) {
   collapseBtn.addEventListener('click', () => bar.classList.add('cvw-collapsed'));
   expandBtn.addEventListener('click', () => bar.classList.remove('cvw-collapsed'));
 
-  bar.append(mode, sep, pngBtn, svgBtn, collapseBtn, expandBtn);
+  bar.append(mode, sep, pngBtn, svgBtn, collapseBtn, expandBtn, exportError);
   well.appendChild(bar);
 
   // Transient "Saved" pill — fades out after each persisted autosave.
   const pill = document.createElement('div');
   pill.className = 'cvw-saved';
   pill.setAttribute('aria-live', 'polite');
-  pill.innerHTML = CVW_ICONS.check + '<span>Saved</span>';
+  pill.innerHTML = CVW_ICONS.check + '<span>Drawing updated</span>';
   well.appendChild(pill);
 
   let savedTimer = null;
@@ -452,6 +462,7 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
   const stub = {
     setTheme: () => {},
     getSceneJSON: () => '',
+    flush: () => typeof initialData === 'string' ? initialData : '',
     updateScene: () => {},
     getSceneElements: () => [],
     getElementCount: () => 0,
@@ -516,6 +527,7 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
     // as soon as the controller object below exists.
     let ctrlRef = null;
     const chrome = mountCanvasChrome(well, { fileBase: 'drawing', getCtrl: () => ctrlRef });
+    if (parseFailed) { chrome.setMode('readonly'); chrome.setExportEnabled(false); }
     // Persistence hook with UI feedback: every debounced autosave that goes
     // through onSave also flashes the "Saved" pill. The caller's flow is
     // untouched — flash failures can never block a save.
@@ -550,6 +562,7 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
     // It ALSO fires the collab hook (if attached) so Yjs gets every scene
     // mutation in real time.
     const handleChange = (elements, appState, files) => {
+      if (parseFailed) return;
       latestElements = elements;
       latestAppState = appState;
       latestFiles = files;
@@ -588,6 +601,7 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
           initialData: parsedData || { elements: [], appState: { viewBackgroundColor: '#ffffff' } },
           onChange: handleChange,
           theme: currentTheme,
+          viewModeEnabled: parseFailed,
           // Capture the imperative API so collab can drive the canvas via
           // updateScene() when remote Yjs updates arrive.
           excalidrawAPI: (api) => { excalidrawAPI = api; },
@@ -606,9 +620,10 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
     if (parseFailed) {
       const warn = document.createElement('div');
       warn.className = 'canvas-warn';
+      warn.setAttribute('role', 'alert');
       warn.innerHTML =
         '<span>Couldn\u2019t read this file\u2019s saved drawing — it may be corrupt or ' +
-        'from a newer version. Starting blank; saving will replace the original file.</span>';
+        'from a newer version. Editing is disabled to protect the original file.</span>';
       const dismiss = document.createElement('button');
       dismiss.type = 'button';
       dismiss.className = 'canvas-warn-dismiss';
@@ -627,16 +642,21 @@ export async function showExcalidraw(container, initialData, onSave, initialAppT
         renderExcalidraw();
       },
       getSceneJSON() {
+        if (parseFailed) return initialData;
         try {
           return serializeAsJSON(latestElements, latestAppState, latestFiles || {}, 'local');
         } catch {
           return '';
         }
       },
+      flush() {
+        if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+        return this.getSceneJSON();
+      },
       // Push externally-driven elements into the canvas. Used by collab to
       // apply remote Yjs updates. No-op if the imperative API isn't ready yet.
       updateScene(elements) {
-        if (!excalidrawAPI || !Array.isArray(elements)) return;
+        if (parseFailed || !excalidrawAPI || !Array.isArray(elements)) return;
         try { excalidrawAPI.updateScene({ elements }); } catch (e) {
           console.error('Excalidraw updateScene failed:', e);
         }

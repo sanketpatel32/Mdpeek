@@ -119,6 +119,7 @@ let boundExcalidraw = null;   // controller returned by showExcalidraw()
 let boundCleanup = null;      // () → void; unbinds the current binding (text or Excalidraw)
 let localName = 'Anonymous';
 let localColor = '#3b82f6';
+let cancelPendingJoin = null;
 
 const listeners = new Set();
 
@@ -155,6 +156,7 @@ export function getStatus() {
 function initYdoc(initialText) {
   ydoc = new Y.Doc();
   ytext = ydoc.getText('content');
+  yelements = ydoc.getMap('elements');
   if (initialText) ytext.insert(0, initialText);
   awareness = new Awareness(ydoc);
   awareness.setLocalStateField('user', { name: localName, color: localColor });
@@ -259,7 +261,7 @@ export function startSession(initialText, { title, language } = {}) {
   if (ydoc) throw new Error('Session already active');
   role = 'host';
   roomId = generateRoomId();
-  hostMeta = { title: title || 'Shared note', language: language || 'markdown' };
+  hostMeta = { title: title || 'Shared note', language: language === undefined ? 'markdown' : language };
   initYdoc(initialText || '');
   try {
     buildTrysteroProvider();
@@ -295,36 +297,48 @@ export function joinSession(id, { name } = {}) {
     // Resolve the first time we get a meta payload (which carries title +
     // language) — falls back to current text if meta never arrives.
     let resolved = false;
+    let timer;
+    let off = () => {};
+    const finish = () => {
+      resolved = true;
+      off();
+      clearTimeout(timer);
+      cancelPendingJoin = null;
+    };
+    const fail = (error) => {
+      if (resolved) return;
+      finish();
+      reject(error);
+    };
     const tryResolve = (meta) => {
       if (resolved) return;
-      resolved = true;
-      resolve({
+      const result = {
         initialText: ytext.toString(),
         title: meta?.title || 'Shared note',
-        language: meta?.language || 'markdown',
-      });
+        language: meta?.language === undefined ? 'markdown' : meta.language,
+      };
+      finish();
+      resolve(result);
     };
+    cancelPendingJoin = () => fail(new Error('Joining cancelled'));
 
     // Wire a one-shot listener for the host's meta.
-    const origHandler = listeners.size;
-    const off = on((status) => {
+    off = on((status) => {
       if (status.meta) {
         tryResolve(status.meta);
-        off();
       }
     });
     // Safety: if host meta never arrives within 5s but we did receive text,
     // resolve with what we have. If still no peer, reject (NAT failure etc).
-    setTimeout(() => {
+    timer = setTimeout(() => {
       if (resolved) return;
       // Session may have been torn down while we waited (endSession during
       // the join window) — bail instead of touching the dead ydoc/ytext.
-      if (!ydoc || !ytext) { off(); return; }
+      if (!ydoc || !ytext) { cancelPendingJoin?.(); return; }
       if (peerMeta.size > 0 || ytext.toString().length > 0) {
         tryResolve(hostMeta);
       } else {
-        off();
-        reject(new Error('Could not reach the host. The host may be offline, or your network may block P2P connections (corporate VPN/firewall).'));
+        fail(new Error('Could not reach the host. The host may be offline, or your network may block P2P connections (corporate VPN/firewall).'));
         endSession();
       }
     }, 5000);
@@ -332,6 +346,7 @@ export function joinSession(id, { name } = {}) {
 }
 
 export function endSession() {
+  cancelPendingJoin?.();
   if (boundCleanup) {
     boundCleanup();
     boundCleanup = null;
@@ -463,9 +478,9 @@ export function unbindEditor() {
 // Excalidraw scenes don't fit Y.Text: each shape is a structured object, and
 // we want element-level identity (so two peers moving two different shapes
 // don't conflict). The model is a top-level Y.Map keyed by element id, where
-// each value is a Y.Map of the element's fields. Local canvas changes do a
-// full-replace of the Y.Map (simple, correct, fine for typical drawings <1k
-// elements); remote Yjs changes reassemble the elements array and call
+// each value is a Y.Map of the element's fields. Local canvas changes update
+// only changed fields, so simultaneous edits to separate shapes survive;
+// remote Yjs changes reassemble the elements array and call
 // Excalidraw's imperative updateScene().
 //
 // The bidirectional echo loop is broken by:
@@ -473,25 +488,30 @@ export function unbindEditor() {
 //   - A `suppress` boolean around inbound updateScene calls so the resulting
 //     onChange doesn't push back into Yjs.
 
-// Write the full elements array into a Yjs Y.Map. Clears and rebuilds —
-// O(n) per change, but Yjs's CRDT merge keeps it correct even when both peers
-// edit concurrently. Takes the ydoc + ymap as explicit args so it's pure and
+// Apply a scene to a Yjs Y.Map without replacing unchanged elements/fields.
+// Takes the ydoc + ymap as explicit args so it's pure and
 // unit-testable without spinning up a real session.
 export function writeElementsToYjs(ydoc, ymap, elements) {
   if (!ydoc || !ymap) return;
   const list = Array.isArray(elements) ? elements : [];
   ydoc.transact(() => {
-    ymap.clear();
+    const seen = new Set();
     for (const el of list) {
       if (!el || typeof el.id !== 'string') continue;
-      // new Y.Map() — no ydoc arg in this Yjs version (the parent is set
-      // implicitly when the map is inserted into ymap below).
-      const m = new Y.Map();
+      seen.add(el.id);
+      let m = ymap.get(el.id);
+      if (!(m instanceof Y.Map)) {
+        m = new Y.Map();
+        ymap.set(el.id, m);
+      }
       // Excalidraw element fields are all JSON-serializable primitives or
       // plain objects — safe to drop straight into a Y.Map.
-      for (const [k, v] of Object.entries(el)) m.set(k, v);
-      ymap.set(el.id, m);
+      for (const [k, v] of Object.entries(el)) {
+        if (m.get(k) !== v && JSON.stringify(m.get(k)) !== JSON.stringify(v)) m.set(k, v);
+      }
+      for (const key of m.keys()) if (!Object.hasOwn(el, key)) m.delete(key);
     }
+    for (const id of ymap.keys()) if (!seen.has(id)) ymap.delete(id);
   }, 'self');
 }
 
@@ -500,8 +520,8 @@ function writeActive(elements) {
   writeElementsToYjs(ydoc, yelements, elements);
 }
 
-// Read a Yjs Y.Map back as a plain elements array (order preserved by
-// insertion). Pure — takes the ymap as an arg.
+// Read a scene in Excalidraw's fractional-index order. Legacy scenes without
+// indices retain insertion order. Pure — takes the ymap as an arg.
 export function readElementsFromYjs(ymap) {
   if (!ymap) return [];
   const out = [];
@@ -510,6 +530,9 @@ export function readElementsFromYjs(ymap) {
     m.forEach((v, k) => { obj[k] = v; });
     out.push(obj);
   });
+  if (out.every(el => typeof el.index === 'string')) {
+    out.sort((a, b) => a.index < b.index ? -1 : a.index > b.index ? 1 : 0);
+  }
   return out;
 }
 
@@ -581,9 +604,7 @@ export function bindExcalidraw(ctrl) {
   // Initial paint from current Yjs state. Covers:
   //   - Receiver binding after the host's elements have already arrived.
   //   - Host binding right after startSessionExcalidraw seeded the Y.Map.
-  suppress = true;
   try { onRemote(); } catch { /* controller not ready — will sync on next change */ }
-  suppress = false;
 
   boundExcalidraw = ctrl;
   boundCleanup = () => {

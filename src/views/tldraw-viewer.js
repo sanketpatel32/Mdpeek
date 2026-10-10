@@ -399,19 +399,25 @@ function mountCanvasChrome(well, opts) {
   collapseBtn.setAttribute('aria-label', 'Hide canvas controls');
   const expandBtn = mkBtn('cvw-btn--icon cvw-btn--expand', 'Show controls', CVW_ICONS.expand, '');
   expandBtn.setAttribute('aria-label', 'Show canvas controls');
+  const exportError = document.createElement('span');
+  exportError.setAttribute('role', 'alert');
+  exportError.hidden = true;
 
   async function doExport(kind) {
+    exportError.hidden = true;
+    pngBtn.disabled = svgBtn.disabled = true;
     try {
       const ctrl = typeof opts.getCtrl === 'function' ? opts.getCtrl() : null;
       if (!ctrl || typeof ctrl.exportImage !== 'function') return;
       const res = await ctrl.exportImage(kind);
-      if (!res || !res.bytes) return;
+      if (!res || !res.bytes) throw new Error('Could not export this drawing. Add a shape and try again.');
       const suggestedName = `${opts.fileBase || 'drawing'}.${kind}`;
       try {
         const { invoke } = await import('@tauri-apps/api/core');
         await invoke('save_annotated_image', { bytes: Array.from(res.bytes), suggestedName, kind });
       } catch (err) {
         if (err === 'cancelled') return; // native save dialog dismissed
+        if (window.__TAURI_INTERNALS__) throw err;
         // Dev/browser fallback: plain blob download.
         const url = URL.createObjectURL(new Blob([res.bytes], { type: res.mime || 'application/octet-stream' }));
         const a = document.createElement('a');
@@ -424,6 +430,10 @@ function mountCanvasChrome(well, opts) {
       }
     } catch (e) {
       console.error('canvas export failed:', e);
+      exportError.textContent = `Export failed: ${e?.message || String(e)}`;
+      exportError.hidden = false;
+    } finally {
+      pngBtn.disabled = svgBtn.disabled = false;
     }
   }
   pngBtn.addEventListener('click', () => doExport('png'));
@@ -431,14 +441,14 @@ function mountCanvasChrome(well, opts) {
   collapseBtn.addEventListener('click', () => bar.classList.add('cvw-collapsed'));
   expandBtn.addEventListener('click', () => bar.classList.remove('cvw-collapsed'));
 
-  bar.append(mode, sep, pngBtn, svgBtn, collapseBtn, expandBtn);
+  bar.append(mode, sep, pngBtn, svgBtn, collapseBtn, expandBtn, exportError);
   well.appendChild(bar);
 
   // Transient "Saved" pill — fades out after each persisted autosave.
   const pill = document.createElement('div');
   pill.className = 'cvw-saved';
   pill.setAttribute('aria-live', 'polite');
-  pill.innerHTML = CVW_ICONS.check + '<span>Saved</span>';
+  pill.innerHTML = CVW_ICONS.check + '<span>Drawing updated</span>';
   well.appendChild(pill);
 
   let savedTimer = null;
@@ -665,7 +675,7 @@ export async function showTLDraw(container, initialData, onSave, initialAppTheme
           Tldraw,
           // No `store`/`snapshot`/`colorScheme` prop — mount fresh, load via
           // onMount, theme via user preferences.
-          { onMount: handleMount },
+          { onMount: handleMount, licenseKey: import.meta.env.VITE_TLDRAW_LICENSE_KEY || undefined },
           React.createElement(AutoSaver),
         ),
       );

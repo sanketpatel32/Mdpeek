@@ -389,8 +389,8 @@ export function toggleTaskLine(text, lineIndex) {
   const lines = text.split('\n');
   if (lineIndex < 0 || lineIndex >= lines.length) return { text };
   const ln = lines[lineIndex];
-  const doneRe = /^(\s*[-*+]\s+)\[[xX]\](\s*)/;
-  const openRe = /^(\s*[-*+]\s+)\[ \](\s*)/;
+  const doneRe = /^(\s*(?:>\s*)*(?:[-*+]|\d+[.)])\s+)\[[xX]\](\s*)/;
+  const openRe = /^(\s*(?:>\s*)*(?:[-*+]|\d+[.)])\s+)\[ \](\s*)/;
   if (doneRe.test(ln)) {
     lines[lineIndex] = ln.replace(doneRe, '$1[ ]$2');
   } else if (openRe.test(ln)) {
@@ -405,17 +405,20 @@ export function toggleTaskLine(text, lineIndex) {
 // to its source line index. The rendered order matches source order, so we
 // scan the source lines for task markers and return the (itemIndex)-th match.
 // Returns -1 if itemIndex is out of range (line changed under us, etc.).
-const TASK_LINE_RE = /^\s*[-*+]\s+\[[ xX]\]/;
+const TASK_LINE_RE = /^\s*(?:>\s*)*(?:[-*+]|\d+[.)])\s+\[[ xX]\]/;
 export function taskLineIndex(text, itemIndex) {
   if (itemIndex < 0) return -1;
   const lines = text.split('\n');
   let seen = 0;
+  let fence = null;
   for (let i = 0; i < lines.length; i++) {
-    // Skip fenced code blocks so `- [ ]` inside ``` isn't mistaken for a task.
-    if (/^\s*```/.test(lines[i])) {
-      // toggle fence state by scanning — simple approach: skip to closing fence
-      i++;
-      while (i < lines.length && !/^\s*```/.test(lines[i])) i++;
+    const marker = lines[i].match(/^\s*(?:>\s*)*(`{3,}|~{3,})/);
+    if (fence) {
+      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length) fence = null;
+      continue;
+    }
+    if (marker) {
+      fence = marker[1];
       continue;
     }
     if (TASK_LINE_RE.test(lines[i])) {

@@ -21,7 +21,7 @@ export async function saveActiveDoc(deps, doc) {
   if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
   // Flush the Excalidraw scene (the onChange save is debounced — force it now).
   if (doc.excalidraw && deps.excalidraw) {
-    const json = deps.excalidraw.getSceneJSON();
+    const json = deps.excalidraw.flush();
     if (json) doc.content = json;
   }
   // Force-flush the TLDraw scene synchronously so Ctrl+S captures any edits
@@ -36,8 +36,9 @@ export async function saveActiveDoc(deps, doc) {
     try {
       const kind = doc.tldraw ? 'tldraw' : doc.excalidraw ? 'excalidraw' : doc.plain ? 'text' : undefined;
       const path = await deps.invoke('save_file_as', { content, kind });
+      if (!path) return null;
       doc.path = path;
-      deps.clearDirty(doc.id);
+      if ((doc.editor?.getValue() ?? doc.content) === content) deps.clearDirty(doc.id);
       deps.toast('Saved');
       // Snapshot for version history (markdown text only; fire-and-forget —
       // a snapshot miss must never block a save).
@@ -50,7 +51,7 @@ export async function saveActiveDoc(deps, doc) {
   }
   try {
     await deps.invoke('save_file', { path: doc.path, content });
-    deps.clearDirty(doc.id);
+    if ((doc.editor?.getValue() ?? doc.content) === content) deps.clearDirty(doc.id);
     deps.toast('Saved');
     deps.maybeSnapshot?.(doc, content);
     return doc.path;

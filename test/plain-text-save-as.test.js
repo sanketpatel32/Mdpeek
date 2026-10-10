@@ -6,6 +6,27 @@
 import { it, expect, vi } from 'vitest';
 import { saveActiveDoc } from '../src/lib/save-doc.js';
 
+it('keeps newer edits dirty while an earlier save is in flight', async () => {
+  const doc = { id: 'race', path: '/note.md', content: 'first version', dirty: true };
+  let complete;
+  const deps = { invoke: vi.fn(() => new Promise((resolve) => { complete = resolve; })), clearDirty: vi.fn(), toast: vi.fn(), fmtErr: String };
+  const saving = saveActiveDoc(deps, doc);
+  doc.content = 'newer unsaved work';
+  complete();
+  await saving;
+  expect(deps.clearDirty).not.toHaveBeenCalled();
+  expect(deps.invoke).toHaveBeenCalledWith('save_file', { path: '/note.md', content: 'first version' });
+});
+
+it('a null Save As result leaves the document unsaved', async () => {
+  const doc = { id: 'cancel', path: null, content: 'work', dirty: true };
+  const deps = { invoke: vi.fn().mockResolvedValue(null), clearDirty: vi.fn(), toast: vi.fn(), fmtErr: String };
+  expect(await saveActiveDoc(deps, doc)).toBeNull();
+  expect(doc.path).toBeNull();
+  expect(deps.clearDirty).not.toHaveBeenCalled();
+  expect(deps.toast).not.toHaveBeenCalled();
+});
+
 it('untitled plain-text notes request the text Save As kind and complete the save', async () => {
   const doc = { id: 'plain-note', path: null, plain: true, content: 'hello' };
   const invoke = vi.fn().mockResolvedValue('C:\\notes\\hello.txt');

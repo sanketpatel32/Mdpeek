@@ -14,6 +14,7 @@ function titleFor(doc) {
     const parts = doc.path.split(/[\\/]/);
     return parts[parts.length - 1];
   }
+  if (doc.excalidraw || doc.tldraw) return doc.excalidraw ? 'Excalidraw drawing' : 'TLDraw drawing';
   // Untitled notes derive a title from their content (first heading / first
   // line) so the tab strip stays meaningful while writing before saving.
   const derived = deriveNoteTitle(doc.content || '');
@@ -24,7 +25,7 @@ function titleFor(doc) {
 // several folders are open), then state suffixes. The dirty marker mirrors
 // the status bar's "· edited" wording so both cues read the same way.
 function tooltipFor(doc) {
-  let t = doc.path || (doc.shared ? 'Shared document' : deriveNoteTitle(doc.content || ''));
+  let t = doc.path || (doc.shared ? 'Shared document' : doc.excalidraw || doc.tldraw ? titleFor(doc) : deriveNoteTitle(doc.content || ''));
   if (doc.dirty) t += ' — unsaved changes';
   if (doc.pinned) t += ' — pinned';
   return t;

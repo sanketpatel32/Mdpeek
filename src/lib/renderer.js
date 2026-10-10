@@ -980,6 +980,7 @@ function enhanceTaskCheckboxes(container) {
     if (cb.hasAttribute('disabled')) cb.removeAttribute('disabled');
     if (!cb.hasAttribute('role')) cb.setAttribute('role', 'checkbox');
     if (!cb.hasAttribute('tabindex')) cb.setAttribute('tabindex', '0');
+    cb.setAttribute('aria-label', cb.closest('li')?.textContent.trim() || 'Task');
   });
 }
 

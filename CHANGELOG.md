@@ -7,9 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.4.2] - 2026-10-06
+## [1.4.2] - 2026-10-10
+
+### Changed
+- Refreshed the home screen and workspace with a clearer toolbar, better spacing, responsive layouts, and keyboard navigation.
+- Added the `VITE_TLDRAW_LICENSE_KEY` build setting. Production TLDraw remains pending until a valid license key is supplied.
 
 ### Fixed
+- Saving and restoring sessions preserve unsaved edits, including drawing changes and edits made while a save is in progress.
+- Task checkboxes update the correct source line across nested lists and quoted tasks; conflicting keyboard shortcuts no longer run twice.
+- File watching targets the correct document and preserves unsaved work when files change externally.
+- The terminal reports shell exit correctly and cleans up sessions that finish connecting after a timeout.
+- Drawing exports report failures, corrupt drawing files remain protected, and shared drawings load and retain simultaneous edits to separate shapes.
+- Collaboration preserves plain-text mode and cancelling a join prevents a late connection from opening another tab.
 - Hard-wrapped markdown (documents authored at a fixed wrap column, e.g. agent-generated or `fmt`-style prose) now reflows into flowing paragraphs in the preview instead of rendering a staircase of chopped lines at every source newline. Hand-typed short lines keep the single-Enter line break, and explicit two-trailing-space breaks are always honoured.
 
 ## [1.4.1] - 2026-10-05

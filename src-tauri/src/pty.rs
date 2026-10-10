@@ -42,7 +42,7 @@ pub(crate) struct TermEntry {
 
 /// Managed app state: a map from terminal id → live PTY entry.
 #[derive(Default)]
-pub struct TermState(pub(crate) Mutex<HashMap<u32, TermEntry>>);
+pub struct TermState(pub(crate) Arc<Mutex<HashMap<u32, TermEntry>>>);
 
 /// Messages streamed from the PTY backend to the frontend xterm.js instance.
 /// Serialized as a tagged enum `{ "t": "Data", "d": "..." }` so the JS side
@@ -111,6 +111,17 @@ fn decode_chunk(pending: &mut Vec<u8>) -> String {
 #[tauri::command]
 pub fn spawn_terminal(
     state: tauri::State<'_, TermState>,
+    on_event: Channel<PtyEvent>,
+    cwd: Option<String>,
+    cols: Option<u16>,
+    rows: Option<u16>,
+    shell: Option<String>,
+) -> Result<SpawnResult, String> {
+    spawn_session(&state, on_event, cwd, cols, rows, shell)
+}
+
+fn spawn_session(
+    state: &TermState,
     on_event: Channel<PtyEvent>,
     cwd: Option<String>,
     cols: Option<u16>,
@@ -238,6 +249,7 @@ pub fn spawn_terminal(
     let child_handle: Arc<Mutex<Box<dyn portable_pty::Child + Send + Sync>>> =
         Arc::new(Mutex::new(child));
     let reap = Arc::clone(&child_handle);
+    let monitor = Arc::clone(&child_handle);
     std::thread::spawn(move || {
         let mut reader = reader;
         let mut buf = [0u8; 8192];
@@ -275,6 +287,22 @@ pub fn spawn_terminal(
         child: child_handle,
     };
     state.0.lock().unwrap_or_else(|e| e.into_inner()).insert(id, entry);
+    // ConPTY can keep its output pipe open after the shell exits while the
+    // master still lives in the map. Observe process exit independently and
+    // close that master, allowing the reader to drain and report Exit.
+    let sessions = Arc::clone(&state.0);
+    std::thread::spawn(move || loop {
+        let ended = match monitor.lock().unwrap_or_else(|e| e.into_inner()).try_wait() {
+            Ok(Some(_)) | Err(_) => true,
+            Ok(None) => false,
+        };
+        if ended {
+            let entry = sessions.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+            drop(entry);
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    });
     eprintln!("[pty] spawn_terminal: returning id={id}");
 
     Ok(SpawnResult { id })
@@ -363,4 +391,93 @@ pub fn resize_terminal(
         })
         .map_err(|e| format!("resize failed: {e}"))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn utf8_stream_keeps_split_characters_and_replaces_invalid_bytes() {
+        let mut bytes = vec![b'A', 0xf0, 0x9f];
+        assert_eq!(decode_chunk(&mut bytes), "A");
+        bytes.extend_from_slice(&[0x93, 0x9d, 0xff, b'B']);
+        assert_eq!(decode_chunk(&mut bytes), "📝�B");
+        assert!(bytes.is_empty());
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn native_terminal_streams_powershell_output_and_exit_after_resize() {
+        use std::sync::mpsc;
+        use std::time::{Duration, Instant};
+        let state = TermState::default();
+        let (sender, receiver) = mpsc::channel();
+        let channel = Channel::new(move |body| {
+            if let tauri::ipc::InvokeResponseBody::Json(json) = body {
+                let _ = sender.send(serde_json::from_str::<serde_json::Value>(&json).unwrap());
+            }
+            Ok(())
+        });
+        let cwd = std::env::temp_dir()
+            .to_string_lossy()
+            .trim_end_matches('\\')
+            .to_string();
+        let result = spawn_session(
+            &state,
+            channel,
+            Some(cwd.clone()),
+            Some(80),
+            Some(24),
+            Some("powershell.exe".into()),
+        )
+        .unwrap();
+        {
+            let mut sessions = state.0.lock().unwrap();
+            let entry = sessions.get_mut(&result.id).unwrap();
+            entry
+                .master
+                .resize(PtySize {
+                    rows: 30,
+                    cols: 100,
+                    pixel_width: 0,
+                    pixel_height: 0,
+                })
+                .unwrap();
+            entry.writer.write_all(b"Write-Output ('MDPEEK_CWD=' + (Get-Location).Path); Write-Output ('MDPEEK_' + 'NATIVE_OK'); exit 7\r").unwrap();
+            entry.writer.flush().unwrap();
+        }
+        let deadline = Instant::now() + Duration::from_secs(15);
+        let mut output = String::new();
+        let mut exit = None;
+        while let Some(remaining) = deadline.checked_duration_since(Instant::now()) {
+            let Ok(event) = receiver.recv_timeout(remaining) else {
+                break;
+            };
+            if event["t"] == "Data" {
+                output.push_str(event["d"].as_str().unwrap());
+            }
+            if event["t"] == "Exit" {
+                exit = event["d"].as_i64();
+                break;
+            }
+        }
+        // Reap/kill only this test's child, even if a bounded read timed out.
+        if let Some(entry) = state.0.lock().unwrap().remove(&result.id) {
+            let _ = entry.child.lock().unwrap().kill();
+        }
+        assert!(
+            output.contains("MDPEEK_NATIVE_OK"),
+            "No executed shell output: {output}"
+        );
+        assert!(
+            output.contains(&format!("MDPEEK_CWD={cwd}")),
+            "Wrong working directory: {output}"
+        );
+        assert_eq!(
+            exit,
+            Some(7),
+            "Native terminal did not report exit: {output}"
+        );
+    }
 }

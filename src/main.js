@@ -85,6 +85,8 @@ import {
 import { DocumentStore, canSaveDoc, isPdfPath, isImagePath, isExcalidrawPath, isTLDrawPath, isNotebookPath, isMediaPath, langFromPath, langForEdit } from './lib/documents.js';
 import { renderMarkdown, renderCode, renderCsv, parseCsv, prepareCodeLang, enhanceDom } from './lib/renderer.js';
 import { saveSession, loadSession, loadRecents, addRecent, removeRecent, saveRecents } from './lib/persistence.js';
+import { restoreSessionDocs } from './lib/restore-session.js';
+import { applyFileChange } from './lib/file-reload.js';
 // v0.49.0: named workspace sessions. Aliased to avoid clashing with the
 // persistence module's saveSession (the auto-session saver used at line ~1000).
 import { getSessions as getNamedSessions, saveSession as saveNamedSession, deleteSession as deleteNamedSession } from './lib/sessions.js';
@@ -152,15 +154,15 @@ function renderWelcome() {
   const recentsHtml = `
     <section class="recent-files" aria-label="Recent files">
       <div class="recent-header">
-        <span class="recent-title">Recent</span>
+        <span class="recent-title">Recent documents</span>
         ${recents.length > 0 ? '<button class="recent-clear" data-action="clear-recents" type="button" title="Clear recent list">Clear</button>' : ''}
       </div>
       ${recents.length === 0 ? `
         <div class="recent-empty">
           <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-          <span>No recent files</span>
-          <p class="recent-empty-sub">Opened files will appear here</p>
-          <button class="recent-sample" data-action="sample" type="button">See a sample document</button>
+          <span>Your next document starts here</span>
+          <p class="recent-empty-sub">Open a file to keep it close, or try a sample to explore Markdown.</p>
+          <button class="recent-sample" data-action="sample" type="button">Try a sample document <span aria-hidden="true">→</span></button>
         </div>
       ` : `<div class="recent-list">${recents.map((r) => {
         const path = r.path || '';
@@ -182,15 +184,9 @@ function renderWelcome() {
   <div class="welcome">
     <div class="welcome-inner">
       <div class="welcome-hero">
-        <div class="welcome-logo-wrap">
-          <div class="welcome-logo-halo" aria-hidden="true"></div>
-          <img src="/icon.png" alt="mdpeek" class="welcome-logo" />
-        </div>
-        <div class="welcome-title-row">
-          <h1 class="welcome-title">mdpeek</h1>
-          <span class="version-badge">v${BUILD_VERSION || ''}</span>
-        </div>
-        <p class="welcome-tagline">Featherlight file viewer &amp; Markdown editor</p>
+        <div class="welcome-eyebrow"><span class="welcome-local-dot" aria-hidden="true"></span> YOUR LOCAL WORKSPACE <span class="version-badge">v${BUILD_VERSION || ''}</span></div>
+        <h1 class="welcome-title">Room for your<br /><span>next idea.</span></h1>
+        <p class="welcome-tagline">Read beautifully. Write simply. Your notes, documents and ideas, all in one place.</p>
       </div>
 
       <div class="welcome-actions">
@@ -199,8 +195,8 @@ function renderWelcome() {
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3-3 3 3"/></svg>
           </span>
           <span class="wa-text">
-            <span class="wa-label">Open File</span>
-            <span class="wa-hint">Browse for a document</span>
+            <span class="wa-label">Open a document</span>
+            <span class="wa-hint">Markdown, PDF, code and more</span>
           </span>
           <kbd>Ctrl+O</kbd>
         </button>
@@ -209,8 +205,8 @@ function renderWelcome() {
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
           </span>
           <span class="wa-text">
-            <span class="wa-label">New Note</span>
-            <span class="wa-hint">Start writing instantly</span>
+            <span class="wa-label">Start a new note</span>
+            <span class="wa-hint">A blank page, ready when you are</span>
           </span>
           <kbd>Ctrl+N</kbd>
         </button>
@@ -229,10 +225,9 @@ function renderWelcome() {
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.69.9H18a2 2 0 0 1 2 2v2"/></svg>
           </span>
           <span class="wa-text">
-            <span class="wa-label">Open Folder</span>
-            <span class="wa-hint">Workspace with the file tree</span>
+            <span class="wa-label">Open a folder</span>
+            <span class="wa-hint">Bring your files into view</span>
           </span>
-          <kbd>Ctrl+Shift+E</kbd>
         </button>
       </div>
 
@@ -240,7 +235,7 @@ function renderWelcome() {
         ${recentsHtml}
       </div>
 
-      <div class="welcome-footer" aria-hidden="true">
+      <div class="welcome-footer">
         <span><kbd>Ctrl+Shift+P</kbd> search everything</span>
         <span class="dot">·</span>
         <span><kbd>Ctrl+E</kbd> edit/view</span>
@@ -557,6 +552,7 @@ function basename(p) {
 // before saving (they used to all say "Untitled" forever).
 function docDisplayName(doc) {
   if (doc && doc.path) return basename(doc.path);
+  if (doc?.excalidraw || doc?.tldraw) return doc.excalidraw ? 'Excalidraw drawing' : 'TLDraw drawing';
   return deriveNoteTitle(doc ? doc.content : '') || 'Untitled';
 }
 
@@ -625,9 +621,9 @@ function confirmDialog({ title, text, buttons, icon = 'warn' }) {
 }
 
 async function rewatch(path) {
-  if (!path) return;
   try {
-    await invoke('watch_path', { path });
+    const binary = isPdfPath(path) || isImagePath(path) || isExcalidrawPath(path) || isTLDrawPath(path) || isMediaPath(path);
+    await invoke('watch_path', { path: binary ? null : path || null });
   } catch {
     /* ignore watcher failures */
   }
@@ -640,6 +636,7 @@ async function rewatch(path) {
 // switch would lose typed text and the caret/scroll position.
 let _lastRenderedId = null;
 let _renderGen = 0; // monotonic counter — guards async loads against stale tabs
+let _focusedEditor = null;
 let _activePdf = null; // controller for the currently-shown PDF (for teardown)
 let _activeExcalidraw = null; // controller for the currently-shown Excalidraw tab
 let _activeTLDraw = null; // controller for the currently-shown TLDraw tab (v0.47.0)
@@ -672,6 +669,14 @@ function syncToolbarForDoc(doc) {
   // exactly what a fresh "New drawing" tab needs. Hidden on the welcome screen
   // and for read-only viewers (PDF / image / csv).
   el.save.classList.toggle('hidden', !canSaveDoc(doc));
+  document.getElementById('btn-save-as').classList.toggle('hidden', !canSaveDoc(doc));
+  const markdown = !!doc && !doc.plain && !doc.code && !doc.pdf && !doc.image && !doc.csv && !doc.notebook && !doc.media && !doc.excalidraw && !doc.tldraw;
+  for (const id of ['btn-copy-html', 'btn-copy-plaintext', 'btn-open-browser']) {
+    document.getElementById(id)?.classList.toggle('hidden', !markdown);
+  }
+  document.getElementById('btn-pin-doc-theme')?.classList.toggle('hidden', !markdown || !doc.path);
+  document.getElementById('btn-clear-doc-theme')?.classList.toggle('hidden', !markdown || !doc.path);
+  el.mode.querySelector('.mode-label').textContent = doc?.mode === 'edit' ? 'Preview' : 'Edit';
 }
 
 async function renderActive() {
@@ -779,7 +784,8 @@ async function renderActive() {
   if (isEmpty) {
     el.editMode.classList.add('hidden');
     el.editMode.classList.remove('plain');
-    el.mode.classList.remove('hidden');
+    el.mode.classList.toggle('hidden', !doc);
+    el.draw.classList.add('hidden');
     el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
     if (el.present) el.present.classList.add('hidden');
@@ -787,8 +793,8 @@ async function renderActive() {
     if (el.share) el.share.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = ''; // clear stale TOC from the previous document
-    el.document.classList.remove('code-viewer', 'image-viewer', 'excalidraw-host', 'tldraw-host');
-    el.document.classList.add('has-welcome', 'markdown-body');
+    el.document.classList.remove('code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'csv-viewer', 'excalidraw-host', 'tldraw-host', 'markdown-body');
+    el.document.classList.add('has-welcome');
     el.document.innerHTML = renderWelcome();
     setReadingProgressVisible(false);
     return;
@@ -1180,16 +1186,15 @@ async function renderActive() {
       }
     }
     // Restore the caret + scroll captured when we last switched away.
-    if (doc.editorState) doc.editor.setState(doc.editorState);
+    if (doc.editorState && doc.editor !== _focusedEditor) doc.editor.setState(doc.editorState);
     // Re-apply typewriter mode to the freshly-bound editor.
     doc.editor.setTypewriter(localStorage.getItem('mdpeek-typewriter') === '1');
     // Keyboard-first: entering edit mode should land the caret in the text.
     // Only when focus wasn't deliberately placed elsewhere (a dialog, the
     // sidebar…). Session restore used to leave focus on <body> so the first
     // keystroke went nowhere.
-    if (doc.editorState == null && document.activeElement === document.body) {
-      doc.editor.focus();
-    }
+    if (doc.editor !== _focusedEditor && !document.activeElement?.closest('.modal-overlay:not(.hidden), .palette-overlay:not(.hidden), #find-overlay:not(.hidden)')) doc.editor.focus();
+    _focusedEditor = doc.editor;
     el.editorStatus.classList.remove('hidden');
     updateEditorStatus();
     // v0.44.0: restore the editor outline visibility for edit-mode docs.
@@ -1291,6 +1296,7 @@ let _allCommands = [];
 // Command id → feature flag whose Minimal-mode suppression hides it (mirrors
 // the featureOn clauses inside getCommands' filter).
 const CMD_MINIMAL_FEATURE = {
+  terminal: 'terminal',
   kanban: 'kanban',
   'start-presentation': 'present',
   snippet: 'snippets',
@@ -1306,7 +1312,8 @@ const CMD_MINIMAL_FEATURE = {
 
 function getCommands() {
   const cmds = [    { id: 'open', label: 'Open file', hint: 'Ctrl+O', keywords: 'open file load', run: openFileDialog },
-    { id: 'open-folder', label: 'Open folder in explorer', hint: 'Ctrl+Shift+E', keywords: 'open folder explorer tree workspace project', run: openFolderForExplorer },
+    { id: 'open-folder', label: 'Open folder in explorer', keywords: 'open folder explorer tree workspace project', run: openFolderForExplorer },
+    { id: 'toggle-explorer', label: 'Toggle file explorer sidebar', hint: 'Ctrl+Shift+E', keywords: 'toggle folder explorer sidebar tree', run: toggleExplorer },
     { id: 'save-workspace', label: 'Save workspace as…', keywords: 'save workspace session tabs project', run: saveCurrentWorkspace },
     { id: 'open-workspace', label: 'Open workspace…', keywords: 'open switch workspace session tabs project', run: () => { workspacePicker.setItems(getWorkspacePickerItems()); workspacePicker.open(); } },
     { id: 'back', label: 'Back', hint: 'Alt+Left', keywords: 'back previous history navigate', run: goBack },
@@ -1428,6 +1435,7 @@ function getCommands() {
     if (c.id === 'kanban' && !featureOn('kanban')) return false;
     if (c.id === 'start-presentation' && !featureOn('present')) return false;
     if (c.id === 'snippet' && !featureOn('snippets')) return false;
+    if (c.id === 'terminal' && !featureOn('terminal')) return false;
     if (c.id === 'daily' && !featureOn('daily')) return false;
     // v0.55.0: quick-capture inbox — feature flag (suppressed under Minimal).
     if (c.id === 'capture' && !featureOn('capture')) return false;
@@ -1937,9 +1945,11 @@ store.on('change', () => {
     // the tree highlight. Fire-and-forget; revealPath is no-op without a root.
     const d = store.active();
     if (d && d.path) revealPath(d.path);
+    rewatch(d?.path);
   } else if (activeId === null) {
     // Last tab closed; reset last-seen so the next open() pushes correctly.
     _lastActiveId = null;
+    rewatch(null);
   }
   // Remove closed docs from history so we never try to switch back to them.
   for (const id of navHistory.entries) {
@@ -2320,18 +2330,7 @@ async function applyWorkspaceSnapshot(snapshot) {
     if (s.path === null && (s.content === '' || s.content == null) && !s.dirty && !s.pinned) return false;
     return true;
   });
-  const restored = await Promise.all(
-    candidates.map(async (s) => {
-      if (!s.path) return s;
-      if (isPdfPath(s.path) || isImagePath(s.path) || isMediaPath(s.path)) return { ...s, content: '' };
-      try {
-        const content = await invoke('read_file', { path: s.path });
-        return { ...s, content };
-      } catch {
-        return s; // file gone since save — keep last-known content
-      }
-    }),
-  );
+  const restored = await restoreSessionDocs(candidates, invoke);
   if (restored.length > 0) {
     store.restore({ docs: restored, activeId: snapshot.activeId });
   } else {
@@ -2404,8 +2403,6 @@ function extractSelectionToNote() {
   const text = doc.editor.getValue();
   const selection = text.slice(start, end);
   const title = deriveNoteTitle(selection);
-  // Open a new markdown tab with the extracted content, in edit mode.
-  store.open({ path: null, content: selection, mode: 'edit' });
   // Replace the selection in the source doc with a link. The link points at
   // the derived title (the user will save the new tab under a matching name).
   const link = `[${title}](${title.replace(/\s+/g, '%20')}.md)`;
@@ -2416,6 +2413,9 @@ function extractSelectionToNote() {
   store.markDirty(doc.id);
   persistSoon();
   scheduleAutoSave();
+  // Finish changing the source before opening a tab destroys its editor.
+  const extracted = store.open({ path: null, content: selection, mode: 'edit' });
+  store.markDirty(extracted.id);
   toast(`Extracted to new note: ${title}`);
 }
 
@@ -2482,7 +2482,7 @@ async function closeTab(id) {
   // v0.68.0: flush a live canvas before the dirty check so edits made inside
   // the viewer's 1s debounce window are seen (and prompt) correctly.
   if (doc.excalidraw && _activeExcalidraw && _lastRenderedId === id) {
-    const j = _activeExcalidraw.getSceneJSON();
+    const j = _activeExcalidraw.flush();
     if (j && j !== doc.content) { doc.content = j; store.markDirty(doc.id); }
   }
   if (doc.tldraw && _activeTLDraw && _lastRenderedId === id) {
@@ -2502,7 +2502,7 @@ async function closeTab(id) {
     });
     if (choice === null || choice === 'cancel') return;
     if (choice === 'save') {
-      await saveActive();
+      await saveDoc(doc);
       // If the save was cancelled (no path chosen), abort the close.
       if (doc.dirty) return;
     }
@@ -2617,7 +2617,9 @@ async function openFileDialog() {
 // v1.1.2: the pipeline lives in src/lib/save-doc.js (DOM-free, unit-testable);
 // this wrapper binds it to the app's live collaborators.
 async function saveActive() {
-  const doc = store.active();
+  return saveDoc(store.active());
+}
+async function saveDoc(doc) {
   if (!canSaveDoc(doc)) return;
   const oldPath = doc.path;
   const savedPath = await saveActiveDoc({
@@ -2627,19 +2629,19 @@ async function saveActive() {
     clearDirty: (id) => store.clearDirty(id),
     maybeSnapshot,
     // Captured per call so canvas flushes see the live controllers.
-    excalidraw: _activeExcalidraw,
-    tldraw: _activeTLDraw,
+    excalidraw: _activeExcalidrawDocId === doc.id ? _activeExcalidraw : null,
+    tldraw: _activeTLDrawDocId === doc.id ? _activeTLDraw : null,
   }, doc);
   if (savedPath && !oldPath) {
     addRecent(savedPath);
     if (!isPdfPath(savedPath) && !isExcalidrawPath(savedPath) && !isTLDrawPath(savedPath) && !isMediaPath(savedPath)) {
-      await rewatch(savedPath);
+      await rewatch(store.active()?.path);
     }
-    updateTitle();
-    renderTabs();
+    renderTabs(store);
     updateEditorStatus();
     revealPath(savedPath);
   }
+  if (savedPath) persist();
 }
 
 async function saveActiveAs() {
@@ -2647,7 +2649,7 @@ async function saveActiveAs() {
   if (!canSaveDoc(doc)) return;
   if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
   if (doc.excalidraw && _activeExcalidraw) {
-    const json = _activeExcalidraw.getSceneJSON();
+    const json = _activeExcalidraw.flush();
     if (json) doc.content = json;
   }
   if (doc.tldraw && _activeTLDraw) {
@@ -2660,17 +2662,17 @@ async function saveActiveAs() {
     const path = await invoke('save_file_as', { content, kind });
     if (!path) return;
     doc.path = path;
-    store.clearDirty(doc.id);
+    if ((doc.editor?.getValue() ?? doc.content) === content) store.clearDirty(doc.id);
     toast('Saved as ' + basename(path));
     maybeSnapshot(doc, content);
     addRecent(path);
     if (!isPdfPath(path) && !isExcalidrawPath(path) && !isTLDrawPath(path) && !isMediaPath(path)) {
       await rewatch(path);
     }
-    updateTitle();
-    renderTabs();
+    renderTabs(store);
     updateEditorStatus();
     revealPath(path);
+    persist();
   } catch (e) {
     if (e !== 'cancelled') toast('Save failed: ' + fmtErr(e));
   }
@@ -2951,7 +2953,10 @@ function toggleMode() {
   if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
   doc.mode = doc.mode === 'view' ? 'edit' : 'view';
   if (find) find.close(); // clear highlights/selection before the re-render
-  renderActive().catch((e) => console.error('toggleMode render failed:', e));
+  renderActive().then(() => {
+    if (store.active()?.id === doc.id && doc.mode === 'edit') doc.editor?.focus();
+    persistSoon();
+  }).catch((e) => console.error('toggleMode render failed:', e));
 }
 
 // ---------- custom CSS (v0.41.0) ----------
@@ -3506,7 +3511,7 @@ function updateCollabStatus(status) {
         // the controller (independent of Yjs — the canvas state is the
         // source of truth on the receiver side once unbound).
         if (doc.excalidraw && _activeExcalidraw) {
-          const json = _activeExcalidraw.getSceneJSON();
+          const json = _activeExcalidraw.flush();
           if (json) doc.content = json;
         } else if (doc.editor) {
           doc.content = doc.editor.getValue();
@@ -3571,7 +3576,7 @@ function openShareModal() {
   //     would be missed.
   if (doc.excalidraw) {
     if (_activeExcalidraw) {
-      const json = _activeExcalidraw.getSceneJSON();
+      const json = _activeExcalidraw.flush();
       if (json) doc.content = json;
     }
   } else if (doc.mode === 'edit' && doc.editor) {
@@ -3594,7 +3599,7 @@ function openShareModal() {
     } else {
       result = collab.startSession(doc.content || '', {
         title: doc.path ? doc.path.split(/[\\/]/).pop() : 'Shared note',
-        language: langForEdit(doc) || 'markdown',
+        language: langForEdit(doc),
       });
     }
     collab.setLocalIdentity({ name: defaultCollabName() });
@@ -4303,8 +4308,14 @@ async function togglePreviewCheckbox(itemIndex) {
   }
   // Persist to disk silently for saved files; unsaved docs just stay dirty.
   if (doc.path) {
-    try { await invoke('save_file', { path: doc.path, content: next }); store.clearDirty(doc.id); }
+    try { await invoke('save_file', { path: doc.path, content: next }); if (doc.content === next) store.clearDirty(doc.id); }
     catch (e) { console.error('checkbox save:', e); /* leave dirty */ }
+  }
+  persistSoon();
+  if (!el.reader.classList.contains('hidden')) {
+    const scroll = el.reader.querySelector('.reader-scroll');
+    doc.readerScrollY = scroll.scrollTop;
+    enterReading().catch((e) => console.error('[mdpeek] reader checkbox:', e));
   }
   renderActive().catch((e) => console.error('[mdpeek] checkbox render:', e));
 }
@@ -5153,6 +5164,12 @@ function closeJoinDialog() {
   _pendingInvite = null;
 }
 
+function cancelJoin() {
+  const connecting = el.joinConfirmBtn.disabled;
+  closeJoinDialog();
+  if (connecting && collab.getStatus().role === 'receiver') collab.endSession();
+}
+
 async function confirmJoin() {
   if (!_pendingInvite) { closeJoinDialog(); return; }
   const roomId = _pendingInvite;
@@ -5163,6 +5180,7 @@ async function confirmJoin() {
   try {
     collab.setLocalIdentity({ name: defaultCollabName() });
     const result = await collab.joinSession(roomId);
+    if (_pendingInvite !== roomId) return;
     // Branch on the host's doc type. The host's language meta tells us what
     // kind of tab to create on the receiver side:
     //   'excalidraw' → Excalidraw canvas tab
@@ -5180,11 +5198,9 @@ async function confirmJoin() {
         path: null,
         content: result.initialText || '',
         mode: 'edit',
+        plain: result.language === null,
         shared: true,
       });
-      // Plain-text host (.txt) → behave as plain text on the receiver too so
-      // the markdown preview pane stays hidden (matches host UX).
-      if (result.language === null) doc.plain = true;
       // Code-language host: the editor no longer has per-language syntax
       // highlighting (the overlay was removed in the v0.22 editor refactor),
       // so we don't need to propagate the language to the receiver's editor.
@@ -5205,9 +5221,9 @@ async function confirmJoin() {
     requestAnimationFrame(() => {
       if (!collab.getStatus().active) return;
       const d = store.active();
-      if (!d) return;
+      if (!d || d.id !== doc.id) return;
       try {
-        if (d.excalidraw && _activeExcalidraw) {
+        if (d.excalidraw && _activeExcalidraw && _activeExcalidrawDocId === d.id) {
           collab.bindExcalidraw(_activeExcalidraw);
         } else if (d.editor && !d.excalidraw) {
           collab.bindEditor(d.editor);
@@ -5216,6 +5232,7 @@ async function confirmJoin() {
     });
     toast('Joined session');
   } catch (err) {
+    if (_pendingInvite !== roomId) return;
     el.joinStatus.textContent = (err?.message || String(err));
     el.joinStatus.classList.add('error');
     el.joinConfirmBtn.disabled = false;
@@ -5783,7 +5800,7 @@ function updateNavButtons() {
 // ---------- sidebar (TOC) toggle & visibility ----------
 function syncSidebarVisibility() {
   const doc = store.active();
-  const hasToc = doc && !doc.pdf && !doc.excalidraw && !doc.tldraw && !doc.code && !doc.csv && !doc.plain && !doc.notebook && !doc.media && doc.mode === 'view';
+  const hasToc = doc && doc.content.trim() && !doc.pdf && !doc.image && !doc.excalidraw && !doc.tldraw && !doc.code && !doc.csv && !doc.plain && !doc.notebook && !doc.media && doc.mode === 'view';
   
   if (!hasToc) {
     el.toc.classList.add('collapsed');
@@ -5798,7 +5815,7 @@ function syncSidebarVisibility() {
 
 function toggleSidebar() {
   const doc = store.active();
-  const hasToc = doc && !doc.pdf && !doc.excalidraw && !doc.tldraw && !doc.code && !doc.csv && !doc.plain && !doc.notebook && !doc.media && doc.mode === 'view';
+  const hasToc = doc && doc.content.trim() && !doc.pdf && !doc.image && !doc.excalidraw && !doc.tldraw && !doc.code && !doc.csv && !doc.plain && !doc.notebook && !doc.media && doc.mode === 'view';
   if (!hasToc) return;
 
   const collapsed = el.toc.classList.toggle('collapsed');
@@ -7011,7 +7028,7 @@ el.shareDialog?.addEventListener('click', (e) => {
 });
 if (el.shareEndBtn) el.shareEndBtn.addEventListener('click', endCollabSession);
 if (el.joinConfirmBtn) el.joinConfirmBtn.addEventListener('click', confirmJoin);
-if (el.joinCancelBtn) el.joinCancelBtn.addEventListener('click', closeJoinDialog);
+if (el.joinCancelBtn) el.joinCancelBtn.addEventListener('click', cancelJoin);
 if (el.collabStatus) el.collabStatus.addEventListener('click', (e) => {
   // The × button has its own handler; don't double-handle.
   if (e.target === el.collabEnd) return;
@@ -7693,11 +7710,13 @@ function openMoreMenu() {
   if (!el.moreMenu) return;
   el.moreMenu.classList.remove('hidden');
   el.moreBtn?.setAttribute('aria-expanded', 'true');
+  el.moreMenu.querySelector('.ctx-item:not(.hidden):not([disabled])')?.focus();
 }
 function closeMoreMenu() {
   if (!el.moreMenu || el.moreMenu.classList.contains('hidden')) return;
   el.moreMenu.classList.add('hidden');
   el.moreBtn?.setAttribute('aria-expanded', 'false');
+  if (el.moreMenu.contains(document.activeElement)) el.moreBtn?.focus();
 }
 if (el.moreBtn) {
   el.moreBtn.addEventListener('click', (e) => {
@@ -7714,6 +7733,15 @@ document.addEventListener('click', (e) => {
   }
 });
 if (el.moreMenu) {
+  el.moreMenu.addEventListener('keydown', (e) => {
+    const items = [...el.moreMenu.querySelectorAll('.ctx-item')].filter((item) => !item.disabled && item.getClientRects().length);
+    const index = items.indexOf(document.activeElement);
+    if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
+      e.preventDefault();
+      const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : (index + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      items[next]?.focus();
+    }
+  });
   el.moreMenu.addEventListener('click', (e) => {
     if (e.target.closest('.ctx-item')) closeMoreMenu();
   });
@@ -7731,6 +7759,7 @@ if (el.cmdK) {
     palette.open();
   });
 }
+document.getElementById('btn-save-as').addEventListener('click', () => saveActiveAs());
 
 // ---------- settings dialog ----------
 // One place to tune every preference. Each control reads/writes a localStorage
@@ -8559,6 +8588,7 @@ document.addEventListener('click', async (e) => {
     // landing in the editor, not on another welcome screen (Ctrl+N and the
     // tab-strip + still honor the new-tab-format setting).
     store.open({ path: null, content: '', mode: 'edit' });
+    store.active()?.editor?.focus();
   }
   else if (action === 'sample') store.open({ path: null, content: SAMPLE_DOC, mode: 'view' });
   else if (action === 'explore-features') openSettings('features');
@@ -8774,29 +8804,16 @@ el.document.addEventListener('scroll', () => {
   });
 }, { passive: true });
 
-// v0.35.0: clickable GFM task-list checkboxes in the rendered preview. Marked
-// v18 renders `- [ ]` as <li><input disabled type="checkbox"> (no class on the
-// <li>). We intercept clicks on those checkbox inputs, find their containing
-// <li>, count how many checkbox-<li> siblings precede it (= source order), map
-// that index back to the source line via taskLineIndex, flip the marker, and
-// re-render. The inputs are `disabled` so they don't toggle natively — we drive
-// state ourselves from the source markdown.
-el.document.addEventListener('click', (e) => {
+// Task order spans all lists, including nested lists. Native change events
+// cover pointer clicks and keyboard toggles on each reading surface.
+function onTaskChange(e) {
   const target = e.target;
   if (!(target instanceof HTMLInputElement) || target.type !== 'checkbox') return;
-  const item = target.closest('li');
-  if (!item) return;
-  const list = item.parentElement;
-  if (!list) return;
-  // Index of this <li> among its checkbox-bearing siblings = source order.
-  const tasks = Array.from(list.children).filter(
-    (li) => li.querySelector(':scope > input[type="checkbox"]')
-  );
-  const itemIndex = tasks.indexOf(item);
+  const itemIndex = [...e.currentTarget.querySelectorAll('li input[type="checkbox"]')].indexOf(target);
   if (itemIndex < 0) return;
-  e.preventDefault();
   togglePreviewCheckbox(itemIndex);
-});
+}
+for (const surface of [el.document, el.preview, el.readerArticle]) surface.addEventListener('change', onTaskChange);
 
 // Editor textarea: mark active doc dirty on input + debounced re-persist.
 el.editor.addEventListener('input', () => {
@@ -8891,21 +8908,22 @@ function scheduleAutoSave() {
   if (!autoSaveEnabled()) return;
   clearTimeout(_autoSaveTimer);
   setSaveStatus('dirty');
-  _autoSaveTimer = setTimeout(autoSaveActive, AUTO_SAVE_DELAY);
-}
-async function autoSaveActive() {
   const doc = store.active();
+  _autoSaveTimer = setTimeout(() => autoSaveActive(doc), AUTO_SAVE_DELAY);
+}
+async function autoSaveActive(doc = store.active()) {
   if (!doc || !doc.path || !doc.dirty) return;
   setSaveStatus('saving');
   try {
     if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
     // v0.68.0: flush the live canvas scene — its debounced save may not have
     // fired when the autosave timer beats it to the write.
-    if (doc.excalidraw && _activeExcalidraw) { const j = _activeExcalidraw.getSceneJSON(); if (j) doc.content = j; }
-    if (doc.tldraw && _activeTLDraw) { const j = _activeTLDraw.flush(); if (j) doc.content = j; }
-    await invoke('save_file', { path: doc.path, content: doc.content });
-    store.clearDirty(doc.id);
-    setSaveStatus('saved');
+    if (doc.excalidraw && _activeExcalidrawDocId === doc.id && _activeExcalidraw) { const j = _activeExcalidraw.flush(); if (j) doc.content = j; }
+    if (doc.tldraw && _activeTLDrawDocId === doc.id && _activeTLDraw) { const j = _activeTLDraw.flush(); if (j) doc.content = j; }
+    const content = doc.content;
+    await invoke('save_file', { path: doc.path, content });
+    if ((doc.editor?.getValue() ?? doc.content) === content) store.clearDirty(doc.id);
+    if (store.active()?.id === doc.id) setSaveStatus(doc.dirty ? 'dirty' : 'saved');
   } catch (e) {
     setSaveStatus('error');
   }
@@ -8945,6 +8963,16 @@ function updateCanvasStatus(doc) {
 window.addEventListener('keydown', (e) => {
   if (!(e.ctrlKey || e.metaKey)) return;
   const k = e.key.toLowerCase();
+  // Modified commands have their own handlers below. Don't run Ctrl+S/E/F
+  // first and accidentally save, switch mode or open find as well.
+  if (e.altKey || (e.shiftKey && !['g', '=', '+', '-', '_'].includes(k))) return;
+  if (k === '`') {
+    if (!featureOn('terminal')) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    terminal.toggle();
+    return;
+  }
   if (k === 'o') {
     e.preventDefault();
     openFileDialog();
@@ -9181,7 +9209,7 @@ window.addEventListener('keydown', (e) => {
   }
   // Ctrl+Shift+S → open Markdown snippet/template picker.
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'S' || e.key === 's')) {
-    if (localStorage.getItem('mdpeek-feature-snippets') === '0') return;
+    if (!featureOn('snippets')) return;
     e.preventDefault();
     e.stopPropagation();
     snippetPicker.open();
@@ -9195,18 +9223,10 @@ window.addEventListener('keydown', (e) => {
     findInFolder();
     return;
   }
-  // Ctrl+` → toggle integrated terminal drawer.
-  if ((e.ctrlKey || e.metaKey) && e.key === '`') {
-    if (localStorage.getItem('mdpeek-feature-terminal') === '0') return;
-    e.preventDefault();
-    e.stopPropagation();
-    terminal.toggle();
-    return;
-  }
   // Ctrl+Shift+K → toggle the global Kanban board. Also closes it (so the
   // user can hit the same shortcut to dismiss).
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'K' || e.key === 'k')) {
-    if (localStorage.getItem('mdpeek-feature-kanban') === '0') return;
+    if (!featureOn('kanban')) return;
     e.preventDefault();
     e.stopPropagation();
     if (document.body.classList.contains('kanban-mode')) closeKanban();
@@ -9364,7 +9384,7 @@ async function doQuitApp() {
     const d = store.active();
     if (d) {
       if (d.mode === 'edit' && d.editor) d.content = d.editor.getValue();
-      if (d.excalidraw && _activeExcalidraw) { const j = _activeExcalidraw.getSceneJSON(); if (j) d.content = j; }
+      if (d.excalidraw && _activeExcalidraw) { const j = _activeExcalidraw.flush(); if (j) d.content = j; }
       if (d.tldraw && _activeTLDraw) { const j = _activeTLDraw.flush(); if (j) d.content = j; }
       persist();
       if (d.path && d.dirty) {
@@ -9611,8 +9631,16 @@ window.addEventListener('drop', async (e) => {
 // unhandled error and silently stop live-reload working for that doc.
 listen('file-changed', (event) => {
   try {
-    const doc = store.active();
-    if (!doc || !doc.path) return;
+    const changed = applyFileChange(store, event.payload);
+    if (!changed) return;
+    const { doc, conflict } = changed;
+    if (conflict) {
+      notify('File changed on disk', `${basename(doc.path)} was edited externally — your unsaved edits were kept`);
+      return;
+    }
+    persistSoon();
+    if (store.active()?.id !== doc.id) return;
+    const content = doc.content;
     // PDFs are binary + read-only — the text watcher isn't used for them
     // (openPath skips rewatch), but guard anyway in case an event leaks through.
     if (doc.pdf) return;
@@ -9623,21 +9651,19 @@ listen('file-changed', (event) => {
     if (doc.excalidraw || doc.tldraw) return;
     // Code files in view mode: re-render the syntax highlighted view on disk change.
     if (doc.code && doc.mode === 'view') {
-      doc.content = event.payload;
       if (store.active()?.id === doc.id) {
-        el.document.innerHTML = renderCode(event.payload, langFromPath(doc.path));
+        el.document.innerHTML = renderCode(content, langFromPath(doc.path));
       }
       return;
     }
     // CSV/TSV files: re-render the table and re-init the viewer on disk change.
     if (doc.csv) {
-      doc.content = event.payload;
       if (store.active()?.id === doc.id) {
         if (_activeCsv) { _activeCsv.destroy(); _activeCsv = null; }
         const tsv = /\.tsv$/i.test(doc.path || '');
         try {
-          el.document.innerHTML = renderCsv(event.payload, { tsv });
-          _activeCsv = initCsvViewer(el.document, parseCsv(event.payload, tsv));
+          el.document.innerHTML = renderCsv(content, { tsv });
+          _activeCsv = initCsvViewer(el.document, parseCsv(content, tsv));
         } catch (e) {
           console.error('[mdpeek] csv reload failed:', e);
           showViewerError(el.document, 'CSV/TSV file', e);
@@ -9647,7 +9673,6 @@ listen('file-changed', (event) => {
     }
     // v0.49.0: Notebooks are JSON text like CSV — re-parse + re-render on change.
     if (doc.notebook) {
-      doc.content = event.payload;
       if (store.active()?.id === doc.id) {
         if (_activeNotebook) { _activeNotebook.destroy(); _activeNotebook = null; }
         try {
@@ -9659,10 +9684,9 @@ listen('file-changed', (event) => {
       }
       return;
     }
-    doc.content = event.payload;
     if (doc.mode === 'view') {
       const id = doc.id;
-      showDocument(el.document, event.payload)
+      showDocument(el.document, content)
         .then(() => {
           // Bail if the user switched tabs during the (slow) mermaid render —
           // don't write TOC/find state into a now-different active doc.
@@ -9675,13 +9699,7 @@ listen('file-changed', (event) => {
         })
         .catch((e) => toast('Reload failed: ' + fmtErr(e)));
     } else if (doc.editor) {
-      // Don't clobber unsaved edits — if the user is mid-edit, keep their work
-      // and notify them instead of silently discarding it.
-      if (doc.dirty) {
-        notify('File changed on disk', `${basename(doc.path)} was edited externally — your unsaved edits were kept`);
-        return;
-      }
-      doc.editor.setValue(event.payload);
+      doc.editor.setValue(content);
     }
   } catch (e) {
     // A throw anywhere above (e.g. event.payload shaped unexpectedly) must not
@@ -9829,22 +9847,7 @@ applyUserCss();
         return true;
       });
       // Read all on-disk files concurrently; untitled tabs pass through as-is.
-      const restored = await Promise.all(
-        candidates.map(async (s) => {
-          if (!s.path) return s; // untitled — content was persisted directly
-          // PDFs, images, and audio/video restore from path alone — no content
-          // re-read (binary). Notebooks are JSON text and DO re-read.
-          if (isPdfPath(s.path) || isImagePath(s.path) || isMediaPath(s.path)) return { ...s, content: '' };
-          try {
-            const content = await invoke('read_file', { path: s.path });
-            return { ...s, content };
-          } catch {
-            // File missing since last session — keep last-known content so the
-            // user can save-as. Mark path so the tab still shows its name.
-            return s;
-          }
-        }),
-      );
+      const restored = await restoreSessionDocs(candidates, invoke);
       if (restored.length > 0) {
         store.restore({ docs: restored, activeId: session.activeId });
       }

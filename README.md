@@ -11,7 +11,7 @@ Open and edit Markdown, PDFs, code, images, CSV, Excalidraw, tldraw, and Jupyter
 [![Windows](https://img.shields.io/badge/platform-windows%2010%2F11-success)](https://github.com/sanketpatel32/Mdpeek/releases/latest)
 [![Installer Size](https://img.shields.io/badge/installer-~7.3MB-green)](https://github.com/sanketpatel32/Mdpeek/releases/latest)
 [![Version](https://img.shields.io/github/v/release/sanketpatel32/Mdpeek?color=blueviolet)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-1332%20passing-brightgreen)](#-build)
+[![Tests](https://img.shields.io/badge/tests-1390%20passing-brightgreen)](#-build)
 [![Downloads](https://img.shields.io/github/downloads/sanketpatel32/Mdpeek/total?color=blue)](https://github.com/sanketpatel32/Mdpeek/releases/latest)
 
 Built with **Tauri 2 + vanilla JS**. Uses the system WebView2 (no bundled
@@ -232,11 +232,17 @@ Download from the [Releases page](https://github.com/sanketpatel32/Mdpeek/releas
 git clone https://github.com/sanketpatel32/Mdpeek.git
 cd Mdpeek
 npm install            # install dependencies
-npm test               # run unit tests (1332 tests across 61 files, Vitest)
+npm test               # run unit tests (1390 tests across 68 files, Vitest)
 npm run tauri dev      # launch in dev mode (hot reload)
 npm run tauri:build    # build production installer -> releases/
 npm run make-release   # sign + publish to GitHub Releases (maintainers)
 ```
+
+For production TLDraw support, set `VITE_TLDRAW_LICENSE_KEY` in the build
+environment before building the installer. The drawing viewer passes it to the
+SDK's `licenseKey` prop. Development mode works without a key; production needs
+a valid [TLDraw license](https://tldraw.dev/community/license). Rebuild after
+changing the key because Vite embeds this public SDK key in the frontend bundle.
 
 ---
 
@@ -256,7 +262,7 @@ src/
 
 src-tauri/src/      Rust backend — lib.rs (tray, updater, single-instance),
                     commands.rs (open/save), pty.rs (ConPTY), watcher.rs
-test/               61 Vitest spec files, 1332 tests
+test/               68 Vitest spec files, 1390 tests
 ```
 
 ---

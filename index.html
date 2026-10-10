@@ -38,6 +38,7 @@
     <link rel="stylesheet" href="/src/styles/content.css" />
     <link rel="stylesheet" href="/src/styles/reader.css" />
     <link rel="stylesheet" href="/src/styles/motion.css" />
+    <link rel="stylesheet" href="/src/styles/workspace.css" />
     <!-- KaTeX math CSS + the 6 highlight.js themes are bundled locally from
          the npm deps (katex, highlight.js) by src/styles/vendors.css.js — no
          more CDN <link> tags. installHljsThemes() injects the 6 hljs <link>
@@ -46,6 +47,7 @@
   </head>
   <body>
     <header class="app-header" data-tauri-drag-region>
+      <div class="app-brand" data-tauri-drag-region><img src="/icon.png" alt="" width="22" height="22" /><span>mdpeek</span></div>
       <div id="tab-strip-container" class="tab-strip-container">
         <div id="tab-strip" class="tab-strip" role="tablist" aria-label="Open tabs">
           <span class="tab-indicator is-hidden" aria-hidden="true"></span>
@@ -74,10 +76,16 @@
       <span class="header-spacer" data-tauri-drag-region></span>
 
       <div class="toolbar">
+        <div class="tool-group document-tools" aria-label="Document actions">
+          <button id="btn-open" class="tool-btn" type="button" title="Open file (Ctrl+O)"><span data-icon="folder-open"></span><span>Open</span></button>
+          <button id="btn-save" class="tool-btn hidden" type="button" title="Save file (Ctrl+S)"><span data-icon="save"></span><span>Save</span></button>
+          <button id="btn-mode" class="tool-btn hidden" type="button" title="Toggle edit/view (Ctrl+E)"><span data-icon="pencil"></span><span class="mode-label">Edit</span></button>
+          <button id="btn-reading" class="tool-btn hidden" type="button" title="Reading mode (Ctrl+Shift+R)"><span data-icon="book-open"></span><span>Read</span></button>
+        </div>
         <!-- Command palette trigger — the calm center piece -->
         <button id="btn-command-k" class="cmd-k-pill" type="button" title="Search & run commands (Ctrl+Shift+P)" aria-label="Search and run commands">
           <span class="cmd-k-search" data-icon="search" data-icon-size="14"></span>
-          <span class="cmd-k-text">Search…</span>
+          <span class="cmd-k-text">Commands</span>
           <kbd class="cmd-k-kbd">Ctrl+Shift+P</kbd>
         </button>
 
@@ -111,21 +119,7 @@
           </button>
           <div id="more-menu" class="ctx-menu more-menu hidden" role="menu" aria-label="More actions">
             <div class="ctx-group-label">Document</div>
-            <button class="ctx-item" id="btn-open" role="menuitem" title="Open file (Ctrl+O)">
-              <span class="ctx-ico" data-icon="folder-open"></span>
-              <span class="ctx-label">Open file</span>
-              <span class="ctx-hint">Ctrl+O</span>
-            </button>
-            <button class="ctx-item" id="btn-save" role="menuitem" title="Save file (Ctrl+S)">
-              <span class="ctx-ico" data-icon="save"></span>
-              <span class="ctx-label">Save</span>
-              <span class="ctx-hint">Ctrl+S</span>
-            </button>
-            <button class="ctx-item" id="btn-mode" role="menuitem" title="Toggle edit/view (Ctrl+E)">
-              <span class="ctx-ico" data-icon="pencil"></span>
-              <span class="ctx-label">Toggle edit</span>
-              <span class="ctx-hint">Ctrl+E</span>
-            </button>
+            <button class="ctx-item" id="btn-save-as" role="menuitem" title="Save a copy with another name"><span class="ctx-ico" data-icon="save"></span><span class="ctx-label">Save as…</span></button>
             <button class="ctx-item hidden" id="btn-pin-doc-theme" role="menuitem" title="Pin a theme to this document">
               <span class="ctx-ico" data-icon="palette"></span>
               <span class="ctx-label">Pin theme to this doc</span>
@@ -164,11 +158,6 @@
               <span class="ctx-ico" data-icon="presentation"></span>
               <span class="ctx-label">Present</span>
             </button>
-            <button class="ctx-item hidden" id="btn-reading" role="menuitem" title="Reading mode (Ctrl+Shift+R)">
-              <span class="ctx-ico" data-icon="book-open"></span>
-              <span class="ctx-label">Reading mode</span>
-              <span class="ctx-hint">Ctrl+Shift+R</span>
-            </button>
             <div class="ctx-sep"></div>
             <div class="ctx-group-label">Tools</div>
             <button class="ctx-item hidden" id="btn-share" role="menuitem" title="Share for live collaboration">
@@ -197,7 +186,7 @@
           <button id="btn-zoom-out" class="tool-btn icon-only" title="Zoom out (Ctrl+-)" aria-label="Zoom out">
             <span data-icon="zoom-out" data-icon-size="14"></span>
           </button>
-          <span id="zoom-indicator" class="zoom-indicator" title="Zoom level (Ctrl+0 to reset)">100%</span>
+          <button id="zoom-indicator" class="zoom-indicator" type="button" title="Reset zoom (Ctrl+0)" aria-label="Reset zoom">100%</button>
           <button id="btn-zoom-in" class="tool-btn icon-only" title="Zoom in (Ctrl+=)" aria-label="Zoom in">
             <span data-icon="zoom-in" data-icon-size="14"></span>
           </button>
@@ -257,7 +246,7 @@
         <main id="edit-mode" class="edit-mode hidden">
           <div class="editor-pane">
             <div class="pane-header edit-toolbar">
-              <span class="pane-label">Source</span>
+              <span class="pane-label">Markdown</span>
               <div class="fmt-tools" role="toolbar" aria-label="Formatting">
                 <button class="fmt-btn" data-fmt="h1" type="button" title="Heading 1" aria-label="Heading 1"><span data-icon="fmt-h1" data-icon-size="15"></span></button>
                 <button class="fmt-btn" data-fmt="h2" type="button" title="Heading 2" aria-label="Heading 2"><span data-icon="fmt-h2" data-icon-size="15"></span></button>
@@ -266,7 +255,7 @@
                 <button class="fmt-btn" data-fmt="italic" type="button" title="Italic (Ctrl+I)" aria-label="Italic"><span data-icon="fmt-italic" data-icon-size="15"></span></button>
                 <button class="fmt-btn" data-fmt="strike" type="button" title="Strikethrough (Ctrl+Shift+X)" aria-label="Strikethrough"><span data-icon="fmt-strike" data-icon-size="15"></span></button>
                 <button class="fmt-btn" data-fmt="highlight" type="button" title="Highlight (Ctrl+Shift+H)" aria-label="Highlight"><span data-icon="fmt-highlight" data-icon-size="15"></span></button>
-                <button class="fmt-btn" data-fmt="code" type="button" title="Inline code (Ctrl+`)" aria-label="Inline code"><span data-icon="fmt-code" data-icon-size="15"></span></button>
+                <button class="fmt-btn" data-fmt="code" type="button" title="Inline code" aria-label="Inline code"><span data-icon="fmt-code" data-icon-size="15"></span></button>
                 <button class="fmt-btn" data-fmt="link" type="button" title="Link" aria-label="Link"><span data-icon="fmt-link" data-icon-size="15"></span></button>
                 <button class="fmt-btn" data-fmt="ul" type="button" title="Bulleted list" aria-label="Bulleted list"><span data-icon="fmt-ul" data-icon-size="15"></span></button>
                 <button class="fmt-btn" data-fmt="ol" type="button" title="Numbered list" aria-label="Numbered list"><span data-icon="fmt-ol" data-icon-size="15"></span></button>

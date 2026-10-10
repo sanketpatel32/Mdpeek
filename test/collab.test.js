@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as Y from 'yjs';
 import {
   generateRoomId,
@@ -233,6 +233,27 @@ describe('Yjs CRDT convergence', () => {
 // origin) is covered by the "no echo on remote-origin writes" test below.
 
 describe('Excalidraw element sync (writeElementsToYjs / readElementsFromYjs)', () => {
+  it('keeps concurrent edits to separate shapes and sends nothing for an unchanged scene', () => {
+    const host = new Y.Doc();
+    const guest = new Y.Doc();
+    const hostMap = host.getMap('elements');
+    const guestMap = guest.getMap('elements');
+    const initial = [{ id: 'a', x: 1 }, { id: 'b', x: 2 }];
+    writeElementsToYjs(host, hostMap, initial);
+    Y.applyUpdate(guest, Y.encodeStateAsUpdate(host));
+    const outbound = vi.fn();
+    host.on('update', outbound);
+    writeElementsToYjs(host, hostMap, initial);
+    expect(outbound).not.toHaveBeenCalled();
+    writeElementsToYjs(host, hostMap, [{ id: 'a', x: 10 }, { id: 'b', x: 2 }]);
+    writeElementsToYjs(guest, guestMap, [{ id: 'a', x: 1 }, { id: 'b', x: 20 }]);
+    Y.applyUpdate(host, Y.encodeStateAsUpdate(guest));
+    Y.applyUpdate(guest, Y.encodeStateAsUpdate(host));
+    expect(readElementsFromYjs(hostMap)).toEqual([{ id: 'a', x: 10 }, { id: 'b', x: 20 }]);
+    expect(readElementsFromYjs(guestMap)).toEqual(readElementsFromYjs(hostMap));
+    host.destroy();
+    guest.destroy();
+  });
   it('round-trips a small element array through a Y.Map', () => {
     const doc = new Y.Doc();
     const ymap = doc.getMap('elements');
@@ -247,7 +268,7 @@ describe('Excalidraw element sync (writeElementsToYjs / readElementsFromYjs)', (
     expect(back[1]).toMatchObject({ id: 'b', type: 'ellipse', x: 200 });
   });
 
-  it('clears the map on re-write (full-replace strategy)', () => {
+  it('removes elements omitted from the next scene', () => {
     const doc = new Y.Doc();
     const ymap = doc.getMap('elements');
     writeElementsToYjs(doc, ymap, [{ id: 'a', x: 1 }, { id: 'b', x: 2 }, { id: 'c', x: 3 }]);
@@ -257,6 +278,15 @@ describe('Excalidraw element sync (writeElementsToYjs / readElementsFromYjs)', (
     const back = readElementsFromYjs(ymap);
     expect(back).toHaveLength(1);
     expect(back[0]).toMatchObject({ id: 'a', x: 10 });
+  });
+
+  it('uses Excalidraw indices when existing shapes change stacking order', () => {
+    const doc = new Y.Doc();
+    const map = doc.getMap('elements');
+    writeElementsToYjs(doc, map, [{ id: 'a', index: 'a0' }, { id: 'b', index: 'a1' }]);
+    writeElementsToYjs(doc, map, [{ id: 'b', index: 'a1' }, { id: 'a', index: 'a2' }]);
+    expect(readElementsFromYjs(map).map(element => element.id)).toEqual(['b', 'a']);
+    doc.destroy();
   });
 
   it('skips elements without a string id', () => {
