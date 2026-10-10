@@ -139,3 +139,16 @@ it('joining plain text immediately uses the full-width plain editor', async () =
   await vi.waitFor(() => expect(buffer()).toBe('# Literal text'));
   expect(document.querySelector('#edit-mode').classList.contains('plain')).toBe(true);
 });
+
+it('Settings Escape clears a query, then closes and returns focus to its trigger', () => {
+  click('#btn-settings');
+  const search = document.querySelector('#settings-search');
+  search.value = 'theme';
+  search.dispatchEvent(new Event('input', { bubbles: true }));
+  key('Escape', { ctrlKey: false });
+  expect(search.value).toBe('');
+  expect(document.querySelector('#settings-dialog').classList.contains('hidden')).toBe(false);
+  key('Escape', { ctrlKey: false });
+  expect(document.querySelector('#settings-dialog').classList.contains('hidden')).toBe(true);
+  expect(document.activeElement.id).toBe('btn-settings');
+});

@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="public/logo.svg" alt="mdpeek logo" width="80" height="80" />
+
 # mdpeek
 
 **A native Windows workspace for Markdown, documents, code, notes, and collaboration.**
@@ -11,7 +13,7 @@ Open and edit Markdown, PDFs, code, images, CSV, Excalidraw, tldraw, and Jupyter
 [![Windows](https://img.shields.io/badge/platform-windows%2010%2F11-success)](https://github.com/sanketpatel32/Mdpeek/releases/latest)
 [![Installer Size](https://img.shields.io/badge/installer-~7.3MB-green)](https://github.com/sanketpatel32/Mdpeek/releases/latest)
 [![Version](https://img.shields.io/github/v/release/sanketpatel32/Mdpeek?color=blueviolet)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-1390%20passing-brightgreen)](#-build)
+[![Tests](https://img.shields.io/badge/tests-1391%20passing-brightgreen)](#-build)
 [![Downloads](https://img.shields.io/github/downloads/sanketpatel32/Mdpeek/total?color=blue)](https://github.com/sanketpatel32/Mdpeek/releases/latest)
 
 Built with **Tauri 2 + vanilla JS**. Uses the system WebView2 (no bundled
