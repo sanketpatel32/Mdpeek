@@ -32,7 +32,7 @@
         } catch (e) { /* storage unavailable → keep the light default */ }
       })();
     </script>
-    <link rel="icon" type="image/png" href="/icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <link rel="stylesheet" href="/src/styles/themes.css" />
     <link rel="stylesheet" href="/src/styles/base.css" />
     <link rel="stylesheet" href="/src/styles/content.css" />
@@ -47,9 +47,10 @@
   </head>
   <body>
     <header class="app-header" data-tauri-drag-region>
-      <div class="app-brand" data-tauri-drag-region><img src="/icon.png" alt="" width="22" height="22" /><span>mdpeek</span></div>
-      <div id="tab-strip-container" class="tab-strip-container">
-        <div id="tab-strip" class="tab-strip" role="tablist" aria-label="Open tabs">
+      <div class="app-brand" data-tauri-drag-region><span class="brand-mark" aria-hidden="true" data-tauri-drag-region></span><span data-tauri-drag-region>mdpeek</span></div>
+      <div class="header-file-tools"><button id="btn-open" class="tool-btn" type="button" title="Open file (Ctrl+O)"><span data-icon="folder-open"></span><span>Open</span></button></div>
+      <div id="tab-strip-container" class="tab-strip-container" data-tauri-drag-region>
+        <div id="tab-strip" class="tab-strip" role="tablist" aria-label="Open tabs" data-tauri-drag-region>
           <span class="tab-indicator is-hidden" aria-hidden="true"></span>
         </div>
         <button id="tab-new" class="tab-new" title="New tab (Ctrl+N)" aria-label="New tab"><span data-icon="plus" data-icon-size="14"></span></button>
@@ -73,48 +74,24 @@
         <button id="pomo-reset" class="pomo-toggle" type="button" title="Reset session" aria-label="Reset Pomodoro session"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/></svg></button>
       </div>
 
-      <span class="header-spacer" data-tauri-drag-region></span>
-
       <div class="toolbar">
         <div class="tool-group document-tools" aria-label="Document actions">
-          <button id="btn-open" class="tool-btn" type="button" title="Open file (Ctrl+O)"><span data-icon="folder-open"></span><span>Open</span></button>
+
           <button id="btn-save" class="tool-btn hidden" type="button" title="Save file (Ctrl+S)"><span data-icon="save"></span><span>Save</span></button>
           <button id="btn-mode" class="tool-btn hidden" type="button" title="Toggle edit/view (Ctrl+E)"><span data-icon="pencil"></span><span class="mode-label">Edit</span></button>
-          <button id="btn-reading" class="tool-btn hidden" type="button" title="Reading mode (Ctrl+Shift+R)"><span data-icon="book-open"></span><span>Read</span></button>
+
         </div>
-        <!-- Command palette trigger — the calm center piece -->
+        <!-- Search stays one click away without taking space from file tabs. -->
         <button id="btn-command-k" class="cmd-k-pill" type="button" title="Search & run commands (Ctrl+Shift+P)" aria-label="Search and run commands">
           <span class="cmd-k-search" data-icon="search" data-icon-size="14"></span>
           <span class="cmd-k-text">Commands</span>
           <kbd class="cmd-k-kbd">Ctrl+Shift+P</kbd>
         </button>
 
-        <!-- View group: the 3 most-used view toggles stay exposed -->
-        <div class="tool-group">
-          <button id="btn-back" class="tool-btn icon-only" data-nav="back" title="Back (Alt+Left)" aria-label="Back" disabled>
-            <span data-icon="chevron-left"></span>
-          </button>
-          <button id="btn-forward" class="tool-btn icon-only" data-nav="forward" title="Forward (Alt+Right)" aria-label="Forward" disabled>
-            <span data-icon="chevron-right"></span>
-          </button>
-        </div>
-
-        <div class="tool-group">
-          <button id="btn-sidebar" class="tool-btn icon-only active" title="Toggle sidebar (Ctrl+B)" aria-label="Toggle sidebar">
-            <span data-icon="panel-left"></span>
-          </button>
-          <button id="btn-explorer" class="tool-btn icon-only" title="Toggle file explorer (Ctrl+Shift+E)" aria-label="Toggle file explorer">
-            <span data-icon="folder-tree"></span>
-          </button>
-          <button id="btn-folder-search" class="tool-btn icon-only" title="Search in folder" aria-label="Search in folder">
-            <span data-icon="folder-search"></span>
-          </button>
-        </div>
-
         <!-- More menu: document actions + tools collapsed into one tidy menu.
              Each item keeps its original ID so existing handlers keep working. -->
         <div class="tool-group more-menu-wrap">
-          <button id="btn-more" class="tool-btn icon-only btn-more" title="More actions" aria-label="More actions" aria-haspopup="true" aria-expanded="false">
+          <button id="btn-more" class="tool-btn icon-only btn-more" title="More actions" aria-label="More actions" aria-controls="more-menu" aria-haspopup="menu" aria-expanded="false">
             <span data-icon="more"></span>
           </button>
           <div id="more-menu" class="ctx-menu more-menu hidden" role="menu" aria-label="More actions">
@@ -132,6 +109,23 @@
               <span class="ctx-ico" data-icon="pen-tool"></span>
               <span class="ctx-label">Annotate PDF</span>
             </button>
+            <div class="ctx-sep"></div>
+            <div class="ctx-group-label">View &amp; Navigation</div>
+<button id="btn-sidebar" class="ctx-item active" role="menuitem" title="Toggle sidebar (Ctrl+B)" aria-label="Toggle sidebar"><span class="ctx-ico" data-icon="panel-left"></span><span class="ctx-label">Document outline</span></button>
+            <button role="menuitem" id="btn-reading" class="ctx-item hidden" type="button" title="Reading mode (Ctrl+Shift+R)"><span class="ctx-ico" data-icon="book-open"></span><span class="ctx-label">Reading mode</span></button>
+            <button role="menuitem" id="btn-explorer" class="ctx-item" title="Toggle file explorer (Ctrl+Shift+E)" aria-label="Toggle file explorer"><span class="ctx-ico" data-icon="folder-tree"></span><span class="ctx-label">File explorer</span></button>
+            <button role="menuitem" id="btn-folder-search" class="ctx-item" title="Search in folder" aria-label="Search in folder"><span class="ctx-ico" data-icon="folder-search"></span><span class="ctx-label">Search in folder</span></button>
+            <button role="menuitem" id="btn-back" class="ctx-item" data-nav="back" title="Back (Alt+Left)" aria-label="Back" disabled><span class="ctx-ico" data-icon="chevron-left"></span><span class="ctx-label">Go back</span></button>
+            <button role="menuitem" id="btn-forward" class="ctx-item" data-nav="forward" title="Forward (Alt+Right)" aria-label="Forward" disabled><span class="ctx-ico" data-icon="chevron-right"></span><span class="ctx-label">Go forward</span></button>
+            <div class="menu-zoom-row" role="group" aria-label="Document zoom"><span>Zoom</span><div class="tool-group zoom-widget">
+            <button role="menuitem" id="btn-zoom-out" class="tool-btn icon-only" title="Zoom out (Ctrl+-)" aria-label="Zoom out">
+            <span data-icon="zoom-out" data-icon-size="14"></span>
+            </button>
+            <button role="menuitem" id="zoom-indicator" class="zoom-indicator" type="button" title="Reset zoom (Ctrl+0)" aria-label="Reset zoom">100%</button>
+            <button role="menuitem" id="btn-zoom-in" class="tool-btn icon-only" title="Zoom in (Ctrl+=)" aria-label="Zoom in">
+            <span data-icon="zoom-in" data-icon-size="14"></span>
+            </button>
+            </div></div>
             <div class="ctx-sep"></div>
             <div class="ctx-group-label">Export &amp; Present</div>
             <button class="ctx-item hidden" id="btn-export" role="menuitem" title="Export as HTML">
@@ -181,18 +175,7 @@
           </div>
         </div>
 
-        <!-- Zoom widget — frequently used, stays exposed -->
-        <div class="tool-group zoom-widget">
-          <button id="btn-zoom-out" class="tool-btn icon-only" title="Zoom out (Ctrl+-)" aria-label="Zoom out">
-            <span data-icon="zoom-out" data-icon-size="14"></span>
-          </button>
-          <button id="zoom-indicator" class="zoom-indicator" type="button" title="Reset zoom (Ctrl+0)" aria-label="Reset zoom">100%</button>
-          <button id="btn-zoom-in" class="tool-btn icon-only" title="Zoom in (Ctrl+=)" aria-label="Zoom in">
-            <span data-icon="zoom-in" data-icon-size="14"></span>
-          </button>
-        </div>
-
-        <!-- Settings — the single chrome button (opens dialog w/ theme + updates) -->
+        <!-- Global settings. -->
         <div class="tool-group">
           <button id="btn-settings" class="tool-btn icon-only" title="Settings (Ctrl+,)" aria-label="Settings">
             <span data-icon="settings"></span>

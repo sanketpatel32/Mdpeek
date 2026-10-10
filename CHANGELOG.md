@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.3] - 2026-10-11
+
+### Changed
+- Replaced the two-row desktop header with a compact title bar, clear document actions, and more space for tabs.
+- Moved reading, navigation, explorer, folder search, and zoom controls into the keyboard-accessible More menu.
+- Added a new split-folio logo across the app header, welcome screen, favicon, installer, and native app icons.
+- Kept narrow layouts usable by placing tabs below the controls at phone widths.
+
 ## [1.4.2] - 2026-10-10
 
 ### Changed

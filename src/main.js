@@ -184,6 +184,7 @@ function renderWelcome() {
   <div class="welcome">
     <div class="welcome-inner">
       <div class="welcome-hero">
+        <span class="brand-mark welcome-brand" aria-hidden="true"></span>
         <div class="welcome-eyebrow"><span class="welcome-local-dot" aria-hidden="true"></span> YOUR LOCAL WORKSPACE <span class="version-badge">v${BUILD_VERSION || ''}</span></div>
         <h1 class="welcome-title">Room for your<br /><span>next idea.</span></h1>
         <p class="welcome-tagline">Read beautifully. Write simply. Your notes, documents and ideas, all in one place.</p>
@@ -676,7 +677,9 @@ function syncToolbarForDoc(doc) {
   }
   document.getElementById('btn-pin-doc-theme')?.classList.toggle('hidden', !markdown || !doc.path);
   document.getElementById('btn-clear-doc-theme')?.classList.toggle('hidden', !markdown || !doc.path);
-  el.mode.querySelector('.mode-label').textContent = doc?.mode === 'edit' ? 'Preview' : 'Edit';
+  const modeLabel = doc?.mode === 'edit' ? 'Preview' : 'Edit';
+  el.mode.querySelector('.mode-label').textContent = modeLabel;
+  el.mode.setAttribute('aria-label', `Switch to ${modeLabel.toLowerCase()} (Ctrl+E)`);
 }
 
 async function renderActive() {
@@ -7734,7 +7737,7 @@ document.addEventListener('click', (e) => {
 });
 if (el.moreMenu) {
   el.moreMenu.addEventListener('keydown', (e) => {
-    const items = [...el.moreMenu.querySelectorAll('.ctx-item')].filter((item) => !item.disabled && item.getClientRects().length);
+    const items = [...el.moreMenu.querySelectorAll('button')].filter((item) => !item.disabled && item.getClientRects().length);
     const index = items.indexOf(document.activeElement);
     if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
       e.preventDefault();
@@ -7802,6 +7805,7 @@ function openSettings(cat) {
 }
 function closeSettings() {
   el.settingsDialog.classList.add('hidden');
+  if (el.settingsDialog.contains(document.activeElement)) el.settings?.focus();
 }
 
 // Read current pref values from localStorage and reflect them in the modal's
@@ -8158,8 +8162,7 @@ function applySettingsSearch(q) {
 
 if (_settingsSearchInput) {
   _settingsSearchInput.addEventListener('input', (e) => applySettingsSearch(e.target.value));
-  // Esc clears the search instead of closing the dialog (stopPropagation so
-  // the dialog-level Esc handler doesn't also fire).
+  // Esc clears a query first; with an empty query it closes the dialog.
   _settingsSearchInput.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       e.stopPropagation();
@@ -8167,7 +8170,7 @@ if (_settingsSearchInput) {
         _settingsSearchInput.value = '';
         applySettingsSearch('');
       } else {
-        _settingsSearchInput.blur();
+        closeSettings();
       }
     }
   });
