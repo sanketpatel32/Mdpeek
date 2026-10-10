@@ -629,10 +629,12 @@ export function initTerminal({ cwdProvider, onToast }) {
       tab.starting = true;
       hideExitBanner();
       updateChrome();
+      let abandoned = false;
+      let spawnTimeout;
       try {
         const chan = new Channel();
         chan.onmessage = (msg) => {
-          if (!msg) return;
+          if (!msg || abandoned) return;
           if (msg.t === 'Data') term.write(msg.d);
           else if (msg.t === 'Exit') {
             // Mark exited and render a clear status line. The tab stays open;
@@ -660,8 +662,15 @@ export function initTerminal({ cwdProvider, onToast }) {
           cols: term.cols,
           rows: term.rows,
         });
+        // A timeout cannot cancel native spawning. Reclaim a session that
+        // arrives after this attempt has already failed.
+        spawnPromise.then((res) => {
+          if (abandoned && res?.id !== undefined) {
+            invoke('kill_terminal', { id: res.id }).catch(() => {});
+          }
+        }, () => {});
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(
+          spawnTimeout = setTimeout(
             () => reject(new Error('terminal backend did not respond within 15s')),
             15000,
           ),
@@ -683,12 +692,14 @@ export function initTerminal({ cwdProvider, onToast }) {
         }
         return true;
       } catch (err) {
+        abandoned = true;
         term.write(`\x1b[31mFailed to start terminal: ${escapeHtml(String(err))}\x1b[0m\r\n`);
         tab.failed = true;
         showExitBanner(null, String(err?.message || err));
         updateChrome();
         return false;
       } finally {
+        clearTimeout(spawnTimeout);
         spawning = false;
         tab.starting = false;
         updateChrome();

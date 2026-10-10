@@ -427,7 +427,7 @@ export class DocumentStore {
           code,
           csv,
           pinned,
-          dirty: false, // never restore as dirty — content was just re-read
+          dirty: !!d.dirty,
           scrollY: Number.isFinite(d.scrollY) ? d.scrollY : 0,
           editor: null,
         };

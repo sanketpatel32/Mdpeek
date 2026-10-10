@@ -1,6 +1,8 @@
 mod commands;
 mod pty;
 mod watcher;
+#[cfg(test)]
+mod native_tests;
 
 use serde::Serialize;
 use std::sync::Mutex;
@@ -33,9 +35,7 @@ struct FilePayload {
     is_dir: bool,
 }
 
-/// Read a file for the frontend. PDFs are binary and can't be decoded as UTF-8,
-/// so we return empty content for them — the JS side detects PDFs by path and
-/// loads them via the asset protocol instead of through `content`.
+/// Read text for the frontend; binary viewers load through the asset protocol.
 fn read_file_for_frontend(path: &str) -> Result<FilePayload, String> {
     let is_dir = std::path::Path::new(path).is_dir();
     if is_dir {
@@ -45,11 +45,11 @@ fn read_file_for_frontend(path: &str) -> Result<FilePayload, String> {
             is_dir: true,
         });
     }
-    if path.to_lowercase().ends_with(".pdf") {
+    if commands::is_binary_path(path) {
         return Ok(FilePayload {
             path: path.to_string(),
             content: String::new(),
-        is_dir: false,
+            is_dir: false,
         });
     }
     let size = std::fs::metadata(path).map_err(|e| e.to_string())?.len();

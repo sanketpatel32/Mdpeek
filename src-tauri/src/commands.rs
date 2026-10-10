@@ -36,20 +36,7 @@ pub async fn open_file() -> Result<OpenResult, String> {
     // PDFs, images, and audio/video are binary — return empty content; the
     // frontend loads them via the asset protocol instead of through `content`.
     // Notebooks (.ipynb) are JSON text and ride `content` like CSV/code.
-    let lower = path_str.to_lowercase();
-    let is_binary = lower.ends_with(".pdf")
-        || lower.ends_with(".png") || lower.ends_with(".jpg") || lower.ends_with(".jpeg")
-        || lower.ends_with(".gif") || lower.ends_with(".webp") || lower.ends_with(".svg")
-        || lower.ends_with(".bmp") || lower.ends_with(".ico") || lower.ends_with(".avif")
-        || lower.ends_with(".mp3") || lower.ends_with(".wav") || lower.ends_with(".ogg")
-        || lower.ends_with(".flac") || lower.ends_with(".m4a") || lower.ends_with(".aac")
-        || lower.ends_with(".mp4") || lower.ends_with(".webm") || lower.ends_with(".mov")
-        || lower.ends_with(".avi") || lower.ends_with(".m4v") || lower.ends_with(".mkv");
-    let content = if is_binary {
-        String::new()
-    } else {
-        fs::read_to_string(&path).map_err(|e| e.to_string())?
-    };
+    let content = read_file(path_str.clone())?;
     Ok(OpenResult {
         path: path_str,
         content,
@@ -158,18 +145,21 @@ pub async fn save_file_as_text(content: String) -> Result<String, String> {
     Ok(path_str)
 }
 
-#[tauri::command]
-pub fn read_file(path: String) -> Result<String, String> {
-    // PDFs, images, and audio/video are binary — return empty; the frontend
-    // never calls this for them (session restore skips the re-read), but guard
-    // anyway. Notebooks (.ipynb) are JSON text and read normally.
+pub(crate) fn is_binary_path(path: &str) -> bool {
     const BINARY_EXTS: &[&str] = &[
         ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico", ".avif",
         ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac",
         ".mp4", ".webm", ".mov", ".avi", ".m4v", ".mkv",
     ];
     let lower = path.to_lowercase();
-    if BINARY_EXTS.iter().any(|ext| lower.ends_with(ext)) {
+    BINARY_EXTS.iter().any(|ext| lower.ends_with(ext))
+}
+
+#[tauri::command]
+pub fn read_file(path: String) -> Result<String, String> {
+    // These viewers load bytes through the asset protocol. Notebooks and
+    // canvas documents are JSON text and must still be read normally.
+    if is_binary_path(&path) {
         return Ok(String::new());
     }
     fs::read_to_string(&path).map_err(|e| e.to_string())
@@ -866,6 +856,7 @@ pub async fn copy_path(src: String, dst_dir: String) -> Result<String, String> {
     if !dst_dir_p.is_dir() {
         return Err(format!("Destination is not a directory: {}", dst_dir));
     }
+    reject_nested_destination(src_p, dst_dir_p)?;
     let src_name = src_p
         .file_name()
         .ok_or_else(|| "Source has no file name".to_string())?
@@ -898,6 +889,7 @@ pub async fn move_path(src: String, dst_dir: String) -> Result<String, String> {
     if !dst_dir_p.is_dir() {
         return Err(format!("Destination is not a directory: {}", dst_dir));
     }
+    reject_nested_destination(src_p, dst_dir_p)?;
     let src_name = src_p
         .file_name()
         .ok_or_else(|| "Source has no file name".to_string())?
@@ -926,6 +918,17 @@ pub async fn move_path(src: String, dst_dir: String) -> Result<String, String> {
             Ok(final_path.to_string_lossy().to_string())
         }
     }
+}
+
+fn reject_nested_destination(src: &std::path::Path, dst_dir: &std::path::Path) -> Result<(), String> {
+    if src.is_dir() {
+        let source = src.canonicalize().map_err(|e| e.to_string())?;
+        let destination = dst_dir.canonicalize().map_err(|e| e.to_string())?;
+        if destination.starts_with(&source) {
+            return Err("Cannot copy or move a folder into itself or one of its subfolders".into());
+        }
+    }
+    Ok(())
 }
 
 /// Pick a non-colliding name inside `dir` based on `name`. If `dir/name` is

@@ -459,7 +459,7 @@ export function initEditor({ textarea, preview, gutter = null, debounceMs = 150 
     // Ctrl/Cmd+K → insert `[selection](url)` link. Try to read a URL from the
     // clipboard first (best-effort; may be blocked). If the clipboard has a
     // URL, pre-fill it; otherwise leave the URL slot empty. Mirrors VS Code.
-    if (ctrl && (e.key === 'k' || e.key === 'K')) {
+    if (ctrl && !e.shiftKey && !e.altKey && (e.key === 'k' || e.key === 'K')) {
       e.preventDefault();
       e.stopPropagation();
       const insert = (url) => {

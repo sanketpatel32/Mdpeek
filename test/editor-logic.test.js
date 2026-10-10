@@ -471,6 +471,21 @@ describe('toggleTaskLine', () => {
 // ---------- taskLineIndex (map rendered item N → source line) ----------
 
 describe('taskLineIndex', () => {
+  it('maps quoted tasks without changing the task that follows the quote', () => {
+    const text = '> ~~~\n> - [ ] code\n> ~~~\n> > 1. [ ] quoted\n\n- [ ] outside';
+    expect(taskLineIndex(text, 0)).toBe(3);
+    expect(taskLineIndex(text, 1)).toBe(5);
+    expect(toggleTaskLine(text, 3).text).toContain('> > 1. [x] quoted');
+    expect(toggleTaskLine(text, 3).text).toContain('- [ ] outside');
+  });
+  it('maps ordered and nested tasks after tilde and long backtick fences', () => {
+    const text = '~~~~md\n- [ ] example\n~~~\n- [ ] still code\n~~~~\n1. [ ] ordered\n  - [ ] nested\n````\n```\n- [ ] code\n````\n2) [x] last';
+    expect(taskLineIndex(text, 0)).toBe(5);
+    expect(taskLineIndex(text, 1)).toBe(6);
+    expect(taskLineIndex(text, 2)).toBe(11);
+    expect(toggleTaskLine(text, 5).text).toContain('1. [x] ordered');
+    expect(toggleTaskLine(text, 11).text).toContain('2) [ ] last');
+  });
   it('returns the source line for the Nth task item', () => {
     const text = '# Title\n\n- [ ] one\n- [x] two\n\npara';
     expect(taskLineIndex(text, 0)).toBe(2); // "one"

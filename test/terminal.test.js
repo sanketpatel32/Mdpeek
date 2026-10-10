@@ -9,6 +9,7 @@
 // that call invoke/Channel can copy this shape.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { invoke } from '@tauri-apps/api/core';
 
 // Mock the Tauri core module so importing terminal.js doesn't try to talk to
 // the (absent) Rust runtime. Channel is a minimal stand-in: `onmessage` is the
@@ -69,7 +70,30 @@ vi.mock('@xterm/addon-search', () => ({
   },
 }));
 
-import { readCssVar, xtermThemeFromApp, normalizeOscCwd } from '../src/views/terminal.js';
+import { initTerminal, readCssVar, xtermThemeFromApp, normalizeOscCwd } from '../src/views/terminal.js';
+
+it('kills a native session that arrives after the terminal startup timeout', async () => {
+  vi.useFakeTimers();
+  let resolveSpawn;
+  invoke.mockImplementation((command) => command === 'spawn_terminal'
+    ? new Promise((resolve) => { resolveSpawn = resolve; })
+    : Promise.resolve());
+  document.body.innerHTML = '<div id="terminal-drawer" class="hidden"><div id="terminal-body"></div></div>';
+  vi.stubGlobal('requestAnimationFrame', (callback) => setTimeout(callback, 16));
+  const terminal = initTerminal({ cwdProvider: () => '.', onToast: vi.fn() });
+  try {
+    terminal.open();
+    await vi.advanceTimersByTimeAsync(15001);
+    expect(document.querySelector('.terminal-exit-head')?.textContent).toBe('Shell error');
+    resolveSpawn({ id: 42 });
+    await Promise.resolve();
+    expect(invoke).toHaveBeenCalledWith('kill_terminal', { id: 42 });
+  } finally {
+    terminal.destroyAll();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  }
+});
 
 beforeEach(() => {
   // Reset the :root inline style so each test starts from a clean slate.
