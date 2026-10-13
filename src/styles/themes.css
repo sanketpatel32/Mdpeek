@@ -91,17 +91,17 @@
   /* text */
   --fg: #1d1d1f;
   --fg-secondary: #4d4d51;
-  --fg-muted: #828287;
+  --fg-muted: #65656b;
 
   /* lines — softer, more natural */
   --border: #d0d2da;
   --border-subtle: #e6e7ed;
 
   /* accents — macOS system blue */
-  --accent: #0071e3;
+  --accent: #0066cc;
   --accent-hover: #0060c0;
   --accent-soft: rgba(0, 113, 227, 0.1);
-  --danger: #ff3b30;
+  --danger: #c8231a;
   --on-accent: #ffffff;
   --on-danger: #ffffff;
   --warning: #9a6700;
@@ -139,17 +139,17 @@
 
   --fg: #f5f5f7;
   --fg-secondary: #b0b0b5;
-  --fg-muted: #7c7c82;
+  --fg-muted: #9c9ca3;
 
   --border: #3d3d41;
   --border-subtle: #313134;
 
-  --accent: #0a84ff;
-  --accent-hover: #409cff;
+  --accent: #55aaff;
+  --accent-hover: #79bdff;
   --accent-soft: rgba(10, 132, 255, 0.16);
-  --danger: #ff453a;
-  --on-accent: #ffffff;
-  --on-danger: #ffffff;
+  --danger: #ff6961;
+  --on-accent: #1b1b1e;
+  --on-danger: #1b1b1e;
   --warning: #d29922;
   --success: #30d158;
 
@@ -189,17 +189,15 @@
 
   --fg: #073642;
   --fg-secondary: #52676f;
-  /* Nudged darker from base01 #93a1a1-family grey toward base02: the previous
-     value measured ~2.8:1 on the cream bg — under the 3:1 legibility floor. */
-  --fg-muted: #788585;
+  --fg-muted: #52676f;
 
   --border: #d9d1b8;
   --border-subtle: #e8e0c6;
 
-  --accent: #268bd2;
-  --accent-hover: #1e6fa7;
+  --accent: #0069a0;
+  --accent-hover: #005e91;
   --accent-soft: rgba(38, 139, 210, 0.12);
-  --danger: #dc322f;
+  --danger: #b52320;
   --on-accent: #ffffff;
   --on-danger: #ffffff;
   --warning: #b58900;
@@ -241,17 +239,17 @@
 
   --fg: #fdf6e3;
   --fg-secondary: #9db1b1;
-  --fg-muted: #718e94;
+  --fg-muted: #8ea7ad;
 
   --border: #10505f;
   --border-subtle: #0a3d4b;
 
-  --accent: #268bd2;
-  --accent-hover: #4099d7;
+  --accent: #64b6ea;
+  --accent-hover: #8bc9f0;
   --accent-soft: rgba(38, 139, 210, 0.18);
-  --danger: #dc322f;
-  --on-accent: #ffffff;
-  --on-danger: #ffffff;
+  --danger: #ff7b70;
+  --on-accent: #002b36;
+  --on-danger: #002b36;
   --warning: #b58900;
   --success: #859900;
 
@@ -287,7 +285,7 @@
 
   --fg: #f8f8f2;
   --fg-secondary: #b9bac9;
-  --fg-muted: #8b9dc4;
+  --fg-muted: #a2b0d0;
 
   --border: #46495c;
   --border-subtle: #3a3d4c;
@@ -333,7 +331,7 @@
 
   --fg: #eceff4;
   --fg-secondary: #d8dee9;
-  --fg-muted: #8b99b0;
+  --fg-muted: #aab7ca;
 
   --border: #47536a;
   --border-subtle: #3c4455;
@@ -341,9 +339,9 @@
   --accent: #88c0d0;
   --accent-hover: #9bcbd8;
   --accent-soft: rgba(136, 192, 208, 0.15);
-  --danger: #bf616a;
+  --danger: #e5a0a8;
   --on-accent: #2e3440;
-  --on-danger: #ffffff;
+  --on-danger: #2e3440;
   --warning: #ebcb8b;
   --success: #a3be8c;
 
@@ -379,7 +377,7 @@
 
   --fg: #1f2328;
   --fg-secondary: #59636e;
-  --fg-muted: #6e7781;
+  --fg-muted: #626c76;
 
   --border: #d0d7de;
   --border-subtle: #e4e8ec;
@@ -427,17 +425,17 @@
 
   --fg: #e6edf3;
   --fg-secondary: #9198a1;
-  --fg-muted: #76828c;
+  --fg-muted: #88929c;
 
   --border: #323a44;
   --border-subtle: #222933;
 
-  --accent: #2f81f7;
-  --accent-hover: #4493f8;
+  --accent: #58a6ff;
+  --accent-hover: #79b8ff;
   --accent-soft: rgba(47, 129, 247, 0.15);
-  --danger: #f85149;
-  --on-accent: #ffffff;
-  --on-danger: #ffffff;
+  --danger: #ff7b72;
+  --on-accent: #0d1117;
+  --on-danger: #0d1117;
   --warning: #d29922;
   --success: #3fb950;
 
@@ -473,7 +471,7 @@
 
   --fg: #c0caf5;
   --fg-secondary: #a9b1d6;
-  --fg-muted: #7d86b4;
+  --fg-muted: #959fce;
 
   --border: #3d4568;
   --border-subtle: #2b2f49;
@@ -519,7 +517,7 @@
 
   --fg: #cdd6f4;
   --fg-secondary: #bac2de;
-  --fg-muted: #8b90ab;
+  --fg-muted: #a6adc8;
 
   --border: #4a4c63;
   --border-subtle: #363850;

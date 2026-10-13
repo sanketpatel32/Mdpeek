@@ -16,6 +16,7 @@
 // state.
 
 import { diffLines, formatDiffStats } from '../lib/diff.js';
+import { syncModalFocus } from '../lib/modal-focus.js';
 
 let created = false;
 let overlay;       // #diff-overlay
@@ -204,6 +205,8 @@ function build() {
   wsCheck?.addEventListener('change', renderDiff);
   overlay.querySelector('.diff-close').addEventListener('click', close);
   applyBtn.addEventListener('click', () => {
+    overlay.classList.add('hidden');
+    syncModalFocus();
     if (onApplyCb) onApplyCb(newContent);
     close();
   });
@@ -432,6 +435,7 @@ function chipsHtml(stats) {
 function close() {
   if (!created || !overlay) return;
   overlay.classList.add('hidden');
+  syncModalFocus();
   if (lastFocus && lastFocus.focus) {
     try { lastFocus.focus(); } catch { /* detached */ }
     lastFocus = null;

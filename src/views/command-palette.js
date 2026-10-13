@@ -6,6 +6,7 @@
 // and confirm on Enter. The shared picker core lives at the bottom of the file.
 
 import { fuzzyMatch } from '../lib/fuzzy.js';
+import { syncModalFocus } from '../lib/modal-focus.js';
 
 // Presentation polish (iteration 9). Injected once per app run; selectors are
 // two-class deep so they win cascade ties against base.css/motion.css
@@ -116,7 +117,7 @@ function injectPalettePolishCss() {
 }
 
 const PICKER_HTML = (placeholder, ariaLabel) => `
-  <div class="palette-card" role="dialog" aria-label="${escapeHtml(ariaLabel)}">
+  <div class="palette-card">
     <input class="palette-input" type="text" placeholder="${escapeHtml(placeholder)}" autocomplete="off" spellcheck="false" />
     <ul class="palette-list" role="listbox"></ul>
     <div class="palette-footer">
@@ -151,11 +152,21 @@ export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage, 
     ? id
     : `${id || 'picker'}-${++_pickerSeq}`;
   overlay.className = 'modal-overlay palette-overlay hidden';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', ariaLabel || placeholder || 'Picker');
   overlay.innerHTML = PICKER_HTML(placeholder || '', ariaLabel || placeholder || 'Picker');
   document.body.append(overlay);
 
   const input = overlay.querySelector('.palette-input');
   const list = overlay.querySelector('.palette-list');
+  list.id = `${overlay.id}-list`;
+  list.setAttribute('aria-label', 'Results');
+  input.setAttribute('aria-label', ariaLabel || placeholder || 'Search');
+  input.setAttribute('role', 'combobox');
+  input.setAttribute('aria-autocomplete', 'list');
+  input.setAttribute('aria-controls', list.id);
+  input.setAttribute('aria-expanded', 'false');
 
   let filtered = [];
   let selected = 0;
@@ -204,8 +215,15 @@ export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage, 
           // with space-between, so bare text nodes interleaved with <mark>
           // elements would be laid out as separate flex items and scatter
           // across the row.
-          return `<li class="${cls}" role="option" aria-selected="${i === selected ? 'true' : 'false'}" data-i="${i}"><span class="palette-label">${highlight(s.item.label, s.indices, query)}</span>${hint}</li>`;
+          return `<li id="${list.id}-${i}" class="${cls}" role="option" aria-selected="${i === selected ? 'true' : 'false'}" data-i="${i}"><span class="palette-label">${highlight(s.item.label, s.indices, query)}</span>${hint}</li>`;
         }).join('');
+    syncActiveDescendant();
+  }
+
+  function syncActiveDescendant() {
+    const active = list.querySelector('.palette-item.active');
+    if (active) input.setAttribute('aria-activedescendant', active.id);
+    else input.removeAttribute('aria-activedescendant');
   }
 
   function highlight(label, indices, query) {
@@ -242,9 +260,11 @@ export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage, 
       el.setAttribute('aria-selected', idx === selected ? 'true' : 'false');
     });
     const active = list.querySelector('.palette-item.active');
+    syncActiveDescendant();
     // Smooth scroll keeps the highlight's travel continuous with the
     // crossfade (CSS scroll-behavior covers programmatic scrolls too).
-    if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
   }
 
   function choose() {
@@ -258,17 +278,23 @@ export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage, 
   // motion.css (.is-leaving) before the overlay is actually hidden — the
   // timer covers the longer of the two (--dur-2 = 180ms) plus a frame.
   let hideTimer = null;
+  let opener = null;
   function open() {
+    if (overlay.classList.contains('hidden') || overlay.classList.contains('is-leaving')) opener = document.activeElement;
     if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
     overlay.classList.remove('hidden');
     overlay.classList.remove('is-leaving');
     input.value = '';
+    input.setAttribute('aria-expanded', 'true');
     render('');
-    requestAnimationFrame(() => input.focus());
+    input.focus();
   }
   function close() {
     if (overlay.classList.contains('hidden') || hideTimer) return;
     overlay.classList.add('is-leaving');
+    input.setAttribute('aria-expanded', 'false');
+    syncModalFocus();
+    if (overlay.contains(document.activeElement)) opener?.focus();
     hideTimer = setTimeout(() => {
       hideTimer = null;
       overlay.classList.add('hidden');
@@ -284,7 +310,7 @@ export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage, 
 
   input.addEventListener('input', () => render(input.value.trim()));
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { e.preventDefault(); close(); }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
     else if (e.key === 'ArrowDown') { e.preventDefault(); setActive(selected + 1); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(selected - 1); }
     else if (e.key === 'Enter') { e.preventDefault(); choose(); }
@@ -294,7 +320,7 @@ export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage, 
   // would never see the key. close() is idempotent, so this is safe even when
   // both handlers fire.
   overlay.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && e.target !== input) { e.preventDefault(); close(); }
+    if (e.key === 'Escape' && e.target !== input) { e.preventDefault(); e.stopPropagation(); close(); }
   });
   list.addEventListener('click', (e) => {
     const item = e.target.closest('.palette-item');

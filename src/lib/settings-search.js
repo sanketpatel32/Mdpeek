@@ -35,8 +35,9 @@ export function filterSettingsPanels(dialog, rawQuery, activeCat) {
       const rows = card.querySelectorAll('.setting-row');
       if (!rows.length) {
         // Wrapper cards without rows (rare): match on the whole block.
-        if ((card.textContent || '').toLowerCase().includes(query)) panelHits++;
-        else card.classList.add('hidden');
+        const ok = (card.textContent || '').toLowerCase().includes(query);
+        card.classList.toggle('hidden', !ok);
+        if (ok) panelHits++;
         return;
       }
       let cardHits = 0;

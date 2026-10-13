@@ -131,7 +131,7 @@ function build() {
       <button class="find-toggle" id="find-case" title="Match case" aria-label="Match case" aria-pressed="false" type="button">Aa</button>
       <button class="find-toggle" id="find-regex" title="Regular expression (.* )" aria-label="Regular expression" aria-pressed="false" type="button">.*</button>
       <button class="find-toggle" id="find-whole-word" title="Whole word (W)" aria-label="Whole word" aria-pressed="false" type="button">W</button>
-      <input type="text" class="find-input" placeholder="Find…" spellcheck="false" autocomplete="off" />
+      <input type="text" class="find-input" aria-label="Find in document" placeholder="Find…" spellcheck="false" autocomplete="off" />
       <span class="find-count">0/0</span>
       <button class="find-prev tool-btn icon-only" title="Previous (Shift+Enter)" aria-label="Previous match" type="button">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
@@ -146,7 +146,7 @@ function build() {
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
       <div class="find-replace-row hidden">
-        <input type="text" class="find-replace-input" placeholder="Replace…" spellcheck="false" autocomplete="off" />
+        <input type="text" class="find-replace-input" aria-label="Replace with" placeholder="Replace…" spellcheck="false" autocomplete="off" />
         <button class="tool-btn find-replace-btn" title="Replace (Alt+Enter)" type="button">Replace</button>
         <button class="tool-btn find-replace-all-btn" title="Replace all (Alt+A)" type="button">All</button>
       </div>

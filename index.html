@@ -252,7 +252,7 @@
             </div>
             <div class="editor-wrap">
               <div id="gutter" class="gutter" aria-hidden="true"></div>
-              <textarea id="editor" class="editor" wrap="off" spellcheck="false" placeholder="Type markdown here..."></textarea>
+              <textarea id="editor" class="editor" aria-label="Document editor" wrap="off" spellcheck="false" placeholder="Type markdown here..."></textarea>
               <div id="peer-carets" class="peer-carets" aria-hidden="true"></div>
               <aside id="editor-outline" class="editor-outline hidden" aria-label="Document outline">
                 <div class="editor-outline-header">
@@ -482,7 +482,7 @@
         <p class="modal-text">Share this link with someone who has mdpeek installed. You'll both edit this document in real time.</p>
         <div id="share-link-block" class="share-link-block">
           <div class="share-link-row">
-            <input id="share-link-input" class="share-link-input" type="text" readonly spellcheck="false" />
+            <input id="share-link-input" class="share-link-input" type="text" aria-label="Collaboration invite link" readonly spellcheck="false" />
             <button id="share-copy-btn" class="modal-btn modal-btn-primary" type="button">Copy</button>
           </div>
           <p class="share-footnote">Anyone with the link can edit. Don't share sensitive documents publicly.</p>
@@ -668,7 +668,7 @@
           <!-- Category sidebar -->
           <nav class="settings-sidebar" aria-label="Settings categories">
             <div class="settings-group-label" aria-hidden="true">Workspace</div>
-            <button class="settings-cat active" data-cat="general" type="button">
+            <button class="settings-cat active" data-cat="general" aria-current="page" type="button">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               <span>General</span>
             </button>
@@ -762,7 +762,7 @@
                     <div class="setting-desc">Show 'Open with mdpeek' in Windows Explorer right-click menu</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-context-menu" />
+                    <input type="checkbox" id="settings-context-menu" aria-label="Explorer context menu" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -772,7 +772,7 @@
                     <div class="setting-desc">Show OS notifications for Pomodoro completion, finished exports, and files changed while the app is in the background</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-os-notifications" />
+                    <input type="checkbox" id="settings-os-notifications" aria-label="Desktop notifications" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1017,7 +1017,7 @@
                     <div class="setting-desc">Save changes automatically ~1s after you stop typing (existing files only)</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-autosave" />
+                    <input type="checkbox" id="settings-autosave" aria-label="Auto-save" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1027,7 +1027,7 @@
                     <div class="setting-desc">Show line numbers in the editor gutter</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-line-numbers" />
+                    <input type="checkbox" id="settings-line-numbers" aria-label="Line numbers" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1037,7 +1037,7 @@
                     <div class="setting-desc">Show a line-number gutter on fenced code blocks in rendered Markdown</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-code-line-numbers" />
+                    <input type="checkbox" id="settings-code-line-numbers" aria-label="Code block line numbers" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1047,7 +1047,7 @@
                     <div class="setting-desc">Show a subtle accent highlight on the current line being edited</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-active-line" />
+                    <input type="checkbox" id="settings-active-line" aria-label="Active line highlight" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1057,7 +1057,7 @@
                     <div class="setting-desc">Default for the Ctrl+F case-sensitive toggle</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-find-case" />
+                    <input type="checkbox" id="settings-find-case" aria-label="Find: match case" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1078,7 +1078,7 @@
                     <div class="setting-desc">Soft-wrap long lines instead of horizontal scrolling</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-word-wrap" />
+                    <input type="checkbox" id="settings-word-wrap" aria-label="Word wrap" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1088,7 +1088,7 @@
                     <div class="setting-desc">Show spell-check squiggles in the editor (off by default)</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-spellcheck" />
+                    <input type="checkbox" id="settings-spellcheck" aria-label="Spellcheck" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1098,7 +1098,7 @@
                     <div class="setting-desc">Pasting a URL over a selection makes a markdown link; pasting rich HTML converts tables, lists, and links to markdown (on by default)</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-smart-paste" />
+                    <input type="checkbox" id="settings-smart-paste" aria-label="Smart paste" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1108,7 +1108,7 @@
                     <div class="setting-desc">Paste/drop an image into a saved doc and it's written to <code>assets/</code> next to the file with a portable relative link (on by default)</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-image-beside-doc" />
+                    <input type="checkbox" id="settings-image-beside-doc" aria-label="Save pasted images beside the doc" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1131,7 +1131,7 @@
                     <div class="setting-desc">Hide all non-core features for a featherlight reader/editor. New installs start here. Turn off to customize individual features below.</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-minimal-mode" />
+                    <input type="checkbox" id="settings-minimal-mode" aria-label="Minimal mode" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1143,7 +1143,7 @@
                     <div class="setting-desc">Enable P2P co-editing and room invite link sharing</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-collab" />
+                    <input type="checkbox" id="settings-feature-collab" aria-label="Live Collaboration" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1153,7 +1153,7 @@
                     <div class="setting-desc">Enable global task management board (Ctrl+Shift+K)</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-kanban" />
+                    <input type="checkbox" id="settings-feature-kanban" aria-label="Kanban Board" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1163,7 +1163,7 @@
                     <div class="setting-desc">Enable PowerShell terminal drawer with image paste support (Ctrl+`)</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-terminal" />
+                    <input type="checkbox" id="settings-feature-terminal" aria-label="Integrated Terminal" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1173,7 +1173,7 @@
                     <div class="setting-desc">Enable fullscreen deck presenter for markdown slides (split on ---)</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-present" />
+                    <input type="checkbox" id="settings-feature-present" aria-label="Presentation Slideshow" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1183,7 +1183,7 @@
                     <div class="setting-desc">Enable snippet insertion palette (Ctrl+Shift+S)</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-snippets" />
+                    <input type="checkbox" id="settings-feature-snippets" aria-label="Markdown Snippets &amp; Templates" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1193,7 +1193,7 @@
                     <div class="setting-desc">Enable quick daily journal note creation button</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-daily" />
+                    <input type="checkbox" id="settings-feature-daily" aria-label="Daily Notes" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1203,7 +1203,7 @@
                     <div class="setting-desc">Enable focus timer in the header + Workspace Board</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-pomodoro" />
+                    <input type="checkbox" id="settings-feature-pomodoro" aria-label="Pomodoro Timer" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1225,7 +1225,7 @@
                     <div class="setting-desc">Show a month grid of daily notes in the Workspace</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-calendar" />
+                    <input type="checkbox" id="settings-feature-calendar" aria-label="Calendar View" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1235,7 +1235,7 @@
                     <div class="setting-desc">Collect unchecked task list items from your notes</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-tasks" />
+                    <input type="checkbox" id="settings-feature-tasks" aria-label="Tasks Inbox" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1245,7 +1245,7 @@
                     <div class="setting-desc">Spaced-repetition review of Q::A cards in your notes</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-review" />
+                    <input type="checkbox" id="settings-feature-review" aria-label="Flashcard Review" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1255,7 +1255,7 @@
                     <div class="setting-desc">Visual map of how the notes in your folder link to each other</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-graph" />
+                    <input type="checkbox" id="settings-feature-graph" aria-label="Graph view" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1265,7 +1265,7 @@
                     <div class="setting-desc">Show a suggestion dropdown when you type <code>:emoji</code>, <code>[[wiki</code>, or <code>#tag</code> in the editor</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-autocomplete" />
+                    <input type="checkbox" id="settings-feature-autocomplete" aria-label="Editor autocomplete" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1275,7 +1275,7 @@
                     <div class="setting-desc">Add an <em>Edit table visually…</em> command (Ctrl+Shift+P) that opens a grid editor for the Markdown table under the caret</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-table-editor" />
+                    <input type="checkbox" id="settings-feature-table-editor" aria-label="Table editor" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1285,7 +1285,7 @@
                     <div class="setting-desc">Add a <em>Toggle prose highlights</em> command (Ctrl+Shift+P) that underlines 3+-syllable words and tints hard-to-read paragraphs in the rendered view</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-prose-highlights" />
+                    <input type="checkbox" id="settings-feature-prose-highlights" aria-label="Prose highlights" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1295,7 +1295,7 @@
                     <div class="setting-desc">Hit <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd> to capture a thought into today's daily note under an <code>## Inbox</code> heading</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-capture" />
+                    <input type="checkbox" id="settings-feature-capture" aria-label="Quick capture" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1305,7 +1305,7 @@
                     <div class="setting-desc">Add a <em>Word frequency…</em> command (Ctrl+Shift+P) that ranks the document's most-used words, and a <em>Toggle word-frequency underline</em> command that flags 5+-use words</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-wordfreq" />
+                    <input type="checkbox" id="settings-feature-wordfreq" aria-label="Word frequency" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1497,7 +1497,7 @@
                     <div class="setting-desc">Look for updates when the app starts</div>
                   </div>
                   <label class="setting-toggle">
-                    <input type="checkbox" id="settings-auto-update" />
+                    <input type="checkbox" id="settings-auto-update" aria-label="Check automatically" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>

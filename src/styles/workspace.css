@@ -143,6 +143,55 @@ body { font-family: var(--font-sans); }
 .setting-desc { color: var(--fg-secondary); }
 .theme-card { box-shadow: none; }
 
+/* Keep sheets and their controls reachable in short and narrow windows. */
+.palette-overlay { --palette-top: clamp(16px, 12dvh, 96px); align-items: flex-start; padding-top: var(--palette-top); }
+.palette-card { display: flex; flex-direction: column; max-height: calc(100dvh - var(--palette-top) - 16px); }
+.palette-input, .palette-footer { flex-shrink: 0; }
+.palette-list { min-height: 0; }
+.settings-shell { grid-template-columns: 198px minmax(0, 1fr); }
+.settings-content { min-width: 0; }
+.setting-text { overflow-wrap: anywhere; }
+.setting-select { max-width: 100%; }
+.settings-sidebar .settings-cat { flex-shrink: 0; }
+.modal-overlay.is-leaving { pointer-events: none; }
+
+@media (max-height: 650px) and (min-width: 761px) {
+  .welcome { padding-top: 24px; padding-bottom: 24px; }
+  .welcome-inner { gap: 16px 40px; }
+  .welcome-hero { gap: 12px; }
+  .welcome-brand { width: 48px; height: 48px; }
+  .welcome-title { font-size: 36px; }
+  .welcome-action { min-height: 56px; padding-top: 9px; padding-bottom: 9px; }
+  .recent-empty { min-height: 180px; }
+  .welcome-footer { margin-top: 0; padding-top: 12px; }
+}
+
+@media (max-width: 600px) {
+  .settings-shell { grid-template-columns: minmax(0, 1fr); }
+  #settings-dialog .modal { max-width: calc(100vw - 24px); padding: 16px; }
+  .settings-header { gap: 8px; }
+  .settings-header-actions { margin-left: auto; gap: 2px; }
+  .settings-sidebar { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; padding: 4px 0 10px; }
+  .settings-cat { flex: 0 0 auto; width: auto; min-height: 40px; padding: 0 12px; }
+  .settings-content { max-height: calc(100dvh - 270px); }
+  .theme-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .setting-row .seg { max-width: 100%; flex-wrap: wrap; }
+  .setting-row .seg-btn { padding-left: 10px; padding-right: 10px; }
+  .palette-card { max-width: calc(100vw - 24px); }
+  .palette-footer { flex-wrap: wrap; }
+  .diff-header { flex-wrap: wrap; }
+  .shortcut-table td:first-child { white-space: normal; }
+  .shortcut-table kbd { white-space: nowrap; }
+  .changelog-body { overflow-wrap: anywhere; }
+  .changelog-body :not(pre) > code { white-space: break-spaces; }
+}
+
+@media (pointer: coarse) {
+  .tool-btn, .tab-new, .fmt-btn, .ctx-item, .settings-header-btn,
+  .settings-close-btn, .seg-btn, .recent-clear { min-height: 44px; min-width: 44px; }
+  .more-menu .ctx-item { min-height: 44px; }
+}
+
 @media (max-width: 1000px) {
   .welcome-inner { gap: 24px 32px; }
   .cmd-k-pill { min-width: 32px; }

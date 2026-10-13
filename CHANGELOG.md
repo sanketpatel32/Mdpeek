@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.4] - 2026-10-13
+
+### Fixed
+- Keep keyboard focus inside dialogs, restore it when they close, and suppress workspace shortcuts while a dialog is open.
+- Release dialog focus before applying table or version-comparison edits to the document.
+- Add accessible names to editor, search, collaboration, settings, and table controls; announce command-palette selection and support keyboard theme selection.
+- Restore matching settings-search cards, reset searches when reopening settings, and prevent release-note headings from duplicating workspace IDs.
+- Keep settings navigation, theme choices, shortcuts, release notes, and command-palette controls reachable in narrow or short windows.
+- Improve small-text and filled-button contrast across the theme palette.
+
 ## [1.4.3] - 2026-10-11
 
 ### Changed

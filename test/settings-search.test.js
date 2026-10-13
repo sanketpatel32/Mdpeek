@@ -116,5 +116,9 @@ describe('filterSettingsPanels', () => {
     expect(filterSettingsPanels(d2, 'gamma', 'x')).toBe(1);
     expect(hidden(d2.querySelectorAll('.setting-card')[1])).toBe(false);
     expect(hidden(d2.querySelectorAll('.setting-card')[0])).toBe(true);
+    filterSettingsPanels(d2, 'not found', 'x');
+    expect(hidden(d2.querySelectorAll('.setting-card')[1])).toBe(true);
+    expect(filterSettingsPanels(d2, 'gamma', 'x')).toBe(1);
+    expect(hidden(d2.querySelectorAll('.setting-card')[1])).toBe(false);
   });
 });

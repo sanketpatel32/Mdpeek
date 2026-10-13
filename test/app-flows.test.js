@@ -152,3 +152,63 @@ it('Settings Escape clears a query, then closes and returns focus to its trigger
   expect(document.querySelector('#settings-dialog').classList.contains('hidden')).toBe(true);
   expect(document.activeElement.id).toBe('btn-settings');
 });
+
+it('settings contain focus and suppress background save, new-tab, terminal and navigation shortcuts', () => {
+  click('#btn-settings');
+  const tabs = document.querySelectorAll('.tab').length;
+  backend.invoke.mockClear();
+  backend.terminal.toggle.mockClear();
+  for (const shortcut of ['s', 'n', 'w', 'e', '`', 'p']) key(shortcut);
+  expect(document.querySelectorAll('.tab')).toHaveLength(tabs);
+  expect(backend.invoke.mock.calls.some(([command]) => command.startsWith('save_file'))).toBe(false);
+  expect(backend.terminal.toggle).not.toHaveBeenCalled();
+  expect(document.querySelector('.palette-overlay:not(.hidden):not(.is-leaving)')).toBeNull();
+  key('Escape', { ctrlKey: false });
+});
+
+it('theme radios support arrow selection and one tab stop per group', () => {
+  click('#btn-settings');
+  click('.settings-cat[data-cat="appearance"]');
+  const modes = document.querySelector('#theme-mode-seg');
+  modes.querySelector('[data-mode="manual"]').focus();
+  key('ArrowRight', { ctrlKey: false });
+  expect(localStorage.getItem('mdpeek-theme-mode')).toBe('system');
+  expect(modes.querySelectorAll('[tabindex="0"]')).toHaveLength(1);
+  const grid = document.querySelector('#theme-grid');
+  grid.querySelector('[data-theme="light"]').click();
+  grid.querySelector('[data-theme="light"]').focus();
+  key('ArrowRight', { ctrlKey: false });
+  expect(document.documentElement.dataset.theme).toBe('dark');
+  expect(grid.querySelectorAll('[tabindex="0"]')).toHaveLength(1);
+  key('Home', { ctrlKey: false });
+  expect(document.documentElement.dataset.theme).toBe('light');
+  key('Escape', { ctrlKey: false });
+});
+
+it('reopening settings resets search and nested confirmation Escape leaves settings open', () => {
+  click('#btn-settings');
+  const input = document.querySelector('#settings-search');
+  input.value = 'unmatched';
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  click('#settings-close-btn');
+  click('#btn-settings');
+  expect(input.value).toBe('');
+  expect(document.querySelector('.settings-panel[data-cat="general"]').classList.contains('hidden')).toBe(false);
+  click('#settings-reset');
+  expect(document.querySelector('#settings-dialog').hasAttribute('inert')).toBe(true);
+  key('Escape', { ctrlKey: false });
+  expect(document.querySelector('#confirm-dialog').classList.contains('hidden')).toBe(true);
+  expect(document.querySelector('#settings-dialog').classList.contains('hidden')).toBe(false);
+  expect(document.querySelector('#settings-dialog').hasAttribute('inert')).toBe(false);
+  key('Escape', { ctrlKey: false });
+});
+
+it('release-note headings do not duplicate workspace control IDs', () => {
+  click('#btn-settings');
+  click('.settings-cat[data-cat="changelog"]');
+  const changelog = document.querySelector('#changelog-content');
+  expect(changelog.querySelectorAll('[id]').length).toBeGreaterThan(0);
+  expect([...changelog.querySelectorAll('[id]')].every((node) => node.id.startsWith('changelog-'))).toBe(true);
+  expect(document.querySelectorAll('#editor')).toHaveLength(1);
+  key('Escape', { ctrlKey: false });
+});

@@ -7,6 +7,7 @@
 // confirms. All edits run through the pure ops in src/lib/table.js, so this
 // view holds no table logic of its own — it's DOM + input handling.
 
+import { syncModalFocus } from '../lib/modal-focus.js';
 import {
   addRow, removeRow, moveRow,
   addColumn, removeColumn, moveColumn,
@@ -145,8 +146,10 @@ function build() {
     pulse(bodyEl.querySelector('.te-row:last-child'), 'te-enter');
   });
   applyBtn.addEventListener('click', () => {
-    if (onApplyCb) onApplyCb(emitTable(model));
+    const apply = onApplyCb;
+    const markdown = emitTable(model);
     close();
+    if (apply) apply(markdown);
   });
   // Esc closes without applying. stopPropagation so it doesn't also trigger the
   // app-level Esc (exit focus / close find).
@@ -180,10 +183,10 @@ function colControlHtml(c, colCount) {
   const canRemove = model.aligns.length > 1;
   return (
     '<div class="te-col-ctl" data-col="' + c + '">'
-    + `<button class="te-align tool-btn" type="button" data-act="align" data-col="${c}" title="Cycle alignment (none/left/center/right)">${glyph}</button>`
-    + `<button class="tool-btn te-ico" type="button" data-act="cmove-l" data-col="${c}" title="Move column left" ${c === 0 ? 'disabled' : ''}>←</button>`
-    + `<button class="tool-btn te-ico" type="button" data-act="cmove-r" data-col="${c}" title="Move column right" ${c === colCount - 1 ? 'disabled' : ''}>→</button>`
-    + `<button class="tool-btn te-ico te-danger" type="button" data-act="cremove" data-col="${c}" title="Remove column" ${canRemove ? '' : 'disabled'}>✕</button>`
+    + `<button class="te-align tool-btn" type="button" data-act="align" data-col="${c}" aria-label="Cycle alignment for column ${c + 1}: ${a || 'none'}" title="Cycle alignment (none/left/center/right)">${glyph}</button>`
+    + `<button class="tool-btn te-ico" type="button" data-act="cmove-l" data-col="${c}" aria-label="Move column ${c + 1} left" title="Move column left" ${c === 0 ? 'disabled' : ''}>←</button>`
+    + `<button class="tool-btn te-ico" type="button" data-act="cmove-r" data-col="${c}" aria-label="Move column ${c + 1} right" title="Move column right" ${c === colCount - 1 ? 'disabled' : ''}>→</button>`
+    + `<button class="tool-btn te-ico te-danger" type="button" data-act="cremove" data-col="${c}" aria-label="Remove column ${c + 1}" title="Remove column" ${canRemove ? '' : 'disabled'}>✕</button>`
     + '</div>'
   );
 }
@@ -208,16 +211,16 @@ function rowHtml(r, isHeader, colCount) {
   } else {
     cells.push(
       '<div class="te-row-ctl" data-row="' + r + '">'
-      + `<button class="tool-btn te-ico" type="button" data-act="rmove-u" data-row="${r}" title="Move row up" ${r <= 1 ? 'disabled' : ''}>↑</button>`
-      + `<button class="tool-btn te-ico" type="button" data-act="rmove-d" data-row="${r}" title="Move row down" ${r === model.rows.length - 1 ? 'disabled' : ''}>↓</button>`
-      + `<button class="tool-btn te-ico te-danger" type="button" data-act="rremove" data-row="${r}" title="Remove row">✕</button>`
+      + `<button class="tool-btn te-ico" type="button" data-act="rmove-u" data-row="${r}" aria-label="Move row ${r} up" title="Move row up" ${r <= 1 ? 'disabled' : ''}>↑</button>`
+      + `<button class="tool-btn te-ico" type="button" data-act="rmove-d" data-row="${r}" aria-label="Move row ${r} down" title="Move row down" ${r === model.rows.length - 1 ? 'disabled' : ''}>↓</button>`
+      + `<button class="tool-btn te-ico te-danger" type="button" data-act="rremove" data-row="${r}" aria-label="Remove row ${r}" title="Remove row">✕</button>`
       + '</div>'
     );
   }
   for (let c = 0; c < colCount; c++) {
     const val = model.rows[r][c] || '';
     const emptyCls = val ? '' : ' te-empty';
-    cells.push(`<input class="te-cell${emptyCls}" type="text" data-row="${r}" data-col="${c}" value="${attrEscape(val)}" />`);
+    cells.push(`<input class="te-cell${emptyCls}" type="text" aria-label="${isHeader ? 'Header' : `Row ${r}`}, column ${c + 1}" data-row="${r}" data-col="${c}" value="${attrEscape(val)}" />`);
   }
   return `<div class="te-row${isHeader ? ' te-row-head' : ''}" data-row="${r}">${cells.join('')}</div>`;
 }
@@ -420,6 +423,7 @@ function open(opts = {}) {
 function close() {
   if (!created || !overlay) return;
   overlay.classList.add('hidden');
+  syncModalFocus();
   clearCrossHighlight();
   model = null;
   onApplyCb = null;

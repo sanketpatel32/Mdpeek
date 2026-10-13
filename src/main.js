@@ -54,6 +54,7 @@ import { topWords } from './lib/wordfreq.js';
 import { generateTocMarkdown } from './lib/toc.js';
 import { MINIMAL_SUPPRESSED, minimalModeOn as _minimalModeOn, isFeatureOn } from './lib/minimal.js';
 import { filterSettingsPanels } from './lib/settings-search.js';
+import { initModalFocus, modalOwnsKeyboard, syncModalFocus } from './lib/modal-focus.js';
 import { notifyOs, osNotificationsEnabled, setOsNotificationsEnabled } from './lib/notify.js';
 // v0.34.1: build-time version for the About + Updates panels. Import is
 // hoisted to module top; the value is written into the DOM early (right after
@@ -379,6 +380,7 @@ const el = {
 // also no-ops gracefully if elements aren't present yet (idempotent, called
 // again after full init via DOMContentLoaded below).
 bootMotion();
+initModalFocus();
 // Install the bundled highlight.js <link> elements early (before any Tauri
 // code that could abort module execution in the browser dev environment).
 // applyTheme() — which runs later at the init section — toggles `disabled` on
@@ -597,6 +599,7 @@ function confirmDialog({ title, text, buttons, icon = 'warn' }) {
       dlg.removeEventListener('keydown', onKey);
       dlg.removeEventListener('click', onBackdrop);
       dlg.classList.add('hidden');
+      syncModalFocus();
       resolve(val);
     };
 
@@ -3025,6 +3028,7 @@ function applyThemeVisuals(next) {
     const isActive = btn.dataset.theme === next;
     btn.classList.toggle('active', isActive);
     btn.setAttribute('aria-checked', isActive ? 'true' : 'false');
+    btn.tabIndex = isActive ? 0 : -1;
   });
   // Propagate theme to the active Excalidraw tab (if any) so the canvas
   // matches the app's light/dark mode.
@@ -3690,6 +3694,7 @@ function refreshShareModal(status) {
 
 function closeShareModal() {
   el.shareDialog.classList.add('hidden');
+  syncModalFocus();
 }
 
 // ---------- Global Kanban board (v0.22.2) ----------
@@ -5164,6 +5169,7 @@ function showJoinDialog(roomId) {
 
 function closeJoinDialog() {
   el.joinDialog.classList.add('hidden');
+  syncModalFocus();
   _pendingInvite = null;
 }
 
@@ -7032,6 +7038,11 @@ el.shareDialog?.addEventListener('click', (e) => {
 if (el.shareEndBtn) el.shareEndBtn.addEventListener('click', endCollabSession);
 if (el.joinConfirmBtn) el.joinConfirmBtn.addEventListener('click', confirmJoin);
 if (el.joinCancelBtn) el.joinCancelBtn.addEventListener('click', cancelJoin);
+for (const [dialog, close] of [[el.shareDialog, closeShareModal], [el.joinDialog, cancelJoin]]) {
+  dialog.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+  });
+}
 if (el.collabStatus) el.collabStatus.addEventListener('click', (e) => {
   // The × button has its own handler; don't double-handle.
   if (e.target === el.collabEnd) return;
@@ -7681,6 +7692,7 @@ function syncThemeModeSeg() {
     const on = btn.dataset.mode === mode;
     btn.classList.toggle('active', on);
     btn.setAttribute('aria-checked', on ? 'true' : 'false');
+    btn.tabIndex = on ? 0 : -1;
   });
 }
 if (themeModeSeg) {
@@ -7793,6 +7805,8 @@ const SETTING_KEYS = [
 let _changelogRendered = false;
 function openSettings(cat) {
   syncSettingsControls();
+  if (_settingsSearchInput) _settingsSearchInput.value = '';
+  applySettingsSearch('');
   el.settingsDialog.classList.remove('hidden');
   // Open on the requested category (or General for predictability)
   const firstCat = el.settingsDialog.querySelector(`.settings-cat[data-cat="${cat || 'general'}"]`) ||
@@ -7804,8 +7818,10 @@ function openSettings(cat) {
   (searchInput || el.settingsDialog.querySelector('button, input, select, [tabindex]'))?.focus();
 }
 function closeSettings() {
+  const hadFocus = el.settingsDialog.contains(document.activeElement);
   el.settingsDialog.classList.add('hidden');
-  if (el.settingsDialog.contains(document.activeElement)) el.settings?.focus();
+  syncModalFocus();
+  if (hadFocus) el.settings?.focus();
 }
 
 // Read current pref values from localStorage and reflect them in the modal's
@@ -7828,6 +7844,7 @@ function syncSettingsControls() {
     const isActive = card.dataset.theme === currentTheme;
     card.classList.toggle('active', isActive);
     card.setAttribute('aria-checked', isActive ? 'true' : 'false');
+    card.tabIndex = isActive ? 0 : -1;
   });
 
   // Auto-update toggle (Settings → Updates). Default on (null/anything but '0').
@@ -7984,12 +8001,24 @@ function setSegActive(setting, value) {
   if (!seg) return;
   seg.querySelectorAll('.seg-btn').forEach((b) => {
     b.classList.toggle('active', b.dataset.value === value);
+    b.setAttribute('aria-pressed', String(b.dataset.value === value));
   });
 }
 
 el.settings.addEventListener('click', () => openSettings());
 const closeBtn = document.getElementById('settings-close-btn');
 if (closeBtn) closeBtn.addEventListener('click', closeSettings);
+el.settingsDialog.addEventListener('keydown', (e) => {
+  const radio = e.target.closest('[role="radio"]');
+  if (!radio || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) return;
+  const items = [...radio.closest('[role="radiogroup"]').querySelectorAll('[role="radio"]')].filter((item) => !item.disabled);
+  const index = items.indexOf(radio);
+  const delta = ['ArrowLeft', 'ArrowUp'].includes(e.key) ? -1 : 1;
+  const next = e.key === 'Home' ? items[0] : e.key === 'End' ? items.at(-1) : items[(index + delta + items.length) % items.length];
+  e.preventDefault();
+  next?.focus();
+  next?.click();
+});
 const resetBtn = document.getElementById('settings-reset');
 if (resetBtn) {
   resetBtn.addEventListener('click', async () => {
@@ -8120,14 +8149,26 @@ if (settingsSidebar) settingsSidebar.addEventListener('click', (e) => {
   const name = cat.dataset.cat;
   settingsSidebar.querySelectorAll('.settings-cat').forEach((b) => {
     b.classList.toggle('active', b === cat);
+    b.setAttribute('aria-current', b === cat ? 'page' : 'false');
   });
   el.settingsDialog.querySelectorAll('.settings-panel').forEach((p) => {
     p.classList.toggle('hidden', p.dataset.cat !== name);
   });
+  _settingsContentEl.scrollTop = 0;
   if (name === 'changelog' && !_changelogRendered) {
     const changelogEl = document.getElementById('changelog-content');
     if (changelogEl) {
       changelogEl.innerHTML = renderMarkdown(changelogSource);
+      // Keep release-note headings and footnotes separate from workspace IDs.
+      const ids = new Map();
+      changelogEl.querySelectorAll('[id]').forEach((node) => {
+        ids.set(node.id, `changelog-${node.id}`);
+        node.id = ids.get(node.id);
+      });
+      changelogEl.querySelectorAll('a[href^="#"]').forEach((link) => {
+        const target = ids.get(link.getAttribute('href').slice(1));
+        if (target) link.setAttribute('href', `#${target}`);
+      });
       _changelogRendered = true;
     }
   }
@@ -8964,6 +9005,7 @@ function updateCanvasStatus(doc) {
 // Keyboard shortcuts — registered on the CAPTURE phase so we intercept the
 // zoom keys before WebView2 can swallow them for native browser zoom.
 window.addEventListener('keydown', (e) => {
+  if (modalOwnsKeyboard()) return;
   if (!(e.ctrlKey || e.metaKey)) return;
   const k = e.key.toLowerCase();
   // Modified commands have their own handlers below. Don't run Ctrl+S/E/F
@@ -9046,6 +9088,7 @@ window.addEventListener('keydown', (e) => {
 // when a tree row was the last thing clicked AND focus isn't in the editor or
 // an input — otherwise we'd hijack normal text-editing shortcuts.
 window.addEventListener('keydown', (e) => {
+  if (modalOwnsKeyboard()) return;
   if (_treeActivePath == null) return;
   // Bail if the user is typing in an input/textarea/contenteditable — those
   // own these shortcuts (e.g. Ctrl+C copies selected text, not a tree row).
@@ -9084,6 +9127,7 @@ window.addEventListener('keydown', (e) => {
 // F3 (no modifier) = repeat last search. Shift+F3 = backward. Capture phase so
 // it works regardless of focus, and so WebView2 doesn't swallow it.
 window.addEventListener('keydown', (e) => {
+  if (modalOwnsKeyboard()) return;
   if (e.key !== 'F3') return;
   e.preventDefault();
   if (e.shiftKey) find.findPrev();
@@ -9094,6 +9138,7 @@ window.addEventListener('keydown', (e) => {
 // preventDefault so WebView2 doesn't also fire native fullscreen. Escape exits
 // focus mode (handled here, before any other Escape handler can grab it).
 window.addEventListener('keydown', (e) => {
+  if (modalOwnsKeyboard()) return;
   // Presentation-mode shortcuts take over the keyboard entirely while the
   // slideshow is active. We bail out of the rest of the handler after handling
   // one of these so nothing else (editor, find bar, palette) intercepts.
@@ -9424,6 +9469,7 @@ function showCloseDialog() {
 
 function hideCloseDialog() {
   el.closeDialog.classList.add('hidden');
+  syncModalFocus();
 }
 
 function resolveClose(action) {
