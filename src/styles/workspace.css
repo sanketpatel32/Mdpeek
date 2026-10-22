@@ -156,6 +156,7 @@ header > :last-child { flex-shrink: 0; margin: 0; border-left: 1px solid var(--b
 #settings-dialog .modal { padding: 0 0 var(--space-md); width: 1000px; max-width: calc(100% - var(--space-page)); overflow: clip; }
 .settings-header { margin: 0; padding: var(--space-lg); border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
 .settings-header .modal-title { font-size: var(--text-lg); letter-spacing: -.02em; }
+.settings-header-actions { margin-left: auto; }
 .settings-shell { grid-template-columns: 216px minmax(0, 1fr); gap: 0; margin: 0; }
 .settings-sidebar { background: var(--bg); padding: var(--space-md) var(--space-sm); border-right: 1px solid var(--border-subtle); gap: var(--space-2xs); }
 .settings-sidebar .settings-cat { flex-shrink: 0; min-height: 40px; padding: var(--space-xs) var(--space-sm); font-size: var(--text-sm); border: 1px solid transparent; border-radius: var(--radius-sm); }

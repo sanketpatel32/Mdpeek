@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-10-23
+
+### Fixed
+- Keep the settings header actions and close button aligned to the right edge of the dialog at desktop widths.
+
 ## [1.5.0] - 2026-10-23
 
 ### Changed

@@ -2,25 +2,25 @@
   "verified": "2026-10-23",
   "files": {
     "src/styles/tokens.css": "EE1BCEB5588875364E136DCEF9631399C98671C82339BDCE5E4192693A87DC6D",
-    "package-lock.json": "29FB8959E7BF8E2FD1B58AA12754680AD1006B2A8A15C42416D6C888D0786FC3",
-    "src/styles/workspace.css": "6494F94A463DC9FFF625ECF324303A1D3A41425D298DEC7DBCD0F31B3B81D0D3",
+    "package-lock.json": "13E72EBE80CAD66BC5151CE2812261A4CEF43F433902D169E00974314E39DB45",
+    "src/styles/workspace.css": "4385E57F5639C7646217A9469AF7F3DF4048E8C2AED20C2D07DE85E45F34CAE7",
     "index.html": "120365A2F4CC23CC728391EDCC53042691F123F01AD64F303C63AE68151E3BF0",
     "src/main.js": "B48BD091DF2E3145EB7AD391D72FA36B73CA6FEDD26F301CC9B02A50D657991F",
-    "src-tauri/tauri.conf.json": "18BAC7E654651725E87AC0F7950B15B605864F585930C77BEEBB12147DA8EAEC",
-    "CHANGELOG.md": "652CA3CAE417944E3032B76241431E579048A78BDB090271386CA07F85F6503F",
-    "package.json": "16A53D49AC7FDE8D967A3D9801CEA10763282E84A695F875C32385E09EB6D5D5",
-    "src-tauri/Cargo.lock": "B770F41D9CCBEC7D160F8B2F88FF03D30F0C98509711A8EC52C0586A6B081609",
-    "src-tauri/Cargo.toml": "5355F131DE46A3D7330794EA44E3565FB71B79AD56876AAA21ABEC24B2247878"
+    "src-tauri/tauri.conf.json": "CF48274DAD0533174762F3B80139C9185A14D9639B57C465762D2D9C7C6FEA43",
+    "CHANGELOG.md": "8E94755B30C3BB49EF093BF041BC39F3F012AC70B844447ED77D57F793AACF07",
+    "package.json": "D67F281C6544F970FFEFA705731CBA612617C7EE6C6AB7CBAB0FB6B2607460DC",
+    "src-tauri/Cargo.lock": "4752F86986B7A974F46C62DE7B7E48F91DC37B3B4504C77859B0AE48BEEF3376",
+    "src-tauri/Cargo.toml": "A91F42AA2363897A5A870E0875E4A388B47DC8D11DCECB772086F62791A8B3B8"
   },
   "scope": "UI presentation and welcome markup; no dependency or backend changes",
   "checks": [
     {
-      "result": "Release diff: 70 files, 1413 tests passed",
+      "result": "1413 tests passed for v1.5.0; subsequent patch changes one CSS margin rule and release metadata. Focused patch suite: 26 tests across 3 files passed.",
       "command": "npm test",
       "status": "PASS"
     },
     {
-      "result": "Release 1.5.0 build passed; existing large-chunk and mixed-import warnings",
+      "result": "Release 1.5.1 build passed; existing large-chunk and mixed-import warnings",
       "command": "npm run build",
       "status": "PASS"
     },
@@ -71,6 +71,21 @@
       "result": "No React components changed; UI shell uses vanilla JavaScript and CSS",
       "command": "React Doctor",
       "status": "N/A"
+    },
+    {
+      "result": "26 tests, 3 files",
+      "command": "npm test -- test/modal-focus.test.js test/settings-search.test.js test/app-flows.test.js",
+      "status": "PASS"
+    },
+    {
+      "result": "0 FAIL, 0 REFLEX, 0 WARN; 5 viewport captures",
+      "command": "node <hallmark-skill>/scripts/sloplint.mjs src/styles/workspace.css src/styles/tokens.css --genre modern-minimal --scope app --render --url http://localhost:1420/?settings=1&theme=light",
+      "status": "PASS"
+    },
+    {
+      "result": "Close control aligned to the modal right edge with 24px inset at 910px viewport",
+      "command": "Browser geometry inspection of settings modal and close button",
+      "status": "PASS"
     }
   ],
   "visualReview": {
@@ -87,7 +102,7 @@
     "Command palette opens",
     "No window.__devErrors"
   ],
-  "releaseMetadata": "Release 1.5.0: package, npm lock root, Tauri config, Cargo manifest and Cargo lock synchronized; changelog updated",
+  "releaseMetadata": "Release 1.5.1: all six release version fields synchronized; changelog includes settings header alignment fix",
   "material": "No image slots or additional material required",
   "copyChanges": [
     "Removed decorative sample-button arrow",
