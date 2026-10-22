@@ -1,0 +1,31 @@
+[
+ {
+  "mode": "redesign",
+  "depth": "full",
+  "scope": "app",
+  "shape": "app screen",
+  "theme": "furrow",
+  "axes": "light/grotesk-sans/warm",
+  "hero": "none, app scope",
+  "nav": "kept desktop shell",
+  "footer": "keyboard reference rule",
+  "imagery": "real product",
+  "photos": [],
+  "entry": "index.html",
+  "fingerprint": "app/ruled-index/full-width-introduction/two-column-desk/desktop-shell/quiet-state",
+  "sections": [
+   "home",
+   "reader",
+   "editor",
+   "settings",
+   "menus",
+   "workspace boards"
+  ],
+  "signature": "open desk with ruled document index",
+  "waived": [],
+  "prompt": "Redesign the entire mdpeek UI without questions",
+  "finishReview": "subagent: ship, no findings",
+  "sweep": "0 FAIL, 0 REFLEX, 0 WARN on redesigned styles and rendered home/document/settings screens",
+  "date": "2026-10-22"
+ }
+]

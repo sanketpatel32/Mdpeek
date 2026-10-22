@@ -1,0 +1,17 @@
+{
+  "scanned": "2026-10-23",
+  "findings": {
+    "fonts": "src/styles/themes.css:16, existing offline system sans and mono stacks",
+    "palette": "src/styles/themes.css:90, default light and dark themes plus nine user-selectable themes",
+    "framework": "package.json:7, Vite with vanilla JavaScript and Tauri desktop integration",
+    "spacing": "src/styles/themes.css:38, existing sp tokens",
+    "motion": "src/styles/motion.css, existing CSS motion; no new motion dependency",
+    "product": "src/main.js:150, home; index.html:203, reader/editor; index.html:639, settings"
+  },
+  "scope": "app",
+  "preserve": ["logo", "offline font stack", "links", "actions", "keyboard shortcuts", "all 11 selectable themes", "component logic"],
+  "introduce": ["Furrow paper palette for light and dark", "ruled home workspace", "unified controls and settings", "responsive document header", "high-contrast keyboard focus"],
+  "inferred": {"audience":"local-document readers and writers", "job":"open, read and edit documents", "tone":"utilitarian, paper, ink, restrained orange"},
+  "material": {"real":["mdpeek", "existing documents and controls"],"pictures":[],"absent":["invented metrics", "quotes", "photo placeholders"]},
+  "files": {"edit":["index.html", "src/main.js", "src/styles/workspace.css"],"create":["src/styles/tokens.css"],"delete":[]}
+}

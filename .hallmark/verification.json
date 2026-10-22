@@ -1,0 +1,100 @@
+{
+  "verified": "2026-10-23",
+  "files": {
+    "src/styles/tokens.css": "EE1BCEB5588875364E136DCEF9631399C98671C82339BDCE5E4192693A87DC6D",
+    "package-lock.json": "29FB8959E7BF8E2FD1B58AA12754680AD1006B2A8A15C42416D6C888D0786FC3",
+    "src/styles/workspace.css": "6494F94A463DC9FFF625ECF324303A1D3A41425D298DEC7DBCD0F31B3B81D0D3",
+    "index.html": "120365A2F4CC23CC728391EDCC53042691F123F01AD64F303C63AE68151E3BF0",
+    "src/main.js": "B48BD091DF2E3145EB7AD391D72FA36B73CA6FEDD26F301CC9B02A50D657991F",
+    "src-tauri/tauri.conf.json": "18BAC7E654651725E87AC0F7950B15B605864F585930C77BEEBB12147DA8EAEC",
+    "CHANGELOG.md": "652CA3CAE417944E3032B76241431E579048A78BDB090271386CA07F85F6503F",
+    "package.json": "16A53D49AC7FDE8D967A3D9801CEA10763282E84A695F875C32385E09EB6D5D5",
+    "src-tauri/Cargo.lock": "B770F41D9CCBEC7D160F8B2F88FF03D30F0C98509711A8EC52C0586A6B081609",
+    "src-tauri/Cargo.toml": "5355F131DE46A3D7330794EA44E3565FB71B79AD56876AAA21ABEC24B2247878"
+  },
+  "scope": "UI presentation and welcome markup; no dependency or backend changes",
+  "checks": [
+    {
+      "result": "Release diff: 70 files, 1413 tests passed",
+      "command": "npm test",
+      "status": "PASS"
+    },
+    {
+      "result": "Release 1.5.0 build passed; existing large-chunk and mixed-import warnings",
+      "command": "npm run build",
+      "status": "PASS"
+    },
+    {
+      "command": "node --check src/main.js",
+      "status": "PASS"
+    },
+    {
+      "result": "269 HTML hooks and 8 welcome action/path hooks preserved; tokens stylesheet added",
+      "command": "node .hallmark/verify.mjs",
+      "status": "PASS"
+    },
+    {
+      "result": "Home and document final rendered checks clear; final settings confirmation: 0 FAIL, 0 REFLEX, 0 WARN. Five viewport captures per route.",
+      "command": "node <hallmark-skill>/scripts/sloplint.mjs src/styles/workspace.css src/styles/tokens.css --genre modern-minimal --scope app --render --url http://localhost:1420 --url http://localhost:1420/?doc=1&theme=light --url http://localhost:1420/?settings=1&theme=dark",
+      "status": "PASS after focused confirmation"
+    },
+    {
+      "command": "git diff --check",
+      "status": "PASS"
+    },
+    {
+      "result": "Reviewed UI files, release metadata and Hallmark records; no secrets, binaries or unnecessary sensitive data staged",
+      "command": "git status --short; git diff; git diff --cached",
+      "status": "PASS"
+    },
+    {
+      "result": "No configured command or installed tool",
+      "command": "Repository formatter/linter",
+      "status": "BLOCKED"
+    },
+    {
+      "result": "No configured command or installed scanner",
+      "command": "Duplicate-code analysis",
+      "status": "BLOCKED"
+    },
+    {
+      "result": "No configuration, scanner or quality-gate service",
+      "command": "SonarQube",
+      "status": "BLOCKED"
+    },
+    {
+      "result": "Vanilla JavaScript, no configured checker",
+      "command": "Type checker",
+      "status": "N/A"
+    },
+    {
+      "result": "No React components changed; UI shell uses vanilla JavaScript and CSS",
+      "command": "React Doctor",
+      "status": "N/A"
+    }
+  ],
+  "visualReview": {
+    "findings": 0,
+    "reviewer": "independent subagent",
+    "status": "ship"
+  },
+  "nativeSmoke": [
+    "Sample document opens",
+    "Edit/view switch shows editor and live preview",
+    "Settings navigation displays appearance",
+    "All 11 theme choices preserved",
+    "Dark theme applies",
+    "Command palette opens",
+    "No window.__devErrors"
+  ],
+  "releaseMetadata": "Release 1.5.0: package, npm lock root, Tauri config, Cargo manifest and Cargo lock synchronized; changelog updated",
+  "material": "No image slots or additional material required",
+  "copyChanges": [
+    "Removed decorative sample-button arrow",
+    "Removed tracked workspace eyebrow and decorative dot",
+    "Moved real build version to footer",
+    "Removed middle-dot shortcut separators",
+    "Minimal mode hint uses two sentences"
+  ],
+  "publication": "User explicitly requested direct commit, push and release. No pull request created. Windows installer and signed updater built by the existing tag-triggered GitHub Actions workflow."
+}

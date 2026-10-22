@@ -147,9 +147,7 @@ const DEFAULT_THEME = 'light';
 
 // Welcome screen markup — built dynamically so the recent-files list can be
 // injected. Called from every place that shows the welcome screen.
-// v0.63.0: centered "quiet hero" layout — brand mark with an ambient accent
-// halo, a card grid for the primary actions, and recents as a floating panel
-// beneath. Replaces the two-column card (left buttons / right recents).
+// The home desk shares the document workspace's ruled surfaces and controls.
 function renderWelcome() {
   const recents = loadRecents();
   const recentsHtml = `
@@ -163,7 +161,7 @@ function renderWelcome() {
           <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
           <span>Your next document starts here</span>
           <p class="recent-empty-sub">Open a file to keep it close, or try a sample to explore Markdown.</p>
-          <button class="recent-sample" data-action="sample" type="button">Try a sample document <span aria-hidden="true">→</span></button>
+          <button class="recent-sample" data-action="sample" type="button">Try a sample document</button>
         </div>
       ` : `<div class="recent-list">${recents.map((r) => {
         const path = r.path || '';
@@ -186,8 +184,7 @@ function renderWelcome() {
     <div class="welcome-inner">
       <div class="welcome-hero">
         <span class="brand-mark welcome-brand" aria-hidden="true"></span>
-        <div class="welcome-eyebrow"><span class="welcome-local-dot" aria-hidden="true"></span> YOUR LOCAL WORKSPACE <span class="version-badge">v${BUILD_VERSION || ''}</span></div>
-        <h1 class="welcome-title">Room for your<br /><span>next idea.</span></h1>
+        <h1 class="welcome-title">Room for your next idea.</h1>
         <p class="welcome-tagline">Read beautifully. Write simply. Your notes, documents and ideas, all in one place.</p>
       </div>
 
@@ -239,16 +236,14 @@ function renderWelcome() {
 
       <div class="welcome-footer">
         <span><kbd>Ctrl+Shift+P</kbd> search everything</span>
-        <span class="dot">·</span>
         <span><kbd>Ctrl+E</kbd> edit/view</span>
-        <span class="dot">·</span>
         <span><kbd>Ctrl+P</kbd> switch files</span>
-        <span class="dot">·</span>
         <span class="welcome-drop">drop a file anywhere to open</span>
+        <span class="workspace-version">mdpeek v${BUILD_VERSION || ''}</span>
       </div>
       ${minimalModeOn() ? `
       <div class="welcome-minimal-hint">
-        <span>Minimal mode is on — only the essentials are shown.</span>
+        <span>Minimal mode is on. Only the essentials are shown.</span>
         <button class="welcome-minimal-explore" data-action="explore-features" type="button">Explore all features</button>
       </div>` : ''}
     </div>

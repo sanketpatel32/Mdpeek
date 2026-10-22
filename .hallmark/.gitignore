@@ -1,0 +1,11 @@
+shots/
+before/
+before.json
+before.txt
+compare.html
+screens/
+scaffold/
+scaffold-runner.mjs
+verify.mjs
+*.log
+salt

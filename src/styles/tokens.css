@@ -1,0 +1,100 @@
+/* Hallmark · shape: app screen · genre: modern-minimal · theme: Furrow · redesign: full · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4 · weakest: font availability; retained the offline font tokens */
+:root {
+  color-scheme: light;
+  --space-3xs: 2px; --space-2xs: 4px; --space-xs: 8px; --space-sm: 12px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px; --space-2xl: 64px; --space-3xl: 96px; --space-4xl: 144px;
+  --text-xs: 0.75rem; --text-sm: 0.875rem; --text-md: 1rem; --text-lg: 1.2rem; --text-xl: 1.44rem; --text-2xl: 1.728rem; --text-3xl: 2.074rem;
+  --text-display-s: 1.44rem; --text-display: 1.728rem; --text-section: 1.2rem; --text-title: 1rem; --text-lead: 1rem;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); --ease-in: cubic-bezier(0.7, 0, 0.84, 0); --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms; --dur-short: 220ms; --dur-long: 420ms;
+  --color-error: oklch(52% 0.19 27); --color-success: oklch(50% 0.12 150);
+  --container: 1440px; --gutter: 64px; --gap-columns: 32px; --section-gap-s: 120px; --section-gap: 144px; --section-gap-l: 176px;
+  --z-base: 1; --z-raised: 10; --z-dropdown: 100; --z-sticky: 200; --z-sticky-nav: 300; --z-modal: 400; --z-toast: 500; --z-tooltip: 600;
+  --color-paper: oklch(96% 0.011 85); --color-paper-2: oklch(99.5% 0.005 85); --color-paper-3: oklch(92% 0.016 85);
+  --color-ink: oklch(18% 0.006 60); --color-ink-2: oklch(28% 0.008 60); --color-muted: oklch(44% 0.012 60); --color-rule: oklch(88% 0.013 85);
+  --color-accent: oklch(70% 0.19 40); --color-accent-ink: oklch(18% 0.006 60); --color-accent-soft: oklch(91% 0.05 50); --color-focus: oklch(60% 0.19 40);
+  --color-green: oklch(48% 0.11 150); --color-green-soft: oklch(92% 0.04 150);
+  --color-contour: oklch(62% 0.07 58); --color-water: oklch(60% 0.05 232); --color-hedge: oklch(50% 0.1 150);
+  --color-grid: oklch(90% 0.014 85); --color-grid-strong: oklch(85% 0.018 85); --color-sheet: oklch(99.3% 0.004 85);
+  --font-display: "Red Hat Display", "Red Hat Text", ui-sans-serif, sans-serif; --font-body: "Red Hat Text", ui-sans-serif, system-ui, sans-serif;
+  --font-outlier: "Red Hat Mono", ui-monospace, monospace;
+  --radius-card: 10px; --radius-entry: 14px; --radius-pill: 6px; --rule-hair: 1px;
+  --shadow-card: 0 1px 2px oklch(18% 0.006 60 / 0.08), 0 14px 28px -16px oklch(18% 0.006 60 / 0.28);
+  --shadow-lift: 0 1px 1px oklch(18% 0.006 60 / 0.1), 0 2px 4px -1px oklch(18% 0.006 60 / 0.1), 0 24px 44px -20px oklch(18% 0.006 60 / 0.42);
+  --tracking-display: -0.035em; --display-weight: 600;
+}
+
+:root {
+  --font-body: var(--font-sans);
+  --font-display: var(--font-sans);
+  --font-outlier: var(--font-mono);
+  --brand-ink: #137c70;
+  --header-h: 56px;
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --desk-width: 1120px;
+  --desk-gap: 48px;
+  --space-control: 20px;
+  --space-desk: 48px;
+  --space-page: 32px;
+  --ease-spring: var(--ease-out);
+}
+:root, :root[data-theme="light"] {
+  --bg: var(--color-paper);
+  --bg-elevated: var(--color-paper-2);
+  --surface: var(--color-paper-3);
+  --surface-hover: #e9e5dc;
+  --surface-active: #ded8cd;
+  --fg: var(--color-ink);
+  --fg-secondary: #55514a;
+  --fg-muted: #6d675f;
+  --syntax-keyword: #9b344e;
+  --border: #ccc6ba;
+  --border-subtle: var(--color-rule);
+  --accent: var(--color-accent);
+  --accent-hover: #ef8b4d;
+  --accent-soft: var(--color-accent-soft);
+  --on-accent: var(--color-accent-ink);
+  --code-bg: #efede6;
+  --code-border: var(--border-subtle);
+  --sw-bg: var(--bg);
+  --sw-accent: var(--accent);
+  --shadow-sm: 0 1px 2px #2420180a;
+  --shadow-md: 0 4px 16px #24201812;
+  --shadow-lg: 0 16px 48px #24201826;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #211f1c;
+  --bg-elevated: #292722;
+  --surface: #302d27;
+  --surface-hover: #3b3730;
+  --surface-active: #484137;
+  --fg: #eeeae2;
+  --fg-secondary: #c5beb2;
+  --fg-muted: #a69d8f;
+  --syntax-keyword: #f2b68d;
+  --border: #514a40;
+  --border-subtle: #3e3931;
+  --accent: #f5a363;
+  --accent-hover: #ffb57a;
+  --accent-soft: #493323;
+  --on-accent: #241b13;
+  --code-bg: #26241f;
+  --code-border: var(--border-subtle);
+  --sw-bg: var(--bg);
+  --sw-accent: var(--accent);
+}
+:root .theme-swatch[data-sw="light"] {
+  --sw-bg: var(--color-paper);
+  --sw-accent: var(--color-accent);
+  --sw-fg: var(--color-ink);
+}
+:root:is([data-theme="solar-dark"], [data-theme="dracula"], [data-theme="nord"], [data-theme="github-dark"], [data-theme="tokyo-night"], [data-theme="catppuccin"], [data-theme="oled"]) { color-scheme: dark; }
+:root .theme-swatch[data-sw="dark"] {
+  --sw-bg: #211f1c;
+  --sw-accent: #f5a363;
+  --sw-fg: #eeeae2;
+}

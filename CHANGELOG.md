@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-23
+
+### Changed
+- Redesigned the workspace with warm paper surfaces, ink typography, ruled lists, and restrained orange selections in the default light and dark themes.
+- Reorganized the home screen around document actions and a recent-document index while preserving existing shortcuts and functionality.
+- Unified tabs, reading and editing panes, settings, menus, and workspace boards with consistent spacing and controls.
+- Improved narrow-window layouts, including separate toolbar and tab rows when document controls are visible.
+
+### Fixed
+- Improved keyboard focus, document-link, syntax-highlight, and settings-field contrast.
+- Aligned reading content to a consistent measure and removed decorative window chrome from theme previews.
+
 ## [1.4.4] - 2026-10-13
 
 ### Fixed
