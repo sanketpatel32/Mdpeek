@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-11-06
+
+### Fixed
+- Replaced external browser tab launch with an integrated in-app iPad companion preview modal directly inside mdpeek.
+- Eliminated external browser triggers during Wi-Fi collaboration workflows to keep collaboration testing entirely in-app.
+
 ## [1.6.0] - 2026-11-06
 
 ### Added
