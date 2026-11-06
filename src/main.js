@@ -331,6 +331,9 @@ const el = {
   wifiLinkInput: document.getElementById('wifi-link-input'),
   wifiCopyBtn: document.getElementById('wifi-copy-btn'),
   wifiOpenBtn: document.getElementById('wifi-open-btn'),
+  wifiPreviewDialog: document.getElementById('wifi-preview-dialog'),
+  wifiPreviewClose: document.getElementById('wifi-preview-close'),
+  wifiPreviewFrame: document.getElementById('wifi-preview-frame'),
   shareLinkInput: document.getElementById('share-link-input'),
   shareCopyBtn: document.getElementById('share-copy-btn'),
   shareStatus: document.getElementById('share-status'),
@@ -5245,6 +5248,7 @@ async function endCollabSession() {
   // this, but doing it here avoids a flicker if the callback is delayed).
   if (el.collabStatus) el.collabStatus.classList.add('hidden');
   clearPeerCarets();
+  closeWifiPreview();
   closeShareModal();
   toast('Session ended');
 }
@@ -7174,17 +7178,40 @@ if (el.wifiCopyBtn) {
     });
   });
 }
-if (el.wifiOpenBtn) {
-  el.wifiOpenBtn.addEventListener('click', async () => {
-    if (el.wifiLinkInput && el.wifiLinkInput.value) {
-      try {
-        await openUrl(el.wifiLinkInput.value);
-      } catch {
-        window.open(el.wifiLinkInput.value, '_blank');
-      }
-    }
-  });
+function openWifiPreview() {
+  const url = el.wifiLinkInput?.value;
+  if (!url || url.startsWith('Starting') || url.startsWith('Generating')) return;
+  if (el.wifiPreviewFrame) {
+    el.wifiPreviewFrame.src = url;
+  }
+  if (el.wifiPreviewDialog) {
+    el.wifiPreviewDialog.classList.remove('hidden');
+    syncModalFocus();
+    el.wifiPreviewClose?.focus();
+  }
 }
+
+function closeWifiPreview() {
+  if (el.wifiPreviewDialog) {
+    el.wifiPreviewDialog.classList.add('hidden');
+  }
+  if (el.wifiPreviewFrame) {
+    el.wifiPreviewFrame.src = 'about:blank';
+  }
+  syncModalFocus();
+  (el.wifiOpenBtn || el.wifiCopyBtn)?.focus();
+}
+
+if (el.wifiOpenBtn) {
+  el.wifiOpenBtn.addEventListener('click', openWifiPreview);
+}
+if (el.wifiPreviewClose) {
+  el.wifiPreviewClose.addEventListener('click', closeWifiPreview);
+}
+el.wifiPreviewDialog?.addEventListener('click', (e) => {
+  if (e.target === el.wifiPreviewDialog) closeWifiPreview();
+});
+
 // Scrim click closes, matching the settings dialog's behavior.
 el.shareDialog?.addEventListener('click', (e) => {
   if (e.target === el.shareDialog) closeShareModal();
@@ -7192,8 +7219,12 @@ el.shareDialog?.addEventListener('click', (e) => {
 if (el.shareEndBtn) el.shareEndBtn.addEventListener('click', endCollabSession);
 if (el.joinConfirmBtn) el.joinConfirmBtn.addEventListener('click', confirmJoin);
 if (el.joinCancelBtn) el.joinCancelBtn.addEventListener('click', cancelJoin);
-for (const [dialog, close] of [[el.shareDialog, closeShareModal], [el.joinDialog, cancelJoin]]) {
-  dialog.addEventListener('keydown', (e) => {
+for (const [dialog, close] of [
+  [el.shareDialog, closeShareModal],
+  [el.joinDialog, cancelJoin],
+  [el.wifiPreviewDialog, closeWifiPreview],
+]) {
+  dialog?.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
   });
 }

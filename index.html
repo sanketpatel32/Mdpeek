@@ -508,7 +508,7 @@
               <div class="share-link-row">
                 <input id="wifi-link-input" class="share-link-input" type="text" aria-label="Local Wi-Fi URL" readonly spellcheck="false" />
                 <button id="wifi-copy-btn" class="modal-btn modal-btn-primary" type="button">Copy</button>
-                <button id="wifi-open-btn" class="modal-btn modal-btn-secondary" type="button" title="Open in local browser">Open</button>
+                <button id="wifi-open-btn" class="modal-btn modal-btn-secondary" type="button" title="Preview companion in app">In-App Preview</button>
               </div>
               
               <div class="wifi-guide-steps">
@@ -548,6 +548,23 @@
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 17l5-5-5-5M21 12H9M9 7H6a3 3 0 0 0-3 3v4a3 3 0 0 0 3 3h3"/></svg>
             End session
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- In-App Companion Simulator / Preview Modal -->
+    <div id="wifi-preview-dialog" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="wifi-preview-title">
+      <div class="modal wifi-preview-modal">
+        <div class="wifi-preview-header">
+          <div class="wifi-preview-title-group">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="20" x="3" y="2" rx="3"/><path d="M12 18h.01"/></svg>
+            <h2 id="wifi-preview-title" class="modal-title">iPad Companion (In-App)</h2>
+            <span class="wifi-preview-live-badge">Live Sync</span>
+          </div>
+          <button id="wifi-preview-close" class="modal-btn modal-btn-secondary" type="button" aria-label="Close companion preview">Close</button>
+        </div>
+        <div class="wifi-preview-viewport">
+          <iframe id="wifi-preview-frame" title="iPad Companion In-App Preview" src="about:blank"></iframe>
         </div>
       </div>
     </div>

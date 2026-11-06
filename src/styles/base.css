@@ -4341,6 +4341,59 @@ body.presenting #slideshow { display: flex; }
   justify-content: center;
   flex-shrink: 0;
 }
+/* In-App Companion Simulator / Preview Modal */
+.wifi-preview-modal {
+  width: min(960px, 94vw);
+  max-width: 980px;
+  height: min(740px, 88vh);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+}
+.wifi-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-soft, rgba(125, 125, 125, 0.08));
+}
+.wifi-preview-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wifi-preview-title-group .modal-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.wifi-preview-live-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.15);
+  color: #16a34a;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+.wifi-preview-viewport {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  background: var(--bg);
+}
+.wifi-preview-viewport iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+}
 /* Link block holds the input + footnote. It's hidden by JS once a peer
    connects (no need to keep copying the link). The status block then
    takes over as the primary info. */

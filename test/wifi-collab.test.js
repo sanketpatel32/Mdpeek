@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import * as wifiCollab from '../src/lib/wifi-collab.js';
 
 describe('wifi-collab.js controller', () => {
@@ -76,5 +78,18 @@ describe('wifi-collab.js controller', () => {
 
     wifiCollab.unbindExcalidraw();
     expect(mockCtrl.clearCollabHook).toHaveBeenCalled();
+  });
+
+  it('provides an in-app companion preview modal without opening external browser tabs', () => {
+    const html = readFileSync(resolve(__dirname, '../index.html'), 'utf8');
+    expect(html).toContain('id="wifi-open-btn"');
+    expect(html).toContain('>In-App Preview</button>');
+    expect(html).toContain('id="wifi-preview-dialog"');
+    expect(html).toContain('id="wifi-preview-frame"');
+    expect(html).toContain('id="wifi-preview-close"');
+    // Ensure wifi-open-btn is never wired to open in an external browser
+    const mainJs = readFileSync(resolve(__dirname, '../src/main.js'), 'utf8');
+    expect(mainJs).not.toMatch(/el\.wifiOpenBtn.*openUrl/);
+    expect(mainJs).not.toMatch(/el\.wifiOpenBtn.*window\.open/);
   });
 });
