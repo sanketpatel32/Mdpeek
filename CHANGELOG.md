@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-06
+
+### Added
+- Local Wi-Fi collaboration for iPads, tablets, and mobile devices connected to the same local network.
+- Embedded zero-dependency HTTP and Server-Sent Events (SSE) server in Rust providing real-time bi-directional synchronization with sub-second latency.
+- Built-in scannable QR code generator and local network URL in the Share dialog with tabbed interface ("iPad & Local Wi-Fi" vs "Remote P2P Link").
+- Standalone touch- and Apple Pencil-optimized companion web app served directly to iPads over local Wi-Fi:
+  - Live split, edit, and preview Markdown views with quick touch formatting toolbar (headings, bold, italic, strikethrough, inline code, lists, task checkboxes, blockquotes).
+  - Interactive task checkboxes synced live to desktop.
+  - Excalidraw-compatible freehand drawing canvas with Apple Pencil support, pen/eraser/shapes/colors, undo/clear, and real-time canvas synchronization.
+  - Dark and light theme matching desktop mode.
+- Desktop presence indicators and status pill updates showing connected iPad collaboration sessions.
+
 ## [1.5.1] - 2026-10-23
 
 ### Fixed

@@ -1,6 +1,7 @@
 mod commands;
 mod pty;
 mod watcher;
+mod wifi_collab;
 #[cfg(test)]
 mod native_tests;
 
@@ -127,6 +128,7 @@ pub fn run() {
         .manage(initial)
         .manage(initial_url)
         .manage(pty::TermState::default())
+        .manage(wifi_collab::WifiCollabState::default())
         .setup(|app| {
             // Safely build system tray only if a window icon is available
             if let Some(icon) = app.default_window_icon() {
@@ -213,6 +215,11 @@ pub fn run() {
             pty::kill_all_terminals,
             pty::resize_terminal,
             watcher::watch_path,
+            wifi_collab::start_wifi_collab,
+            wifi_collab::stop_wifi_collab,
+            wifi_collab::get_wifi_collab_status,
+            wifi_collab::update_wifi_collab_doc,
+            wifi_collab::sync_wifi_collab_outbound,
             get_initial_file,
             get_initial_url,
             hide_to_tray,

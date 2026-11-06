@@ -24,10 +24,33 @@ if (!window.__TAURI_INTERNALS__) {
     },
     // Event (un)listen resolves so `listen()` chains settle instead of
     // producing unhandled rejections; handlers simply never fire.
-    invoke: (cmd) =>
-      cmd === 'plugin:event|listen' || cmd === 'plugin:event|unlisten'
-        ? Promise.resolve(++cbId)
-        : Promise.reject(new Error(`dev shim: no backend for "${cmd}"`)),
+    invoke: (cmd, args = {}) => {
+      if (cmd === 'plugin:event|listen' || cmd === 'plugin:event|unlisten') {
+        return Promise.resolve(++cbId);
+      }
+      if (cmd === 'start_wifi_collab') {
+        return Promise.resolve({
+          active: true,
+          ip: '192.168.1.104',
+          port: args.port || 4789,
+          url: `http://192.168.1.104:${args.port || 4789}`,
+          peer_count: 0,
+        });
+      }
+      if (cmd === 'stop_wifi_collab' || cmd === 'update_wifi_collab_doc' || cmd === 'sync_wifi_collab_outbound') {
+        return Promise.resolve();
+      }
+      if (cmd === 'get_wifi_collab_status') {
+        return Promise.resolve({
+          active: false,
+          ip: '192.168.1.104',
+          port: 4789,
+          url: 'http://192.168.1.104:4789',
+          peer_count: 0,
+        });
+      }
+      return Promise.reject(new Error(`dev shim: no backend for "${cmd}"`));
+    },
     transformCallback: (cb) => {
       const id = ++cbId;
       Object.defineProperty(window, `_${id}`, {

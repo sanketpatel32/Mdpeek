@@ -99,6 +99,9 @@ import { getIconForPath, relativeTime } from './lib/file-type.js';
 import { installHljsThemes } from './styles/vendors.css.js';
 // Real-time P2P collaboration (v0.21.0). Yjs + Trystero + Tauri deep-link.
 import * as collab from './collab.js';
+// Real-time iPad & Local Wi-Fi collaboration (v1.6.0). Embedded HTTP/SSE server + QR code.
+import * as wifiCollab from './lib/wifi-collab.js';
+import { generateQrSvg } from './lib/qrcode.js';
 import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
 // CHANGELOG.md is bundled at build time as a string via Vite's built-in ?raw
 // suffix — no plugin or config needed. Rendered into the Settings → Changelog
@@ -317,9 +320,17 @@ const el = {
   closeDialog: document.getElementById('close-dialog'),
   closeRemember: document.getElementById('close-remember'),
   confirmDialog: document.getElementById('confirm-dialog'),
-  // Collaboration (v0.21.0)
+  // Collaboration (v0.21.0 & v1.6.0 iPad Wi-Fi)
   share: document.getElementById('btn-share'),
   shareDialog: document.getElementById('share-dialog'),
+  shareTabWifi: document.getElementById('share-tab-wifi'),
+  shareTabP2p: document.getElementById('share-tab-p2p'),
+  sharePanelWifi: document.getElementById('share-panel-wifi'),
+  sharePanelP2p: document.getElementById('share-panel-p2p'),
+  wifiQrSvg: document.getElementById('wifi-qr-svg'),
+  wifiLinkInput: document.getElementById('wifi-link-input'),
+  wifiCopyBtn: document.getElementById('wifi-copy-btn'),
+  wifiOpenBtn: document.getElementById('wifi-open-btn'),
   shareLinkInput: document.getElementById('share-link-input'),
   shareCopyBtn: document.getElementById('share-copy-btn'),
   shareStatus: document.getElementById('share-status'),
@@ -701,7 +712,10 @@ async function renderActive() {
         // If this doc is bound to a collab session, detach the binding before
         // the editor is destroyed (otherwise Y.Text observers reference a
         // dead textarea). The binding is re-established on tab return.
-        if (_collabDocId === prev.id) collab.unbindEditor();
+        if (_collabDocId === prev.id) {
+          collab.unbindEditor();
+          wifiCollab.unbindEditor();
+        }
         // CRITICAL: destroy the outgoing editor's listeners. The <textarea> is
         // shared across all tabs; without this, switching between edit-mode
         // tabs stacks N keydown/input handlers on it, and every editor action
@@ -725,6 +739,7 @@ async function renderActive() {
     if (_activeExcalidraw) {
       if (_collabDocId === prev?.id) {
         try { collab.unbindExcalidraw(); } catch { /* already unbound */ }
+        try { wifiCollab.unbindExcalidraw(); } catch { /* already unbound */ }
       }
       _activeExcalidraw.destroy();
       _activeExcalidraw = null;
@@ -1022,8 +1037,9 @@ async function renderActive() {
         //      for the canvas to mount — this .then() is the signal.
         //   2. Host/Receiver tab-switch back to the shared Excalidraw tab:
         //      the previous binding was torn down on tab-out; re-attach.
-        if (collab.getStatus().active && _collabDocId === doc.id) {
+        if ((collab.getStatus().active || wifiCollab.getWifiCollabStatus().active) && _collabDocId === doc.id) {
           try { collab.bindExcalidraw(ctrl); } catch (e) { console.error('bindExcalidraw:', e); }
+          try { wifiCollab.bindExcalidraw(ctrl); } catch (e) { console.error('wifiCollab.bindExcalidraw:', e); }
         }
       }
     }).catch((e) => toast('Could not open Excalidraw: ' + fmtErr(e)));
@@ -1164,8 +1180,9 @@ async function renderActive() {
     // switch, so we need to re-attach on return). Wrapped in try/catch so a
     // collab hiccup never blocks normal editing.
     try {
-      if (collab.getStatus().active && _collabDocId === doc.id) {
+      if ((collab.getStatus().active || wifiCollab.getWifiCollabStatus().active) && _collabDocId === doc.id) {
         collab.bindEditor(doc.editor);
+        wifiCollab.bindEditor(doc.editor);
       }
     } catch (e) {
       console.error('collab bindEditor failed (non-fatal):', e);
@@ -3483,7 +3500,8 @@ function defaultCollabName() {
 
 function updateCollabStatus(status) {
   if (!el.collabStatus) return;
-  const active = status.active;
+  const wifiStatus = wifiCollab.getWifiCollabStatus();
+  const active = status.active || wifiStatus.active;
   el.collabStatus.classList.toggle('hidden', !active);
   if (!active) {
     clearPeerCarets();
@@ -3494,9 +3512,19 @@ function updateCollabStatus(status) {
     }
     return;
   }
-  const text = status.peerCount > 0
-    ? `Live · ${status.peerCount} ${status.peerCount === 1 ? 'peer' : 'peers'}`
-    : (status.role === 'host' ? 'Live · waiting' : 'Live · connecting');
+  const totalPeers = (status.peerCount || 0) + (wifiStatus.peerCount || 0);
+  let text = 'Live · waiting';
+  if (totalPeers > 0) {
+    if (wifiStatus.peerCount > 0 && status.peerCount > 0) {
+      text = `Live · ${totalPeers} peers`;
+    } else if (wifiStatus.peerCount > 0) {
+      text = `Live · ${wifiStatus.peerCount} ${wifiStatus.peerCount === 1 ? 'iPad' : 'iPads'}`;
+    } else {
+      text = `Live · ${status.peerCount} ${status.peerCount === 1 ? 'peer' : 'peers'}`;
+    }
+  } else {
+    text = status.role === 'receiver' ? 'Live · connecting' : 'Live · waiting';
+  }
   el.collabStatus.querySelector('.collab-text').textContent = text;
   // Re-render peer carets if the bound editor is the active one.
   renderPeerCarets(status);
@@ -3526,9 +3554,12 @@ function updateCollabStatus(status) {
     }
     _collabDocId = null;
     try { collab.unbindEditor(); } catch { /* already unbound */ }
+    try { wifiCollab.unbindEditor(); } catch { /* already unbound */ }
     try { collab.unbindExcalidraw(); } catch { /* already unbound */ }
+    try { wifiCollab.unbindExcalidraw(); } catch { /* already unbound */ }
     // Tear down the network session now that we've captured the final state.
     try { collab.endSession(); } catch { /* already gone */ }
+    try { wifiCollab.stopWifiCollab(); } catch { /* already gone */ }
     if (el.collabStatus) el.collabStatus.classList.add('hidden');
     clearPeerCarets();
     closeShareModal();
@@ -3538,6 +3569,19 @@ function updateCollabStatus(status) {
 
 // Subscribe once at startup.
 collab.on(updateCollabStatus);
+wifiCollab.onWifiStatusChange(() => updateCollabStatus(collab.getStatus()));
+wifiCollab.onInboundEdit((payload) => {
+  const d = store.active();
+  if (d && d.id === _collabDocId) {
+    if (payload.type === 'text') {
+      d.content = payload.content;
+      d.dirty = true;
+    } else if (payload.type === 'canvas') {
+      d.content = JSON.stringify({ elements: payload.elements });
+      d.dirty = true;
+    }
+  }
+});
 
 // Parse a serialized Excalidraw scene JSON string into its elements array.
 // Returns [] for empty/corrupt input. Used by openShareModal to seed the
@@ -3559,15 +3603,27 @@ function openShareModal() {
   // palette + other callers can still land here — a TLDraw doc would fall
   // into the text branch and share raw scene JSON. Guard the entry point.
   if (doc.tldraw) { toast('Live sharing isn\u2019t available for TLDraw drawings yet'); return; }
+
+  // Default to iPad & Wi-Fi tab on open
+  if (el.shareTabWifi) {
+    el.shareTabWifi.classList.add('active');
+    el.shareTabWifi.setAttribute('aria-selected', 'true');
+    el.shareTabP2p?.classList.remove('active');
+    el.shareTabP2p?.setAttribute('aria-selected', 'false');
+    el.sharePanelWifi?.classList.remove('hidden');
+    el.sharePanelP2p?.classList.add('hidden');
+  }
+
   const status = collab.getStatus();
-  if (status.active) {
+  const wifiStatus = wifiCollab.getWifiCollabStatus();
+  if (status.active || wifiStatus.active) {
     // Session already running — show current state. Don't clobber the link
     // (host may want to copy it again) and don't reset the status text to
     // "waiting" if peers are already connected.
     refreshShareModal(status);
     el.shareDialog.classList.remove('hidden');
     // Focus the panel so its own Esc/scrim paths own the keyboard.
-    (el.shareLinkInput || el.shareDialog.querySelector('button, input'))?.focus();
+    (el.wifiLinkInput || el.shareLinkInput || el.shareDialog.querySelector('button, input'))?.focus();
     return;
   }
   // Capture the host's current state before seeding Yjs.
@@ -3584,28 +3640,55 @@ function openShareModal() {
   } else if (doc.mode === 'edit' && doc.editor) {
     doc.content = doc.editor.getValue();
   }
-  el.shareLinkInput.value = 'Generating…';
-  el.shareStatus.textContent = 'Generating invite link…';
+  if (el.shareLinkInput) el.shareLinkInput.value = 'Generating…';
+  if (el.wifiLinkInput) el.wifiLinkInput.value = 'Starting Wi-Fi server…';
+  el.shareStatus.textContent = 'Generating collaboration links…';
   el.shareStatus.classList.remove('connected', 'error');
   el.shareEndBtn.classList.add('hidden');
   el.shareDialog.classList.remove('hidden');
-  (el.shareLinkInput || el.shareDialog.querySelector('button, input'))?.focus();
+  (el.wifiLinkInput || el.shareLinkInput || el.shareDialog.querySelector('button, input'))?.focus();
   try {
+    const docTitle = doc.path ? doc.path.split(/[\\/]/).pop() : (doc.excalidraw ? 'Shared drawing' : 'Shared note');
+    const docLang = doc.excalidraw ? 'excalidraw' : langForEdit(doc);
+    const docContent = doc.content || '';
+    const docElements = doc.excalidraw ? parseExcalidrawElements(doc.content) : [];
+
+    // Start local Wi-Fi collaboration for iPad & mobile devices
+    wifiCollab.startWifiCollab({
+      title: docTitle,
+      language: docLang,
+      content: docContent,
+      elements: docElements,
+    }).then((wifiInfo) => {
+      if (el.wifiLinkInput) el.wifiLinkInput.value = wifiInfo.url;
+      if (el.wifiQrSvg) {
+        el.wifiQrSvg.innerHTML = generateQrSvg(wifiInfo.url, {
+          size: 140,
+          margin: 2,
+          fgColor: '#0f172a',
+          bgColor: '#ffffff',
+        });
+        el.wifiQrSvg.dataset.renderedUrl = wifiInfo.url;
+      }
+      refreshShareModal(collab.getStatus());
+    }).catch((e) => {
+      console.warn('[mdpeek] Wi-Fi collab start:', e);
+    });
+
     let result;
     if (doc.excalidraw) {
       // Excalidraw session: bind a Y.Map of elements, not a Y.Text.
-      const elements = parseExcalidrawElements(doc.content);
-      result = collab.startSessionExcalidraw(elements, {
-        title: doc.path ? doc.path.split(/[\\/]/).pop() : 'Shared drawing',
+      result = collab.startSessionExcalidraw(docElements, {
+        title: docTitle,
       });
     } else {
-      result = collab.startSession(doc.content || '', {
-        title: doc.path ? doc.path.split(/[\\/]/).pop() : 'Shared note',
-        language: langForEdit(doc),
+      result = collab.startSession(docContent, {
+        title: docTitle,
+        language: docLang,
       });
     }
     collab.setLocalIdentity({ name: defaultCollabName() });
-    el.shareLinkInput.value = result.inviteUrl;
+    if (el.shareLinkInput) el.shareLinkInput.value = result.inviteUrl;
     refreshShareModal(collab.getStatus());
     // Capture the doc id so the showExcalidraw .then() callback (and the
     // text-binding rAF below) know which doc to bind to.
@@ -3618,6 +3701,8 @@ function openShareModal() {
       if (_activeExcalidraw) {
         try { collab.bindExcalidraw(_activeExcalidraw); }
         catch (e) { console.error('bindExcalidraw failed:', e); }
+        try { wifiCollab.bindExcalidraw(_activeExcalidraw); }
+        catch (e) { console.error('wifiCollab.bindExcalidraw failed:', e); }
       }
     } else {
       // Text doc: force edit mode so the textarea exists (can't share a
@@ -3629,11 +3714,12 @@ function openShareModal() {
       // After renderActive rebuilds the editor, bind it on the next tick.
       // Guard with active-check in case endSession ran in between.
       requestAnimationFrame(() => {
-        if (!collab.getStatus().active) return;
+        if (!collab.getStatus().active && !wifiCollab.getWifiCollabStatus().active) return;
         const d = store.active();
         if (d && d.editor) {
           try {
             collab.bindEditor(d.editor);
+            wifiCollab.bindEditor(d.editor);
             _collabDocId = d.id;
           } catch (e) { console.error('bindEditor failed:', e); }
         }
@@ -3650,9 +3736,33 @@ function openShareModal() {
 function refreshShareModal(status) {
   if (!el.shareDialog || el.shareDialog.classList.contains('hidden')) return;
   const linkBlock = el.shareDialog.querySelector('.share-link-block');
-  if (status.role === 'host') {
-    if (status.peerCount > 0) {
-      el.shareStatus.textContent = `${status.peerCount} ${status.peerCount === 1 ? 'collaborator' : 'collaborators'} connected — editing live`;
+  const wifiStatus = wifiCollab.getWifiCollabStatus();
+
+  // If Wi-Fi server is active and has a URL, update the input and QR code if not populated
+  if (wifiStatus.active && wifiStatus.url && el.wifiLinkInput) {
+    el.wifiLinkInput.value = wifiStatus.url;
+    if (el.wifiQrSvg && (!el.wifiQrSvg.hasChildNodes() || el.wifiQrSvg.dataset.renderedUrl !== wifiStatus.url)) {
+      el.wifiQrSvg.innerHTML = generateQrSvg(wifiStatus.url, {
+        size: 140,
+        margin: 2,
+        fgColor: '#0f172a',
+        bgColor: '#ffffff',
+      });
+      el.wifiQrSvg.dataset.renderedUrl = wifiStatus.url;
+    }
+  }
+
+  const totalPeers = (status.peerCount || 0) + (wifiStatus.peerCount || 0);
+
+  if (status.role === 'host' || wifiStatus.active) {
+    if (totalPeers > 0) {
+      if (wifiStatus.peerCount > 0 && status.peerCount > 0) {
+        el.shareStatus.textContent = `${totalPeers} collaborators connected (iPad & P2P) — editing live`;
+      } else if (wifiStatus.peerCount > 0) {
+        el.shareStatus.textContent = `${wifiStatus.peerCount} ${wifiStatus.peerCount === 1 ? 'iPad' : 'iPads'} connected via Wi-Fi — editing live`;
+      } else {
+        el.shareStatus.textContent = `${status.peerCount} ${status.peerCount === 1 ? 'collaborator' : 'collaborators'} connected — editing live`;
+      }
       el.shareStatus.classList.add('connected');
       el.shareStatus.classList.remove('error');
       el.shareEndBtn.classList.add('active');
@@ -3661,7 +3771,7 @@ function refreshShareModal(status) {
       // the link; End session is the primary action now).
       if (linkBlock) linkBlock.style.display = 'none';
     } else {
-      el.shareStatus.textContent = 'Waiting for a collaborator to join…';
+      el.shareStatus.textContent = 'Waiting for iPad or collaborator to connect…';
       el.shareStatus.classList.remove('connected', 'error');
       el.shareEndBtn.classList.add('active'); // session is active → prominent
       el.shareEndBtn.classList.remove('hidden');
@@ -5109,13 +5219,16 @@ function pomoDestroy() {
 
 
 async function endCollabSession() {
-  // Tear down the network session first so peers get a clean disconnect.
+  // Tear down the network sessions first so peers get a clean disconnect.
   try { collab.endSession(); } catch (e) { console.error('endSession:', e); }
+  try { await wifiCollab.stopWifiCollab(); } catch (e) { console.error('stopWifiCollab:', e); }
   // Defensive: unbind whichever binding was active (text or Excalidraw).
   // endSession already ran boundCleanup, but this protects against half-
   // initialized state where one of the two was never attached.
   try { collab.unbindEditor(); } catch { /* already unbound */ }
+  try { wifiCollab.unbindEditor(); } catch { /* already unbound */ }
   try { collab.unbindExcalidraw(); } catch { /* already unbound */ }
+  try { wifiCollab.unbindExcalidraw(); } catch { /* already unbound */ }
   // Convert the host's shared doc back to a normal doc (it's still on disk).
   // On the receiver side, the shared tab becomes a local unsaved doc.
   const doc = store.docs.find((d) => d.id === _collabDocId);
@@ -5365,8 +5478,9 @@ function cssAttrEscape(s) {
 // The bound doc is being torn down (tab closed or app closing). End the
 // session cleanly and notify peers.
 function teardownCollabIfActive() {
-  if (collab.getStatus().active) {
+  if (collab.getStatus().active || wifiCollab.getWifiCollabStatus().active) {
     collab.endSession();
+    wifiCollab.stopWifiCollab();
     _collabDocId = null;
   }
 }
@@ -7026,6 +7140,51 @@ document.getElementById('slide-exit-btn')?.addEventListener('click', exitPresent
 if (el.share) el.share.addEventListener('click', openShareModal);
 if (el.shareCopyBtn) el.shareCopyBtn.addEventListener('click', copyShareLink);
 if (el.shareCancelBtn) el.shareCancelBtn.addEventListener('click', closeShareModal);
+
+// Wi-Fi & iPad Collaboration tabs & actions (v1.6.0)
+if (el.shareTabWifi) {
+  el.shareTabWifi.addEventListener('click', () => {
+    el.shareTabWifi.classList.add('active');
+    el.shareTabWifi.setAttribute('aria-selected', 'true');
+    el.shareTabP2p?.classList.remove('active');
+    el.shareTabP2p?.setAttribute('aria-selected', 'false');
+    el.sharePanelWifi?.classList.remove('hidden');
+    el.sharePanelP2p?.classList.add('hidden');
+  });
+}
+if (el.shareTabP2p) {
+  el.shareTabP2p.addEventListener('click', () => {
+    el.shareTabP2p.classList.add('active');
+    el.shareTabP2p.setAttribute('aria-selected', 'true');
+    el.shareTabWifi?.classList.remove('active');
+    el.shareTabWifi?.setAttribute('aria-selected', 'false');
+    el.sharePanelP2p?.classList.remove('hidden');
+    el.sharePanelWifi?.classList.add('hidden');
+  });
+}
+if (el.wifiCopyBtn) {
+  el.wifiCopyBtn.addEventListener('click', () => {
+    if (!el.wifiLinkInput || !el.wifiLinkInput.value) return;
+    navigator.clipboard.writeText(el.wifiLinkInput.value).then(() => {
+      const orig = el.wifiCopyBtn.textContent;
+      el.wifiCopyBtn.textContent = 'Copied!';
+      setTimeout(() => { el.wifiCopyBtn.textContent = orig; }, 1800);
+    }).catch(() => {
+      el.wifiLinkInput.select();
+    });
+  });
+}
+if (el.wifiOpenBtn) {
+  el.wifiOpenBtn.addEventListener('click', async () => {
+    if (el.wifiLinkInput && el.wifiLinkInput.value) {
+      try {
+        await openUrl(el.wifiLinkInput.value);
+      } catch {
+        window.open(el.wifiLinkInput.value, '_blank');
+      }
+    }
+  });
+}
 // Scrim click closes, matching the settings dialog's behavior.
 el.shareDialog?.addEventListener('click', (e) => {
   if (e.target === el.shareDialog) closeShareModal();

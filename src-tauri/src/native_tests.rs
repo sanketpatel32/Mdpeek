@@ -189,3 +189,15 @@ fn native_image_paste_writes_exact_bytes_into_the_requested_assets_folder() {
         commands::save_image(fixture.path("assets"), "pasted.png".into(), bytes.clone()).unwrap();
     assert_eq!(fs::read(path).unwrap(), bytes);
 }
+
+#[test]
+fn native_wifi_collab_local_ip_and_server_state() {
+    let ip = crate::wifi_collab::get_local_ip();
+    assert!(!ip.is_empty());
+    assert!(ip.contains('.') || ip == "127.0.0.1");
+
+    let state = crate::wifi_collab::WifiCollabServer::default();
+    assert!(!state.active);
+    assert_eq!(state.port, 0);
+    assert_eq!(state.title, "Shared Note");
+}

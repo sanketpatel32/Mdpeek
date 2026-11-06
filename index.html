@@ -475,20 +475,73 @@
       </div>
     </div>
 
-    <!-- Share for live collaboration (host side). Shows the invite link, peer
-         count, and an End-session button once a peer joins. -->
+    <!-- Share for live collaboration. Supports iPad & Local Wi-Fi (QR code / direct URL)
+         as well as Remote P2P invite links. -->
     <div id="share-dialog" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="share-dialog-title">
       <div class="modal share-modal">
-        <h2 id="share-dialog-title" class="modal-title">Collaborate live</h2>
-        <p class="modal-text">Share this link with someone who has mdpeek installed. You'll both edit this document in real time.</p>
-        <div id="share-link-block" class="share-link-block">
-          <div class="share-link-row">
-            <input id="share-link-input" class="share-link-input" type="text" aria-label="Collaboration invite link" readonly spellcheck="false" />
-            <button id="share-copy-btn" class="modal-btn modal-btn-primary" type="button">Copy</button>
-          </div>
-          <p class="share-footnote">Anyone with the link can edit. Don't share sensitive documents publicly.</p>
+        <h2 id="share-dialog-title" class="modal-title">Live Collaboration</h2>
+        
+        <!-- Mode Tabs -->
+        <div class="share-tabs" role="tablist">
+          <button id="share-tab-wifi" class="share-tab active" role="tab" aria-selected="true" type="button">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
+            iPad &amp; Local Wi-Fi
+          </button>
+          <button id="share-tab-p2p" class="share-tab" role="tab" aria-selected="false" type="button">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            Remote P2P Link
+          </button>
         </div>
-        <div id="share-status" class="share-status">Generating invite link…</div>
+
+        <!-- iPad & Local Wi-Fi Panel -->
+        <div id="share-panel-wifi" class="share-tab-panel" role="tabpanel">
+          <p class="modal-text">Connect from your iPad, tablet, or phone on the same Wi-Fi. Scan the QR code with your iPad camera or enter the local URL in Safari.</p>
+          
+          <div class="wifi-collab-body">
+            <div id="wifi-qr-container" class="wifi-qr-card">
+              <div id="wifi-qr-svg" class="wifi-qr-svg"></div>
+              <span class="wifi-qr-label">Scan with iPad Camera</span>
+            </div>
+            
+            <div class="wifi-details">
+              <label class="share-input-label" for="wifi-link-input">Local Wi-Fi Address</label>
+              <div class="share-link-row">
+                <input id="wifi-link-input" class="share-link-input" type="text" aria-label="Local Wi-Fi URL" readonly spellcheck="false" />
+                <button id="wifi-copy-btn" class="modal-btn modal-btn-primary" type="button">Copy</button>
+                <button id="wifi-open-btn" class="modal-btn modal-btn-secondary" type="button" title="Open in local browser">Open</button>
+              </div>
+              
+              <div class="wifi-guide-steps">
+                <div class="wifi-step-item">
+                  <span class="wifi-step-num">1</span>
+                  <span>Connect iPad to this Wi-Fi network</span>
+                </div>
+                <div class="wifi-step-item">
+                  <span class="wifi-step-num">2</span>
+                  <span>Point Camera at the QR code</span>
+                </div>
+                <div class="wifi-step-item">
+                  <span class="wifi-step-num">3</span>
+                  <span>Edit notes &amp; sketch live in Safari</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Remote P2P Invite Panel -->
+        <div id="share-panel-p2p" class="share-tab-panel hidden" role="tabpanel">
+          <p class="modal-text">Share this link with someone who has mdpeek installed. You'll both edit this document in real time.</p>
+          <div id="share-link-block" class="share-link-block">
+            <div class="share-link-row">
+              <input id="share-link-input" class="share-link-input" type="text" aria-label="Collaboration invite link" readonly spellcheck="false" />
+              <button id="share-copy-btn" class="modal-btn modal-btn-primary" type="button">Copy</button>
+            </div>
+            <p class="share-footnote">Anyone with the link can edit. Don't share sensitive documents publicly.</p>
+          </div>
+        </div>
+
+        <div id="share-status" class="share-status">Generating collaboration link…</div>
         <div class="modal-actions share-actions">
           <button class="modal-btn modal-btn-secondary" id="share-cancel-btn" type="button">Hide panel</button>
           <button class="modal-btn modal-btn-danger" id="share-end-btn" type="button">

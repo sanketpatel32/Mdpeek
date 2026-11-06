@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="mdpeek collab" />
+  <title>mdpeek — Live Collab</title>
+  <style>
+    :root {
+      --bg: #18181b;
+      --surface: #27272a;
+      --surface-hover: #3f3f46;
+      --border: #3f3f46;
+      --text: #f4f4f5;
+      --text-muted: #a1a1aa;
+      --accent: #f97316;
+      --accent-hover: #ea580c;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    }
+    body.light {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-hover: #f1f5f9;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --accent: #ea580c;
+      --accent-hover: #c2410c;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-ui);
+      -webkit-font-smoothing: antialiased;
+    }
+    #app {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      padding-top: env(safe-area-inset-top, 0);
+      padding-bottom: env(safe-area-inset-bottom, 0);
+      padding-left: env(safe-area-inset-left, 0);
+      padding-right: env(safe-area-inset-right, 0);
+    }
+    /* Top Bar */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 52px;
+      padding: 0 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .brand-logo {
+      width: 26px;
+      height: 26px;
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 2.2;
+      flex-shrink: 0;
+    }
+    .doc-title {
+      font-size: 15px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 200px;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 500;
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--success);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      flex-shrink: 0;
+    }
+    .status-pill.connecting {
+      background: rgba(234, 179, 8, 0.15);
+      color: #eab308;
+      border-color: rgba(234, 179, 8, 0.3);
+    }
+    .status-pill.offline {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--danger);
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .topbar-center {
+      display: flex;
+      align-items: center;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 2px;
+      gap: 2px;
+    }
+    .seg-btn {
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+    }
+    .seg-btn.active {
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .icon-btn:active {
+      background: var(--surface-hover);
+    }
+
+    /* Formatting Touch Bar */
+    .touch-toolbar {
+      display: flex;
+      align-items: center;
+      height: 44px;
+      padding: 0 12px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .touch-toolbar::-webkit-scrollbar {
+      display: none;
+    }
+    .format-btn {
+      flex-shrink: 0;
+      height: 32px;
+      min-width: 32px;
+      padding: 0 8px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .format-btn:active {
+      background: var(--accent);
+      color: #fff;
+    }
+    .toolbar-divider {
+      width: 1px;
+      height: 20px;
+      background: var(--border);
+      margin: 0 4px;
+      flex-shrink: 0;
+    }
+
+    /* Workspace Content */
+    .workspace {
+      display: flex;
+      flex: 1;
+      height: calc(100% - 96px);
+      overflow: hidden;
+      position: relative;
+    }
+    .pane {
+      flex: 1;
+      height: 100%;
+      overflow-y: auto;
+      position: relative;
+    }
+    .editor-pane {
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .editor-textarea {
+      width: 100%;
+      flex: 1;
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 15px;
+      line-height: 1.6;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: var(--text);
+      resize: none;
+      tab-size: 2;
+      -webkit-overflow-scrolling: touch;
+    }
+    .preview-pane {
+      padding: 24px 28px;
+      background: var(--surface);
+      line-height: 1.65;
+      font-size: 15px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Markdown Preview Styling */
+    .preview-pane h1 { font-size: 1.8rem; margin: 0.6em 0 0.4em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
+    .preview-pane h2 { font-size: 1.4rem; margin: 0.8em 0 0.4em; border-bottom: 1px solid var(--border); padding-bottom: 0.2em; }
+    .preview-pane h3 { font-size: 1.15rem; margin: 0.8em 0 0.4em; }
+    .preview-pane p { margin: 0.8em 0; }
+    .preview-pane code { font-family: var(--font-mono); background: var(--bg); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+    .preview-pane pre { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow-x: auto; margin: 1em 0; }
+    .preview-pane pre code { background: transparent; padding: 0; }
+    .preview-pane blockquote { border-left: 4px solid var(--accent); padding-left: 12px; margin: 1em 0; color: var(--text-muted); }
+    .preview-pane ul, .preview-pane ol { padding-left: 24px; margin: 0.8em 0; }
+    .preview-pane li { margin: 0.3em 0; }
+    .preview-pane hr { border: 0; height: 1px; background: var(--border); margin: 1.5em 0; }
+    .preview-pane table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+    .preview-pane th, .preview-pane td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
+    .preview-pane th { background: var(--bg); }
+    .preview-pane input[type="checkbox"] { width: 18px; height: 18px; vertical-align: middle; margin-right: 6px; accent-color: var(--accent); }
+
+    /* Canvas Mode */
+    .canvas-view {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      z-index: 10;
+    }
+    .canvas-bar {
+      display: flex;
+      align-items: center;
+      height: 48px;
+      padding: 0 12px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      gap: 8px;
+      overflow-x: auto;
+      flex-shrink: 0;
+    }
+    .canvas-tool {
+      height: 34px;
+      padding: 0 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .canvas-tool.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .color-swatch {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .color-swatch.active {
+      border-color: var(--text);
+      transform: scale(1.15);
+    }
+    .canvas-stage-wrap {
+      flex: 1;
+      width: 100%;
+      height: calc(100% - 48px);
+      position: relative;
+      touch-action: none;
+    }
+    canvas#drawing-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    /* iPad Caret mirror / badge */
+    .remote-caret-indicator {
+      position: absolute;
+      width: 2px;
+      background: #3b82f6;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .remote-caret-badge {
+      position: absolute;
+      top: -18px;
+      left: 0;
+      background: #3b82f6;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 4px;
+      border-radius: 3px;
+      white-space: nowrap;
+    }
+
+    /* Mode switching helpers */
+    .mode-edit .editor-pane { display: flex; border-right: none; }
+    .mode-edit .preview-pane { display: none; }
+    .mode-preview .editor-pane { display: none; }
+    .mode-preview .preview-pane { display: block; flex: 1; }
+    .mode-split .editor-pane { display: flex; flex: 1; }
+    .mode-split .preview-pane { display: block; flex: 1; }
+
+    @media (max-width: 768px) {
+      .mode-split .editor-pane { display: flex; flex: 1; }
+      .mode-split .preview-pane { display: none; }
+    }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <svg class="brand-logo" viewBox="0 0 24 24">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+          <path d="M7 15V9l3 3 3-3v6M17 9v6M17 12h-3"/>
+        </svg>
+        <div id="doc-title" class="doc-title">Shared Note</div>
+        <div id="status-pill" class="status-pill">
+          <span class="status-dot"></span>
+          <span id="status-text">Connected</span>
+        </div>
+      </div>
+
+      <div class="topbar-center">
+        <button id="tab-doc" class="seg-btn active" type="button">
+          <span>📝</span> Document
+        </button>
+        <button id="tab-draw" class="seg-btn" type="button">
+          <span>🎨</span> Canvas
+        </button>
+      </div>
+
+      <div class="topbar-right">
+        <div id="view-mode-group" class="topbar-center">
+          <button id="view-edit" class="seg-btn" type="button">Edit</button>
+          <button id="view-split" class="seg-btn active" type="button">Split</button>
+          <button id="view-preview" class="seg-btn" type="button">Preview</button>
+        </div>
+        <button id="theme-btn" class="icon-btn" title="Toggle theme" type="button">☀️</button>
+      </div>
+    </header>
+
+    <!-- Document Touch Formatting Toolbar -->
+    <div id="touch-toolbar" class="touch-toolbar">
+      <button class="format-btn" data-tag="h1" type="button">H1</button>
+      <button class="format-btn" data-tag="h2" type="button">H2</button>
+      <button class="format-btn" data-tag="h3" type="button">H3</button>
+      <div class="toolbar-divider"></div>
+      <button class="format-btn" data-tag="bold" type="button">B</button>
+      <button class="format-btn" data-tag="italic" type="button"><i>I</i></button>
+      <button class="format-btn" data-tag="strike" type="button"><s>S</s></button>
+      <button class="format-btn" data-tag="code" type="button">&lt;/&gt;</button>
+      <div class="toolbar-divider"></div>
+      <button class="format-btn" data-tag="bullet" type="button">• List</button>
+      <button class="format-btn" data-tag="number" type="button">1. List</button>
+      <button class="format-btn" data-tag="task" type="button">☑ Task</button>
+      <button class="format-btn" data-tag="quote" type="button">“ Quote</button>
+      <button class="format-btn" data-tag="hr" type="button">— Rule</button>
+      <div class="toolbar-divider"></div>
+      <button class="format-btn" id="btn-copy-doc" type="button">📋 Copy</button>
+    </div>
+
+    <!-- Workspace View -->
+    <main id="workspace" class="workspace mode-split">
+      <!-- Editor Pane -->
+      <section class="pane editor-pane">
+        <textarea id="editor" class="editor-textarea" placeholder="Start typing or write with Apple Pencil..." spellcheck="true" autocomplete="off" autocapitalize="none"></textarea>
+      </section>
+
+      <!-- Preview Pane -->
+      <section id="preview" class="pane preview-pane">
+        <!-- Rendered Markdown goes here -->
+      </section>
+
+      <!-- Canvas View (Excalidraw / Drawing Mode) -->
+      <section id="canvas-view" class="canvas-view hidden">
+        <div class="canvas-bar">
+          <button class="canvas-tool active" data-tool="pen" type="button">✏️ Pen</button>
+          <button class="canvas-tool" data-tool="eraser" type="button">🧹 Eraser</button>
+          <button class="canvas-tool" data-tool="rect" type="button">⬜ Box</button>
+          <button class="canvas-tool" data-tool="circle" type="button">⭕ Circle</button>
+          <button class="canvas-tool" data-tool="arrow" type="button">➡️ Arrow</button>
+          <button class="canvas-tool" data-tool="line" type="button">📏 Line</button>
+          <button class="canvas-tool" data-tool="text" type="button">🔤 Text</button>
+          <div class="toolbar-divider"></div>
+          <div class="color-swatch active" data-color="#f4f4f5" style="background:#f4f4f5"></div>
+          <div class="color-swatch" data-color="#ef4444" style="background:#ef4444"></div>
+          <div class="color-swatch" data-color="#f97316" style="background:#f97316"></div>
+          <div class="color-swatch" data-color="#22c55e" style="background:#22c55e"></div>
+          <div class="color-swatch" data-color="#3b82f6" style="background:#3b82f6"></div>
+          <div class="color-swatch" data-color="#a855f7" style="background:#a855f7"></div>
+          <div class="toolbar-divider"></div>
+          <button class="canvas-tool" id="btn-clear-canvas" type="button">🗑️ Clear</button>
+          <button class="canvas-tool" id="btn-undo-canvas" type="button">↩️ Undo</button>
+        </div>
+        <div class="canvas-stage-wrap" id="canvas-container">
+          <canvas id="drawing-canvas"></canvas>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // ---------- State ----------
+    let session = {
+      title: 'Shared Note',
+      language: 'markdown',
+      content: '',
+      elements: []
+    };
+    let isSuppressed = false;
+    let eventSource = null;
+    let activeTab = 'doc'; // 'doc' | 'draw'
+    let currentMode = 'split'; // 'edit' | 'split' | 'preview'
+    let activeTool = 'pen';
+    let activeColor = '#f4f4f5';
+    let strokeWidth = 3;
+    let canvasShapes = [];
+    let isDrawing = false;
+    let currentShape = null;
+
+    // DOM Elements
+    const el = {
+      app: document.getElementById('app'),
+      docTitle: document.getElementById('doc-title'),
+      statusPill: document.getElementById('status-pill'),
+      statusText: document.getElementById('status-text'),
+      tabDoc: document.getElementById('tab-doc'),
+      tabDraw: document.getElementById('tab-draw'),
+      viewEdit: document.getElementById('view-edit'),
+      viewSplit: document.getElementById('view-split'),
+      viewPreview: document.getElementById('view-preview'),
+      themeBtn: document.getElementById('theme-btn'),
+      touchToolbar: document.getElementById('touch-toolbar'),
+      workspace: document.getElementById('workspace'),
+      editor: document.getElementById('editor'),
+      preview: document.getElementById('preview'),
+      canvasView: document.getElementById('canvas-view'),
+      canvasContainer: document.getElementById('canvas-container'),
+      canvas: document.getElementById('drawing-canvas'),
+      viewModeGroup: document.getElementById('view-mode-group')
+    };
+
+    // ---------- Minimal Markdown Renderer (GFM + Tasks + Tables) ----------
+    function renderMarkdown(md) {
+      if (!md) return '<p style="color:var(--text-muted);font-style:italic">No content yet...</p>';
+      
+      let html = md
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      // Code blocks
+      html = html.replace(/```([\s\S]*?)```/g, (m, code) => `<pre><code>${code.trim()}</code></pre>`);
+
+      // Inline code
+      html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+      // Headers
+      html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+      html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+      html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+
+      // Blockquotes
+      html = html.replace(/^\> (.*$)/gim, '<blockquote>$1</blockquote>');
+
+      // Horizontal rule
+      html = html.replace(/^---$/gim, '<hr>');
+
+      // Bold & Italic
+      html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      html = html.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+
+      // Tasks
+      html = html.replace(/^- \[x\] (.*$)/gim, (m, txt) => `<div class="task-item"><input type="checkbox" checked data-task="${txt.replace(/"/g, '&quot;')}" /><span>${txt}</span></div>`);
+      html = html.replace(/^- \[ \] (.*$)/gim, (m, txt) => `<div class="task-item"><input type="checkbox" data-task="${txt.replace(/"/g, '&quot;')}" /><span>${txt}</span></div>`);
+
+      // Unordered lists
+      html = html.replace(/^- (.*$)/gim, '<ul><li>$1</li></ul>');
+      html = html.replace(/<\/ul>\s*<ul>/g, '');
+
+      // Paragraphs
+      html = html.split('\n\n').map(p => {
+        if (/^<(h[1-6]|pre|ul|ol|blockquote|div|table|hr)/.test(p.trim())) return p;
+        return `<p>${p.replace(/\n/g, '<br>')}</p>`;
+      }).join('\n');
+
+      return html;
+    }
+
+    function updatePreview() {
+      el.preview.innerHTML = renderMarkdown(el.editor.value);
+    }
+
+    // Interactive Checkbox clicking in iPad preview
+    el.preview.addEventListener('change', (e) => {
+      if (e.target.matches('input[type="checkbox"]')) {
+        const text = e.target.getAttribute('data-task');
+        if (!text) return;
+        const checked = e.target.checked;
+        const current = el.editor.value;
+        const oldPattern = checked ? `- [ ] ${text}` : `- [x] ${text}`;
+        const newPattern = checked ? `- [x] ${text}` : `- [ ] ${text}`;
+        if (current.includes(oldPattern)) {
+          el.editor.value = current.replace(oldPattern, newPattern);
+          sendTextEdit();
+          updatePreview();
+        }
+      }
+    });
+
+    // ---------- SSE Connection ----------
+    function setConnectionStatus(status) {
+      el.statusPill.className = `status-pill ${status}`;
+      if (status === 'connected') {
+        el.statusText.textContent = 'Connected to PC';
+      } else if (status === 'connecting') {
+        el.statusText.textContent = 'Connecting...';
+      } else {
+        el.statusText.textContent = 'Disconnected';
+      }
+    }
+
+    function connectSSE() {
+      if (eventSource) eventSource.close();
+      setConnectionStatus('connecting');
+
+      eventSource = new EventSource('/api/events');
+
+      eventSource.onopen = () => {
+        setConnectionStatus('connected');
+      };
+
+      eventSource.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          handleRemoteEvent(data);
+        } catch (err) {
+          console.warn('[ipad] SSE parse error:', err);
+        }
+      };
+
+      eventSource.onerror = () => {
+        setConnectionStatus('offline');
+        // SSE will automatically retry in browser
+      };
+    }
+
+    function handleRemoteEvent(ev) {
+      if (!ev || !ev.type) return;
+
+      if (ev.type === 'init' || ev.type === 'doc_update') {
+        session.title = ev.title || 'Shared Note';
+        session.language = ev.language || 'markdown';
+        el.docTitle.textContent = session.title;
+
+        // Switch to Canvas automatically if desktop opened an Excalidraw doc
+        if (ev.language === 'excalidraw' && activeTab !== 'draw') {
+          switchTab('draw');
+        }
+
+        if (typeof ev.content === 'string') {
+          applyRemoteText(ev.content);
+        }
+        if (Array.isArray(ev.elements)) {
+          applyRemoteElements(ev.elements);
+        }
+      } else if (ev.type === 'text_change') {
+        if (typeof ev.content === 'string') {
+          applyRemoteText(ev.content);
+        }
+      } else if (ev.type === 'canvas_change') {
+        if (Array.isArray(ev.elements)) {
+          applyRemoteElements(ev.elements);
+        }
+      }
+    }
+
+    function applyRemoteText(newText) {
+      if (el.editor.value === newText) return;
+      isSuppressed = true;
+      const caret = el.editor.selectionStart;
+      el.editor.value = newText;
+      el.editor.selectionStart = el.editor.selectionEnd = Math.min(caret, newText.length);
+      updatePreview();
+      isSuppressed = false;
+    }
+
+    function applyRemoteElements(elements) {
+      canvasShapes = elements || [];
+      redrawCanvas();
+    }
+
+    // ---------- Inbound User Edits ----------
+    let textSyncTimer = null;
+    function sendTextEdit() {
+      if (isSuppressed) return;
+      clearTimeout(textSyncTimer);
+      textSyncTimer = setTimeout(() => {
+        const content = el.editor.value;
+        const caret = el.editor.selectionStart;
+        fetch('/api/edit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'text',
+            content,
+            caret,
+            peerName: 'iPad'
+          })
+        }).catch(err => console.error('[ipad] edit failed:', err));
+      }, 25);
+    }
+
+    el.editor.addEventListener('input', () => {
+      updatePreview();
+      sendTextEdit();
+    });
+
+    // Formatting Toolbar Handlers
+    el.touchToolbar.addEventListener('click', (e) => {
+      const btn = e.target.closest('.format-btn');
+      if (!btn) return;
+      const tag = btn.getAttribute('data-tag');
+      if (!tag) return;
+
+      const ta = el.editor;
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const val = ta.value;
+      const sel = val.slice(start, end);
+      let rep = '';
+      let cursorOffset = 0;
+
+      switch (tag) {
+        case 'h1': rep = `# ${sel || 'Heading 1'}\n`; break;
+        case 'h2': rep = `## ${sel || 'Heading 2'}\n`; break;
+        case 'h3': rep = `### ${sel || 'Heading 3'}\n`; break;
+        case 'bold': rep = `**${sel || 'bold text'}**`; cursorOffset = sel ? 0 : 2; break;
+        case 'italic': rep = `*${sel || 'italic text'}*`; cursorOffset = sel ? 0 : 1; break;
+        case 'strike': rep = `~~${sel || 'strikethrough'}~~`; break;
+        case 'code': rep = sel.includes('\n') ? `\`\`\`\n${sel}\n\`\`\`\n` : `\`${sel || 'code'}\``; break;
+        case 'bullet': rep = `- ${sel || 'list item'}\n`; break;
+        case 'number': rep = `1. ${sel || 'list item'}\n`; break;
+        case 'task': rep = `- [ ] ${sel || 'task item'}\n`; break;
+        case 'quote': rep = `> ${sel || 'quote'}\n`; break;
+        case 'hr': rep = `\n---\n`; break;
+      }
+
+      if (rep) {
+        ta.setRangeText(rep, start, end, 'end');
+        ta.focus();
+        updatePreview();
+        sendTextEdit();
+      }
+    });
+
+    document.getElementById('btn-copy-doc')?.addEventListener('click', () => {
+      navigator.clipboard.writeText(el.editor.value).then(() => {
+        alert('Document copied to clipboard!');
+      });
+    });
+
+    // ---------- View Modes (Edit / Split / Preview) ----------
+    function setViewMode(mode) {
+      currentMode = mode;
+      el.workspace.className = `workspace mode-${mode}`;
+      el.viewEdit.classList.toggle('active', mode === 'edit');
+      el.viewSplit.classList.toggle('active', mode === 'split');
+      el.viewPreview.classList.toggle('active', mode === 'preview');
+    }
+
+    el.viewEdit.addEventListener('click', () => setViewMode('edit'));
+    el.viewSplit.addEventListener('click', () => setViewMode('split'));
+    el.viewPreview.addEventListener('click', () => setViewMode('preview'));
+
+    // ---------- Tabs (Document vs Canvas) ----------
+    function switchTab(tab) {
+      activeTab = tab;
+      el.tabDoc.classList.toggle('active', tab === 'doc');
+      el.tabDraw.classList.toggle('active', tab === 'draw');
+      el.touchToolbar.classList.toggle('hidden', tab !== 'doc');
+      el.viewModeGroup.classList.toggle('hidden', tab !== 'doc');
+      el.canvasView.classList.toggle('hidden', tab !== 'draw');
+
+      if (tab === 'draw') {
+        resizeCanvas();
+        redrawCanvas();
+      }
+    }
+
+    el.tabDoc.addEventListener('click', () => switchTab('doc'));
+    el.tabDraw.addEventListener('click', () => switchTab('draw'));
+
+    // ---------- Theme Toggle ----------
+    el.themeBtn.addEventListener('click', () => {
+      document.body.classList.toggle('light');
+      el.themeBtn.textContent = document.body.classList.contains('light') ? '🌙' : '☀️';
+      if (activeColor === '#f4f4f5' && document.body.classList.contains('light')) {
+        activeColor = '#0f172a';
+      } else if (activeColor === '#0f172a' && !document.body.classList.contains('light')) {
+        activeColor = '#f4f4f5';
+      }
+      redrawCanvas();
+    });
+
+    // ---------- Canvas Drawing (Touch & Apple Pencil) ----------
+    const ctx = el.canvas.getContext('2d');
+
+    function resizeCanvas() {
+      const rect = el.canvasContainer.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      el.canvas.width = rect.width * dpr;
+      el.canvas.height = rect.height * dpr;
+      ctx.scale(dpr, dpr);
+    }
+    window.addEventListener('resize', () => {
+      if (activeTab === 'draw') resizeCanvas();
+    });
+
+    // Canvas tools
+    document.querySelectorAll('.canvas-tool[data-tool]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.canvas-tool[data-tool]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeTool = btn.getAttribute('data-tool');
+      });
+    });
+
+    // Color Swatches
+    document.querySelectorAll('.color-swatch').forEach(sw => {
+      sw.addEventListener('click', () => {
+        document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+        sw.classList.add('active');
+        activeColor = sw.getAttribute('data-color');
+      });
+    });
+
+    function getCanvasPoint(e) {
+      const rect = el.canvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const pressure = (e.touches && e.touches[0].force) ? e.touches[0].force : (e.pressure || 0.5);
+      return {
+        x: clientX - rect.left,
+        y: clientY - rect.top,
+        pressure
+      };
+    }
+
+    el.canvas.addEventListener('pointerdown', (e) => {
+      isDrawing = true;
+      const pt = getCanvasPoint(e);
+      if (activeTool === 'pen') {
+        currentShape = {
+          id: 'shape_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+          type: 'freedraw',
+          points: [pt],
+          color: activeColor,
+          width: strokeWidth
+        };
+      } else if (activeTool === 'eraser') {
+        eraseAt(pt);
+      } else if (activeTool === 'text') {
+        const text = prompt('Enter text:');
+        if (text) {
+          canvasShapes.push({
+            id: 'shape_' + Date.now(),
+            type: 'text',
+            text,
+            x: pt.x,
+            y: pt.y,
+            color: activeColor,
+            size: 18
+          });
+          redrawCanvas();
+          sendCanvasEdit();
+        }
+        isDrawing = false;
+      } else {
+        currentShape = {
+          id: 'shape_' + Date.now(),
+          type: activeTool,
+          startX: pt.x,
+          startY: pt.y,
+          endX: pt.x,
+          endY: pt.y,
+          color: activeColor,
+          width: strokeWidth
+        };
+      }
+    });
+
+    el.canvas.addEventListener('pointermove', (e) => {
+      if (!isDrawing) return;
+      const pt = getCanvasPoint(e);
+
+      if (activeTool === 'pen' && currentShape) {
+        currentShape.points.push(pt);
+        redrawCanvas();
+        drawShape(currentShape);
+      } else if (activeTool === 'eraser') {
+        eraseAt(pt);
+      } else if (currentShape) {
+        currentShape.endX = pt.x;
+        currentShape.endY = pt.y;
+        redrawCanvas();
+        drawShape(currentShape);
+      }
+    });
+
+    el.canvas.addEventListener('pointerup', () => {
+      if (!isDrawing) return;
+      isDrawing = false;
+      if (currentShape && activeTool !== 'eraser') {
+        canvasShapes.push(currentShape);
+        currentShape = null;
+        redrawCanvas();
+        sendCanvasEdit();
+      }
+    });
+
+    function eraseAt(pt) {
+      const radius = 20;
+      const initialCount = canvasShapes.length;
+      canvasShapes = canvasShapes.filter(s => {
+        if (s.type === 'freedraw') {
+          return !s.points.some(p => Math.hypot(p.x - pt.x, p.y - pt.y) < radius);
+        } else if (s.startX !== undefined) {
+          return Math.hypot(s.startX - pt.x, s.startY - pt.y) > radius &&
+                 Math.hypot(s.endX - pt.x, s.endY - pt.y) > radius;
+        }
+        return true;
+      });
+      if (canvasShapes.length !== initialCount) {
+        redrawCanvas();
+        sendCanvasEdit();
+      }
+    }
+
+    function drawShape(s) {
+      ctx.save();
+      ctx.strokeStyle = s.color || activeColor;
+      ctx.fillStyle = s.color || activeColor;
+      ctx.lineWidth = s.width || 3;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      if (s.type === 'freedraw' && s.points && s.points.length > 0) {
+        ctx.beginPath();
+        ctx.moveTo(s.points[0].x, s.points[0].y);
+        for (let i = 1; i < s.points.length; i++) {
+          ctx.lineTo(s.points[i].x, s.points[i].y);
+        }
+        ctx.stroke();
+      } else if (s.type === 'rect') {
+        const w = s.endX - s.startX;
+        const h = s.endY - s.startY;
+        ctx.strokeRect(s.startX, s.startY, w, h);
+      } else if (s.type === 'circle') {
+        const rx = Math.abs(s.endX - s.startX) / 2;
+        const ry = Math.abs(s.endY - s.startY) / 2;
+        const cx = Math.min(s.startX, s.endX) + rx;
+        const cy = Math.min(s.startY, s.endY) + ry;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (s.type === 'line') {
+        ctx.beginPath();
+        ctx.moveTo(s.startX, s.startY);
+        ctx.lineTo(s.endX, s.endY);
+        ctx.stroke();
+      } else if (s.type === 'arrow') {
+        ctx.beginPath();
+        ctx.moveTo(s.startX, s.startY);
+        ctx.lineTo(s.endX, s.endY);
+        ctx.stroke();
+        const angle = Math.atan2(s.endY - s.startY, s.endX - s.startX);
+        const headlen = 14;
+        ctx.beginPath();
+        ctx.moveTo(s.endX, s.endY);
+        ctx.lineTo(s.endX - headlen * Math.cos(angle - Math.PI / 6), s.endY - headlen * Math.sin(angle - Math.PI / 6));
+        ctx.lineTo(s.endX - headlen * Math.cos(angle + Math.PI / 6), s.endY - headlen * Math.sin(angle + Math.PI / 6));
+        ctx.closePath();
+        ctx.fill();
+      } else if (s.type === 'text') {
+        ctx.font = `${s.size || 18}px sans-serif`;
+        ctx.fillText(s.text || '', s.x, s.y);
+      }
+      ctx.restore();
+    }
+
+    function redrawCanvas() {
+      const rect = el.canvasContainer.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      for (const s of canvasShapes) {
+        drawShape(s);
+      }
+    }
+
+    function sendCanvasEdit() {
+      fetch('/api/edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'canvas',
+          elements: canvasShapes,
+          peerName: 'iPad'
+        })
+      }).catch(err => console.error('[ipad] canvas sync error:', err));
+    }
+
+    document.getElementById('btn-clear-canvas')?.addEventListener('click', () => {
+      if (confirm('Clear entire drawing?')) {
+        canvasShapes = [];
+        redrawCanvas();
+        sendCanvasEdit();
+      }
+    });
+
+    document.getElementById('btn-undo-canvas')?.addEventListener('click', () => {
+      canvasShapes.pop();
+      redrawCanvas();
+      sendCanvasEdit();
+    });
+
+    // Refresh state when tab re-focuses or device wakes up
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        fetch('/api/session')
+          .then(r => r.json())
+          .then(data => handleRemoteEvent({ type: 'init', ...data }))
+          .catch(() => {});
+      }
+    });
+
+    // Boot
+    fetch('/api/session')
+      .then(r => r.json())
+      .then(data => handleRemoteEvent({ type: 'init', ...data }))
+      .catch(() => {});
+
+    connectSSE();
+  </script>
+</body>
+</html>

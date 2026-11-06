@@ -4214,8 +4214,132 @@ body.presenting #slideshow { display: flex; }
 /* Share modal — wider than the standard modal so the invite link + copy
    button fit comfortably without truncation. */
 .share-modal {
-  min-width: 480px;
-  max-width: min(560px, 92vw);
+  min-width: 520px;
+  max-width: min(620px, 94vw);
+}
+
+/* Share modal tabs (v1.6.0) */
+.share-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 12px 0 16px;
+  padding: 3px;
+  background: var(--surface-soft, rgba(0,0,0,0.1));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.share-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-muted);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.share-tab:hover {
+  color: var(--fg);
+}
+.share-tab.active {
+  color: var(--fg);
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  font-weight: 600;
+}
+.share-tab.active svg {
+  color: var(--accent);
+}
+
+/* Wi-Fi & iPad panel */
+.wifi-collab-body {
+  display: flex;
+  gap: 18px;
+  margin: 14px 0 8px;
+  align-items: flex-start;
+}
+@media (max-width: 580px) {
+  .wifi-collab-body {
+    flex-direction: column;
+    align-items: center;
+  }
+}
+.wifi-qr-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  flex-shrink: 0;
+}
+.wifi-qr-svg {
+  width: 140px;
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wifi-qr-svg svg {
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+}
+.wifi-qr-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  letter-spacing: 0.02em;
+}
+.wifi-details {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.share-input-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.wifi-guide-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+.wifi-step-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--fg-muted);
+}
+.wifi-step-num {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface-soft, rgba(125,125,125,0.15));
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 /* Link block holds the input + footnote. It's hidden by JS once a peer
    connects (no need to keep copying the link). The status block then

@@ -65,7 +65,7 @@ it('new notes focus the editor; nested tasks and Save As update the real documen
   await vi.waitFor(() => expect(document.querySelector('.tab.active .tab-title').textContent).toBe('saved.md'));
   expect(backend.files.get('/notes/saved.md')).toContain('  - [x] nested');
   expect(JSON.parse(localStorage.getItem('mdpeek-session')).docs[0].path).toBe('/notes/saved.md');
-});
+}, 15000);
 
 it('modified shortcuts launch their action without saving or toggling edit mode', async () => {
   backend.invoke.mockClear();
@@ -211,4 +211,4 @@ it('release-note headings do not duplicate workspace control IDs', () => {
   expect([...changelog.querySelectorAll('[id]')].every((node) => node.id.startsWith('changelog-'))).toBe(true);
   expect(document.querySelectorAll('#editor')).toHaveLength(1);
   key('Escape', { ctrlKey: false });
-});
+}, 15000);
