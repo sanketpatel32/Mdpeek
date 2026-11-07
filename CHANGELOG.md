@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-11-08
+
+The ⋯ overflow is no longer a bare dropdown — it's a filterable command menu.
+
+### Added
+- Type-to-filter search at the top of the ⋯ menu: live-filters the rows, shows a
+  "No matching actions" empty state, `Esc` clears the filter (second `Esc` closes),
+  and typing any character anywhere in the menu jumps into the filter.
+- Every action row now carries an icon chip — a rounded tile that tints accent on
+  hover and for active toggles — with the icons measured dead-center on both axes.
+
+### Changed
+- The menu is a wider, elevated panel (14px radius, layered shadow) with a footer
+  pointing to the full command palette (`Ctrl+Shift+P`).
+- Reopening the menu always resets the filter.
+
+### Fixed
+- Icon chips were invisible on dark themes (7%-ink fill fell below perception —
+  only the active row's stronger tint read as a tile); now 11% ink with a legible
+  icon color.
+- Icons were top-pinned 5px high inside their tiles (`align-items` was missing;
+  `place-items` is grid-only and did nothing) — measured 0px offset on all rows.
+- The zoom pill's outer border stacked against surrounding rules read as a doubled
+  line; it's now a borderless fill-only pill.
+- Go back / Go forward rows removed from the menu — navigation stays on
+  `Alt+←/→` and the palette's Back / Forward commands.
+- `package-lock.json` now bumps with releases (it was left at 1.6.1 by the 1.7.0
+  release, failing a repo-hygiene test on main).
+
 ## [1.7.0] - 2026-11-08
 
 A UI-trust round: every screen from a full visual audit was rebuilt or fixed, and every
