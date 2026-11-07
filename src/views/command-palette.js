@@ -328,6 +328,17 @@ export function makePicker({ placeholder, getItems, onSelect, id, emptyMessage, 
     selected = parseInt(item.dataset.i, 10);
     choose();
   });
+  // v1.6.2: mouse users get the same live selection keyboard users get —
+  // hovering a row moves the highlight (Raycast/VS Code palette behavior),
+  // so the row under the cursor is always the row Enter runs. Guarded by
+  // idx !== selected so a stationary pointer doesn't spam class toggles or
+  // re-trigger scrollIntoView.
+  list.addEventListener('mousemove', (e) => {
+    const item = e.target.closest('.palette-item');
+    if (!item) return;
+    const idx = parseInt(item.dataset.i, 10);
+    if (Number.isInteger(idx) && idx !== selected) setActive(idx);
+  });
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) close();
   });

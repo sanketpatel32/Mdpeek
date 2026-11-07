@@ -56,7 +56,7 @@ function ensureToolbarChrome(toolbar) {
     _toolbarCssInjected = true;
     const style = document.createElement('style');
     style.textContent = [
-      '.fmt-divider{width:1px;height:16px;margin:0 var(--sp-1,4px);background:var(--border-subtle);flex:0 0 auto;}',
+      '.fmt-divider{width:1px;height:18px;margin:0 7px;background:var(--border);flex:0 0 auto;}',
       '.fmt-btn.is-active{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-soft);}',
       '.fmt-btn.is-active:hover{border-color:var(--accent);}',
       // Drag-over affordance: copy cursor while text/files hover the textarea.

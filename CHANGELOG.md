@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-08
+
+A UI-trust round: every screen from a full visual audit was rebuilt or fixed, and every
+button hover and page was re-verified pixel-by-pixel in both light and dark themes.
+
+### Changed
+- Settings now has a single entry point: the standalone topbar gear is gone and Settings
+  is pinned at the bottom of the ⋯ menu (resolves the "two settings buttons" confusion).
+- Share dialog redesigned: header ✕ close, the local Wi-Fi URL on its own full-width row
+  (no more `http://19…` truncation), and End session is a quiet danger outline instead of
+  a filled coral button. "Hide panel" removed.
+- Remote P2P tab filled out with a three-step guide and a styled security warning.
+- More menu compacted (no longer near viewport height) with shortcut hints on every item
+  that has one, consistent ellipses on dialog-opening actions, an elevated panel that no
+  longer blends into the document, and differentiated Copy-as-HTML / plain-text icons.
+- Settings header actions are labeled (Export / Import / Reset), the Features category
+  uses a sparkles icon instead of a dollar sign, General dropdowns share one width, and
+  the active sidebar category is accent-tinted.
+- Editor status bar shows a clean "Saved" / amber-dotted "Edited" chip instead of the
+  old "· saved" that read like a stray dirty-flag glyph.
+
+### Added
+- Command palette selection now follows the mouse (hover moves the highlight, so the
+  row under the cursor is always the row Enter runs).
+- In-app companion preview is honest: it probes the companion server first, shows a
+  loading spinner, a retryable error screen when unreachable, and a "Waiting for
+  device…" badge until a peer actually connects (the old version was a black iframe
+  with a false "Live Sync" badge).
+- Edit/view pane divider gained a resting grip and a full-accent hover; fold carets in
+  the gutter appear on editor hover (VS Code style) instead of looking like stray dots.
+
+### Fixed
+- Toggle rows in the ⋯ menu (Document outline, Reading mode) carried an `.active` class
+  with no visible style — they now show an accent-tinted state.
+- Empty "Tools" group label rendered with zero items when features were off.
+- Disabled menu rows (Go back / Go forward) were ~2:1 contrast mud; now legible yet
+  clearly inert.
+- Unchecked task-list checkboxes were nearly invisible on dark themes.
+- Settings toggle hover delta was imperceptible; off-state track lacked contrast.
+- Empty menu groups (label + separator) now hide automatically.
+
 ## [1.6.1] - 2026-11-06
 
 ### Fixed

@@ -334,10 +334,14 @@ const el = {
   wifiPreviewDialog: document.getElementById('wifi-preview-dialog'),
   wifiPreviewClose: document.getElementById('wifi-preview-close'),
   wifiPreviewFrame: document.getElementById('wifi-preview-frame'),
+  wifiPreviewLoading: document.getElementById('wifi-preview-loading'),
+  wifiPreviewError: document.getElementById('wifi-preview-error'),
+  wifiPreviewRetry: document.getElementById('wifi-preview-retry'),
+  wifiPreviewBadge: document.getElementById('wifi-preview-badge'),
   shareLinkInput: document.getElementById('share-link-input'),
   shareCopyBtn: document.getElementById('share-copy-btn'),
   shareStatus: document.getElementById('share-status'),
-  shareCancelBtn: document.getElementById('share-cancel-btn'),
+  shareCloseBtn: document.getElementById('share-close-btn'),
   shareEndBtn: document.getElementById('share-end-btn'),
   joinDialog: document.getElementById('join-dialog'),
   joinText: document.getElementById('join-dialog-text'),
@@ -3740,6 +3744,8 @@ function refreshShareModal(status) {
   if (!el.shareDialog || el.shareDialog.classList.contains('hidden')) return;
   const linkBlock = el.shareDialog.querySelector('.share-link-block');
   const wifiStatus = wifiCollab.getWifiCollabStatus();
+  // Peer count changes flow through here — keep the companion badge honest.
+  syncWifiPreviewBadge();
 
   // If Wi-Fi server is active and has a URL, update the input and QR code if not populated
   if (wifiStatus.active && wifiStatus.url && el.wifiLinkInput) {
@@ -6747,7 +6753,10 @@ function updateEditorStatus() {
   // v0.45.0: keep the stats panel in sync too.
   rebuildDocStats();
   const savedState = doc && doc.dirty ? 'dirty' : 'saved';
-  const savedLabel = doc && doc.dirty ? '· edited' : '· saved';
+  // v1.6.2: bare words read cleaner than the old "· saved" — the leading
+  // middot collided with the status bar's separator dots and looked like a
+  // stray dirty-flag glyph.
+  const savedLabel = doc && doc.dirty ? 'Edited' : 'Saved';
 
   // Selection detection
   let selText = '';
@@ -7144,6 +7153,9 @@ document.getElementById('slide-exit-btn')?.addEventListener('click', exitPresent
 if (el.share) el.share.addEventListener('click', openShareModal);
 if (el.shareCopyBtn) el.shareCopyBtn.addEventListener('click', copyShareLink);
 if (el.shareCancelBtn) el.shareCancelBtn.addEventListener('click', closeShareModal);
+// v1.6.2: header ✕ replaces the old bottom "Hide panel" button — dismissive
+// actions belong top-right, End session stays the only footer action.
+if (el.shareCloseBtn) el.shareCloseBtn.addEventListener('click', closeShareModal);
 
 // Wi-Fi & iPad Collaboration tabs & actions (v1.6.0)
 if (el.shareTabWifi) {
@@ -7178,17 +7190,50 @@ if (el.wifiCopyBtn) {
     });
   });
 }
+// v1.6.2: the companion iframe used to sit on a black void while loading (or
+// forever, if the server was down). Probe the companion URL first, show a
+// loading state while the frame navigates, and surface a retryable error
+// when the server can't be reached.
+function setWifiPreviewState(state) {
+  el.wifiPreviewLoading?.classList.toggle('hidden', state !== 'loading');
+  el.wifiPreviewError?.classList.toggle('hidden', state !== 'error');
+}
+function syncWifiPreviewBadge() {
+  if (!el.wifiPreviewBadge) return;
+  const wifiStatus = wifiCollab.getWifiCollabStatus();
+  const connected = wifiStatus.peerCount > 0;
+  el.wifiPreviewBadge.textContent = connected ? 'Live Sync' : 'Waiting for device…';
+  el.wifiPreviewBadge.classList.toggle('is-waiting', !connected);
+}
+function loadWifiPreviewFrame() {
+  const url = el.wifiLinkInput?.value;
+  if (!url || url.startsWith('Starting') || url.startsWith('Generating')) return;
+  setWifiPreviewState('loading');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
+  // no-cors: we can't read the response, but a resolve proves the server is
+  // up; a reject means unreachable (server down / wrong network).
+  fetch(url, { mode: 'no-cors', signal: controller.signal })
+    .then(() => {
+      clearTimeout(timer);
+      if (el.wifiPreviewFrame) el.wifiPreviewFrame.src = url;
+    })
+    .catch(() => {
+      clearTimeout(timer);
+      if (el.wifiPreviewFrame) el.wifiPreviewFrame.src = 'about:blank';
+      setWifiPreviewState('error');
+    });
+}
 function openWifiPreview() {
   const url = el.wifiLinkInput?.value;
   if (!url || url.startsWith('Starting') || url.startsWith('Generating')) return;
-  if (el.wifiPreviewFrame) {
-    el.wifiPreviewFrame.src = url;
-  }
   if (el.wifiPreviewDialog) {
     el.wifiPreviewDialog.classList.remove('hidden');
     syncModalFocus();
     el.wifiPreviewClose?.focus();
   }
+  syncWifiPreviewBadge();
+  loadWifiPreviewFrame();
 }
 
 function closeWifiPreview() {
@@ -7198,6 +7243,7 @@ function closeWifiPreview() {
   if (el.wifiPreviewFrame) {
     el.wifiPreviewFrame.src = 'about:blank';
   }
+  setWifiPreviewState('idle');
   syncModalFocus();
   (el.wifiOpenBtn || el.wifiCopyBtn)?.focus();
 }
@@ -7207,6 +7253,18 @@ if (el.wifiOpenBtn) {
 }
 if (el.wifiPreviewClose) {
   el.wifiPreviewClose.addEventListener('click', closeWifiPreview);
+}
+if (el.wifiPreviewRetry) {
+  el.wifiPreviewRetry.addEventListener('click', loadWifiPreviewFrame);
+}
+// The companion page loaded → drop the spinner. about:blank navigations
+// (close/reset) shouldn't clear an in-flight loading state.
+if (el.wifiPreviewFrame) {
+  el.wifiPreviewFrame.addEventListener('load', () => {
+    const visible = el.wifiPreviewDialog && !el.wifiPreviewDialog.classList.contains('hidden');
+    const src = el.wifiPreviewFrame.getAttribute('src') || '';
+    if (visible && src && src !== 'about:blank') setWifiPreviewState('idle');
+  });
 }
 el.wifiPreviewDialog?.addEventListener('click', (e) => {
   if (e.target === el.wifiPreviewDialog) closeWifiPreview();
@@ -7908,9 +7966,39 @@ if (themeModeSeg) {
 // IDs, so the existing per-button handlers (bound elsewhere) still fire.
 function openMoreMenu() {
   if (!el.moreMenu) return;
+  syncMoreMenuGroups();
   el.moreMenu.classList.remove('hidden');
   el.moreBtn?.setAttribute('aria-expanded', 'true');
   el.moreMenu.querySelector('.ctx-item:not(.hidden):not([disabled])')?.focus();
+}
+// v1.6.2: hide a group label (and the separator above it) when every item in
+// the group is hidden. An orphaned "Tools" header with nothing beneath it
+// reads as a rendering bug, not as "feature disabled".
+function syncMoreMenuGroups() {
+  if (!el.moreMenu) return;
+  const kids = [...el.moreMenu.children];
+  kids.forEach((k) => k.classList.remove('group-empty'));
+  kids.forEach((kid, i) => {
+    if (!kid.classList.contains('ctx-group-label')) return;
+    // A group runs to the next label OR separator — the pinned Settings
+    // footer sits after a separator and must not count as a Tools item.
+    const slice = [];
+    for (let j = i + 1; j < kids.length; j++) {
+      if (kids[j].classList.contains('ctx-group-label') || kids[j].classList.contains('ctx-sep')) break;
+      slice.push(kids[j]);
+    }
+    const hasVisible = slice.some((s) =>
+      (s.classList.contains('ctx-item') || s.classList.contains('menu-zoom-row')) &&
+      !s.classList.contains('hidden') && s.style.display !== 'none');
+    if (hasVisible) return;
+    kid.classList.add('group-empty');
+    // Drop the separator directly above an empty group too — otherwise the
+    // menu ends in a dangling rule.
+    for (let j = i - 1; j >= 0; j--) {
+      if (kids[j].classList.contains('ctx-sep')) { kids[j].classList.add('group-empty'); break; }
+      if (kids[j].classList.contains('ctx-item') || kids[j].classList.contains('menu-zoom-row') || kids[j].classList.contains('ctx-group-label')) break;
+    }
+  });
 }
 function closeMoreMenu() {
   if (!el.moreMenu || el.moreMenu.classList.contains('hidden')) return;
@@ -8006,7 +8094,12 @@ function closeSettings() {
   const hadFocus = el.settingsDialog.contains(document.activeElement);
   el.settingsDialog.classList.add('hidden');
   syncModalFocus();
-  if (hadFocus) el.settings?.focus();
+  // v1.6.2: Settings lives inside the more-menu; when the menu is closed the
+  // item has no layout, so return focus to the ⋯ button that opened it.
+  if (hadFocus) {
+    const target = el.settings?.getClientRects().length ? el.settings : el.moreBtn;
+    target?.focus();
+  }
 }
 
 // Read current pref values from localStorage and reflect them in the modal's
@@ -8158,6 +8251,7 @@ function applyFeatureFlags() {
   // centrally too so Minimal mode clears it immediately on toggle.
   if (el.pomoStatus && !pomoEnabled) el.pomoStatus.classList.add('hidden');
 
+  syncMoreMenuGroups();
   applyMinimalChrome();
 }
 
@@ -9162,10 +9256,10 @@ function setSaveStatus(state) {
   const tag = el.editorStatus.querySelector('.save-status');
   if (!tag) return;
   const map = {
-    dirty: '· edited',
-    saving: '· saving…',
-    saved: '· saved',
-    error: '· save failed',
+    dirty: 'Edited',
+    saving: 'Saving…',
+    saved: 'Saved',
+    error: 'Save failed',
   };
   tag.textContent = map[state] || '';
   tag.dataset.state = state;

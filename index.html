@@ -97,7 +97,7 @@
           </button>
           <div id="more-menu" class="ctx-menu more-menu hidden" role="menu" aria-label="More actions">
             <div class="ctx-group-label">Document</div>
-            <button class="ctx-item" id="btn-save-as" role="menuitem" title="Save a copy with another name"><span class="ctx-ico" data-icon="save"></span><span class="ctx-label">Save as…</span></button>
+            <button class="ctx-item" id="btn-save-as" role="menuitem" title="Save a copy with another name (Ctrl+Alt+S)"><span class="ctx-ico" data-icon="save"></span><span class="ctx-label">Save as…</span><span class="ctx-hint">Ctrl+Alt+S</span></button>
             <button class="ctx-item hidden" id="btn-pin-doc-theme" role="menuitem" title="Pin a theme to this document">
               <span class="ctx-ico" data-icon="palette"></span>
               <span class="ctx-label">Pin theme to this doc</span>
@@ -112,12 +112,12 @@
             </button>
             <div class="ctx-sep"></div>
             <div class="ctx-group-label">View &amp; Navigation</div>
-<button id="btn-sidebar" class="ctx-item active" role="menuitem" title="Toggle sidebar (Ctrl+B)" aria-label="Toggle sidebar"><span class="ctx-ico" data-icon="panel-left"></span><span class="ctx-label">Document outline</span></button>
-            <button role="menuitem" id="btn-reading" class="ctx-item hidden" type="button" title="Reading mode (Ctrl+Shift+R)"><span class="ctx-ico" data-icon="book-open"></span><span class="ctx-label">Reading mode</span></button>
-            <button role="menuitem" id="btn-explorer" class="ctx-item" title="Toggle file explorer (Ctrl+Shift+E)" aria-label="Toggle file explorer"><span class="ctx-ico" data-icon="folder-tree"></span><span class="ctx-label">File explorer</span></button>
-            <button role="menuitem" id="btn-folder-search" class="ctx-item" title="Search in folder" aria-label="Search in folder"><span class="ctx-ico" data-icon="folder-search"></span><span class="ctx-label">Search in folder</span></button>
-            <button role="menuitem" id="btn-back" class="ctx-item" data-nav="back" title="Back (Alt+Left)" aria-label="Back" disabled><span class="ctx-ico" data-icon="chevron-left"></span><span class="ctx-label">Go back</span></button>
-            <button role="menuitem" id="btn-forward" class="ctx-item" data-nav="forward" title="Forward (Alt+Right)" aria-label="Forward" disabled><span class="ctx-ico" data-icon="chevron-right"></span><span class="ctx-label">Go forward</span></button>
+<button id="btn-sidebar" class="ctx-item active" role="menuitem" title="Toggle sidebar (Ctrl+B)" aria-label="Toggle sidebar"><span class="ctx-ico" data-icon="panel-left"></span><span class="ctx-label">Document outline</span><span class="ctx-hint">Ctrl+B</span></button>
+            <button role="menuitem" id="btn-reading" class="ctx-item hidden" type="button" title="Reading mode (Ctrl+Shift+R)"><span class="ctx-ico" data-icon="book-open"></span><span class="ctx-label">Reading mode</span><span class="ctx-hint">Ctrl+Shift+R</span></button>
+            <button role="menuitem" id="btn-explorer" class="ctx-item" title="Toggle file explorer (Ctrl+Shift+E)" aria-label="Toggle file explorer"><span class="ctx-ico" data-icon="folder-tree"></span><span class="ctx-label">File explorer</span><span class="ctx-hint">Ctrl+Shift+E</span></button>
+            <button role="menuitem" id="btn-folder-search" class="ctx-item" title="Search in folder (Ctrl+Shift+F)" aria-label="Search in folder"><span class="ctx-ico" data-icon="folder-search"></span><span class="ctx-label">Search in folder…</span><span class="ctx-hint">Ctrl+Shift+F</span></button>
+            <button role="menuitem" id="btn-back" class="ctx-item" data-nav="back" title="Back (Alt+Left)" aria-label="Back" disabled><span class="ctx-ico" data-icon="chevron-left"></span><span class="ctx-label">Go back</span><span class="ctx-hint">Alt+←</span></button>
+            <button role="menuitem" id="btn-forward" class="ctx-item" data-nav="forward" title="Forward (Alt+Right)" aria-label="Forward" disabled><span class="ctx-ico" data-icon="chevron-right"></span><span class="ctx-label">Go forward</span><span class="ctx-hint">Alt+→</span></button>
             <div class="menu-zoom-row" role="group" aria-label="Document zoom"><span>Zoom</span><div class="tool-group zoom-widget">
             <button role="menuitem" id="btn-zoom-out" class="tool-btn icon-only" title="Zoom out (Ctrl+-)" aria-label="Zoom out">
             <span data-icon="zoom-out" data-icon-size="14"></span>
@@ -131,14 +131,14 @@
             <div class="ctx-group-label">Export &amp; Present</div>
             <button class="ctx-item hidden" id="btn-export" role="menuitem" title="Export as HTML">
               <span class="ctx-ico" data-icon="download"></span>
-              <span class="ctx-label">Export HTML</span>
+              <span class="ctx-label">Export HTML…</span>
             </button>
             <button class="ctx-item hidden" id="btn-export-pdf" role="menuitem" title="Export as PDF">
               <span class="ctx-ico" data-icon="file-text"></span>
-              <span class="ctx-label">Export PDF</span>
+              <span class="ctx-label">Export PDF…</span>
             </button>
             <button class="ctx-item hidden" id="btn-copy-html" role="menuitem" title="Copy rendered HTML source">
-              <span class="ctx-ico" data-icon="clipboard"></span>
+              <span class="ctx-ico" data-icon="file-text"></span>
               <span class="ctx-label">Copy as HTML</span>
             </button>
             <button class="ctx-item hidden" id="btn-copy-plaintext" role="menuitem" title="Copy markdown-stripped plain text">
@@ -157,7 +157,7 @@
             <div class="ctx-group-label">Tools</div>
             <button class="ctx-item hidden" id="btn-share" role="menuitem" title="Share for live collaboration">
               <span class="ctx-ico" data-icon="share"></span>
-              <span class="ctx-label">Share / Collab</span>
+              <span class="ctx-label">Share / Collab…</span>
             </button>
             <button class="ctx-item" id="btn-daily" role="menuitem" title="Open or create today's note (YYYY-MM-DD.md)">
               <span class="ctx-ico" data-icon="calendar"></span>
@@ -173,14 +173,15 @@
               <span class="ctx-label">Terminal</span>
               <span class="ctx-hint">Ctrl+`</span>
             </button>
+            <div class="ctx-sep"></div>
+            <!-- Global settings lives here (pinned menu footer) so the topbar
+                 carries exactly ONE settings entry point. -->
+            <button class="ctx-item" id="btn-settings" role="menuitem" title="Settings (Ctrl+,)">
+              <span class="ctx-ico" data-icon="settings"></span>
+              <span class="ctx-label">Settings</span>
+              <span class="ctx-hint">Ctrl+,</span>
+            </button>
           </div>
-        </div>
-
-        <!-- Global settings. -->
-        <div class="tool-group">
-          <button id="btn-settings" class="tool-btn icon-only" title="Settings (Ctrl+,)" aria-label="Settings">
-            <span data-icon="settings"></span>
-          </button>
         </div>
       </div>
 
@@ -479,8 +480,13 @@
          as well as Remote P2P invite links. -->
     <div id="share-dialog" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="share-dialog-title">
       <div class="modal share-modal">
-        <h2 id="share-dialog-title" class="modal-title">Live Collaboration</h2>
-        
+        <div class="share-header">
+          <h2 id="share-dialog-title" class="modal-title">Live Collaboration</h2>
+          <button id="share-close-btn" class="share-close-btn" type="button" aria-label="Close collaboration panel" title="Close">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
         <!-- Mode Tabs -->
         <div class="share-tabs" role="tablist">
           <button id="share-tab-wifi" class="share-tab active" role="tab" aria-selected="true" type="button">
@@ -496,21 +502,21 @@
         <!-- iPad & Local Wi-Fi Panel -->
         <div id="share-panel-wifi" class="share-tab-panel" role="tabpanel">
           <p class="modal-text">Connect from your iPad, tablet, or phone on the same Wi-Fi. Scan the QR code with your iPad camera or enter the local URL in Safari.</p>
-          
+
           <div class="wifi-collab-body">
             <div id="wifi-qr-container" class="wifi-qr-card">
               <div id="wifi-qr-svg" class="wifi-qr-svg"></div>
               <span class="wifi-qr-label">Scan with iPad Camera</span>
             </div>
-            
+
             <div class="wifi-details">
               <label class="share-input-label" for="wifi-link-input">Local Wi-Fi Address</label>
-              <div class="share-link-row">
-                <input id="wifi-link-input" class="share-link-input" type="text" aria-label="Local Wi-Fi URL" readonly spellcheck="false" />
-                <button id="wifi-copy-btn" class="modal-btn modal-btn-primary" type="button">Copy</button>
-                <button id="wifi-open-btn" class="modal-btn modal-btn-secondary" type="button" title="Preview companion in app">In-App Preview</button>
+              <input id="wifi-link-input" class="share-link-input wifi-url-input" type="text" aria-label="Local Wi-Fi URL" readonly spellcheck="false" />
+              <div class="share-link-actions">
+                <button id="wifi-copy-btn" class="modal-btn modal-btn-primary" type="button">Copy link</button>
+                <button id="wifi-open-btn" class="modal-btn modal-btn-secondary" type="button" title="Preview the companion app inside mdpeek">In-App Preview</button>
               </div>
-              
+
               <div class="wifi-guide-steps">
                 <div class="wifi-step-item">
                   <span class="wifi-step-num">1</span>
@@ -535,15 +541,31 @@
           <div id="share-link-block" class="share-link-block">
             <div class="share-link-row">
               <input id="share-link-input" class="share-link-input" type="text" aria-label="Collaboration invite link" readonly spellcheck="false" />
-              <button id="share-copy-btn" class="modal-btn modal-btn-primary" type="button">Copy</button>
+              <button id="share-copy-btn" class="modal-btn modal-btn-primary" type="button">Copy link</button>
             </div>
-            <p class="share-footnote">Anyone with the link can edit. Don't share sensitive documents publicly.</p>
+            <div class="wifi-guide-steps">
+              <div class="wifi-step-item">
+                <span class="wifi-step-num">1</span>
+                <span>Send them the invite link — chat, email, anything</span>
+              </div>
+              <div class="wifi-step-item">
+                <span class="wifi-step-num">2</span>
+                <span>They open it and mdpeek joins the room</span>
+              </div>
+              <div class="wifi-step-item">
+                <span class="wifi-step-num">3</span>
+                <span>Both cursors edit the same document, live</span>
+              </div>
+            </div>
+            <div class="share-warning" role="note">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+              <span>Anyone with this link can edit the document. Don't share it publicly.</span>
+            </div>
           </div>
         </div>
 
         <div id="share-status" class="share-status">Generating collaboration link…</div>
         <div class="modal-actions share-actions">
-          <button class="modal-btn modal-btn-secondary" id="share-cancel-btn" type="button">Hide panel</button>
           <button class="modal-btn modal-btn-danger" id="share-end-btn" type="button">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 17l5-5-5-5M21 12H9M9 7H6a3 3 0 0 0-3 3v4a3 3 0 0 0 3 3h3"/></svg>
             End session
@@ -552,19 +574,30 @@
       </div>
     </div>
 
-    <!-- In-App Companion Simulator / Preview Modal -->
+    <!-- In-App Companion Preview Modal -->
     <div id="wifi-preview-dialog" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="wifi-preview-title">
       <div class="modal wifi-preview-modal">
         <div class="wifi-preview-header">
           <div class="wifi-preview-title-group">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="20" x="3" y="2" rx="3"/><path d="M12 18h.01"/></svg>
-            <h2 id="wifi-preview-title" class="modal-title">iPad Companion (In-App)</h2>
-            <span class="wifi-preview-live-badge">Live Sync</span>
+            <h2 id="wifi-preview-title" class="modal-title">iPad Companion</h2>
+            <span id="wifi-preview-badge" class="wifi-preview-live-badge is-waiting">Waiting for device…</span>
           </div>
-          <button id="wifi-preview-close" class="modal-btn modal-btn-secondary" type="button" aria-label="Close companion preview">Close</button>
+          <button id="wifi-preview-close" class="wifi-preview-close-btn" type="button" aria-label="Close companion preview" title="Close">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
         <div class="wifi-preview-viewport">
-          <iframe id="wifi-preview-frame" title="iPad Companion In-App Preview" src="about:blank"></iframe>
+          <iframe id="wifi-preview-frame" title="iPad Companion preview" src="about:blank"></iframe>
+          <div id="wifi-preview-loading" class="wifi-preview-state hidden">
+            <div class="wifi-preview-spinner" aria-hidden="true"></div>
+            <span>Loading companion…</span>
+          </div>
+          <div id="wifi-preview-error" class="wifi-preview-state wifi-preview-error hidden">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h.01"/><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
+            <span>Companion isn't reachable.<br/>Check that the Wi-Fi session is still running, then retry.</span>
+            <button id="wifi-preview-retry" class="modal-btn modal-btn-secondary" type="button">Retry</button>
+          </div>
         </div>
       </div>
     </div>
@@ -723,12 +756,15 @@
           <div class="settings-header-actions">
             <button id="settings-export" class="settings-header-btn" type="button" title="Export settings to a JSON file" aria-label="Export settings">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span class="settings-header-btn-label">Export</span>
             </button>
             <button id="settings-import" class="settings-header-btn" type="button" title="Import settings from a JSON file" aria-label="Import settings">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span class="settings-header-btn-label">Import</span>
             </button>
             <button id="settings-reset" class="settings-header-btn" type="button" title="Reset all settings to defaults" aria-label="Reset settings">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              <span class="settings-header-btn-label">Reset</span>
             </button>
             <button id="settings-close-btn" class="settings-close-btn" type="button" aria-label="Close settings">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -752,7 +788,7 @@
               <span>Editor</span>
             </button>
             <button class="settings-cat" data-cat="features" type="button">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              <span class="icon-host" data-icon="sparkles" data-icon-size="16"></span>
               <span>Features</span>
             </button>
             <div class="settings-group-label" aria-hidden="true">Reference</div>

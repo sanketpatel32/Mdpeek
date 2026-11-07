@@ -892,7 +892,10 @@
   height: 16px;
   margin: 0 0.5em 0 0;
   vertical-align: -3px;
-  border: 1.5px solid var(--border);
+  /* v1.6.2: --border alone was near-invisible on dark themes, so unchecked
+     boxes read as disabled/decorative. Mix in foreground so the affordance
+     survives every theme. */
+  border: 1.5px solid color-mix(in srgb, var(--fg-muted) 55%, var(--border));
   border-radius: 4px;
   background: var(--bg-elevated);
   /* v0.35.0: checkboxes in the preview are now clickable (toggle the source).

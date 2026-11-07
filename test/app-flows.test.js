@@ -150,7 +150,9 @@ it('Settings Escape clears a query, then closes and returns focus to its trigger
   expect(document.querySelector('#settings-dialog').classList.contains('hidden')).toBe(false);
   key('Escape', { ctrlKey: false });
   expect(document.querySelector('#settings-dialog').classList.contains('hidden')).toBe(true);
-  expect(document.activeElement.id).toBe('btn-settings');
+  // v1.6.2: Settings lives inside the (closed) more-menu, so focus returns
+  // to the ⋯ button that hosts it — the menu item has no layout while hidden.
+  expect(document.activeElement.id).toBe('btn-more');
 });
 
 it('settings contain focus and suppress background save, new-tab, terminal and navigation shortcuts', () => {
