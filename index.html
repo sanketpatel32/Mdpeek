@@ -96,6 +96,13 @@
             <span data-icon="more"></span>
           </button>
           <div id="more-menu" class="ctx-menu more-menu hidden" role="menu" aria-label="More actions">
+            <!-- v1.8: the ⋯ dropdown is now a filterable command menu — type to
+                 narrow the rows, arrows to walk them, Enter runs the focused one. -->
+            <div class="mm-search" role="search">
+              <span class="mm-search-ico" data-icon="search" data-icon-size="13"></span>
+              <input id="more-search" type="text" placeholder="Type to filter actions…" spellcheck="false" autocomplete="off" aria-label="Filter menu actions" />
+              <kbd class="mm-search-esc" title="Clear filter">esc</kbd>
+            </div>
             <div class="ctx-group-label">Document</div>
             <button class="ctx-item" id="btn-save-as" role="menuitem" title="Save a copy with another name (Ctrl+Alt+S)"><span class="ctx-ico" data-icon="save"></span><span class="ctx-label">Save as…</span><span class="ctx-hint">Ctrl+Alt+S</span></button>
             <button class="ctx-item hidden" id="btn-pin-doc-theme" role="menuitem" title="Pin a theme to this document">
@@ -116,8 +123,9 @@
             <button role="menuitem" id="btn-reading" class="ctx-item hidden" type="button" title="Reading mode (Ctrl+Shift+R)"><span class="ctx-ico" data-icon="book-open"></span><span class="ctx-label">Reading mode</span><span class="ctx-hint">Ctrl+Shift+R</span></button>
             <button role="menuitem" id="btn-explorer" class="ctx-item" title="Toggle file explorer (Ctrl+Shift+E)" aria-label="Toggle file explorer"><span class="ctx-ico" data-icon="folder-tree"></span><span class="ctx-label">File explorer</span><span class="ctx-hint">Ctrl+Shift+E</span></button>
             <button role="menuitem" id="btn-folder-search" class="ctx-item" title="Search in folder (Ctrl+Shift+F)" aria-label="Search in folder"><span class="ctx-ico" data-icon="folder-search"></span><span class="ctx-label">Search in folder…</span><span class="ctx-hint">Ctrl+Shift+F</span></button>
-            <button role="menuitem" id="btn-back" class="ctx-item" data-nav="back" title="Back (Alt+Left)" aria-label="Back" disabled><span class="ctx-ico" data-icon="chevron-left"></span><span class="ctx-label">Go back</span><span class="ctx-hint">Alt+←</span></button>
-            <button role="menuitem" id="btn-forward" class="ctx-item" data-nav="forward" title="Forward (Alt+Right)" aria-label="Forward" disabled><span class="ctx-ico" data-icon="chevron-right"></span><span class="ctx-label">Go forward</span><span class="ctx-hint">Alt+→</span></button>
+            <!-- v1.8.2: Go back / Go forward rows removed — nobody navigates a
+                 document viewer through a menu. Alt+←/→ keeps working and the
+                 commands stay in the palette ("Back"/"Forward"). -->
             <div class="menu-zoom-row" role="group" aria-label="Document zoom"><span>Zoom</span><div class="tool-group zoom-widget">
             <button role="menuitem" id="btn-zoom-out" class="tool-btn icon-only" title="Zoom out (Ctrl+-)" aria-label="Zoom out">
             <span data-icon="zoom-out" data-icon-size="14"></span>
@@ -181,6 +189,11 @@
               <span class="ctx-label">Settings</span>
               <span class="ctx-hint">Ctrl+,</span>
             </button>
+            <div class="mm-empty hidden" aria-live="polite">No matching actions</div>
+            <div class="mm-footer">
+              <span>Everything else lives in the command palette</span>
+              <kbd>Ctrl+Shift+P</kbd>
+            </div>
           </div>
         </div>
       </div>

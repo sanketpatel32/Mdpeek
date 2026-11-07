@@ -7861,8 +7861,8 @@ document.querySelector('.fmt-tools')?.addEventListener('click', (e) => {
 });
 el.mode.addEventListener('click', toggleMode);
 el.sidebar.addEventListener('click', toggleSidebar);
-document.getElementById('btn-back').addEventListener('click', goBack);
-document.getElementById('btn-forward').addEventListener('click', goForward);
+// v1.8.2: menu rows for back/forward removed (see index.html) — navigation
+// stays on Alt+←/→ (wired below) and the palette's Back/Forward commands.
 el.explorer.addEventListener('click', toggleExplorer);
 el.fileTreeClose.addEventListener('click', toggleExplorer);
 el.fileTreeOpen.addEventListener('click', openFolderForExplorer);
@@ -7966,10 +7966,40 @@ if (themeModeSeg) {
 // IDs, so the existing per-button handlers (bound elsewhere) still fire.
 function openMoreMenu() {
   if (!el.moreMenu) return;
+  clearMoreMenuFilter();
   syncMoreMenuGroups();
   el.moreMenu.classList.remove('hidden');
   el.moreBtn?.setAttribute('aria-expanded', 'true');
-  el.moreMenu.querySelector('.ctx-item:not(.hidden):not([disabled])')?.focus();
+  // v1.8: the menu is filterable — land focus in the search so typing narrows
+  // rows immediately; arrows hand off to the item list (menu keydown handler).
+  (document.getElementById('more-search') ||
+    el.moreMenu.querySelector('.ctx-item:not(.hidden):not([disabled])'))?.focus();
+}
+// v1.8: type-to-filter for the more-menu. Filtering uses a dedicated
+// .mm-filtered class (NOT .hidden) so clearing the filter can never un-hide
+// items the app state hid (feature flags, no-file states).
+function applyMoreMenuFilter(query) {
+  if (!el.moreMenu) return;
+  const q = (query || '').trim().toLowerCase();
+  const searchWrap = el.moreMenu.querySelector('.mm-search');
+  searchWrap?.classList.toggle('has-value', !!q);
+  el.moreMenu.querySelectorAll('.ctx-item').forEach((item) => {
+    if (item.classList.contains('hidden')) return; // state-hidden stays hidden
+    const label = item.querySelector('.ctx-label')?.textContent || '';
+    item.classList.toggle('mm-filtered', !!q && !label.toLowerCase().includes(q));
+  });
+  syncMoreMenuGroups();
+  const visible = [...el.moreMenu.querySelectorAll('.ctx-item')].some(
+    (i) => !i.classList.contains('hidden') && !i.classList.contains('mm-filtered'));
+  el.moreMenu.querySelector('.mm-empty')?.classList.toggle('hidden', visible);
+}
+function clearMoreMenuFilter() {
+  if (!el.moreMenu) return;
+  el.moreMenu.querySelectorAll('.mm-filtered').forEach((i) => i.classList.remove('mm-filtered'));
+  const input = document.getElementById('more-search');
+  if (input) input.value = '';
+  el.moreMenu.querySelector('.mm-search')?.classList.remove('has-value');
+  el.moreMenu.querySelector('.mm-empty')?.classList.add('hidden');
 }
 // v1.6.2: hide a group label (and the separator above it) when every item in
 // the group is hidden. An orphaned "Tools" header with nothing beneath it
@@ -7989,7 +8019,7 @@ function syncMoreMenuGroups() {
     }
     const hasVisible = slice.some((s) =>
       (s.classList.contains('ctx-item') || s.classList.contains('menu-zoom-row')) &&
-      !s.classList.contains('hidden') && s.style.display !== 'none');
+      !s.classList.contains('hidden') && !s.classList.contains('mm-filtered') && s.style.display !== 'none');
     if (hasVisible) return;
     kid.classList.add('group-empty');
     // Drop the separator directly above an empty group too — otherwise the
@@ -8022,6 +8052,18 @@ document.addEventListener('click', (e) => {
 });
 if (el.moreMenu) {
   el.moreMenu.addEventListener('keydown', (e) => {
+    const search = document.getElementById('more-search');
+    // v1.8: typing anywhere in the menu jumps into the filter. The char itself
+    // lands after focus moves (the default action targets the old element),
+    // so append it manually for a seamless feel.
+    if (search && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey &&
+        document.activeElement !== search && !e.target.closest('.mm-search')) {
+      search.focus();
+      search.value = (search.value + e.key).slice(0, 100);
+      applyMoreMenuFilter(search.value);
+      e.preventDefault();
+      return;
+    }
     const items = [...el.moreMenu.querySelectorAll('button')].filter((item) => !item.disabled && item.getClientRects().length);
     const index = items.indexOf(document.activeElement);
     if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
@@ -8032,6 +8074,18 @@ if (el.moreMenu) {
   });
   el.moreMenu.addEventListener('click', (e) => {
     if (e.target.closest('.ctx-item')) closeMoreMenu();
+  });
+  // v1.8: live filter. Esc in the search clears first, closes second (the
+  // document-level Esc closer handles the second press).
+  const mmSearchInput = document.getElementById('more-search');
+  mmSearchInput?.addEventListener('input', () => applyMoreMenuFilter(mmSearchInput.value));
+  mmSearchInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && mmSearchInput.value) {
+      e.preventDefault();
+      e.stopPropagation();
+      clearMoreMenuFilter();
+      mmSearchInput.focus();
+    }
   });
 }
 document.addEventListener('keydown', (e) => {

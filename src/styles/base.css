@@ -3568,15 +3568,92 @@ mark.find-current {
 }
 .more-menu {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 8px);
   right: 0;
   min-width: 240px;
-  padding: 6px;
+  padding: 0;
   z-index: 1000;
-  /* v1.6.2: lift the panel off the page — the surface background let the
-     menu's left edge blend into document text behind it. */
+  border-radius: 14px;
+  overflow: hidden;
+  /* v1.8: command-menu restyle — a filterable panel, not a bare dropdown. */
   background: var(--bg-elevated);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4), 0 3px 10px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px color-mix(in srgb, var(--fg) 6%, transparent);
+}
+/* Search header — full-bleed above the item list. */
+.mm-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px;
+  padding: 0 10px;
+  height: 34px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 9px;
+  color: var(--fg-muted);
+  transition: border-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
+}
+.mm-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.mm-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12.5px;
+  outline: none;
+}
+.mm-search input::placeholder { color: var(--fg-muted); }
+.mm-search-ico { display: inline-flex; color: var(--fg-muted); }
+.mm-search:focus-within .mm-search-ico { color: var(--accent); }
+.mm-search-esc {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  background: var(--surface-hover);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity var(--dur-1) ease;
+}
+.mm-search:focus-within .mm-search-esc,
+.mm-search.has-value .mm-search-esc { opacity: 1; }
+/* Filtered rows drop out; the empty note appears via JS. */
+.more-menu .ctx-item.mm-filtered { display: none; }
+.mm-empty {
+  padding: 18px 12px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--fg-muted);
+}
+.mm-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 9px 14px;
+  font-size: 11px;
+  color: var(--fg-muted);
+  border-top: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--fg) 3%, transparent);
+}
+.mm-footer kbd {
+  padding: 1px 6px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--fg-secondary);
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  white-space: nowrap;
 }
 .ctx-group-label {
   padding: 8px 10px 4px;
@@ -3639,12 +3716,48 @@ mark.find-current {
   background: color-mix(in srgb, var(--accent) 16%, var(--surface-hover));
 }
 /* v1.6.2: compact rows — with every feature enabled the menu grew to near
-   viewport height and scrolled, which reads as broken, not as "more items". */
+   viewport height and scrolled, which reads as broken, not as "more items".
+   v1.8: rows gained 26px icon chips (the old bare glyphs read generic). */
 .more-menu .ctx-item {
-  padding: 6px 12px;
+  padding: 5px 10px;
+  margin: 0 6px;
+  border-radius: 9px;
 }
 .more-menu .ctx-group-label {
-  padding: 7px 10px 3px;
+  padding: 8px 16px 4px;
+}
+.more-menu .ctx-item .ctx-ico {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  /* v1.8.1: the first pass used place-items (a grid-only property — useless
+     in inline-flex, so glyphs hugged the tile's left edge) and a 7%-ink fill
+     that fell below perception on dark themes: only the ACTIVE row's stronger
+     accent tint read as a tile. Center properly and paint at 11% ink with a
+     legible icon color. v1.8.2: align-items was STILL missing (assumed,
+     never measured) — default stretch top-pinned every glyph 5px high in its
+     tile; measured elOffY was -5px on all rows, now 0. */
+  justify-content: center;
+  align-items: center;
+  background: color-mix(in srgb, var(--fg) 11%, transparent);
+  border: 1px solid var(--border);
+  color: var(--fg-secondary);
+  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+.more-menu .ctx-item .ctx-ico svg,
+.more-menu .ctx-item .ctx-ico [data-icon] { width: 14px; height: 14px; }
+.more-menu .ctx-item:hover:not(:disabled) .ctx-ico,
+.more-menu .ctx-item:focus-visible .ctx-ico {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border-subtle));
+  color: var(--fg);
+}
+.more-menu .ctx-item.active .ctx-ico {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border-subtle));
+}
+.more-menu .ctx-sep {
+  margin: 6px 12px;
 }
 /* Group separators read as fading hairlines, not hard rules — the macOS menu
    convention where the line dissolves toward its ends. */
