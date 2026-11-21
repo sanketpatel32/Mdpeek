@@ -8,7 +8,6 @@ h1, h2, h3 { min-width: 0; overflow-wrap: break-word; text-wrap: balance; }
 :where(button, a, input, select, textarea) { -webkit-tap-highlight-color: var(--accent-soft); }
 
 /* Header & navigation chrome cleanly inherit from base.css */
-.collab-status, .pomo-status { align-self: center; flex-shrink: 0; }
 header > :last-child { flex-shrink: 0; margin: 0; border-left: 1px solid var(--border-subtle); }
 .window-btn { width: 40px; }
 .more-menu { width: 372px; max-height: calc(100dvh - var(--header-h) - var(--space-md)); overflow-y: auto; right: 0; left: auto; border-radius: 14px; }
@@ -161,15 +160,7 @@ header > :last-child { flex-shrink: 0; margin: 0; border-left: 1px solid var(--b
 .palette-item.selected { background: var(--accent-soft); color: var(--fg); }
 .palette-footer { background: var(--bg); color: var(--fg-secondary); border-top: 1px solid var(--border-subtle); }
 .modal-overlay.is-leaving { pointer-events: none; }
-.workspace-tabs { padding: var(--space-xs) var(--space-md); background: var(--bg); border-bottom: 1px solid var(--border); }
-.workspace-tab { border-radius: var(--radius-sm); font-size: var(--text-sm); }
-.workspace-tab.active { color: var(--fg); background: var(--accent-soft); box-shadow: none; }
-.kanban-column { background: var(--bg); border: 0; border-radius: var(--radius); }
-.kanban-card { box-shadow: none; background: var(--bg-elevated); color: var(--fg); border-color: var(--border); border-radius: var(--radius-sm); }
-.kanban-card:hover { transform: none; box-shadow: none; }
-.kanban-column-title { text-transform: none; letter-spacing: 0; font-family: var(--font-sans); }
-.reader-bar, .csv-toolbar, .diff-header { background: var(--bg); border-color: var(--border-subtle); box-shadow: none; }
-.reference-pane, .tag-pane { background: var(--bg-elevated); border-color: var(--border); transition: none; }
+.reader-bar, .csv-toolbar { background: var(--bg); border-color: var(--border-subtle); box-shadow: none; }
 .cvw-chrome [role="alert"] { max-width: 280px; white-space: normal; line-height: 1.4; }
 
 @media (max-width: 1000px) {
@@ -195,8 +186,6 @@ header > :last-child { flex-shrink: 0; margin: 0; border-left: 1px solid var(--b
   .toolbar { gap: var(--space-3xs); padding: 0; }
   .tool-group + .tool-group { padding-left: var(--space-2xs); }
   .window-btn { width: 32px; }
-  .collab-status, .pomo-status { position: fixed; bottom: 32px; right: var(--space-sm); z-index: 30; box-shadow: var(--shadow-sm); background: var(--bg-elevated); }
-  .collab-status { right: 196px; }
   .welcome-inner { grid-template-columns: minmax(0, 1fr); grid-template-areas: "hero" "actions" "recent" "footer" "hint"; max-width: 560px; }
   .welcome-title { font-size: 36px; max-width: 17ch; padding-right: var(--space-xl); }
   .welcome-brand { width: 40px; height: 40px; }
@@ -218,7 +207,7 @@ header > :last-child { flex-shrink: 0; margin: 0; border-left: 1px solid var(--b
   .settings-content { max-height: calc(100dvh - 280px); }
   .setting-row .seg { max-width: 100%; flex-wrap: wrap; }
   .seg-btn { padding-inline: var(--space-xs); }
-  .palette-footer, .diff-header { flex-wrap: wrap; }
+  .palette-footer { flex-wrap: wrap; }
   .shortcut-table td:first-child { white-space: normal; }
   .shortcut-table kbd { white-space: nowrap; }
   .changelog-body { overflow-wrap: break-word; }

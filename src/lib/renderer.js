@@ -16,8 +16,6 @@ import { markedSubSup, expandSuperscript, expandSpoilers } from './subsup.js';
 import { parseImageSize } from './image-size.js';
 import { escapeHtml } from './escape.js';
 import { extractAbbreviations, applyAbbreviations } from './abbreviations.js';
-import { findComplexWords, isDenseParagraph } from './prose.js';
-import { overusedWords, findWordsInText } from './wordfreq.js';
 import { extractFrontMatter, renderFrontMatterTable } from './frontmatter.js';
 
 // Local escapeText — escapes only & < > (NOT quotes). Used for TEXT CONTENT
@@ -949,8 +947,6 @@ export async function enhanceDom(container, {
   mermaid: renderMermaid = true,
   folding: renderFolding = true,
   lineNumbers = false,
-  proseHighlights = false,
-  wordFreq = false,
 } = {}) {
   if (typeof window === 'undefined') return;
   enhanceCodeBlocks(container, { lineNumbers });
@@ -960,8 +956,6 @@ export async function enhanceDom(container, {
   enhanceTaskProgress(container);
   enhanceSpoilers(container);
   enhanceVideoEmbeds(container);
-  if (wordFreq) enhanceWordFreq(container);
-  if (proseHighlights) enhanceProseHighlights(container);
   if (renderFolding) enhanceFolding(container);
   // Kick off dynamic language registration for any fenced langs we don't yet
   // have. Non-blocking — this render stays as-is; the next render picks them up.
@@ -1014,115 +1008,6 @@ function enhanceTaskProgress(container) {
   });
 }
 
-// v0.53.0: Highlight hard-to-read prose. Walks rendered paragraphs, wraps each
-// 3+-syllable word in <mark class="prose-complex"> and adds .prose-dense to
-// whole paragraphs that read as difficult. Skips code blocks, tables, and
-// alert callouts so only real prose is marked. Idempotent across re-renders.
-function enhanceProseHighlights(container) {
-  if (!container) return;
-  const paras = container.querySelectorAll('p');
-  paras.forEach((p) => {
-    // Skip paragraphs that aren't running prose.
-    if (p.closest('pre')) return; // fenced/inline code
-    if (p.closest('table')) return; // table cells
-    if (p.closest('blockquote.markdown-alert')) return; // callouts
-    // Whole-paragraph density tint.
-    if (isDenseParagraph(p.textContent)) p.classList.add('prose-dense');
-    // Wrap complex words. We walk text nodes and rebuild each one with text +
-    // <mark> fragments, so existing inline elements (<a>, <strong>, <code>)
-    // are left intact — only the text inside them is wrapped. Skip text nodes
-    // already inside a <code> or a prior prose <mark>.
-    const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, {
-      acceptNode(node) {
-        if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
-        if (node.parentElement && node.parentElement.closest('code, mark.prose-complex, .prose-skip')) {
-          return NodeFilter.FILTER_REJECT;
-        }
-        return NodeFilter.FILTER_ACCEPT;
-      },
-    });
-    const targets = [];
-    let n;
-    while ((n = walker.nextNode())) targets.push(n);
-    for (const node of targets) {
-      const text = node.nodeValue;
-      const matches = findComplexWords(text);
-      if (matches.length === 0) continue;
-      // Build replacement fragments: plain text between matches + a <mark> for
-      // each match. Offsets are into the original text, so slicing is exact.
-      const frag = document.createDocumentFragment();
-      let cursor = 0;
-      for (const { start, end } of matches) {
-        if (start > cursor) frag.appendChild(document.createTextNode(text.slice(cursor, start)));
-        const mark = document.createElement('mark');
-        mark.className = 'prose-complex';
-        mark.textContent = text.slice(start, end);
-        frag.appendChild(mark);
-        cursor = end;
-      }
-      if (cursor < text.length) frag.appendChild(document.createTextNode(text.slice(cursor)));
-      node.parentNode.replaceChild(frag, node);
-    }
-  });
-}
-
-// v0.55.0: Word-frequency overlay — wraps occurrences of overused (5+ use)
-// words in <span class="wordfreq-mark">. A distinct axis from prose highlights
-// (which mark *hard* words); this marks *repetitive* words, in amber so the two
-// never read as the same affordance. Skips code blocks, tables, alert callouts,
-// and headings so only body prose is marked. Idempotent across re-renders.
-function enhanceWordFreq(container) {
-  if (!container) return;
-  const paras = container.querySelectorAll('p');
-  if (paras.length === 0) return;
-  // Build the overused set from the container's own prose, so the underline is
-  // driven by the same text the user reads. Skip non-prose <p> elements here
-  // too so a table/callout doesn't inflate counts.
-  let proseText = '';
-  const proseParas = [];
-  paras.forEach((p) => {
-    if (p.closest('pre')) return;
-    if (p.closest('table')) return;
-    if (p.closest('blockquote.markdown-alert')) return;
-    proseText += p.textContent + '\n';
-    proseParas.push(p);
-  });
-  const overused = overusedWords(proseText);
-  if (overused.size === 0) return;
-  proseParas.forEach((p) => {
-    // Walk text nodes; skip any inside <code> or an existing wrapper so we don't
-    // double-wrap or touch code spans (matches enhanceProseHighlights guards).
-    const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, {
-      acceptNode(node) {
-        if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
-        if (node.parentElement && node.parentElement.closest('code, mark.prose-complex, .wordfreq-mark, .prose-skip')) {
-          return NodeFilter.FILTER_REJECT;
-        }
-        return NodeFilter.FILTER_ACCEPT;
-      },
-    });
-    const targets = [];
-    let n;
-    while ((n = walker.nextNode())) targets.push(n);
-    for (const node of targets) {
-      const text = node.nodeValue;
-      const matches = findWordsInText(text, overused);
-      if (matches.length === 0) continue;
-      const frag = document.createDocumentFragment();
-      let cursor = 0;
-      for (const { start, end } of matches) {
-        if (start > cursor) frag.appendChild(document.createTextNode(text.slice(cursor, start)));
-        const span = document.createElement('span');
-        span.className = 'wordfreq-mark';
-        span.textContent = text.slice(start, end);
-        frag.appendChild(span);
-        cursor = end;
-      }
-      if (cursor < text.length) frag.appendChild(document.createTextNode(text.slice(cursor)));
-      node.parentNode.replaceChild(frag, node);
-    }
-  });
-}
 
 // v0.62.0: Embedded video cards. A paragraph whose ONLY content is a
 // YouTube/Vimeo link becomes a responsive 16:9 <iframe> card. The iframe is

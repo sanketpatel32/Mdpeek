@@ -8,7 +8,6 @@ import {
   autoPair,
   handleBackspace,
   insertLink,
-  lineCount,
   duplicateLines,
   moveLines,
   toggleComment,

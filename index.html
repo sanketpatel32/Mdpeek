@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>mdpeek</title>
-    <meta name="description" content="mdpeek — a fast, beautiful markdown peeker: live preview, reading mode, presentation, and more." />
+    <meta name="description" content="mdpeek — a fast, beautiful markdown peeker: live preview, reading mode, and more." />
     <!-- Advertise color-scheme so native widgets (scrollbars, form controls)
          match the app theme from the very first frame. -->
     <meta name="color-scheme" content="light dark" />
@@ -57,12 +57,6 @@
         <button id="tab-new" class="tab-new" title="New tab (Ctrl+N)" aria-label="New tab"><span data-icon="plus" data-icon-size="14"></span></button>
       </div>
 
-      <div id="collab-status" class="collab-status hidden" role="status" aria-live="polite" tabindex="0" title="Live collaboration — click to open panel">
-        <span class="collab-dot" aria-hidden="true"></span>
-        <span class="collab-text">Live</span>
-        <button id="collab-end" class="collab-end" type="button" title="End session" aria-label="End collaboration session"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-      </div>
-
       <div class="toolbar">
         <div class="tool-group document-tools" aria-label="Document actions">
 
@@ -93,17 +87,9 @@
             </div>
             <div class="ctx-group-label">Document</div>
             <button class="ctx-item" id="btn-save-as" role="menuitem" title="Save a copy with another name (Ctrl+Alt+S)"><span class="ctx-ico" data-icon="save"></span><span class="ctx-label">Save as…</span><span class="ctx-hint">Ctrl+Alt+S</span></button>
-            <button class="ctx-item hidden" id="btn-pin-doc-theme" role="menuitem" title="Pin a theme to this document">
-              <span class="ctx-ico" data-icon="palette"></span>
-              <span class="ctx-label">Pin theme to this doc</span>
-            </button>
-            <button class="ctx-item hidden" id="btn-clear-doc-theme" role="menuitem" title="Remove this document's pinned theme">
-              <span class="ctx-ico" data-icon="palette"></span>
-              <span class="ctx-label">Clear pinned theme</span>
-            </button>
-            <button class="ctx-item hidden" id="btn-draw" role="menuitem" title="Annotate PDF">
+            <button class="ctx-item hidden" id="btn-draw" role="menuitem" title="Annotate image">
               <span class="ctx-ico" data-icon="pen-tool"></span>
-              <span class="ctx-label">Annotate PDF</span>
+              <span class="ctx-label">Annotate image</span>
             </button>
             <div class="ctx-sep"></div>
             <div class="ctx-group-label">View &amp; Navigation</div>
@@ -124,7 +110,7 @@
             </button>
             </div></div>
             <div class="ctx-sep"></div>
-            <div class="ctx-group-label">Export &amp; Present</div>
+            <div class="ctx-group-label">Export</div>
             <button class="ctx-item hidden" id="btn-export" role="menuitem" title="Export as HTML">
               <span class="ctx-ico" data-icon="download"></span>
               <span class="ctx-label">Export HTML…</span>
@@ -145,29 +131,11 @@
               <span class="ctx-ico" data-icon="external-link"></span>
               <span class="ctx-label">Open in browser</span>
             </button>
-            <button class="ctx-item hidden" id="btn-present" role="menuitem" title="Present (split on ---)">
-              <span class="ctx-ico" data-icon="presentation"></span>
-              <span class="ctx-label">Present</span>
-            </button>
             <div class="ctx-sep"></div>
             <div class="ctx-group-label">Tools</div>
-            <button class="ctx-item hidden" id="btn-share" role="menuitem" title="Share for live collaboration">
-              <span class="ctx-ico" data-icon="share"></span>
-              <span class="ctx-label">Share / Collab…</span>
-            </button>
             <button class="ctx-item" id="btn-daily" role="menuitem" title="Open or create today's note (YYYY-MM-DD.md)">
               <span class="ctx-ico" data-icon="calendar"></span>
               <span class="ctx-label">Today's note</span>
-            </button>
-            <button class="ctx-item" id="btn-kanban" role="menuitem" title="Kanban board (Ctrl+Shift+K)">
-              <span class="ctx-ico" data-icon="kanban"></span>
-              <span class="ctx-label">Kanban board</span>
-              <span class="ctx-hint">Ctrl+Shift+K</span>
-            </button>
-            <button class="ctx-item" id="btn-terminal" role="menuitem" title="Toggle Terminal (Ctrl+`)">
-              <span class="ctx-ico" data-icon="terminal"></span>
-              <span class="ctx-label">Terminal</span>
-              <span class="ctx-hint">Ctrl+`</span>
             </button>
             <div class="ctx-sep"></div>
             <!-- Global settings lives here (pinned menu footer) so the topbar
@@ -256,7 +224,6 @@
             <div class="editor-wrap">
               <div id="gutter" class="gutter" aria-hidden="true"></div>
               <textarea id="editor" class="editor" aria-label="Document editor" wrap="off" spellcheck="false" placeholder="Type markdown here..."></textarea>
-              <div id="peer-carets" class="peer-carets" aria-hidden="true"></div>
               <aside id="editor-outline" class="editor-outline hidden" aria-label="Document outline">
                 <div class="editor-outline-header">
                   <span class="editor-outline-title">Outline</span>
@@ -285,8 +252,6 @@
         </main>
       </div>
 
-      <!-- Terminal Drawer (Deprecated) -->
-      <div id="terminal-drawer" class="terminal-drawer hidden" style="display:none;" aria-hidden="true"></div>
     </div>
 
     <div id="dropzone" class="dropzone hidden">
@@ -297,8 +262,6 @@
     </div>
 
     <div id="toast" class="toast hidden" role="status" aria-live="polite" title="Click to dismiss"></div>
-
-    <div id="pdf-page-badge" class="pdf-page-badge hidden" aria-live="polite">1 / 1</div>
 
     <div id="pdf-draw-toolbar" class="pdf-draw-toolbar hidden">
       <button class="pdf-tool-btn" id="pdf-tool-pen" title="Pen" aria-label="Pen tool">
@@ -326,32 +289,6 @@
       <button class="pdf-tool-btn" id="pdf-tool-close" title="Close drawing" aria-label="Close drawing mode">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
-    </div>
-
-    <!-- Presentation mode (v0.20.0): fullscreen slideshow built by splitting
-         the active markdown doc on --- lines. Shown via body.presenting.
-         v0.34.1: added a top progress bar + a visible style-toggle button
-         (deck ↔ reading) so the switch isn't keyboard-only. -->
-    <div id="slideshow" class="slideshow hidden" role="dialog" aria-modal="true" aria-label="Presentation">
-      <div class="slide-progress-bar" aria-hidden="true"></div>
-      <button class="slide-arrow prev" type="button" title="Previous (←)" aria-label="Previous slide">‹</button>
-      <div class="slide-stage"></div>
-      <button class="slide-arrow next" type="button" title="Next (→)" aria-label="Next slide">›</button>
-      <!-- v0.40.0: speaker-notes panel. Hidden by default; toggle with N.
-           Populated per-slide from "note:" lines and [note: ...] comments. -->
-      <div class="speaker-notes hidden" role="note" aria-label="Speaker notes">
-        <div class="speaker-notes-label">Speaker notes</div>
-        <div class="speaker-notes-body"></div>
-      </div>
-      <button class="slide-exit-btn" id="slide-exit-btn" type="button" title="Exit presentation (Esc)" aria-label="Exit presentation">
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-      <button class="slide-style-btn" id="slide-style-btn" type="button" title="Switch style (S)" aria-label="Switch presentation style">
-        <span data-icon="slide-style"></span>
-        <span id="slide-style-label">Deck</span>
-      </button>
-      <div class="slide-progress" aria-live="polite"></div>
-      <div class="slide-hint">← → · space · F fullscreen · N notes · S style · Esc</div>
     </div>
 
     <!-- Immersive Reading Mode (v0.34.0). Safari-Reader-style full-screen
@@ -446,271 +383,6 @@
       </div>
     </div>
 
-    <!-- Share for live collaboration. Supports iPad & Local Wi-Fi (QR code / direct URL)
-         as well as Remote P2P invite links. -->
-    <div id="share-dialog" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="share-dialog-title">
-      <div class="modal share-modal">
-        <div class="share-header">
-          <h2 id="share-dialog-title" class="modal-title">Live Collaboration</h2>
-          <button id="share-close-btn" class="share-close-btn" type="button" aria-label="Close collaboration panel" title="Close">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-
-        <!-- Mode Tabs -->
-        <div class="share-tabs" role="tablist">
-          <button id="share-tab-wifi" class="share-tab active" role="tab" aria-selected="true" type="button">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
-            iPad &amp; Local Wi-Fi
-          </button>
-          <button id="share-tab-p2p" class="share-tab" role="tab" aria-selected="false" type="button">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-            Remote P2P Link
-          </button>
-        </div>
-
-        <!-- iPad & Local Wi-Fi Panel -->
-        <div id="share-panel-wifi" class="share-tab-panel" role="tabpanel">
-          <p class="modal-text">Connect from your iPad, tablet, or phone on the same Wi-Fi. Scan the QR code with your iPad camera or enter the local URL in Safari.</p>
-
-          <div class="wifi-collab-body">
-            <div id="wifi-qr-container" class="wifi-qr-card">
-              <div id="wifi-qr-svg" class="wifi-qr-svg"></div>
-              <span class="wifi-qr-label">Scan with iPad Camera</span>
-            </div>
-
-            <div class="wifi-details">
-              <label class="share-input-label" for="wifi-link-input">Local Wi-Fi Address</label>
-              <input id="wifi-link-input" class="share-link-input wifi-url-input" type="text" aria-label="Local Wi-Fi URL" readonly spellcheck="false" />
-              <div class="share-link-actions">
-                <button id="wifi-copy-btn" class="modal-btn modal-btn-primary" type="button">Copy link</button>
-                <button id="wifi-open-btn" class="modal-btn modal-btn-secondary" type="button" title="Preview the companion app inside mdpeek">In-App Preview</button>
-              </div>
-
-              <div class="wifi-guide-steps">
-                <div class="wifi-step-item">
-                  <span class="wifi-step-num">1</span>
-                  <span>Connect iPad to this Wi-Fi network</span>
-                </div>
-                <div class="wifi-step-item">
-                  <span class="wifi-step-num">2</span>
-                  <span>Point Camera at the QR code</span>
-                </div>
-                <div class="wifi-step-item">
-                  <span class="wifi-step-num">3</span>
-                  <span>Edit notes &amp; sketch live in Safari</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Remote P2P Invite Panel -->
-        <div id="share-panel-p2p" class="share-tab-panel hidden" role="tabpanel">
-          <p class="modal-text">Share this link with someone who has mdpeek installed. You'll both edit this document in real time.</p>
-          <div id="share-link-block" class="share-link-block">
-            <div class="share-link-row">
-              <input id="share-link-input" class="share-link-input" type="text" aria-label="Collaboration invite link" readonly spellcheck="false" />
-              <button id="share-copy-btn" class="modal-btn modal-btn-primary" type="button">Copy link</button>
-            </div>
-            <div class="wifi-guide-steps">
-              <div class="wifi-step-item">
-                <span class="wifi-step-num">1</span>
-                <span>Send them the invite link — chat, email, anything</span>
-              </div>
-              <div class="wifi-step-item">
-                <span class="wifi-step-num">2</span>
-                <span>They open it and mdpeek joins the room</span>
-              </div>
-              <div class="wifi-step-item">
-                <span class="wifi-step-num">3</span>
-                <span>Both cursors edit the same document, live</span>
-              </div>
-            </div>
-            <div class="share-warning" role="note">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-              <span>Anyone with this link can edit the document. Don't share it publicly.</span>
-            </div>
-          </div>
-        </div>
-
-        <div id="share-status" class="share-status">Generating collaboration link…</div>
-        <div class="modal-actions share-actions">
-          <button class="modal-btn modal-btn-danger" id="share-end-btn" type="button">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 17l5-5-5-5M21 12H9M9 7H6a3 3 0 0 0-3 3v4a3 3 0 0 0 3 3h3"/></svg>
-            End session
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- In-App Companion Preview Modal -->
-    <div id="wifi-preview-dialog" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="wifi-preview-title">
-      <div class="modal wifi-preview-modal">
-        <div class="wifi-preview-header">
-          <div class="wifi-preview-title-group">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="20" x="3" y="2" rx="3"/><path d="M12 18h.01"/></svg>
-            <h2 id="wifi-preview-title" class="modal-title">iPad Companion</h2>
-            <span id="wifi-preview-badge" class="wifi-preview-live-badge is-waiting">Waiting for device…</span>
-          </div>
-          <button id="wifi-preview-close" class="wifi-preview-close-btn" type="button" aria-label="Close companion preview" title="Close">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-        <div class="wifi-preview-viewport">
-          <iframe id="wifi-preview-frame" title="iPad Companion preview" src="about:blank"></iframe>
-          <div id="wifi-preview-loading" class="wifi-preview-state hidden">
-            <div class="wifi-preview-spinner" aria-hidden="true"></div>
-            <span>Loading companion…</span>
-          </div>
-          <div id="wifi-preview-error" class="wifi-preview-state wifi-preview-error hidden">
-            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h.01"/><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
-            <span>Companion isn't reachable.<br/>Check that the Wi-Fi session is still running, then retry.</span>
-            <button id="wifi-preview-retry" class="modal-btn modal-btn-secondary" type="button">Retry</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Global Kanban board (v0.22.2). Full-page view (same layering model as
-         the slideshow), three columns (To do / In progress / Done). New tasks
-         can only be added to "To do" — move them by dragging. Tasks are stored
-         globally in localStorage (mdpeek-kanban-tasks) so the board survives
-         app restarts and is the same across every tab. -->
-    <div id="kanban-view" class="kanban-view workspace-view" role="dialog" aria-modal="true" aria-labelledby="kanban-view-title">
-      <header class="kanban-toolbar">
-        <div class="kanban-toolbar-left">
-          <div class="kanban-title-group">
-            <span class="icon-host" data-icon="kanban" data-icon-size="20"></span>
-            <h2 id="kanban-view-title" class="kanban-toolbar-title">Workspace</h2>
-          </div>
-          <!-- Mode tabs (v0.33.0): Board · Calendar · Tasks · Review -->
-          <div class="workspace-tabs" role="tablist" aria-label="Workspace modes">
-            <button class="workspace-tab active" data-mode="board" role="tab" aria-selected="true" type="button">Board</button>
-            <button class="workspace-tab" data-mode="calendar" role="tab" aria-selected="false" type="button">Calendar</button>
-            <button class="workspace-tab" data-mode="tasks" role="tab" aria-selected="false" type="button">Tasks</button>
-            <button class="workspace-tab" data-mode="review" role="tab" aria-selected="false" type="button">Review</button>
-            <button class="workspace-tab" data-mode="graph" role="tab" aria-selected="false" type="button">Graph</button>
-          </div>
-          <div id="kanban-progress-bar-wrap" class="kanban-progress-wrap" title="Completion progress">
-            <div id="kanban-progress-bar" class="kanban-progress-bar" style="width: 0%;"></div>
-          </div>
-          <span id="kanban-stats" class="kanban-stats">0 tasks</span>
-        </div>
-        <div class="kanban-toolbar-actions">
-          <div class="kanban-search-wrap">
-            <span class="icon-host" data-icon="search" data-icon-size="14"></span>
-            <input id="kanban-search-input" type="text" placeholder="Filter…" aria-label="Filter" />
-          </div>
-          <button id="workspace-refresh-btn" class="tool-btn hidden" type="button" title="Re-scan notes">
-            <span class="icon-host" data-icon="rotate-cw" data-icon-size="14"></span>
-            <span>Refresh</span>
-          </button>
-          <button id="kanban-clear-done-btn" class="tool-btn danger-btn-hover" type="button" title="Clear completed tasks">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-            <span>Clear Done</span>
-          </button>
-          <button class="tool-btn primary-btn" id="kanban-done-btn" type="button" title="Close (Esc)" aria-label="Close Workspace">
-            <span class="icon-host" data-icon="x" data-icon-size="16"></span>
-            <span>Close</span>
-          </button>
-        </div>
-      </header>
-
-      <!-- Board panel: the original Kanban board. Columns rendered by JS. -->
-      <div class="workspace-panel active" data-mode="board">
-        <div class="kanban-board" id="kanban-board">
-          <!-- Columns are rendered by JS to keep the markup in sync with the
-               task data model. Three columns: todo / progress / done. -->
-        </div>
-      </div>
-
-      <!-- Calendar panel (v0.33.0): month grid of daily notes. Rendered by JS. -->
-      <div class="workspace-panel" data-mode="calendar">
-        <div class="calendar-shell">
-          <div class="calendar-header">
-            <button class="tool-btn icon-only" id="cal-prev" type="button" title="Previous month" aria-label="Previous month"><span class="icon-host" data-icon="chevron-left"></span></button>
-            <span id="cal-label" class="cal-label">Month</span>
-            <button class="tool-btn icon-only" id="cal-next" type="button" title="Next month" aria-label="Next month"><span class="icon-host" data-icon="chevron-right"></span></button>
-            <button class="tool-btn" id="cal-today" type="button" title="Jump to today">Today</button>
-          </div>
-          <div class="calendar-grid" id="calendar-grid"><!-- JS-rendered --></div>
-          <p class="cal-foot" id="cal-foot"></p>
-        </div>
-      </div>
-
-      <!-- Tasks inbox (v0.33.0): unified list of Kanban cards + note checkboxes. -->
-      <div class="workspace-panel" data-mode="tasks">
-        <div class="tasks-shell">
-          <div class="tasks-toolbar">
-            <select id="tasks-filter" class="setting-select" aria-label="Filter tasks">
-              <option value="open">Open</option>
-              <option value="done">Done</option>
-              <option value="all">All</option>
-            </select>
-            <select id="tasks-sort" class="setting-select" aria-label="Sort tasks">
-              <option value="created">Newest first</option>
-              <option value="source">By source</option>
-              <option value="status">By status</option>
-            </select>
-            <span id="tasks-summary" class="tasks-summary">—</span>
-          </div>
-          <div class="tasks-list" id="tasks-list"><!-- JS-rendered --></div>
-        </div>
-      </div>
-
-      <!-- Review / spaced repetition (v0.33.0): flashcard queue. -->
-      <div class="workspace-panel" data-mode="review">
-        <div class="review-shell">
-          <div class="review-header">
-            <span id="review-summary" class="review-summary">—</span>
-          </div>
-          <div id="review-stage" class="review-stage"><!-- JS-rendered card --></div>
-        </div>
-      </div>
-
-      <!-- Graph view (v0.50.0): note-link map of the open folder. -->
-      <div class="workspace-panel" data-mode="graph">
-        <div class="graph-shell">
-          <div class="graph-header">
-            <span id="graph-summary" class="graph-summary">—</span>
-            <label class="graph-opt" title="Hide notes with no links">
-              <input type="checkbox" id="graph-hide-orphans"> Hide unlinked
-            </label>
-          </div>
-          <!-- v0.70.0: positioned wrapper so pan/zoom controls can float over
-               the canvas (bottom-right cluster). -->
-          <div class="graph-canvas-wrap">
-            <svg id="graph-svg" class="graph-canvas" role="img" aria-label="Note graph"></svg>
-            <!-- v0.71.0: node filter overlaid top-left; live, debounced in JS.
-                 Kept separate from #kanban-search-input so graph filtering never
-                 touches the toolbar board search. -->
-            <input type="text" id="graph-search-input" class="graph-search" placeholder="Filter nodes…"
-                   aria-label="Filter graph nodes" spellcheck="false" autocomplete="off">
-            <!-- v0.71.0: hover tooltip (label + degree), positioned by JS. -->
-            <div id="graph-tooltip" class="graph-tooltip hidden" role="tooltip"></div>
-            <div class="graph-controls">
-              <button type="button" id="graph-zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
-              <button type="button" id="graph-zoom-out" title="Zoom out" aria-label="Zoom out">&minus;</button>
-              <button type="button" id="graph-zoom-reset" title="Reset view (or double-click the canvas)" aria-label="Reset view">&#x27F3;</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Join confirm (receiver side). Shown when an invite URL is opened. -->
-    <div id="join-dialog" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="join-dialog-title">
-      <div class="modal">
-        <h2 id="join-dialog-title" class="modal-title">Join collaboration session?</h2>
-        <p id="join-dialog-text" class="modal-text">A shared document will open in a new tab. The host's filename and your edits will sync live.</p>
-        <div id="join-dialog-status" class="share-status hidden"></div>
-        <div class="modal-actions">
-          <button class="modal-btn modal-btn-secondary" id="join-cancel-btn" type="button">Cancel</button>
-          <button class="modal-btn modal-btn-primary" id="join-confirm-btn" type="button">Join</button>
-        </div>
-      </div>
-    </div>
 
     <div id="settings-dialog" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <div class="modal modal-wide">
@@ -798,7 +470,6 @@
                     <option value="home">Home (welcome screen)</option>
                     <option value="markdown">Markdown</option>
                     <option value="text">Plain Text</option>
-                    <option value="excalidraw">Excalidraw</option>
                   </select>
                 </div>
                 <div class="setting-row">
@@ -845,7 +516,7 @@
                 <div class="setting-row">
                   <div class="setting-text">
                     <div class="setting-label">Desktop notifications</div>
-                    <div class="setting-desc">Show OS notifications for Pomodoro completion, finished exports, and files changed while the app is in the background</div>
+                    <div class="setting-desc">Show OS notifications for finished exports and files changed while the app is in the background</div>
                   </div>
                   <label class="setting-toggle">
                     <input type="checkbox" id="settings-os-notifications" aria-label="Desktop notifications" />
@@ -920,32 +591,6 @@
                       <span class="theme-name">Solarized Light</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </button>
-                    <button class="theme-card" type="button" data-theme="solar-dark" role="radio" aria-checked="false">
-                      <div class="theme-swatch" data-sw="solar-dark" aria-hidden="true">
-                        <div class="swatch-header"></div>
-                        <div class="swatch-body">
-                          <div class="swatch-line title"></div>
-                          <div class="swatch-line long"></div>
-                          <div class="swatch-line short"></div>
-                        </div>
-                        <div class="swatch-chips" aria-hidden="true"><i></i><i></i><i></i></div>
-                      </div>
-                      <span class="theme-name">Solarized Dark</span>
-                      <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    </button>
-                    <button class="theme-card" type="button" data-theme="dracula" role="radio" aria-checked="false">
-                      <div class="theme-swatch" data-sw="dracula" aria-hidden="true">
-                        <div class="swatch-header"></div>
-                        <div class="swatch-body">
-                          <div class="swatch-line title"></div>
-                          <div class="swatch-line long"></div>
-                          <div class="swatch-line short"></div>
-                        </div>
-                        <div class="swatch-chips" aria-hidden="true"><i></i><i></i><i></i></div>
-                      </div>
-                      <span class="theme-name">Dracula</span>
-                      <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    </button>
                     <button class="theme-card" type="button" data-theme="nord" role="radio" aria-checked="false">
                       <div class="theme-swatch" data-sw="nord" aria-hidden="true">
                         <div class="swatch-header"></div>
@@ -957,58 +602,6 @@
                         <div class="swatch-chips" aria-hidden="true"><i></i><i></i><i></i></div>
                       </div>
                       <span class="theme-name">Nord</span>
-                      <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    </button>
-                    <button class="theme-card" type="button" data-theme="github" role="radio" aria-checked="false">
-                      <div class="theme-swatch" data-sw="github" aria-hidden="true">
-                        <div class="swatch-header"></div>
-                        <div class="swatch-body">
-                          <div class="swatch-line title"></div>
-                          <div class="swatch-line long"></div>
-                          <div class="swatch-line short"></div>
-                        </div>
-                        <div class="swatch-chips" aria-hidden="true"><i></i><i></i><i></i></div>
-                      </div>
-                      <span class="theme-name">GitHub</span>
-                      <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    </button>
-                    <button class="theme-card" type="button" data-theme="github-dark" role="radio" aria-checked="false">
-                      <div class="theme-swatch" data-sw="github-dark" aria-hidden="true">
-                        <div class="swatch-header"></div>
-                        <div class="swatch-body">
-                          <div class="swatch-line title"></div>
-                          <div class="swatch-line long"></div>
-                          <div class="swatch-line short"></div>
-                        </div>
-                        <div class="swatch-chips" aria-hidden="true"><i></i><i></i><i></i></div>
-                      </div>
-                      <span class="theme-name">GitHub Dark</span>
-                      <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    </button>
-                    <button class="theme-card" type="button" data-theme="tokyo-night" role="radio" aria-checked="false">
-                      <div class="theme-swatch" data-sw="tokyo-night" aria-hidden="true">
-                        <div class="swatch-header"></div>
-                        <div class="swatch-body">
-                          <div class="swatch-line title"></div>
-                          <div class="swatch-line long"></div>
-                          <div class="swatch-line short"></div>
-                        </div>
-                        <div class="swatch-chips" aria-hidden="true"><i></i><i></i><i></i></div>
-                      </div>
-                      <span class="theme-name">Tokyo Night</span>
-                      <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    </button>
-                    <button class="theme-card" type="button" data-theme="catppuccin" role="radio" aria-checked="false">
-                      <div class="theme-swatch" data-sw="catppuccin" aria-hidden="true">
-                        <div class="swatch-header"></div>
-                        <div class="swatch-body">
-                          <div class="swatch-line title"></div>
-                          <div class="swatch-line long"></div>
-                          <div class="swatch-line short"></div>
-                        </div>
-                        <div class="swatch-chips" aria-hidden="true"><i></i><i></i><i></i></div>
-                      </div>
-                      <span class="theme-name">Catppuccin</span>
                       <svg class="theme-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </button>
                     <button class="theme-card" type="button" data-theme="oled" role="radio" aria-checked="false">
@@ -1068,7 +661,7 @@
               </div>
               <!-- v0.41.0: custom CSS injection. Targets .markdown-body so it
                    applies uniformly to view-mode article, edit-mode preview,
-                   reader, and slideshow. Saved to localStorage (debounced). -->
+                   and reader. Saved to localStorage (debounced). -->
               <div class="setting-card">
                 <div class="setting-row setting-row-stacked">
                   <div class="setting-text">
@@ -1191,68 +784,14 @@
               </div>
             </div>
 
-            <!-- Features (Feature Flags) -->
+            <!-- Features -->
             <div class="settings-panel hidden" data-cat="features">
               <div class="panel-head">
                 <h3 class="panel-title">Features</h3>
-                <p class="panel-desc">Turn individual tools on or off — or hide them all with Minimal mode</p>
+                <p class="panel-desc">Turn optional tools on or off</p>
               </div>
               <div class="setting-card">
-                <!-- v0.54.0: Minimal mode — the master switch. When on, every
-                     feature below is hidden and greyed out; the app returns to a
-                     pure featherlight reader/editor. One switch rules them all. -->
-                <div class="setting-row setting-row-minimal">
-                  <div class="setting-text">
-                    <div class="setting-label">Minimal mode</div>
-                    <div class="setting-desc">Hide all non-core features for a featherlight reader/editor. New installs start here. Turn off to customize individual features below.</div>
-                  </div>
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="settings-minimal-mode" aria-label="Minimal mode" />
-                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
-                  </label>
-                </div>
-                <p class="minimal-note hidden">Minimal mode is on — turn it off to customize individual features.</p>
                 <div class="setting-card setting-card-features">
-                <div class="setting-row">
-                  <div class="setting-text">
-                    <div class="setting-label">Live Collaboration</div>
-                    <div class="setting-desc">Enable P2P co-editing and room invite link sharing</div>
-                  </div>
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-collab" aria-label="Live Collaboration" />
-                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
-                  </label>
-                </div>
-                <div class="setting-row">
-                  <div class="setting-text">
-                    <div class="setting-label">Kanban Board</div>
-                    <div class="setting-desc">Enable global task management board (Ctrl+Shift+K)</div>
-                  </div>
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-kanban" aria-label="Kanban Board" />
-                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
-                  </label>
-                </div>
-                <div class="setting-row">
-                  <div class="setting-text">
-                    <div class="setting-label">Integrated Terminal</div>
-                    <div class="setting-desc">Enable PowerShell terminal drawer with image paste support (Ctrl+`)</div>
-                  </div>
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-terminal" aria-label="Integrated Terminal" />
-                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
-                  </label>
-                </div>
-                <div class="setting-row">
-                  <div class="setting-text">
-                    <div class="setting-label">Presentation Slideshow</div>
-                    <div class="setting-desc">Enable fullscreen deck presenter for markdown slides (split on ---)</div>
-                  </div>
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-present" aria-label="Presentation Slideshow" />
-                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
-                  </label>
-                </div>
                 <div class="setting-row">
                   <div class="setting-text">
                     <div class="setting-label">Markdown Snippets &amp; Templates</div>
@@ -1275,68 +814,6 @@
                 </div>
                 <div class="setting-row">
                   <div class="setting-text">
-                    <div class="setting-label">Pomodoro Timer</div>
-                    <div class="setting-desc">Enable focus timer in the header + Workspace Board</div>
-                  </div>
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-pomodoro" aria-label="Pomodoro Timer" />
-                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
-                  </label>
-                </div>
-                <div class="setting-row">
-                  <div class="setting-text">
-                    <div class="setting-label">Pomodoro durations</div>
-                    <div class="setting-desc">Minutes for focus / break / long break, and a long break every N breaks</div>
-                  </div>
-                  <div class="pomo-duration-grid">
-                    <input type="number" min="1" max="180" step="1" id="settings-pomo-focus" aria-label="Focus minutes" title="Focus (minutes)" />
-                    <input type="number" min="1" max="60" step="1" id="settings-pomo-break" aria-label="Break minutes" title="Break (minutes)" />
-                    <input type="number" min="1" max="90" step="1" id="settings-pomo-longbreak" aria-label="Long break minutes" title="Long break (minutes)" />
-                    <input type="number" min="1" max="12" step="1" id="settings-pomo-long-every" aria-label="Long break every N breaks" title="Long break every N breaks" />
-                  </div>
-                </div>
-                <div class="setting-row">
-                  <div class="setting-text">
-                    <div class="setting-label">Calendar View</div>
-                    <div class="setting-desc">Show a month grid of daily notes in the Workspace</div>
-                  </div>
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-calendar" aria-label="Calendar View" />
-                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
-                  </label>
-                </div>
-                <div class="setting-row">
-                  <div class="setting-text">
-                    <div class="setting-label">Tasks Inbox</div>
-                    <div class="setting-desc">Collect unchecked task list items from your notes</div>
-                  </div>
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-tasks" aria-label="Tasks Inbox" />
-                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
-                  </label>
-                </div>
-                <div class="setting-row">
-                  <div class="setting-text">
-                    <div class="setting-label">Flashcard Review</div>
-                    <div class="setting-desc">Spaced-repetition review of Q::A cards in your notes</div>
-                  </div>
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-review" aria-label="Flashcard Review" />
-                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
-                  </label>
-                </div>
-                <div class="setting-row">
-                  <div class="setting-text">
-                    <div class="setting-label">Graph view</div>
-                    <div class="setting-desc">Visual map of how the notes in your folder link to each other</div>
-                  </div>
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-graph" aria-label="Graph view" />
-                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
-                  </label>
-                </div>
-                <div class="setting-row">
-                  <div class="setting-text">
                     <div class="setting-label">Editor autocomplete</div>
                     <div class="setting-desc">Show a suggestion dropdown when you type <code>:emoji</code>, <code>[[wiki</code>, or <code>#tag</code> in the editor</div>
                   </div>
@@ -1352,36 +829,6 @@
                   </div>
                   <label class="setting-toggle">
                     <input type="checkbox" id="settings-feature-table-editor" aria-label="Table editor" />
-                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
-                  </label>
-                </div>
-                <div class="setting-row">
-                  <div class="setting-text">
-                    <div class="setting-label">Prose highlights</div>
-                    <div class="setting-desc">Add a <em>Toggle prose highlights</em> command (Ctrl+Shift+P) that underlines 3+-syllable words and tints hard-to-read paragraphs in the rendered view</div>
-                  </div>
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-prose-highlights" aria-label="Prose highlights" />
-                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
-                  </label>
-                </div>
-                <div class="setting-row">
-                  <div class="setting-text">
-                    <div class="setting-label">Quick capture</div>
-                    <div class="setting-desc">Hit <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd> to capture a thought into today's daily note under an <code>## Inbox</code> heading</div>
-                  </div>
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-capture" aria-label="Quick capture" />
-                    <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
-                  </label>
-                </div>
-                <div class="setting-row">
-                  <div class="setting-text">
-                    <div class="setting-label">Word frequency</div>
-                    <div class="setting-desc">Add a <em>Word frequency…</em> command (Ctrl+Shift+P) that ranks the document's most-used words, and a <em>Toggle word-frequency underline</em> command that flags 5+-use words</div>
-                  </div>
-                  <label class="setting-toggle">
-                    <input type="checkbox" id="settings-feature-wordfreq" aria-label="Word frequency" />
                     <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
                   </label>
                 </div>
@@ -1416,8 +863,6 @@
                     <tr><td><kbd>Ctrl</kbd>+scroll</td><td>Zoom in / out</td></tr>
                         <tr><td><kbd>F11</kbd></td><td>Focus / Zen mode</td></tr>
                         <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd></td><td>Toggle always-on-top (pin window)</td></tr>
-                        <tr><td>Present button</td><td>Start presentation (split on <code>---</code>)</td></tr>
-                        <tr><td>Share button</td><td>Start live collaboration (P2P, invite link)</td></tr>
                         <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd></td><td>Toggle typewriter mode</td></tr>
                         <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd></td><td>Copy as rich text (paste formatted)</td></tr>
                         <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd></td><td>Insert template / snippet</td></tr>
@@ -1425,9 +870,6 @@
                         <tr><td><kbd>Alt</kbd>+<kbd>←</kbd> / <kbd>Alt</kbd>+<kbd>→</kbd></td><td>Back / forward navigation</td></tr>
                         <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd></td><td>Reading mode (immersive reader)</td></tr>
                         <tr><td><kbd>Ctrl</kbd>+<kbd>,</kbd></td><td>Open settings</td></tr>
-                        <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd></td><td>Kanban board / workspace</td></tr>
-                        <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd></td><td>Capture a thought to today's note</td></tr>
-                        <tr><td><kbd>Ctrl</kbd>+<kbd>`</kbd></td><td>Toggle terminal</td></tr>
                         <tr><td><kbd>Esc</kbd></td><td>Exit focus mode / close find</td></tr>
                         <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd></td><td>Command palette</td></tr>
                         <tr><td><kbd>Ctrl</kbd>+<kbd>P</kbd></td><td>Quick switcher (recent files)</td></tr>
@@ -1467,20 +909,6 @@
                   </tbody>
                 </table>
               </div>
-              <div class="help-section">
-                <div class="help-heading">Presentation mode <span class="help-sub">(slideshow)</span></div>
-                <table class="shortcut-table">
-                  <tbody>
-                    <tr><td><kbd>→</kbd> <kbd>↓</kbd> <kbd>Space</kbd> <kbd>PgDn</kbd></td><td>Next slide</td></tr>
-                    <tr><td><kbd>←</kbd> <kbd>↑</kbd> <kbd>PgUp</kbd></td><td>Previous slide</td></tr>
-                    <tr><td><kbd>Home</kbd> / <kbd>End</kbd></td><td>First / last slide</td></tr>
-                    <tr><td><kbd>F</kbd></td><td>Toggle OS fullscreen</td></tr>
-                    <tr><td><kbd>N</kbd></td><td>Toggle speaker notes panel</td></tr>
-                    <tr><td><kbd>S</kbd></td><td>Switch style (deck ↔ reading)</td></tr>
-                    <tr><td><kbd>Esc</kbd></td><td>Exit presentation</td></tr>
-                  </tbody>
-                </table>
-              </div>
             </div>
 
             <!-- Tips -->
@@ -1493,15 +921,12 @@
                 <ul class="help-tips">
                   <li>Drag &amp; drop files onto the window to open them as tabs.</li>
                   <li>Export a markdown doc to a self-contained <code>.html</code> via the toolbar download button, or a <code>.pdf</code> via the print button.</li>
-                  <li>The find bar searches across view, edit, and PDF modes.</li>
-                  <li>PDF tabs have a drawing toolbar — pen, highlighter, and eraser.</li>
+                  <li>The find bar searches across view and edit modes.</li>
                   <li>Image files (<code>.png</code>, <code>.jpg</code>, etc.) can be annotated: click the pen icon in the toolbar to draw, then save the annotated copy as a new PNG.</li>
                   <li>Code files (<code>.js</code>, <code>.py</code>, <code>.json</code>, etc.) open with syntax highlighting. Press <kbd>Ctrl</kbd>+<kbd>E</kbd> to edit them.</li>
                   <li>CSV/TSV files open in a sortable, filterable table view.</li>
                   <li>Right-click a folder in the explorer to search across every file inside it.</li>
                   <li>Pin frequently-used tabs via right-click → <em>Pin tab</em>. Pinned tabs survive app restarts.</li>
-                  <li>Present any markdown doc as a slideshow: separate slides with <code>---</code> on its own line, then click the Present button (or use the command palette). Press <kbd>S</kbd> to switch between deck and reading styles.</li>
-                  <li>Live collaboration: click the Share button to get an invite link. Anyone with mdpeek installed + that link can edit your document in real time (no accounts, end-to-end encrypted via WebRTC). Both peers see each other's cursor. Works on most home networks; corporate VPNs/firewalls may block P2P.</li>
                   <li>Wiki-links like <code>[[Note]]</code> or relative links like <code>[readme](README.md)</code> open the linked file as a new tab when clicked.</li>
                 </ul>
               </div>
@@ -1537,7 +962,7 @@
                     <span>Report an issue</span>
                   </button>
                 </div>
-                <p class="about-footer">Built with Tauri 2, marked, highlight.js, and pdf.js. Open source under the MIT License.</p>
+                <p class="about-footer">Built with Tauri 2, marked, and highlight.js. Open source under the MIT License.</p>
               </div>
 
               <!-- Software Updates section in About -->

@@ -1,5 +1,5 @@
 import './dev-shim.js';
-import { invoke, convertFileSrc } from '@tauri-apps/api/core';
+import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -7,52 +7,31 @@ import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { showDocument, buildToc } from './views/viewer.js';
-import { showPdf } from './views/pdf-viewer.js';
-import { showExcalidraw } from './views/excalidraw-viewer.js';
-import { showTLDraw } from './views/tldraw-viewer.js';
 import { showImage } from './views/image-viewer.js';
-import { showNotebook } from './views/notebook-viewer.js';
-import { showMedia } from './views/media-viewer.js';
 import { initEditor } from './views/editor.js';
 import { initFindBar } from './views/find-bar.js';
-import { initCommandPalette, initQuickSwitcher, initSnippetPicker, makePicker } from './views/command-palette.js';
+import { initCommandPalette, initQuickSwitcher, initSnippetPicker } from './views/command-palette.js';
 import { initAutocomplete } from './views/autocomplete-dropdown.js';
-import { initFileTree, setTreeRoot, refreshTree, revealPath } from './views/file-tree.js';
+import { initFileTree, setTreeRoot, refreshTree as refreshFileTree, revealPath } from './views/file-tree.js';
 import { initCsvViewer } from './views/csv-viewer.js';
 import { initFolderSearch } from './views/folder-search.js';
-import { initTagPane } from './views/tag-pane.js';
-import { initReferencePane } from './views/reference-pane.js';
-import { initTerminal } from './views/terminal.js';
 import { renderTabs } from './views/tabs.js';
 import { renderIcons } from './lib/icons.js';
 import { toggleTaskLine, taskLineIndex, extractHeadings, buildRelativeImageMarkdown, sortLines, formatTableBlock, sortTableRows, convertList, deriveNoteTitle, convertCase, wrapSelection, wrapBlock, toggleLinePrefix } from './lib/editor-logic.js';
-import { docBasename, backlinkQueries, formatBacklinkItems } from './lib/backlinks.js';
-import { extractSpeakerNotes } from './lib/slides.js';
 import { EMOJI_MAP } from './lib/emoji.js';
-import { goalProgress, formatGoalChip, applyGoalChipPresentation, GOAL_KEY, SESSION_KEY } from './lib/writing-goal.js';
-import { markWritingDay, currentStreak, formatStreakChip, applyStreakChipPresentation } from './lib/streak.js';
 import { saveActiveDoc } from './lib/save-doc.js';
 import { SAMPLE_DOC } from './lib/sample-doc.js';
-import { getTemplates, saveTemplate, deleteTemplate, TEMPLATES_KEY } from './lib/templates.js';
+import { getTemplates, saveTemplate } from './lib/templates.js';
 import { extractDocLinks, classifyLinks } from './lib/link-checker.js';
-import { buildGraph, circleLayout } from './lib/graph.js';
 import { themeForHour, prefersDarkFromMedia, THEME_MODE_KEY } from './lib/theme-schedule.js';
-import { getDocTheme, setDocTheme, clearDocTheme } from './lib/doc-theme.js';
 import { stripMarkdown } from './lib/strip.js';
-import { computeStats, computeInsights } from './lib/stats.js';
-import { computeReadability } from './lib/readability.js';
+import { computeStats } from './lib/stats.js';
 import { snapshotDoc, pushClosedTab, popClosedTab } from './lib/closed-tabs.js';
 import { smartPaste } from './lib/smart-paste.js';
-import { toSnapshotEntries, formatSnapshotTime } from './lib/snapshots.js';
-import { initDiffViewer } from './views/diff-viewer.js';
 import { initTableEditor } from './views/table-editor.js';
-import { initCaptureHud } from './views/capture-hud.js';
-import { initWordFreqPopover } from './views/wordfreq-popover.js';
 import { parseTable } from './lib/table.js';
-import { formatEntry, injectInbox } from './lib/capture.js';
-import { topWords } from './lib/wordfreq.js';
 import { generateTocMarkdown } from './lib/toc.js';
-import { MINIMAL_SUPPRESSED, minimalModeOn as _minimalModeOn, isFeatureOn } from './lib/minimal.js';
+import { isFeatureOn } from './lib/minimal.js';
 import { filterSettingsPanels } from './lib/settings-search.js';
 import { initModalFocus, modalOwnsKeyboard, syncModalFocus } from './lib/modal-focus.js';
 import { notifyOs, osNotificationsEnabled, setOsNotificationsEnabled } from './lib/notify.js';
@@ -63,46 +42,22 @@ import { notifyOs, osNotificationsEnabled, setOsNotificationsEnabled } from './l
 import pkg from '../package.json' with { type: 'json' };
 const BUILD_VERSION = pkg && pkg.version ? pkg.version : null;
 import { wireRipples, positionTabIndicator } from './lib/motion.js';
+import { countWords } from './lib/dates.js';
 import {
-  dateStamp, todayStamp, parseStamp, isDailyNoteName, monthLabel,
-  calendarGrid, isToday, countWords,
-} from './lib/dates.js';
-import { newCard, review as srsReview, isDue, daysUntilDue } from './lib/srs.js';
-import { parseFlashcards } from './lib/flashcards.js';
-import {
-  loadState as pomoLoad, saveState as pomoSave, clearState as pomoClear,
-  start as pomoStart, pause as pomoPause, tick as pomoTick, skipPhase as pomoSkip,
-  reset as pomoReset, formatTime as pomoFormat, phaseLabel as pomoPhaseLabel,
-  phaseSeconds, updatePomodoroHud,
-} from './lib/pomodoro.js';
-import {
-  normalizeNoteTasks, normalizeKanbanTasks, mergeTasks, filterTasks, sortTasks, taskStats,
-} from './lib/tasks.js';
-import {
-  WIDTHS, FONTS, THEMES, WIDTH_PX, FONT_PX, THEME_COLORS, DEFAULTS,
   nextWidth, prevWidth, nextFont, prevFont, nextTheme, nextFontFamily,
   readingTimeLabel, loadReaderPrefs,
 } from './lib/reading.js';
-import { DocumentStore, canSaveDoc, isPdfPath, isImagePath, isExcalidrawPath, isTLDrawPath, isNotebookPath, isMediaPath, langFromPath, langForEdit } from './lib/documents.js';
+import { DocumentStore, canSaveDoc, isImagePath, langFromPath } from './lib/documents.js';
 import { renderMarkdown, renderCode, renderCsv, parseCsv, prepareCodeLang, enhanceDom } from './lib/renderer.js';
 import { saveSession, loadSession, loadRecents, addRecent, removeRecent, saveRecents } from './lib/persistence.js';
 import { restoreSessionDocs } from './lib/restore-session.js';
 import { applyFileChange } from './lib/file-reload.js';
-// v0.49.0: named workspace sessions. Aliased to avoid clashing with the
-// persistence module's saveSession (the auto-session saver used at line ~1000).
-import { getSessions as getNamedSessions, saveSession as saveNamedSession, deleteSession as deleteNamedSession } from './lib/sessions.js';
 import { NavHistory } from './lib/nav-history.js';
 import { escapeHtml } from './lib/escape.js';
 import { getIconForPath, relativeTime } from './lib/file-type.js';
 // Vendor CSS bundling (v0.34.0): KaTeX + 6 highlight.js themes bundled locally
 // instead of CDN <link> tags in index.html. Works offline; no version skew.
 import { installHljsThemes } from './styles/vendors.css.js';
-// Real-time P2P collaboration (v0.21.0). Yjs + Trystero + Tauri deep-link.
-import * as collab from './collab.js';
-// Real-time iPad & Local Wi-Fi collaboration (v1.6.0). Embedded HTTP/SSE server + QR code.
-import * as wifiCollab from './lib/wifi-collab.js';
-import { generateQrSvg } from './lib/qrcode.js';
-import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
 // CHANGELOG.md is bundled at build time as a string via Vite's built-in ?raw
 // suffix — no plugin or config needed. Rendered into the Settings → Changelog
 // panel on first open (so the running app always shows its own changelog).
@@ -136,15 +91,8 @@ const HLJS_FOR_THEME = {
   light: 'hljs-light',
   dark: 'hljs-dark',
   'solar-light': 'hljs-solar-light',
-  'solar-dark': 'hljs-solar-dark',
-  dracula: 'hljs-dracula',
   nord: 'hljs-nord',
-  // The four new themes reuse existing hljs stylesheets (no native match).
-  github: 'hljs-light',
-  'github-dark': 'hljs-dark',
-  'tokyo-night': 'hljs-dark',
-  catppuccin: 'hljs-dracula',
-  oled: 'hljs-dark',
+  oled: 'hljs-dark', // OLED has no native hljs sheet — reuses github-dark.
 };
 const DEFAULT_THEME = 'light';
 
@@ -212,7 +160,7 @@ function renderWelcome() {
           </span>
           <kbd>Ctrl+N</kbd>
         </button>
-        ${featureOn('daily') ? `
+        ${isFeatureOn('daily') ? `
         <button class="welcome-action" data-action="daily" type="button">
           <span class="wa-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -244,11 +192,6 @@ function renderWelcome() {
         <span class="welcome-drop">drop a file anywhere to open</span>
         <span class="workspace-version">mdpeek v${BUILD_VERSION || ''}</span>
       </div>
-      ${minimalModeOn() ? `
-      <div class="welcome-minimal-hint">
-        <span>Minimal mode is on. Only the essentials are shown.</span>
-        <button class="welcome-minimal-explore" data-action="explore-features" type="button">Explore all features</button>
-      </div>` : ''}
     </div>
   </div>
 `;
@@ -270,7 +213,6 @@ const el = {
   sidebar: document.getElementById('btn-sidebar'),
   export: document.getElementById('btn-export'),
   exportPdf: document.getElementById('btn-export-pdf'),
-  present: document.getElementById('btn-present'),
   reading: document.getElementById('btn-reading'),
   daily: document.getElementById('btn-daily'),
   explorer: document.getElementById('btn-explorer'),
@@ -292,11 +234,9 @@ const el = {
   updatesInstallRow: document.getElementById('updates-install-row'),
   updatesInstallBtn: document.getElementById('updates-install-btn'),
   updatesReleaseNotes: document.getElementById('updates-release-notes'),
-  settingsAutoUpdate: document.getElementById('settings-auto-update'),
   moreBtn: document.getElementById('btn-more'),
   moreMenu: document.getElementById('more-menu'),
   cmdK: document.getElementById('btn-command-k'),
-  terminal: document.getElementById('btn-terminal'),
   tabStrip: document.getElementById('tab-strip'),
   viewMode: document.getElementById('view-mode'),
   editMode: document.getElementById('edit-mode'),
@@ -310,7 +250,6 @@ const el = {
   toast: document.getElementById('toast'),
   dropzone: document.getElementById('dropzone'),
   pdfDrawToolbar: document.getElementById('pdf-draw-toolbar'),
-  slideshow: document.getElementById('slideshow'),
   reader: document.getElementById('reader'),
   readerArticle: document.getElementById('reader-article'),
   readerTitle: document.getElementById('reader-title'),
@@ -320,70 +259,6 @@ const el = {
   closeDialog: document.getElementById('close-dialog'),
   closeRemember: document.getElementById('close-remember'),
   confirmDialog: document.getElementById('confirm-dialog'),
-  // Collaboration (v0.21.0 & v1.6.0 iPad Wi-Fi)
-  share: document.getElementById('btn-share'),
-  shareDialog: document.getElementById('share-dialog'),
-  shareTabWifi: document.getElementById('share-tab-wifi'),
-  shareTabP2p: document.getElementById('share-tab-p2p'),
-  sharePanelWifi: document.getElementById('share-panel-wifi'),
-  sharePanelP2p: document.getElementById('share-panel-p2p'),
-  wifiQrSvg: document.getElementById('wifi-qr-svg'),
-  wifiLinkInput: document.getElementById('wifi-link-input'),
-  wifiCopyBtn: document.getElementById('wifi-copy-btn'),
-  wifiOpenBtn: document.getElementById('wifi-open-btn'),
-  wifiPreviewDialog: document.getElementById('wifi-preview-dialog'),
-  wifiPreviewClose: document.getElementById('wifi-preview-close'),
-  wifiPreviewFrame: document.getElementById('wifi-preview-frame'),
-  wifiPreviewLoading: document.getElementById('wifi-preview-loading'),
-  wifiPreviewError: document.getElementById('wifi-preview-error'),
-  wifiPreviewRetry: document.getElementById('wifi-preview-retry'),
-  wifiPreviewBadge: document.getElementById('wifi-preview-badge'),
-  shareLinkInput: document.getElementById('share-link-input'),
-  shareCopyBtn: document.getElementById('share-copy-btn'),
-  shareStatus: document.getElementById('share-status'),
-  shareCloseBtn: document.getElementById('share-close-btn'),
-  shareEndBtn: document.getElementById('share-end-btn'),
-  joinDialog: document.getElementById('join-dialog'),
-  joinText: document.getElementById('join-dialog-text'),
-  joinStatus: document.getElementById('join-dialog-status'),
-  joinConfirmBtn: document.getElementById('join-confirm-btn'),
-  joinCancelBtn: document.getElementById('join-cancel-btn'),
-  collabStatus: document.getElementById('collab-status'),
-  collabEnd: document.getElementById('collab-end'),
-  peerCarets: document.getElementById('peer-carets'),
-
-  // Kanban (v0.22.2) — full-page global task board. Persisted in localStorage
-  // so the board survives app restarts and is shared across every tab.
-  kanban: document.getElementById('btn-kanban'),
-  kanbanView: document.getElementById('kanban-view'),
-  kanbanBoard: document.getElementById('kanban-board'),
-  kanbanDoneBtn: document.getElementById('kanban-done-btn'),
-  // Workspace hub (v0.33.0)
-  workspaceTabs: document.querySelector('.workspace-tabs'),
-  workspaceRefresh: document.getElementById('workspace-refresh-btn'),
-  // Calendar
-  calPrev: document.getElementById('cal-prev'),
-  calNext: document.getElementById('cal-next'),
-  calToday: document.getElementById('cal-today'),
-  calLabel: document.getElementById('cal-label'),
-  calGrid: document.getElementById('calendar-grid'),
-  calFoot: document.getElementById('cal-foot'),
-  // Tasks
-  tasksFilter: document.getElementById('tasks-filter'),
-  tasksSort: document.getElementById('tasks-sort'),
-  tasksSummary: document.getElementById('tasks-summary'),
-  tasksList: document.getElementById('tasks-list'),
-  // Review
-  reviewSummary: document.getElementById('review-summary'),
-  reviewStage: document.getElementById('review-stage'),
-  // Graph (v0.50.0)
-  graphSvg: document.getElementById('graph-svg'),
-  graphSummary: document.getElementById('graph-summary'),
-  // Pomodoro
-  pomoStatus: document.getElementById('pomo-status'),
-  pomoDot: document.getElementById('pomo-dot'),
-  pomoTime: document.getElementById('pomo-time'),
-  pomoToggle: document.getElementById('pomo-toggle'),
 };
 
 // v0.32.0: render lucide icons + wire ripples as early as possible. Called
@@ -463,9 +338,9 @@ function fmtErr(e) {
   return e.message || String(e);
 }
 
-// Render a viewer-load failure into a container using the shared .pdf-error
-// banner affordance (same look PDF/Excalidraw/TLDraw/notebook use on a failed
-// load). Used by the sync viewer branches in renderActive() so a malformed doc
+// Render a viewer-load failure into a container using the .viewer-error
+// banner. Used by the sync viewer branches in renderActive() so a
+// malformed doc
 // shows a visible error instead of throwing and rejecting the whole render
 // (which would leave the tab blank). `kind` labels the doc type in the message.
 function showViewerError(container, kind, e, opts = {}) {
@@ -476,7 +351,7 @@ function showViewerError(container, kind, e, opts = {}) {
   // alert that blames the format.
   if (opts.empty) {
     container.innerHTML =
-      `<div class="pdf-error">` +
+      `<div class="viewer-error">` +
       `<strong>This ${kind} is empty.</strong><br>` +
       `<span>There is nothing to display yet.</span>` +
       `</div>`;
@@ -490,7 +365,7 @@ function showViewerError(container, kind, e, opts = {}) {
     /__TAURI_INTERNALS__|is not a function|is not defined|TypeError|ReferenceError|Cannot read/.test(raw);
   const detail = internal ? 'The format may be unsupported, or the file could not be read.' : raw;
   container.innerHTML =
-    `<div class="pdf-error">` +
+    `<div class="viewer-error">` +
     `<strong>Couldn't open this ${kind}.</strong><br>` +
     `<span>${escapeHtml(detail)}</span>` +
     `</div>`;
@@ -516,7 +391,7 @@ function toast(msg, opts = {}) {
   }
   // Errors stay visible longer — the user needs time to read them.
   const timeout = opts.type === 'error' ? 4500 : TOAST_TIMEOUT_MS;
-  // Optional one-shot action button (e.g. "Undo" after a kanban delete) —
+  // Optional one-shot action button (e.g. "Undo" after a destructive action) —
   // rendered beside the message; clicking it never dismisses mid-run.
   el.toast.textContent = msg;
   el.toast.querySelector('.toast-action')?.remove();
@@ -568,7 +443,6 @@ function basename(p) {
 // before saving (they used to all say "Untitled" forever).
 function docDisplayName(doc) {
   if (doc && doc.path) return basename(doc.path);
-  if (doc?.excalidraw || doc?.tldraw) return doc.excalidraw ? 'Excalidraw drawing' : 'TLDraw drawing';
   return deriveNoteTitle(doc ? doc.content : '') || 'Untitled';
 }
 
@@ -639,7 +513,7 @@ function confirmDialog({ title, text, buttons, icon = 'warn' }) {
 
 async function rewatch(path) {
   try {
-    const binary = isPdfPath(path) || isImagePath(path) || isExcalidrawPath(path) || isTLDrawPath(path) || isMediaPath(path);
+    const binary = isImagePath(path);
     await invoke('watch_path', { path: binary ? null : path || null });
   } catch {
     /* ignore watcher failures */
@@ -654,18 +528,7 @@ async function rewatch(path) {
 let _lastRenderedId = null;
 let _renderGen = 0; // monotonic counter — guards async loads against stale tabs
 let _focusedEditor = null;
-let _activePdf = null; // controller for the currently-shown PDF (for teardown)
-let _activeExcalidraw = null; // controller for the currently-shown Excalidraw tab
-let _activeTLDraw = null; // controller for the currently-shown TLDraw tab (v0.47.0)
-// v0.68.0: doc id each live canvas controller belongs to. renderActive can be
-// re-entered for the SAME doc (settings toggles, dirty-flag transitions) — the
-// id lets the canvas branches no-op instead of double-mounting a second React
-// root over the live one (which leaked the first root and reset the scene).
-let _activeExcalidrawDocId = null;
-let _activeTLDrawDocId = null;
 let _activeImage = null; // controller for the currently-shown annotated image
-let _activeNotebook = null; // controller for the currently-shown Jupyter notebook (v0.49.0)
-let _activeMedia = null; // controller for the currently-shown audio/video (v0.49.0)
 let _activeCsv = null; // controller for the currently-shown CSV/TSV table
 // v0.45.0: stack of recently-closed tab snapshots (newest first) for
 // "Reopen closed tab" (Ctrl+Alt+T). Capped at 20 by pushClosedTab.
@@ -680,19 +543,14 @@ let _closedTabs = [];
 // gated separately by syncSidebarVisibility(). This helper only handles the
 // doc-specific actions that weren't already toggled inline in each branch.
 function syncToolbarForDoc(doc) {
-  // Save: editable docs (markdown / plain / code in any mode) and canvas tabs
-  // (.tldr / .excalidraw) — v0.68.0 widened this to UNSAVED canvases too:
-  // Ctrl+S routes them to save-as with the right extension/filter, which is
-  // exactly what a fresh "New drawing" tab needs. Hidden on the welcome screen
-  // and for read-only viewers (PDF / image / csv).
+  // Save: editable docs (markdown / plain / code in any mode). Hidden on the
+  // welcome screen and for read-only viewers (image / csv).
   el.save.classList.toggle('hidden', !canSaveDoc(doc));
   document.getElementById('btn-save-as').classList.toggle('hidden', !canSaveDoc(doc));
-  const markdown = !!doc && !doc.plain && !doc.code && !doc.pdf && !doc.image && !doc.csv && !doc.notebook && !doc.media && !doc.excalidraw && !doc.tldraw;
+  const markdown = !!doc && !doc.plain && !doc.code && !doc.image && !doc.csv;
   for (const id of ['btn-copy-html', 'btn-copy-plaintext', 'btn-open-browser']) {
     document.getElementById(id)?.classList.toggle('hidden', !markdown);
   }
-  document.getElementById('btn-pin-doc-theme')?.classList.toggle('hidden', !markdown || !doc.path);
-  document.getElementById('btn-clear-doc-theme')?.classList.toggle('hidden', !markdown || !doc.path);
   const modeLabel = doc?.mode === 'edit' ? 'Preview' : 'Edit';
   el.mode.querySelector('.mode-label').textContent = modeLabel;
   el.mode.setAttribute('aria-label', `Switch to ${modeLabel.toLowerCase()} (Ctrl+E)`);
@@ -704,9 +562,6 @@ async function renderActive() {
     // v0.41.0: dismiss the autocomplete dropdown so it doesn't linger at a
     // stale caret position over the newly-active doc.
     autocomplete.hide();
-    // v0.44.0: apply per-doc theme override (or restore the global) when the
-    // active doc changes. No-op if neither the old nor new doc pinned a theme.
-    syncDocThemeForActive();
     // Closing the find bar on tab switch prevents stale highlights from one
     // doc lingering over another, and drops the textarea selection of a
     // soon-to-be-destroyed editor.
@@ -716,48 +571,16 @@ async function renderActive() {
       if (prev.mode === 'edit' && prev.editor) {
         prev.content = prev.editor.getValue();
         prev.editorState = prev.editor.getState();
-        // If this doc is bound to a collab session, detach the binding before
-        // the editor is destroyed (otherwise Y.Text observers reference a
-        // dead textarea). The binding is re-established on tab return.
-        if (_collabDocId === prev.id) {
-          collab.unbindEditor();
-          wifiCollab.unbindEditor();
-        }
         // CRITICAL: destroy the outgoing editor's listeners. The <textarea> is
         // shared across all tabs; without this, switching between edit-mode
         // tabs stacks N keydown/input handlers on it, and every editor action
         // (Tab, Enter, auto-pair, Ctrl+B) applies N times, corrupting content.
         prev.editor.destroy();
         prev.editor = null;
-      } else if (prev.mode === 'view' || prev.pdf) {
+      } else if (prev.mode === 'view') {
         // Capture the document's scroll so switching back restores it.
         prev.scrollY = el.document.scrollTop;
       }
-    }
-    // Tear down the outgoing PDF viewer (frees memory + cancels render tasks).
-    if (_activePdf) {
-      _activePdf.destroy();
-      _activePdf = null;
-    }
-    // Tear down the outgoing Excalidraw tab (unmounts React). If this tab
-    // was bound to a collab session, detach the binding first so Yjs
-    // observers stop referencing the soon-to-be-dead controller. The binding
-    // is re-established on tab return inside the showExcalidraw .then().
-    if (_activeExcalidraw) {
-      if (_collabDocId === prev?.id) {
-        try { collab.unbindExcalidraw(); } catch { /* already unbound */ }
-        try { wifiCollab.unbindExcalidraw(); } catch { /* already unbound */ }
-      }
-      _activeExcalidraw.destroy();
-      _activeExcalidraw = null;
-      _activeExcalidrawDocId = null;
-    }
-    // v0.47.0: Tear down the outgoing TLDraw tab (unmounts React). TLDraw has
-    // no collab binding to detach — collab is Excalidraw-only this release.
-    if (_activeTLDraw) {
-      _activeTLDraw.destroy();
-      _activeTLDraw = null;
-      _activeTLDrawDocId = null;
     }
     // Tear down the outgoing CSV viewer (removes its event listeners).
     if (_activeCsv) {
@@ -769,17 +592,7 @@ async function renderActive() {
       _activeImage.destroy();
       _activeImage = null;
     }
-    // v0.49.0: Tear down the outgoing notebook viewer.
-    if (_activeNotebook) {
-      _activeNotebook.destroy();
-      _activeNotebook = null;
-    }
-    // v0.49.0: Tear down the outgoing media viewer (pauses playback).
-    if (_activeMedia) {
-      _activeMedia.destroy();
-      _activeMedia = null;
-    }
-    // Hide the draw toolbar when leaving a PDF tab.
+    // Hide the draw toolbar when leaving an image tab.
     el.pdfDrawToolbar.classList.add('hidden');
     // Reset draw tool button states.
     document.querySelectorAll('.pdf-tool-btn').forEach((b) => b.classList.remove('active'));
@@ -803,7 +616,7 @@ async function renderActive() {
   // No doc, or an empty untouched Untitled tab in VIEW mode → show the welcome
   // screen. If the user explicitly switched to edit mode, show the editor even
   // for an empty untitled tab so they can start writing.
-  const isEmpty = !doc || (doc.path === null && doc.content === '' && doc.mode === 'view' && !doc.pdf && !doc.excalidraw && !doc.tldraw && !doc.code && !doc.csv && !doc.notebook && !doc.media);
+  const isEmpty = !doc || (doc.path === null && doc.content === '' && doc.mode === 'view' && !doc.code && !doc.csv);
   if (isEmpty) {
     el.editMode.classList.add('hidden');
     el.editMode.classList.remove('plain');
@@ -811,63 +624,30 @@ async function renderActive() {
     el.draw.classList.add('hidden');
     el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
-    if (el.present) el.present.classList.add('hidden');
     if (el.reading) el.reading.classList.add('hidden');
-    if (el.share) el.share.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = ''; // clear stale TOC from the previous document
-    el.document.classList.remove('code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'csv-viewer', 'excalidraw-host', 'tldraw-host', 'markdown-body');
+    el.document.classList.remove('code-viewer', 'image-viewer', 'csv-viewer', 'markdown-body');
     el.document.classList.add('has-welcome');
     el.document.innerHTML = renderWelcome();
     setReadingProgressVisible(false);
     return;
   }
-
-  // PDF: read-only viewer, no edit toggle, no TOC. Draw toolbar available.
-  if (doc.pdf) {
-    el.editMode.classList.add('hidden');
-    el.mode.classList.add('hidden');
-    el.draw.classList.remove('hidden');
-    el.export.classList.add('hidden');
-    if (el.exportPdf) el.exportPdf.classList.add('hidden');
-    if (el.present) el.present.classList.add('hidden');
-    if (el.reading) el.reading.classList.add('hidden');
-    if (el.share) el.share.classList.add('hidden');
-    el.viewMode.classList.remove('hidden');
-    el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body', 'excalidraw-host', 'tldraw-host');
-    setReadingProgressVisible(false);
-    // showPdf is async and lazy-loads pdf.js. Store the controller so we can
-    // tear it down on tab switch.
-    showPdf(el.document, doc.path).then((ctrl) => {
-      // Guard: if the user already switched away (gen mismatch), tear down.
-      if (gen !== _renderGen) {
-        ctrl.destroy();
-      } else {
-        _activePdf = ctrl;
-        if (doc.scrollY) el.document.scrollTop = doc.scrollY;
-      }
-    }).catch((e) => toast('Could not open PDF: ' + fmtErr(e)));
-    return;
-  }
-
-  // Image: read-only viewer. Loaded via the asset protocol (same as PDFs).
+  // Image: read-only viewer. Loaded via the asset protocol.
   // Centered on a neutral backdrop so transparent PNGs read clearly; click to
   // toggle actual-size vs. fit-to-window.
   if (doc.image) {
     el.editMode.classList.add('hidden');
     el.mode.classList.add('hidden');
-    el.draw.classList.remove('hidden'); // images can be annotated (since v0.17.0)
+    el.draw.classList.remove('hidden'); // images can be annotated
     el.draw.setAttribute('title', 'Annotate image');
     el.draw.setAttribute('aria-label', 'Annotate image');
     el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
-    if (el.present) el.present.classList.add('hidden');
     if (el.reading) el.reading.classList.add('hidden');
-    if (el.share) el.share.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body', 'excalidraw-host', 'tldraw-host');
+    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'markdown-body');
     el.document.classList.add('image-viewer');
     setReadingProgressVisible(false);
     try {
@@ -880,179 +660,6 @@ async function renderActive() {
     return;
   }
 
-  // v0.49.0: Jupyter notebook (.ipynb) — read-only cell view (markdown via
-  // renderMarkdown, code/outputs via renderCode). No edit toggle, no TOC. The
-  // notebook JSON rides doc.content like CSV/code; showNotebook parses it.
-  if (doc.notebook) {
-    el.editMode.classList.add('hidden');
-    el.mode.classList.add('hidden');
-    el.draw.classList.add('hidden');
-    el.export.classList.add('hidden');
-    if (el.exportPdf) el.exportPdf.classList.add('hidden');
-    if (el.present) el.present.classList.add('hidden');
-    if (el.reading) el.reading.classList.add('hidden');
-    if (el.share) el.share.classList.add('hidden');
-    el.viewMode.classList.remove('hidden');
-    el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body', 'excalidraw-host', 'tldraw-host');
-    el.document.classList.add('notebook-viewer');
-    setReadingProgressVisible(false);
-    try {
-      _activeNotebook = showNotebook(el.document, doc.content);
-    } catch (e) {
-      console.error('[mdpeek] notebook viewer load failed:', e);
-      showViewerError(el.document, 'notebook', e);
-    }
-    if (doc.scrollY) el.document.scrollTop = doc.scrollY;
-    return;
-  }
-
-  // v0.49.0: Audio/video — read-only player via <audio>/<video>. Binary, loaded
-  // via the asset protocol (same as images). No edit toggle, no TOC.
-  if (doc.media) {
-    el.editMode.classList.add('hidden');
-    el.mode.classList.add('hidden');
-    el.draw.classList.add('hidden');
-    el.export.classList.add('hidden');
-    if (el.exportPdf) el.exportPdf.classList.add('hidden');
-    if (el.present) el.present.classList.add('hidden');
-    if (el.reading) el.reading.classList.add('hidden');
-    if (el.share) el.share.classList.add('hidden');
-    el.viewMode.classList.remove('hidden');
-    el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body', 'excalidraw-host', 'tldraw-host');
-    el.document.classList.add('media-viewer');
-    setReadingProgressVisible(false);
-    try {
-      _activeMedia = showMedia(el.document, doc.path);
-    } catch (e) {
-      console.error('[mdpeek] media viewer load failed:', e);
-      showViewerError(el.document, 'media file', e);
-    }
-    if (doc.scrollY) el.document.scrollTop = doc.scrollY;
-    return;
-  }
-
-  // v0.47.0: TLDraw — full canvas editor, no edit toggle, no TOC, no Share
-  // (collab is deferred; TLDraw tabs hide the button). Mirrors the Excalidraw
-  // branch below but with the TLDraw viewer + controller.
-  if (doc.tldraw) {
-    el.editMode.classList.add('hidden');
-    el.mode.classList.add('hidden');
-    el.draw.classList.add('hidden');
-    // v0.68.0: canvas tabs CAN export — the button renders the drawing to
-    // PNG/SVG via the live controller (see exportCanvas).
-    el.export.classList.remove('hidden');
-    el.export.setAttribute('title', 'Export drawing (PNG / SVG)');
-    el.export.setAttribute('aria-label', 'Export drawing');
-    if (el.exportPdf) el.exportPdf.classList.add('hidden');
-    if (el.present) el.present.classList.add('hidden');
-    if (el.reading) el.reading.classList.add('hidden');
-    // No collab for TLDraw this release — always hide Share.
-    if (el.share) el.share.classList.add('hidden');
-    el.viewMode.classList.remove('hidden');
-    el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body', 'excalidraw-host', 'tldraw-host');
-    // Declare the host class HERE, not only inside showTLDraw — the same-doc
-    // guard below early-returns on re-renders and the cleanup above would
-    // otherwise leave a mounted canvas 0px tall (see the Excalidraw branch).
-    el.document.classList.add('tldraw-host');
-    setReadingProgressVisible(false);
-    // v0.68.0: status bar for canvas tabs — shape count + save tick.
-    el.editorStatus.classList.remove('hidden');
-    updateCanvasStatus(doc);
-    // Already mounted for THIS doc (settings toggle, dirty-flag transition…):
-    // re-running showTLDraw would double-mount and leak the first React root.
-    if (_activeTLDraw && _activeTLDrawDocId === doc.id) return;
-    if (_activeTLDraw) { try { _activeTLDraw.destroy(); } catch { /* stale */ } _activeTLDraw = null; }
-    // showTLDraw is async and lazy-loads React + the TLDraw SDK. The onSave
-    // callback writes the .tldr scene JSON back to doc.content (debounced) and
-    // schedules autosave exactly like a text edit (v0.68.0: canvas tabs used
-    // to never autosave — saved files only reached disk on explicit Ctrl+S).
-    showTLDraw(el.document, doc.content, (json) => {
-      doc.content = json;
-      store.markDirty(doc.id);
-      persistSoon();
-      scheduleAutoSave();
-      updateCanvasStatus(doc);
-    }, document.documentElement.dataset.theme, () => gen !== _renderGen).then((ctrl) => {
-      if (gen !== _renderGen) {
-        ctrl.destroy();
-      } else {
-        _activeTLDraw = ctrl;
-        _activeTLDrawDocId = doc.id;
-        updateCanvasStatus(doc);
-      }
-    }).catch((e) => toast('Could not open TLDraw: ' + fmtErr(e)));
-    return;
-  }
-
-  // Excalidraw: full canvas editor, no edit toggle, no TOC. Collaboration
-  // (Share) is supported — bindExcalidraw syncs the canvas via a Y.Map of
-  // elements over the same Yjs+Trystero transport text docs use.
-  if (doc.excalidraw) {
-    el.editMode.classList.add('hidden');
-    el.mode.classList.add('hidden');
-    el.draw.classList.add('hidden');
-    // v0.68.0: canvas tabs CAN export — the button renders the drawing to
-    // PNG/SVG via the live controller (see exportCanvas).
-    el.export.classList.remove('hidden');
-    el.export.setAttribute('title', 'Export drawing (PNG / SVG)');
-    el.export.setAttribute('aria-label', 'Export drawing');
-    if (el.exportPdf) el.exportPdf.classList.add('hidden');
-    if (el.present) el.present.classList.add('hidden');
-    if (el.reading) el.reading.classList.add('hidden');
-    // Share visible unless a session is already active.
-    if (el.share) el.share.classList.toggle('hidden', collab.getStatus().active);
-    el.viewMode.classList.remove('hidden');
-    el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'notebook-viewer', 'media-viewer', 'markdown-body', 'excalidraw-host', 'tldraw-host');
-    // Declare the host class HERE, not only inside showExcalidraw: the
-    // same-doc guard below early-returns on re-renders (e.g. the boot-time
-    // double render), and without this the cleanup list above left an
-    // already-mounted canvas with no host class → 0px tall.
-    el.document.classList.add('excalidraw-host');
-    setReadingProgressVisible(false);
-    // v0.68.0: status bar for canvas tabs — element count + save tick.
-    el.editorStatus.classList.remove('hidden');
-    updateCanvasStatus(doc);
-    // Already mounted for THIS doc — re-running showExcalidraw would
-    // double-mount and leak the first React root (see _activeExcalidrawDocId).
-    if (_activeExcalidraw && _activeExcalidrawDocId === doc.id) return;
-    if (_activeExcalidraw) { try { _activeExcalidraw.destroy(); } catch { /* stale */ } _activeExcalidraw = null; }
-    // showExcalidraw is async and lazy-loads React + Excalidraw. The onSave
-    // callback writes the scene JSON back to doc.content (debounced) so the
-    // drawing persists across tab switches; v0.68.0 also schedules autosave
-    // like every text-edit path, and the stale callback stops a late
-    // lazy-load from wiping the DOM of a newly-active tab.
-    showExcalidraw(el.document, doc.content, (json) => {
-      doc.content = json;
-      store.markDirty(doc.id);
-      persistSoon();
-      scheduleAutoSave();
-      updateCanvasStatus(doc);
-    }, document.documentElement.dataset.theme, () => gen !== _renderGen).then((ctrl) => {
-      if (gen !== _renderGen) {
-        ctrl.destroy();
-      } else {
-        _activeExcalidraw = ctrl;
-        _activeExcalidrawDocId = doc.id;
-        updateCanvasStatus(doc);
-        // If a collab session is active AND this doc is the shared one, bind
-        // the canvas now. Handles two cases:
-        //   1. Receiver cold-join: confirmJoin created the tab then waited
-        //      for the canvas to mount — this .then() is the signal.
-        //   2. Host/Receiver tab-switch back to the shared Excalidraw tab:
-        //      the previous binding was torn down on tab-out; re-attach.
-        if ((collab.getStatus().active || wifiCollab.getWifiCollabStatus().active) && _collabDocId === doc.id) {
-          try { collab.bindExcalidraw(ctrl); } catch (e) { console.error('bindExcalidraw:', e); }
-          try { wifiCollab.bindExcalidraw(ctrl); } catch (e) { console.error('wifiCollab.bindExcalidraw:', e); }
-        }
-      }
-    }).catch((e) => toast('Could not open Excalidraw: ' + fmtErr(e)));
-    return;
-  }
-
   // CSV/TSV file: read-only sortable, filterable table view. No edit toggle,
   // no TOC. Uses a dedicated .csv-viewer class so it gets its own styling.
   if (doc.csv) {
@@ -1061,13 +668,11 @@ async function renderActive() {
     el.draw.classList.add('hidden');
     el.export.classList.add('hidden');
     if (el.exportPdf) el.exportPdf.classList.add('hidden');
-    if (el.present) el.present.classList.add('hidden');
     if (el.reading) el.reading.classList.add('hidden');
-    if (el.share) el.share.classList.add('hidden');
     el.pdfDrawToolbar.classList.add('hidden');
     el.viewMode.classList.remove('hidden');
     el.toc.innerHTML = '';
-    el.document.classList.remove('has-welcome', 'markdown-body', 'image-viewer', 'code-viewer', 'notebook-viewer', 'media-viewer', 'excalidraw-host', 'tldraw-host');
+    el.document.classList.remove('has-welcome', 'markdown-body', 'image-viewer', 'code-viewer');
     el.document.classList.add('csv-viewer');
     setReadingProgressVisible(false);
     const tsv = /\.tsv$/i.test(doc.path || '');
@@ -1102,14 +707,12 @@ async function renderActive() {
       el.mode.classList.remove('hidden');
       el.draw.classList.add('hidden');
       el.export.classList.add('hidden');
-    if (el.exportPdf) el.exportPdf.classList.add('hidden');
-    if (el.present) el.present.classList.add('hidden');
-    if (el.reading) el.reading.classList.add('hidden');
-      if (el.share) el.share.classList.toggle('hidden', collab.getStatus().active);
+      if (el.exportPdf) el.exportPdf.classList.add('hidden');
+      if (el.reading) el.reading.classList.add('hidden');
       el.pdfDrawToolbar.classList.add('hidden');
       el.viewMode.classList.remove('hidden');
       el.toc.innerHTML = '';
-      el.document.classList.remove('has-welcome', 'markdown-body', 'excalidraw-host', 'tldraw-host');
+      el.document.classList.remove('has-welcome', 'markdown-body');
       el.document.classList.add('code-viewer');
       setReadingProgressVisible(false);
       const lang = langFromPath(doc.path);
@@ -1131,30 +734,19 @@ async function renderActive() {
     }
   }
 
-  // Non-PDF/Excalidraw/code docs: ensure the draw toolbar + button are hidden,
-  // and restore the markdown-body class (removed by the code-viewer branch).
+  // Text docs (markdown / plain / code-in-edit): ensure the draw toolbar +
+  // button are hidden, and restore the markdown-body class (removed by the
+  // code-viewer branch).
   el.pdfDrawToolbar.classList.add('hidden');
   el.draw.classList.add('hidden');
-  // Export to HTML / Present / Reading mode only make sense for real markdown
-  // docs (not plain text — there's nothing to split into slides or render).
+  // Export to HTML / Reading mode only make sense for real markdown docs.
   el.export.classList.toggle('hidden', !!doc.plain);
   if (el.exportPdf) el.exportPdf.classList.toggle('hidden', !!doc.plain);
-  if (el.present) el.present.classList.toggle('hidden', !!doc.plain);
   if (el.reading) el.reading.classList.toggle('hidden', !!doc.plain);
-  // v0.44.0: copy-as-HTML, open-in-browser, pin-doc-theme, clear-doc-theme.
   document.getElementById('btn-copy-html')?.classList.toggle('hidden', !!doc.plain);
   document.getElementById('btn-copy-plaintext')?.classList.toggle('hidden', !!doc.plain);
   document.getElementById('btn-open-browser')?.classList.toggle('hidden', !!doc.plain);
-  // Per-doc theme only applies to saved docs (needs a path to key on).
-  const hasPath = !!doc.path;
-  document.getElementById('btn-pin-doc-theme')?.classList.toggle('hidden', !hasPath || !!doc.plain);
-  document.getElementById('btn-clear-doc-theme')?.classList.toggle('hidden', !hasPath || !!doc.plain);
-  // Share (collab) button: visible for any editable text doc (markdown, code,
-  // plain .txt) and for Excalidraw canvases. Hidden only when a session is
-  // already active (use End instead) — the per-viewer branches above already
-  // hide it for read-only formats (PDF/image/csv/welcome).
-  if (el.share) el.share.classList.toggle('hidden', collab.getStatus().active);
-  el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer', 'excalidraw-host', 'tldraw-host');
+  el.document.classList.remove('has-welcome', 'code-viewer', 'image-viewer');
   el.document.classList.add('markdown-body');
 
   el.mode.title = doc.mode === 'edit'
@@ -1168,7 +760,7 @@ async function renderActive() {
   // Apply it not just for .txt files (doc.plain) but for ANY non-markdown
   // doc that ends up in edit mode (e.g. code files like .js/.py/.rs). The
   // preview pane only renders markdown, so showing it for code is misleading.
-  const isMarkdown = !doc.plain && !doc.code && !doc.csv && !doc.pdf && !doc.image && !doc.excalidraw && !doc.tldraw && !doc.notebook && !doc.media;
+  const isMarkdown = !doc.plain && !doc.code && !doc.csv && !doc.image;
   el.editMode.classList.toggle('plain', !isMarkdown);
 
   if (doc.mode === 'edit') {
@@ -1182,18 +774,6 @@ async function renderActive() {
       });
     }
     doc.editor.setValue(doc.content);
-    // If this is the doc currently bound to a collab session, re-bind the
-    // fresh editor instance to Yjs (renderActive destroys the editor on tab
-    // switch, so we need to re-attach on return). Wrapped in try/catch so a
-    // collab hiccup never blocks normal editing.
-    try {
-      if ((collab.getStatus().active || wifiCollab.getWifiCollabStatus().active) && _collabDocId === doc.id) {
-        collab.bindEditor(doc.editor);
-        wifiCollab.bindEditor(doc.editor);
-      }
-    } catch (e) {
-      console.error('collab bindEditor failed (non-fatal):', e);
-    }
     // Update the placeholder to match the doc type — code files shouldn't
     // say "Type markdown here...". The textarea's placeholder attribute is
     // what shows when the buffer is empty.
@@ -1267,23 +847,13 @@ function persist() {
 const find = initFindBar({
   getMode: () => {
     const d = store.active();
-    if (!d) return 'view';
-    if (d.pdf) return 'pdf';
-    // v0.48.0: canvases (TLDraw/Excalidraw) are a single non-searchable mode.
-    // The find bar short-circuits for 'canvas' so it doesn't walk the canvas
-    // library's internal UI DOM and inject <mark> into React-managed nodes.
-    // v0.49.0: notebooks + media are also non-text-searchable (notebook DOM
-    // mixes rendered markdown with code gutters/outputs; media has no text).
-    if (d.excalidraw || d.tldraw || d.notebook || d.media) return 'canvas';
-    if (d.code) return d.mode;
-    return d.mode;
+    return d ? d.mode : 'view';
   },
   getEditor: () => {
     const d = store.active();
     return d && d.editor ? d.editor : null;
   },
   getDocument: () => el.document,
-  getPdf: () => _activePdf,
 });
 
 // ---------- command palette ----------
@@ -1295,15 +865,6 @@ const find = initFindBar({
 // and the "Show keyboard shortcuts" cheat-sheet can read it (the cheat-sheet
 // surfaces every command that carries a `hint`).
 
-// v0.54.0: command ids that are non-core but aren't individually feature-flag-
-// gated in the palette filter below (the workspace sub-modes open via openKanban,
-// which is itself gated; pomodoro/terminal/readability/stats have no flag read
-// in the filter). Minimal mode hides these in one clause.
-const MINIMAL_NONCORE_COMMANDS = new Set([
-  'ws-calendar', 'ws-tasks', 'ws-review', 'ws-graph',
-  'pomo-start', 'terminal', 'doc-readability', 'doc-stats',
-]);
-
 // v0.52.0: is the caret currently inside a GFM table? Powers the
 // "Edit table visually…" palette entry's availability. Cheap + pure (parseTable
 // is DOM-free); called per palette open, not per keystroke.
@@ -1314,55 +875,24 @@ function caretInTable() {
   return !!parseTable(doc.editor.getValue(), start);
 }
 
-// Full (unfiltered) command list, stashed by getCommands() — read by the
-// palette's Minimal-mode empty-state hint below.
-let _allCommands = [];
-
-// Command id → feature flag whose Minimal-mode suppression hides it (mirrors
-// the featureOn clauses inside getCommands' filter).
-const CMD_MINIMAL_FEATURE = {
-  terminal: 'terminal',
-  kanban: 'kanban',
-  'start-presentation': 'present',
-  snippet: 'snippets',
-  daily: 'daily',
-  capture: 'capture',
-  'edit-table': 'table-editor',
-  'toggle-prose-highlights': 'prose-highlights',
-  wordfreq: 'wordfreq',
-  'toggle-wordfreq-underline': 'wordfreq',
-  'start-collab': 'collab',
-  'end-collab': 'collab',
-};
-
 function getCommands() {
   const cmds = [    { id: 'open', label: 'Open file', hint: 'Ctrl+O', keywords: 'open file load', run: openFileDialog },
     { id: 'open-folder', label: 'Open folder in explorer', keywords: 'open folder explorer tree workspace project', run: openFolderForExplorer },
     { id: 'toggle-explorer', label: 'Toggle file explorer sidebar', hint: 'Ctrl+Shift+E', keywords: 'toggle folder explorer sidebar tree', run: toggleExplorer },
-    { id: 'save-workspace', label: 'Save workspace as…', keywords: 'save workspace session tabs project', run: saveCurrentWorkspace },
-    { id: 'open-workspace', label: 'Open workspace…', keywords: 'open switch workspace session tabs project', run: () => { workspacePicker.setItems(getWorkspacePickerItems()); workspacePicker.open(); } },
     { id: 'back', label: 'Back', hint: 'Alt+Left', keywords: 'back previous history navigate', run: goBack },
     { id: 'forward', label: 'Forward', hint: 'Alt+Right', keywords: 'forward next history navigate', run: goForward },
     { id: 'quick-switch', label: 'Quick switcher (recent files)', hint: 'Ctrl+P', keywords: 'quick switch recent files open', run: () => quickSwitcher.open() },
     { id: 'new', label: 'New tab', hint: 'Ctrl+N', keywords: 'new tab untitled', run: newTab },
-    { id: 'new-excalidraw', label: 'New Excalidraw drawing', keywords: 'new excalidraw drawing canvas whiteboard sketch diagram', run: () => store.open({ path: null, content: '', excalidraw: true }) },
-    { id: 'new-tldraw', label: 'New TLDraw drawing', keywords: 'new tldraw drawing canvas whiteboard sketch diagram', run: () => store.open({ path: null, content: '', tldraw: true }) },
     { id: 'reopen-tab', label: 'Reopen closed tab', hint: 'Ctrl+Alt+T', keywords: 'reopen closed tab recent restore undo', run: reopenClosedTab },
     { id: 'close-others', label: 'Close other tabs', danger: true, keywords: 'close others tabs keep active only', run: () => { const d = store.active(); if (d) ctxAction('close-others', d.id); } },
     { id: 'close-right', label: 'Close tabs to the right', danger: true, keywords: 'close right tabs after', run: () => { const d = store.active(); if (d) ctxAction('close-right', d.id); } },
     { id: 'close-all', label: 'Close all tabs', danger: true, keywords: 'close all tabs every', run: () => ctxAction('close-all', store.active()?.id) },
     { id: 'daily', label: 'Open daily note (today\'s .md)', keywords: 'daily note today date journal', run: openDailyNote },
-    { id: 'capture', label: 'Capture thought…', hint: 'Ctrl+Shift+I', keywords: 'capture inbox thought quick note task idea journal', run: openCaptureHud },
     { id: 'save', label: 'Save', hint: 'Ctrl+S', keywords: 'save write', run: saveActive },
     { id: 'save-as', label: 'Save as…', hint: 'Ctrl+Alt+S', keywords: 'save as copy write duplicate rename new file', run: saveActiveAs },
     { id: 'export-html', label: 'Export to HTML', keywords: 'export html self-contained', run: exportHtml },
     { id: 'export-txt', label: 'Export to plain text (.txt)', keywords: 'export plain text txt strip markdown', run: exportPlainText },
     { id: 'export-pdf', label: 'Export to PDF', keywords: 'export pdf print document', run: exportPdf },
-    { id: 'export-canvas-png', label: 'Export drawing as PNG', keywords: 'export drawing canvas png image excalidraw tldraw', run: () => exportCanvas('png') },
-    { id: 'export-canvas-svg', label: 'Export drawing as SVG', keywords: 'export drawing canvas svg vector excalidraw tldraw', run: () => exportCanvas('svg') },
-    { id: 'start-presentation', label: 'Start presentation', keywords: 'present slideshow slides deck fullscreen', run: togglePresentation },
-    { id: 'start-collab', label: 'Share for live collaboration', keywords: 'collaborate share live pair peer realtime sync', run: openShareModal },
-    { id: 'end-collab', label: 'End collaboration session', keywords: 'leave stop end disconnect collab', run: endCollabSession },
     {
       id: 'folder-search',
       label: 'Search in folder',
@@ -1403,12 +933,8 @@ function getCommands() {
     { id: 'fold-toggle', label: 'Toggle fold at caret', keywords: 'fold collapse region section heading editor outline hide', run: foldToggleAtCaret },
     { id: 'unfold-all', label: 'Unfold all', keywords: 'unfold expand all region section heading editor outline show', run: unfoldAll },
     { id: 'doc-stats', label: 'Toggle document statistics', keywords: 'stats statistics words chars sentences paragraphs reading time panel', run: toggleDocStats },
-    { id: 'doc-readability', label: 'Toggle readability score', keywords: 'readability flesch kincaid grade level score writing difficulty', run: toggleReadability },
-    { id: 'toggle-prose-highlights', label: 'Toggle prose highlights', keywords: 'prose highlights readability hard complex words sentences difficult writing underline', run: toggleProseHighlights },
-    { id: 'toggle-wordfreq-underline', label: 'Toggle word-frequency underline', keywords: 'word frequency repetition overused repetitive underline words', run: toggleWordFreqUnderline },
-    { id: 'wordfreq', label: 'Word frequency…', keywords: 'word frequency repetition overused repetitive count rank analyze vocabulary', run: openWordFreqPopover },
     { id: 'sidebar', label: 'Toggle sidebar (TOC)', hint: 'Ctrl+B', keywords: 'sidebar toc outline', run: toggleSidebar },
-    { id: 'find', label: 'Find', hint: 'Ctrl+F', keywords: 'find search', run: () => { const d = store.active(); if (d && (d.excalidraw || d.tldraw || d.notebook || d.media)) { toast('Find isn\'t available on this tab type'); return; } find.toggle(); } },
+    { id: 'find', label: 'Find', hint: 'Ctrl+F', keywords: 'find search', run: () => find.toggle() },
     { id: 'replace', label: 'Find & Replace', hint: 'Ctrl+H', keywords: 'replace substitute find', run: () => find.openReplace() },
     { id: 'focus', label: 'Focus mode', hint: 'F11', keywords: 'focus zen distraction', run: toggleFocus },
     { id: 'reading', label: 'Reading mode', hint: 'Ctrl+Shift+R', keywords: 'reader immersive distraction safari pocket book', run: toggleReading },
@@ -1419,28 +945,12 @@ function getCommands() {
     { id: 'theme', label: 'Cycle theme', keywords: 'theme color light dark cycle', run: cycleTheme },
     { id: 'settings', label: 'Open settings', hint: 'Ctrl+,', keywords: 'settings preferences options', run: openSettings },
     { id: 'show-shortcuts', label: 'Show keyboard shortcuts', keywords: 'shortcuts keybindings hotkeys cheat sheet help', run: () => shortcutsPicker.open() },
-    { id: 'kanban', label: 'Open Kanban board', hint: 'Ctrl+Shift+K', keywords: 'kanban board tasks todo done progress workspace', run: openKanban },
-    { id: 'ws-calendar', label: 'Open Calendar', keywords: 'calendar month daily notes journal date', run: () => { openKanban(); setWorkspaceMode('calendar'); } },
-    { id: 'ws-tasks', label: 'Open Tasks inbox', keywords: 'tasks inbox checklist todo scan notes checkboxes', run: () => { openKanban(); setWorkspaceMode('tasks'); } },
-    { id: 'ws-review', label: 'Review flashcards', keywords: 'review flashcards spaced repetition srs study cards qa', run: () => { openKanban(); setWorkspaceMode('review'); } },
-    { id: 'ws-graph', label: 'Open Graph', keywords: 'graph backlinks network nodes links connections map notes', run: () => { openKanban(); setWorkspaceMode('graph'); } },
-    { id: 'pomo-start', label: 'Start Pomodoro', keywords: 'pomodoro timer focus 25 minute', run: pomoToggleRun },
-    { id: 'terminal', label: 'Toggle terminal', hint: 'Ctrl+`', keywords: 'terminal powershell shell cmd console cli', run: () => terminal.toggle() },
     { id: 'snippet', label: 'Insert template / snippet', hint: 'Ctrl+Shift+S', keywords: 'snippet template callout table code meeting insert', run: () => snippetPicker.open() },
     { id: 'insert-date', label: 'Insert today\'s date', keywords: 'date time today stamp now insert', run: insertDateAtCursor },
-    { id: 'backlinks', label: 'Find backlinks', keywords: 'backlinks links inbound references wiki', run: openBacklinks },
     { id: 'find-in-folder', label: 'Find in folder…', hint: 'Ctrl+Shift+F', keywords: 'find search folder grep workspace content files across project', run: findInFolder },
-    { id: 'tag-pane', label: 'Toggle tag pane', keywords: 'tag tags panel filter workspace hashtag', run: toggleTagPane },
-    { id: 'open-beside', label: 'Open doc beside (reference pane)', keywords: 'split side beside reference second doc panel', run: openBeside },
     { id: 'check-links', label: 'Check links (find broken)', keywords: 'check links broken missing dead validate wiki md', run: checkLinks },
-    { id: 'restore-version', label: 'Restore version…', keywords: 'restore version history snapshot backup revert previous', run: restoreSnapshot },
-    { id: 'diff-version', label: 'Compare version…', keywords: 'compare diff version history snapshot changes side by side', run: diffVersion },
-    { id: 'writing-goal', label: 'Set writing goal…', keywords: 'writing goal word count target session words', run: setWritingGoal },
-    { id: 'clear-writing-goal', label: 'Clear writing goal', keywords: 'clear remove writing goal word count target', run: clearWritingGoal },
     { id: 'new-from-template', label: 'New from template…', keywords: 'new template create document skeleton starter', run: newFromTemplate },
     { id: 'save-as-template', label: 'Save as template', keywords: 'save template snippet document skeleton starter', run: saveCurrentAsTemplate },
-    { id: 'pin-doc-theme', label: 'Pin theme to this doc…', keywords: 'pin theme per document override color sepia', run: pinCurrentDocTheme },
-    { id: 'clear-doc-theme', label: 'Clear pinned doc theme', keywords: 'clear remove pin theme per document override', run: clearCurrentDocTheme },
     { id: 'check-updates', label: 'Check for updates', keywords: 'update version check', run: () => checkForUpdates(false) },
     { id: 'quit', label: 'Quit mdpeek', danger: true, keywords: 'quit exit close', run: doQuitApp },
   ];
@@ -1448,58 +958,22 @@ function getCommands() {
   // doesn't need to be exhaustive — it's a power-user shortcut, not a menu.
   const doc = store.active();
   const hasDoc = !!doc;
-  const collabActive = collab.getStatus().active;
-  const filtered = cmds.filter((c) => {
-    if ((c.id === 'save' || c.id === 'save-as' || c.id === 'export-html' || c.id === 'export-txt' || c.id === 'export-pdf' || c.id === 'start-presentation' || c.id === 'start-collab' || c.id === 'mode' || c.id === 'snippet' || c.id === 'backlinks' || c.id === 'sort-asc' || c.id === 'sort-desc' || c.id === 'copy-html' || c.id === 'copy-plaintext' || c.id === 'open-in-browser' || c.id === 'check-links' || c.id === 'restore-version' || c.id === 'diff-version' || c.id === 'writing-goal' || c.id === 'save-as-template' || c.id === 'pin-doc-theme' || c.id === 'clear-doc-theme' || c.id === 'case-upper' || c.id === 'case-lower' || c.id === 'case-title' || c.id === 'case-toggle' || c.id === 'wrap-with' || c.id === 'edit-table' || c.id === 'toggle-prose-highlights' || c.id === 'toggle-wordfreq-underline' || c.id === 'wordfreq') && !hasDoc) return false;
+  return cmds.filter((c) => {
+    if ((c.id === 'save' || c.id === 'save-as' || c.id === 'export-html' || c.id === 'export-txt' || c.id === 'export-pdf' || c.id === 'mode' || c.id === 'snippet' || c.id === 'sort-asc' || c.id === 'sort-desc' || c.id === 'copy-html' || c.id === 'copy-plaintext' || c.id === 'open-in-browser' || c.id === 'check-links' || c.id === 'save-as-template' || c.id === 'case-upper' || c.id === 'case-lower' || c.id === 'case-title' || c.id === 'case-toggle' || c.id === 'wrap-with' || c.id === 'edit-table') && !hasDoc) return false;
     if ((c.id === 'save' || c.id === 'save-as') && !canSaveDoc(doc)) return false;
-    // v0.68.0: drawing exports only make sense with a live canvas tab.
-    if ((c.id === 'export-canvas-png' || c.id === 'export-canvas-svg') && !(doc && (doc.excalidraw || doc.tldraw))) return false;
-    if (c.id === 'end-collab' && !collabActive) return false;
-    if (c.id === 'start-collab' && collabActive) return false;
-    if ((c.id === 'start-collab' || c.id === 'end-collab') && !featureOn('collab')) return false;
-    if (c.id === 'kanban' && !featureOn('kanban')) return false;
-    if (c.id === 'start-presentation' && !featureOn('present')) return false;
-    if (c.id === 'snippet' && !featureOn('snippets')) return false;
-    if (c.id === 'terminal' && !featureOn('terminal')) return false;
-    if (c.id === 'daily' && !featureOn('daily')) return false;
-    // v0.55.0: quick-capture inbox — feature flag (suppressed under Minimal).
-    if (c.id === 'capture' && !featureOn('capture')) return false;
+    if (c.id === 'snippet' && !isFeatureOn('snippets')) return false;
+    if (c.id === 'daily' && !isFeatureOn('daily')) return false;
     // v0.52.0: visual table editor — feature flag + only when caret is in a table.
-    if (c.id === 'edit-table' && !featureOn('table-editor')) return false;
+    if (c.id === 'edit-table' && !isFeatureOn('table-editor')) return false;
     if (c.id === 'edit-table' && !caretInTable()) return false;
-    // v0.53.0: prose highlights — feature flag.
-    if (c.id === 'toggle-prose-highlights' && !featureOn('prose-highlights')) return false;
-    // v0.55.0: word-frequency — feature flag for both the underline toggle and
-    // the popover.
-    if ((c.id === 'toggle-wordfreq-underline' || c.id === 'wordfreq') && !featureOn('wordfreq')) return false;
     // v0.55.0: editor region folding — edit-mode only (the editor owns the
-    // caret). Core editing affordance, so no feature flag / Minimal suppression.
+    // caret).
     if ((c.id === 'fold-toggle' || c.id === 'unfold-all') && !(doc && doc.mode === 'edit' && doc.editor)) return false;
-    // v0.54.0: Minimal mode hides the remaining non-core commands that aren't
-    // individually feature-flag-gated above (workspace sub-modes, pomodoro,
-    // terminal, readability/stats overlays). One clause rules them all.
-    if (minimalModeOn() && MINIMAL_NONCORE_COMMANDS.has(c.id)) return false;
     return true;
   });
-  _allCommands = cmds;
-  return filtered;
 }
 
-const palette = initCommandPalette(getCommands, {
-  // Minimal mode filters whole feature families out of the list; the generic
-  // "No matches / check spelling" empty state reads like a mistake when the
-  // user typed the exact command name. Name the real cause instead.
-  emptyHint: (query) => {
-    if (!minimalModeOn() || !query) return null;
-    const q = query.toLowerCase();
-    const hidden = _allCommands.some((c) =>
-      `${c.label} ${c.keywords || ''}`.toLowerCase().includes(q) && (
-        MINIMAL_NONCORE_COMMANDS.has(c.id) ||
-        (CMD_MINIMAL_FEATURE[c.id] && MINIMAL_SUPPRESSED.has(CMD_MINIMAL_FEATURE[c.id]))
-      ));
-    return hidden ? 'Hidden by Minimal mode — turn it off in Settings' : null;
-  },
-});
+const palette = initCommandPalette(getCommands);
 
 // v0.49.0: "Show keyboard shortcuts" cheat-sheet. A read-only picker seeded with
 // every command that carries a `hint` (≈22 entries), rendered as label + the
@@ -1584,23 +1058,6 @@ const headingPicker = initQuickSwitcher(
   { placeholder: 'Jump to heading…', ariaLabel: 'Document outline' }
 );
 
-// v0.40.0: Backlinks picker. Lists files that link to the active doc (both
-// [[wiki]] and [text](file.md) forms). Lazily populated by openBacklinks
-// just before open() — the picker's items are swapped in via setItems.
-const backlinksPicker = initQuickSwitcher(
-  () => [],
-  async (item) => {
-    if (!item || !item.path) return;
-    try {
-      const content = await invoke('read_file', { path: item.path });
-      await openPath(item.path, content);
-    } catch (e) {
-      toast('Could not open: ' + fmtErr(e));
-    }
-  },
-  { placeholder: 'Links to this note…', ariaLabel: 'Backlinks' }
-);
-
 // v0.44.0: Template picker. Lazily populated from getTemplates(localStorage)
 // before each open so newly-saved templates show up without a re-init.
 const templatePicker = initQuickSwitcher(
@@ -1631,160 +1088,8 @@ const brokenLinkPicker = initQuickSwitcher(
   { placeholder: 'Broken links in this note…', ariaLabel: 'Link checker' }
 );
 
-// v0.45.0: Snapshot picker (version history). Items are populated lazily from
-// list_snapshots just before open(); selecting one reads that snapshot's
-// content and opens it in a fresh untitled doc (the live file is NOT
-// overwritten — the user saves explicitly to confirm).
-const snapshotPicker = initQuickSwitcher(
-  () => [],
-  async (item) => {
-    if (!item || !item._ts) return;
-    const doc = store.active();
-    if (!doc || !doc.path) return;
-    try {
-      const content = await invoke('read_snapshot', { path: doc.path, ts: item._ts });
-      // v0.68.0: carry the canvas flags so a drawing snapshot reopens as a
-      // drawing tab, not a markdown editor full of scene JSON.
-      store.open({ path: null, content, mode: 'edit', excalidraw: doc.excalidraw || undefined, tldraw: doc.tldraw || undefined });
-      toast('Snapshot opened in a new tab — save to keep');
-    } catch (e) {
-      toast('Could not read snapshot: ' + fmtErr(e));
-    }
-  },
-  { placeholder: 'Restore a snapshot…', ariaLabel: 'Version history' }
-);
-
-// v0.45.0: list snapshots for the active doc and open the picker. Requires a
-// saved doc (snapshots are keyed by path).
-async function restoreSnapshot() {
-  const doc = store.active();
-  if (!doc || !doc.path) { toast('Save the doc first to browse its history'); return; }
-  if (!snapshotPicker?.setItems) return;
-  let entries;
-  try {
-    const raw = await invoke('list_snapshots', { path: doc.path });
-    entries = toSnapshotEntries(raw);
-  } catch (e) {
-    toast('Could not list snapshots: ' + fmtErr(e));
-    return;
-  }
-  if (entries.length === 0) { toast('No saved snapshots yet — save the doc to start tracking history'); return; }
-  snapshotPicker.setItems(entries.map((e) => ({
-    label: e.label,
-    hint: e.size,
-    keywords: `${e.label} ${e.size}`,
-    _ts: e.ts,
-  })));
-  snapshotPicker.open();
-}
-
-// v0.51.0: snapshot diff viewer. Compare a saved snapshot against the current
-// doc content side-by-side. "Use this version" writes the snapshot text into
-// the active editor (marking it dirty so the user confirms with a save).
-const diffViewer = initDiffViewer();
+// v0.51.0: visual table editor (Ctrl+Shift+P → "Edit table visually").
 const tableEditor = initTableEditor();
-const captureHud = initCaptureHud();
-const wordFreqPopover = initWordFreqPopover();
-const diffVersionPicker = initQuickSwitcher(
-  () => [],
-  async (item) => {
-    if (!item || !item._ts) return;
-    const doc = store.active();
-    if (!doc || !doc.path) return;
-    // View mode lazy-inits the editor only on entering edit mode, so the old
-    // `!doc.editor → return` made this command a silent dead end for saved
-    // docs (the default open mode). Flip to edit first, then compare — and
-    // restore the original mode when the diff closes without applying.
-    const wasMode = doc.mode;
-    if (!doc.editor) {
-      doc.mode = 'edit';
-      await renderActive();
-    }
-    if (!doc.editor) return;
-    try {
-      const snap = await invoke('read_snapshot', { path: doc.path, ts: item._ts });
-      // Show current on the left, snapshot on the right so "Use this version"
-      // adopts the snapshot (the version the user is reviewing).
-      diffViewer.open({
-        title: 'Compare versions',
-        oldContent: doc.editor.getValue(),
-        newContent: snap,
-        oldLabel: 'Current',
-        newLabel: `Snapshot ${item.label}`,
-        onClose: () => {
-          const d = store.active();
-          if (d && d.id === doc.id && d.mode !== wasMode && !d.dirty) {
-            d.mode = wasMode;
-            renderActive().catch(() => {});
-          }
-        },
-        onApply: (newText) => {
-          const d = store.active();
-          if (!d || !d.editor) return;
-          d.editor.setValue(newText);
-          store.markDirty(d.id);
-          persistSoon();
-          scheduleAutoSave();
-          toast('Snapshot applied — save to confirm');
-        },
-      });
-    } catch (e) {
-      toast('Could not read snapshot: ' + fmtErr(e));
-    }
-  }
-);
-
-// List snapshots + open the diff picker (mirrors restoreSnapshot's flow).
-async function diffVersion() {
-  const doc = store.active();
-  if (!doc || !doc.path) { toast('Save the doc first to browse its history'); return; }
-  // The diff viewer applies changes through the text editor, which canvases
-  // don't have — point drawing users at Restore version instead.
-  if (doc.excalidraw || doc.tldraw) { toast('Version compare is text-only for now — use Restore version for drawings'); return; }
-  if (!diffVersionPicker?.setItems) return;
-  let entries;
-  try {
-    const raw = await invoke('list_snapshots', { path: doc.path });
-    entries = toSnapshotEntries(raw);
-  } catch (e) {
-    toast('Could not list snapshots: ' + fmtErr(e));
-    return;
-  }
-  if (entries.length === 0) { toast('No saved snapshots yet — save the doc to start tracking history'); return; }
-  diffVersionPicker.setItems(entries.map((e) => ({
-    label: e.label,
-    hint: e.size,
-    keywords: `${e.label} ${e.size}`,
-    _ts: e.ts,
-  })));
-  diffVersionPicker.open();
-}
-
-// Run two parallel `search_in_folder` queries (wiki-link + standard-link
-// forms), dedupe, and open the picker with the results. Requires a saved
-// active doc (to know what to look for) and an open folder (to know where
-// to scan).
-async function openBacklinks() {
-  const doc = store.active();
-  if (!doc || !doc.path) { toast('Save the doc first to find backlinks.'); return; }
-  const root = localStorage.getItem('mdpeek-explorer-root');
-  if (!root) { toast('Open a folder to scan for backlinks.'); return; }
-  const name = docBasename(doc.path);
-  const queries = backlinkQueries(name);
-  try {
-    const results = await Promise.all(queries.map((q) =>
-      invoke('search_in_folder', { root, query: q, caseSensitive: true, maxResults: 200 })
-        .catch(() => ({ results: [] }))
-    ));
-    const hits = results.flatMap((r) => (r && r.results) || []);
-    const items = formatBacklinkItems(hits, doc.path);
-    if (items.length === 0) { toast(`No files link to ${name}.`); return; }
-    backlinksPicker.setItems(items);
-    backlinksPicker.open();
-  } catch (e) {
-    toast('Backlinks scan failed: ' + fmtErr(e));
-  }
-}
 
 // v0.41.0: editor autocomplete (`:emoji`, `[[wiki`, `#tag`). The dropdown
 // view calls getSources(kind, query) async; we dispatch by kind. Emoji is
@@ -1883,10 +1188,12 @@ const autocomplete = initAutocomplete({
   getSources: acGetSources,
 });
 
-// Invalidate the file cache when the tree refreshes (file added/removed).
-// _acFileCache is module-private; this hook lets file-tree.js signal a
-// refresh without exporting a setter.
-function invalidateAcFileCache() { _acFileCache = null; }
+// Tree refreshes (file added/removed/renamed) must drop the autocomplete file
+// cache or [[wikilink]] suggestions keep offering stale names.
+function refreshTree() {
+  _acFileCache = null;
+  refreshFileTree();
+}
 
 function insertSnippetIntoEditor(doc, textToInsert) {
   if (doc.editor) {
@@ -1902,7 +1209,7 @@ function insertSnippetIntoEditor(doc, textToInsert) {
 // inline; view-mode appends. Mirrors the snippet insert path.
 function insertDateAtCursor() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.image || doc.csv || doc.notebook || doc.media) {
+  if (!doc || doc.image || doc.csv) {
     toast('Switch to a Markdown document first');
     return;
   }
@@ -1911,25 +1218,6 @@ function insertDateAtCursor() {
   const locale = now.toLocaleDateString();
   // "2024-07-26 (Jul 26, 2024)" — ISO for sorting + locale for readability.
   insertSnippetIntoEditor(doc, `${iso} (${locale})`);
-}
-
-// ---------- Integrated PowerShell Terminal ----------
-const terminal = initTerminal({
-  cwdProvider: () => {
-    const explorerRoot = localStorage.getItem('mdpeek-explorer-root');
-    if (explorerRoot) return explorerRoot;
-    const activeDoc = store.active();
-    if (activeDoc && activeDoc.path) {
-      const idx = Math.max(activeDoc.path.lastIndexOf('/'), activeDoc.path.lastIndexOf('\\'));
-      if (idx > -1) return activeDoc.path.substring(0, idx);
-    }
-    return '.';
-  },
-  onToast: (msg) => toast(msg),
-});
-
-if (el.terminal) {
-  el.terminal.addEventListener('click', () => terminal.toggle());
 }
 
 // ---------- quick switcher (Ctrl+P) ----------
@@ -1982,16 +1270,6 @@ store.on('change', () => {
       navHistory.remove(id);
     }
   }
-  // v0.45.0: if the reference pane is open and its source doc was closed,
-  // drop the stale id; otherwise re-render so edits to the source show up.
-  if (_referenceDocId !== null) {
-    if (!store.docs.find((d) => d.id === _referenceDocId)) {
-      _referenceDocId = null;
-      referencePane.close();
-    } else {
-      referencePane.render();
-    }
-  }
   renderActive().then(() => {
     // After rendering settles, jump to a pending line if one was stashed on
     // the active doc (e.g. by openPathAndJump from a folder-search result).
@@ -2036,7 +1314,7 @@ async function openPath(path, content, opts = {}) {
   // choke on bytes, and live-reload isn't meaningful for a PDF).
   // Excalidraw files are JSON but the canvas manages its own state — skip watcher.
   // Media (audio/video) is read-only and binary — skip it too (v0.49.0).
-  if (!isPdfPath(path) && !isExcalidrawPath(path) && !isTLDrawPath(path) && !isMediaPath(path)) await rewatch(path);
+  if (!isImagePath(path)) await rewatch(path);
 }
 
 // Open a file from a search result and jump to a specific line. Reads the
@@ -2052,7 +1330,7 @@ async function openPathAndJump(path, line, query) {
     // After openPath schedules the line jump, also kick off the find bar for
     // markdown view-mode docs so in-document matches are highlighted.
     const doc = store.active();
-    if (doc && !doc.code && !doc.csv && !doc.pdf && !doc.image && !doc.excalidraw && !doc.tldraw && !doc.notebook && !doc.media && doc.mode === 'view' && query) {
+    if (doc && !doc.code && !doc.csv && !doc.image && doc.mode === 'view' && query) {
       // Wait one tick so renderActive has run.
       setTimeout(() => {
         if (find && query) find.open(query, { caseSensitive: false, focus: false });
@@ -2104,7 +1382,7 @@ function scrollEditorToLine(doc, line) {
     el.document.scrollTop = Math.max(0, (line - 1) * lineHeight - el.document.clientHeight / 3);
     return true;
   }
-  // CSV / markdown-view / PDF / image / excalidraw: no line concept.
+  // CSV / markdown-view / image: no line concept.
   return false;
 }
 
@@ -2323,96 +1601,6 @@ function wrapSelectionApply(kind) {
   }
 }
 
-// v0.49.0: named workspace sessions — save/restore a tab set + the open folder.
-// The snapshot is the existing store.serialize() shape (production-perfect for
-// this); we pair it with the explorer root + visibility so a session captures
-// the full workspace, not just tabs.
-
-// Prompt for a name and save the current workspace (open tabs + folder) as a
-// named session. Upserts by name. No-op if the user cancels the prompt.
-function saveCurrentWorkspace() {
-  const name = window.prompt('Save workspace as:', 'workspace');
-  if (name === null) return; // cancelled
-  const trimmed = (name || '').trim();
-  if (!trimmed) { toast('Name cannot be empty'); return; }
-  const root = localStorage.getItem('mdpeek-explorer-root') || null;
-  const explorerVisible = localStorage.getItem('mdpeek-explorer-visible') !== '0';
-  saveNamedSession(localStorage, trimmed, {
-    root,
-    explorerVisible,
-    snapshot: store.serialize(),
-  });
-  toast('Workspace saved: ' + trimmed);
-}
-
-// Re-read on-disk file contents for a snapshot's docs (mirroring the cold-start
-// restore flow), then store.restore. Untitled tabs pass through; binary types
-// (pdf/image/media) restore from path alone; missing files keep last-known
-// content. Async; resolves once the tabs are restored.
-async function applyWorkspaceSnapshot(snapshot) {
-  if (!snapshot || !Array.isArray(snapshot.docs)) return;
-  const candidates = snapshot.docs.filter((s) => {
-    if (s.path === null && (s.content === '' || s.content == null) && !s.dirty && !s.pinned) return false;
-    return true;
-  });
-  const restored = await restoreSessionDocs(candidates, invoke);
-  if (restored.length > 0) {
-    store.restore({ docs: restored, activeId: snapshot.activeId });
-  } else {
-    // Empty workspace — clear to a single fresh state so the welcome screen shows.
-    store.docs.slice().forEach((d) => store.close(d.id));
-  }
-}
-
-// Switch to a saved workspace: set the explorer root + visibility, then restore
-// the tab set. Async; failures toast and abort.
-async function openWorkspaceByName(name) {
-  const sess = getNamedSessions(localStorage).find((s) => s.name === name);
-  if (!sess) { toast('Workspace not found: ' + name); return; }
-  // Restore the folder first so revealPath has a root to work against.
-  if (sess.root) {
-    localStorage.setItem('mdpeek-explorer-root', sess.root);
-    setTreeRoot(sess.root);
-  }
-  // Sync explorer visibility with the saved state.
-  const wantVisible = !!sess.explorerVisible;
-  const isVisible = !el.fileTree.classList.contains('hidden');
-  if (wantVisible !== isVisible) toggleExplorer();
-  await applyWorkspaceSnapshot(sess.snapshot);
-  toast('Workspace opened: ' + name);
-}
-
-async function deleteWorkspaceByName(name) {
-  deleteNamedSession(localStorage, name);
-  toast('Workspace deleted: ' + name);
-  // Refresh the picker so it reflects the removal.
-  workspacePicker.setItems(getWorkspacePickerItems());
-}
-
-// ---------- workspace picker ----------
-// Lists saved workspaces (to switch to or delete) + a "Save current as…" entry.
-function getWorkspacePickerItems() {
-  const sessions = getNamedSessions(localStorage);
-  const items = sessions.map((s) => ({
-    label: s.name,
-    hint: s.root ? basename(s.root) : 'no folder',
-    keywords: s.name + ' ' + (s.root || ''),
-    _action: 'open',
-    _name: s.name,
-  }));
-  items.push({ label: '— Save current workspace as…', hint: '', keywords: 'save new workspace session', _action: 'save' });
-  return items;
-}
-const workspacePicker = initQuickSwitcher(
-  getWorkspacePickerItems,
-  async (item) => {
-    if (!item) return;
-    if (item._action === 'save') { saveCurrentWorkspace(); return; }
-    if (item._action === 'open' && item._name) { await openWorkspaceByName(item._name); }
-  },
-  { placeholder: 'Save or open a workspace…', ariaLabel: 'Workspaces' },
-);
-
 // v0.46.0: extract the selection into a new untitled markdown note and leave a
 // markdown link to it in place of the selection. The new tab's title is derived
 // from the extracted content (first heading / first line). Useful for
@@ -2449,11 +1637,7 @@ function newTab() {
   // doc naturally renders the welcome screen via renderActive's isEmpty check.
   const fmt = localStorage.getItem('mdpeek-new-tab-format') || 'home';
   const modePref = localStorage.getItem('mdpeek-new-tab-mode') || 'view';
-  if (fmt === 'excalidraw') {
-    store.open({ path: null, content: '', excalidraw: true });
-  } else if (fmt === 'tldraw') {
-    store.open({ path: null, content: '', tldraw: true });
-  } else if (fmt === 'home') {
+  if (fmt === 'home') {
     store.open({ path: null, content: '', mode: 'view' });
   } else {
     const plain = fmt === 'text';
@@ -2481,39 +1665,13 @@ async function reopenClosedTab() {
       await openPath(entry.path, entry.content);
     }
   } else {
-    store.open({ path: null, content: entry.content, plain: entry.plain, code: entry.code, mode: entry.mode || 'edit', excalidraw: entry.excalidraw, tldraw: entry.tldraw });
+    store.open({ path: null, content: entry.content, plain: entry.plain, code: entry.code, mode: entry.mode || 'edit' });
   }
 }
 
 async function closeTab(id) {
   const doc = store.docs.find((d) => d.id === id);
   if (!doc) return;
-  // Closing the shared tab ends the live session — confirm first.
-  if (doc.shared && collab.getStatus().active) {
-    const choice = await confirmDialog({
-      title: 'End collaboration session?',
-      text: 'Closing this tab will end the live session and disconnect your collaborator.',
-      buttons: [
-        { id: 'cancel', label: 'Cancel', kind: 'secondary' },
-        { id: 'end', label: 'End session', kind: 'danger' },
-      ],
-    });
-    if (choice === null || choice === 'cancel') return;
-    if (_collabDocId === id) {
-      collab.endSession();
-      _collabDocId = null;
-    }
-  }
-  // v0.68.0: flush a live canvas before the dirty check so edits made inside
-  // the viewer's 1s debounce window are seen (and prompt) correctly.
-  if (doc.excalidraw && _activeExcalidraw && _lastRenderedId === id) {
-    const j = _activeExcalidraw.flush();
-    if (j && j !== doc.content) { doc.content = j; store.markDirty(doc.id); }
-  }
-  if (doc.tldraw && _activeTLDraw && _lastRenderedId === id) {
-    const j = _activeTLDraw.flush();
-    if (j && j !== doc.content) { doc.content = j; store.markDirty(doc.id); }
-  }
   if (doc.dirty) {
     const name = basename(doc.path);
     const choice = await confirmDialog({
@@ -2534,10 +1692,7 @@ async function closeTab(id) {
   }
   // v0.45.0: snapshot the doc for "Reopen closed tab" before we tear it down.
   // Only snapshot docs worth reopening: a saved path OR non-empty content.
-  // Skip the home screen, blank untitled tabs, notebooks (JSON), and media.
-  // v0.68.0: canvases snapshot too — the flags ride along in snapshotDoc so
-  // they reopen as drawing tabs instead of a wall of scene JSON.
-  if ((doc.path || doc.content) && !doc.notebook && !doc.media) {
+  if (doc.path || doc.content) {
     const snap = snapshotDoc(doc);
     if (snap) _closedTabs = pushClosedTab(_closedTabs, snap);
   }
@@ -2585,9 +1740,8 @@ async function closeDocs(ids) {
   for (const id of toClose) {
     const doc = store.docs.find((d) => d.id === id);
     if (!doc) continue;
-    // v0.45.0: snapshot for "Reopen closed tab" (same guard as closeTab,
-    // v0.68.0: canvases included, notebooks/media skipped — matching closeTab).
-    if ((doc.path || doc.content) && !doc.notebook && !doc.media) {
+    // v0.45.0: snapshot for "Reopen closed tab" (same guard as closeTab).
+    if (doc.path || doc.content) {
       const snap = snapshotDoc(doc);
       if (snap) _closedTabs = pushClosedTab(_closedTabs, snap);
     }
@@ -2640,7 +1794,7 @@ async function openFileDialog() {
 
 // ---------- save ----------
 // v1.1.2: the pipeline lives in src/lib/save-doc.js (DOM-free, unit-testable);
-// this wrapper binds it to the app's live collaborators.
+// this wrapper binds it to the app's live store + OS dialogs.
 async function saveActive() {
   return saveDoc(store.active());
 }
@@ -2652,14 +1806,10 @@ async function saveDoc(doc) {
     toast,
     fmtErr,
     clearDirty: (id) => store.clearDirty(id),
-    maybeSnapshot,
-    // Captured per call so canvas flushes see the live controllers.
-    excalidraw: _activeExcalidrawDocId === doc.id ? _activeExcalidraw : null,
-    tldraw: _activeTLDrawDocId === doc.id ? _activeTLDraw : null,
   }, doc);
   if (savedPath && !oldPath) {
     addRecent(savedPath);
-    if (!isPdfPath(savedPath) && !isExcalidrawPath(savedPath) && !isTLDrawPath(savedPath) && !isMediaPath(savedPath)) {
+    if (!isImagePath(savedPath)) {
       await rewatch(store.active()?.path);
     }
     renderTabs(store);
@@ -2673,25 +1823,16 @@ async function saveActiveAs() {
   const doc = store.active();
   if (!canSaveDoc(doc)) return;
   if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
-  if (doc.excalidraw && _activeExcalidraw) {
-    const json = _activeExcalidraw.flush();
-    if (json) doc.content = json;
-  }
-  if (doc.tldraw && _activeTLDraw) {
-    const json = _activeTLDraw.flush();
-    if (json) doc.content = json;
-  }
   const { content } = doc;
   try {
-    const kind = doc.tldraw ? 'tldraw' : doc.excalidraw ? 'excalidraw' : doc.plain ? 'text' : undefined;
+    const kind = doc.plain ? 'text' : undefined;
     const path = await invoke('save_file_as', { content, kind });
     if (!path) return;
     doc.path = path;
     if ((doc.editor?.getValue() ?? doc.content) === content) store.clearDirty(doc.id);
     toast('Saved as ' + basename(path));
-    maybeSnapshot(doc, content);
     addRecent(path);
-    if (!isPdfPath(path) && !isExcalidrawPath(path) && !isTLDrawPath(path) && !isMediaPath(path)) {
+    if (!isImagePath(path)) {
       await rewatch(path);
     }
     renderTabs(store);
@@ -2701,26 +1842,6 @@ async function saveActiveAs() {
   } catch (e) {
     if (e !== 'cancelled') toast('Save failed: ' + fmtErr(e));
   }
-}
-
-// v0.45.0: write a version-history snapshot for the just-saved doc. Skips
-// non-text docs (notebooks, binary). v0.68.0: canvas scenes snapshot too —
-// "Restore version…" reopens them with the right flags. Fire-and-forget —
-// errors are logged but never surface to the user.
-function maybeSnapshot(doc, content) {
-  if (!doc || !doc.path || doc.notebook || doc.media) return;
-  // v0.55.0: saving a daily note counts as a writing day for the streak chip.
-  // Fire-and-forget like the snapshot itself — a storage failure must never
-  // surface here.
-  if (isDailyNoteName(basename(doc.path))) {
-    try { markWritingDay(); } catch { /* ignore */ }
-    // The save may have created the note or changed its word count — drop the
-    // calendar memo so the dot/word chip renders on the next calendar view.
-    _calCacheKey = null; _calCache = null;
-  }
-  invoke('write_snapshot', { path: doc.path, content }).catch((e) => {
-    console.warn('snapshot failed:', e);
-  });
 }
 
 // ---------- image paste / drop into the editor ----------
@@ -2857,7 +1978,7 @@ async function exportHljsCss() {
 
 async function exportHtml() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.csv || doc.notebook || doc.media) {
+  if (!doc || doc.code || doc.csv) {
     toast('Export to HTML is for Markdown documents');
     return;
   }
@@ -2881,40 +2002,6 @@ async function exportHtml() {
   }
 }
 
-// v0.68.0: export the active drawing (Excalidraw / TLDraw) as PNG or SVG.
-// The scene-to-image work lives in the viewers' controllers (exportImage);
-// this handles the format choice and the native save dialog. `kind` omitted
-// (toolbar button) asks via dialog; the palette passes it explicitly.
-async function exportCanvas(kind) {
-  const doc = store.active();
-  if (!doc || !(doc.excalidraw || doc.tldraw)) { toast('Export drawing is for Excalidraw / TLDraw tabs'); return; }
-  const ctrl = doc.excalidraw ? _activeExcalidraw : _activeTLDraw;
-  if (!ctrl || typeof ctrl.exportImage !== 'function') { toast('Canvas is still loading — try again in a moment'); return; }
-  let fmt = kind;
-  if (fmt !== 'png' && fmt !== 'svg') {
-    const choice = await confirmDialog({
-      title: 'Export drawing',
-      text: 'Choose an image format for this drawing.',
-      buttons: [
-        { id: 'cancel', label: 'Cancel', kind: 'secondary' },
-        { id: 'svg', label: 'SVG (vector)', kind: 'primary' },
-        { id: 'png', label: 'PNG (2\u00d7)', kind: 'primary' },
-      ],
-    });
-    if (choice !== 'svg' && choice !== 'png') return;
-    fmt = choice;
-  }
-  const res = await ctrl.exportImage(fmt);
-  if (!res) { toast('Export failed: could not render the drawing'); return; }
-  const base = (doc.path ? basename(doc.path).replace(/\.(excalidraw|tldr)$/i, '') : 'drawing') || 'drawing';
-  try {
-    const path = await invoke('save_annotated_image', { bytes: Array.from(res.bytes), suggestedName: `${base}.${fmt}`, kind: fmt });
-    notify('Export complete', basename(path));
-  } catch (e) {
-    if (e !== 'cancelled') toast('Export failed: ' + fmtErr(e));
-  }
-}
-
 // Export the active markdown document to PDF via the OS print dialog. The
 // print stylesheet (in content.css, @media print) hides all app chrome so
 // only the rendered markdown prints. The user picks "Save as PDF" (or any
@@ -2923,7 +2010,7 @@ async function exportCanvas(kind) {
 // as seen on screen.
 async function exportPdf() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.image || doc.csv || doc.notebook || doc.media) {
+  if (!doc || doc.code || doc.image || doc.csv) {
     toast('Export to PDF is for Markdown documents');
     return;
   }
@@ -2968,11 +2055,7 @@ function toggleMode() {
   const doc = store.active();
   if (!doc) return;
   if (doc.plain) return; // plain-text docs have no preview to toggle to
-  if (doc.pdf) return;   // PDFs are read-only — no edit mode
   if (doc.image) return; // Images are read-only — no edit mode
-  if (doc.excalidraw || doc.tldraw) return; // canvases are always interactive — no edit/view toggle
-  if (doc.notebook) return; // notebooks are read-only cell views (v0.49.0)
-  if (doc.media) return;    // audio/video are read-only players (v0.49.0)
   if (doc.csv) return;        // CSVs are read-only table views — no edit mode
   // Capture content before switching out of edit mode.
   if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
@@ -2986,8 +2069,8 @@ function toggleMode() {
 
 // ---------- custom CSS (v0.41.0) ----------
 // Inject the user's custom stylesheet into <head>. Targets .markdown-body so
-// it applies to every rendered surface (view article, edit preview, reader,
-// slideshow). Idempotent: replaces the existing <style> if present.
+// it applies to every rendered surface (view article, edit preview, reader).
+// Idempotent: replaces the existing <style> if present.
 function applyUserCss() {
   const id = 'mdpeek-user-css';
   let style = document.getElementById(id);
@@ -3027,9 +2110,6 @@ function applyThemeImpl(next) {
   localStorage.setItem('mdpeek-theme', next);
 }
 
-// v0.44.0: apply theme visuals to the DOM WITHOUT touching localStorage. Used
-// by the per-doc theme override (renderActive) so a pinned doc theme shows up
-// without overwriting the user's global preference.
 function applyThemeVisuals(next) {
   if (!HLJS_FOR_THEME[next]) next = DEFAULT_THEME;
   const root = document.documentElement;
@@ -3049,208 +2129,12 @@ function applyThemeVisuals(next) {
     btn.setAttribute('aria-checked', isActive ? 'true' : 'false');
     btn.tabIndex = isActive ? 0 : -1;
   });
-  // Propagate theme to the active Excalidraw tab (if any) so the canvas
-  // matches the app's light/dark mode.
-  if (_activeExcalidraw) _activeExcalidraw.setTheme(next);
-  if (_activeTLDraw) _activeTLDraw.setTheme(next);
-  // Propagate theme to every open terminal so xterm.js recolors to match.
-  try { if (terminal?.setTheme) terminal.setTheme(); } catch (e) { console.error('terminal setTheme:', e); }
 }
 
 // ---------- focus / zen mode (hide header + sidebar for distraction-free reading) ----------
 function toggleFocus() {
   const on = document.body.classList.toggle('focus-mode');
   localStorage.setItem('mdpeek-focus', on ? '1' : '0');
-}
-
-// ---------- presentation mode (v0.20.0) ----------
-// Turn the active markdown doc into a fullscreen slideshow by splitting on
-// lines of 3+ hyphens (---). Keyboard nav: arrows/space/PageUp-Down/Home/End,
-// F = OS fullscreen, S = toggle deck ↔ reading style, Esc = exit.
-let _slideshow = null; // { slides: string[], index, style: 'deck'|'reading' } | null
-
-// Split markdown source into slide chunks. Strips YAML front-matter first
-// (so the leading ---\n...\n--- block isn't read as a slide delimiter), then
-// splits on lines that are ONLY 3+ hyphens. Empty leading/trailing chunks are
-// dropped (e.g. a trailing --- at EOF). A doc with no --- yields one slide.
-function splitSlides(md) {
-  if (!md) return [];
-  let src = md;
-  // YAML front-matter: leading ---\n...\n---\n. Non-greedy so it stops at the
-  // closing fence; if there's no closing fence the regex won't match and we
-  // treat the whole thing as content (rare, malformed).
-  const fm = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/.exec(src);
-  if (fm) src = src.slice(fm[0].length);
-  // Split on lines that are ONLY 3+ hyphens (with optional surrounding space).
-  // Multi-line flag so ^/$ match line boundaries, not just string boundaries.
-  const parts = src.split(/^[ \t]*-{3,}[ \t]*$/m);
-  // Trim each chunk + drop empty leading/trailing entries (keep empties in the
-  // middle — those are real blank slides the author may want).
-  const trimmed = parts.map((s) => s.replace(/^\n+/, '').replace(/\s+$/, ''));
-  while (trimmed.length > 0 && trimmed[0] === '') trimmed.shift();
-  while (trimmed.length > 0 && trimmed[trimmed.length - 1] === '') trimmed.pop();
-  return trimmed;
-}
-
-function togglePresentation() {
-  if (document.body.classList.contains('presenting')) {
-    exitPresentation();
-  } else {
-    enterPresentation();
-  }
-}
-
-function enterPresentation() {
-  const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.image || doc.csv || doc.notebook || doc.media) {
-    toast('Presentation is for Markdown documents');
-    return;
-  }
-  // Sync any pending editor changes into doc.content before splitting.
-  if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
-  const slides = splitSlides(doc.content);
-  if (slides.length === 0) {
-    toast('Nothing to present — the document is empty');
-    return;
-  }
-  // Build the slide articles. v0.40.0: strip speaker notes out of each slide
-  // first (note: lines / <!-- note: --> comments) so they don't render on the
-  // visible slide — they're surfaced in a toggleable panel via the N key.
-  const parsed = slides.map((md) => extractSpeakerNotes(md));
-  const stage = el.slideshow.querySelector('.slide-stage');
-  stage.innerHTML = '';
-  for (const { cleanMd } of parsed) {
-    const article = document.createElement('article');
-    article.className = 'markdown-body slide';
-    article.innerHTML = renderMarkdown(cleanMd);
-    stage.appendChild(article);
-  }
-  _slideshow = {
-    slides,
-    parsed,
-    index: 0,
-    style: localStorage.getItem('mdpeek-slide-style') === 'reading' ? 'reading' : 'deck',
-    notesVisible: false,
-  };
-  // Apply the style class on the overlay (drives all the .deck-style /
-  // .reading-style CSS rules) + the body class that reveals it.
-  el.slideshow.classList.remove('deck-style', 'reading-style');
-  el.slideshow.classList.add(_slideshow.style + '-style');
-  el.slideshow.classList.remove('hidden');
-  document.body.classList.add('presenting');
-  syncSlideStyleBtn();
-  updateSlide();
-}
-
-function exitPresentation() {
-  document.body.classList.remove('presenting');
-  el.slideshow.classList.add('hidden');
-  // Drop the built slide articles so the next enter re-renders fresh content.
-  const stage = el.slideshow.querySelector('.slide-stage');
-  if (stage) stage.innerHTML = '';
-  // v0.40.0: also reset the speaker-notes panel so it doesn't leak into the
-  // next presentation.
-  const notesPanel = el.slideshow.querySelector('.speaker-notes');
-  if (notesPanel) {
-    notesPanel.classList.add('hidden');
-    const body = notesPanel.querySelector('.speaker-notes-body');
-    if (body) body.textContent = '';
-  }
-  // Exit OS fullscreen too if we entered it via F.
-  if (document.fullscreenElement) {
-    document.exitFullscreen().catch(() => {});
-  }
-  _slideshow = null;
-}
-
-function goToSlide(n) {
-  if (!_slideshow) return;
-  const total = _slideshow.slides.length;
-  _slideshow.index = Math.max(0, Math.min(n, total - 1));
-  updateSlide();
-}
-function nextSlide() { if (_slideshow) goToSlide(_slideshow.index + 1); }
-function prevSlide() { if (_slideshow) goToSlide(_slideshow.index - 1); }
-
-function updateSlide() {
-  if (!_slideshow) return;
-  const { index, slides } = _slideshow;
-  const articles = el.slideshow.querySelectorAll('.slide');
-  articles.forEach((a, i) => a.classList.toggle('active', i === index));
-  // Restart the slide-in animation on the newly-active slide so each
-  // transition animates (toggling the class alone won't re-trigger CSS
-  // animations without a reflow).
-  const active = articles[index];
-  if (active) {
-    active.style.animation = 'none';
-    // Force reflow so the animation restarts.
-    void active.offsetWidth;
-    active.style.animation = '';
-    active.scrollTop = 0;
-  }
-  const progress = el.slideshow.querySelector('.slide-progress');
-  if (progress) progress.textContent = `${index + 1} / ${slides.length}`;
-  // v0.34.1: drive the top progress bar via a CSS custom property.
-  const bar = el.slideshow.querySelector('.slide-progress-bar');
-  if (bar) {
-    const pct = slides.length > 1 ? ((index + 1) / slides.length) * 100 : 100;
-    bar.style.setProperty('--slide-progress', `${pct}%`);
-  }
-  const prev = el.slideshow.querySelector('.slide-arrow.prev');
-  const next = el.slideshow.querySelector('.slide-arrow.next');
-  if (prev) prev.disabled = index === 0;
-  if (next) next.disabled = index === slides.length - 1;
-  // v0.40.0: refresh the speaker-notes panel body for the active slide.
-  const notesBody = el.slideshow.querySelector('.speaker-notes-body');
-  if (notesBody) {
-    const note = _slideshow.parsed && _slideshow.parsed[index] ? _slideshow.parsed[index].note : '';
-    notesBody.textContent = note || '';
-  }
-}
-
-// Reflect the current slideshow style in the toggle button's label/icon so
-// users can see which mode they're in. v0.34.1.
-function syncSlideStyleBtn() {
-  if (!_slideshow) return;
-  const label = el.slideshow.querySelector('#slide-style-label');
-  if (label) label.textContent = _slideshow.style === 'deck' ? 'Deck' : 'Reading';
-}
-
-// Toggle between deck (big, centered) and reading (normal flow) styles.
-// v0.34.1: both styles now follow the app theme (deck used to force dark).
-function toggleSlideStyle() {
-  if (!_slideshow) return;
-  _slideshow.style = _slideshow.style === 'deck' ? 'reading' : 'deck';
-  localStorage.setItem('mdpeek-slide-style', _slideshow.style);
-  el.slideshow.classList.remove('deck-style', 'reading-style');
-  el.slideshow.classList.add(_slideshow.style + '-style');
-  syncSlideStyleBtn();
-}
-
-// Toggle OS-level fullscreen (F key in presentation). No-op if not supported.
-function toggleFullscreen() {
-  if (document.fullscreenElement) {
-    document.exitFullscreen().catch(() => {});
-  } else {
-    document.documentElement.requestFullscreen().catch(() => {});
-  }
-}
-
-// v0.40.0: toggle the speaker-notes panel (N key in presentation). Shows the
-// current slide's notes (collected from note: lines / <!-- note: --> comments
-// at split time). Stays visible across slide changes; updateSlide refreshes
-// the body. No-op if no slide has any notes.
-function toggleSpeakerNotes() {
-  if (!_slideshow) return;
-  const hasAnyNote = _slideshow.parsed && _slideshow.parsed.some((p) => p && p.note);
-  if (!hasAnyNote) {
-    toast('No speaker notes in this deck. Add `note: …` lines.');
-    return;
-  }
-  const panel = el.slideshow.querySelector('.speaker-notes');
-  if (!panel) return;
-  _slideshow.notesVisible = !_slideshow.notesVisible;
-  panel.classList.toggle('hidden', !_slideshow.notesVisible);
 }
 
 // ---------- immersive reading mode (v0.34.0) ----------
@@ -3285,7 +2169,7 @@ function refreshReaderMeta() {
 
 async function enterReading() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.image || doc.csv || doc.notebook || doc.media) {
+  if (!doc || doc.code || doc.image || doc.csv) {
     toast('Reading mode is for Markdown documents');
     return;
   }
@@ -3298,7 +2182,7 @@ async function enterReading() {
   // badges/gutter) exactly as the normal view does.
   el.readerArticle.innerHTML = renderMarkdown(doc.content);
   try {
-    await enhanceDom(el.readerArticle, { lineNumbers: codeLineNumbersPref(), proseHighlights: proseHighlightsPref(), wordFreq: wordFreqPref() });
+    await enhanceDom(el.readerArticle, { lineNumbers: codeLineNumbersPref() });
   } catch (e) {
     console.error('[mdpeek] reader enhanceDom:', e);
   }
@@ -3444,30 +2328,6 @@ function codeLineNumbersPref() {
   catch { return false; }
 }
 
-// v0.53.0: prose highlights toggle for reading mode (mirrors viewer.js's
-// proseHighlightsOn). Opt-in; read fresh each render.
-// v0.54.0: also short-circuit under Minimal mode — the feature flag already
-// hides the toggle command, but this guarantees the overlay never renders even
-// if the plain key was left '1' from before Minimal was turned on.
-function proseHighlightsPref() {
-  try {
-    if (minimalModeOn()) return false;
-    return localStorage.getItem('mdpeek-prose-highlights') === '1';
-  }
-  catch { return false; }
-}
-
-// v0.55.0: word-frequency underline overlay (overused 5+ use words). Opt-in,
-// read fresh each render. Suppressed under Minimal mode for the same reason as
-// prose highlights.
-function wordFreqPref() {
-  try {
-    if (minimalModeOn()) return false;
-    return localStorage.getItem('mdpeek-wordfreq-underline') === '1';
-  }
-  catch { return false; }
-}
-
 // ---------- typewriter mode ----------
 // Vertically centers the line containing the caret while editing. Persists
 // across tabs + restarts. No-op outside edit mode (the active editor is null).
@@ -3477,931 +2337,6 @@ function toggleTypewriter() {
   const doc = store.active();
   if (doc && doc.editor) doc.editor.setTypewriter(!on);
   toast(on ? 'Typewriter off' : 'Typewriter on');
-}
-
-// ---------- real-time collaboration (v0.21.0) ----------
-//
-// Host flow:  click Share → collab.startSession(text) → modal shows invite URL
-//             → peer joins via URL → both editors stay in sync via Yjs.
-// Receiver:   mdpeek://invite URL → join confirm → shared tab created → bound
-//             to the host's Yjs doc.
-// The textarea ↔ Y.Text binding lives in collab.js; here we only own the UI
-// (modal state, status pill, peer caret rendering, tab badges, close guards).
-
-// Track which doc.id is currently bound to the collab session, so we can
-// re-bind when switching back to it after visiting another tab.
-let _collabDocId = null;
-// Pending invite URL captured before the user has confirmed join — used by
-// the join dialog.
-let _pendingInvite = null;
-
-// Pick a friendly default identity for awareness (cursor label). We don't ask
-// the user; the OS hostname is a reasonable stand-in without being identifiable.
-function defaultCollabName() {
-  try {
-    // WebView2 exposes navigator.userAgent but no hostname; fall back to a
-    // generic label. (Could prompt the user later; out of scope for MVP.)
-    return 'User-' + Math.floor(Math.random() * 9000 + 1000);
-  } catch { return 'User'; }
-}
-
-function updateCollabStatus(status) {
-  if (!el.collabStatus) return;
-  const wifiStatus = wifiCollab.getWifiCollabStatus();
-  const active = status.active || wifiStatus.active;
-  el.collabStatus.classList.toggle('hidden', !active);
-  if (!active) {
-    clearPeerCarets();
-    // If the session ended unexpectedly (host left, network drop, etc.) make
-    // sure the share modal reflects that and the user is told.
-    if (!el.shareDialog.classList.contains('hidden')) {
-      refreshShareModal(status);
-    }
-    return;
-  }
-  const totalPeers = (status.peerCount || 0) + (wifiStatus.peerCount || 0);
-  let text = 'Live · waiting';
-  if (totalPeers > 0) {
-    if (wifiStatus.peerCount > 0 && status.peerCount > 0) {
-      text = `Live · ${totalPeers} peers`;
-    } else if (wifiStatus.peerCount > 0) {
-      text = `Live · ${wifiStatus.peerCount} ${wifiStatus.peerCount === 1 ? 'iPad' : 'iPads'}`;
-    } else {
-      text = `Live · ${status.peerCount} ${status.peerCount === 1 ? 'peer' : 'peers'}`;
-    }
-  } else {
-    text = status.role === 'receiver' ? 'Live · connecting' : 'Live · waiting';
-  }
-  el.collabStatus.querySelector('.collab-text').textContent = text;
-  // Re-render peer carets if the bound editor is the active one.
-  renderPeerCarets(status);
-  // Update the share modal status line if it's open.
-  refreshShareModal(status);
-  // Surface host-left to receivers.
-  if (status.hostLeft) {
-    const doc = store.docs.find((d) => d.id === _collabDocId);
-    if (doc) {
-      // Pull the latest Yjs text into the doc so the receiver keeps all edits.
-      try {
-        // Text doc: pull the latest Yjs text into the doc so the receiver
-        // keeps all edits. Excalidraw doc: pull the latest canvas scene via
-        // the controller (independent of Yjs — the canvas state is the
-        // source of truth on the receiver side once unbound).
-        if (doc.excalidraw && _activeExcalidraw) {
-          const json = _activeExcalidraw.flush();
-          if (json) doc.content = json;
-        } else if (doc.editor) {
-          doc.content = doc.editor.getValue();
-        }
-      } catch { /* editor/controller may be detached */ }
-      doc.shared = false;
-      doc.dirty = true; // unsaved local copy now
-      renderTabs(store);
-      positionTabIndicator({ strip: el.tabStrip, indicator: el.tabStrip?.querySelector('.tab-indicator') });
-    }
-    _collabDocId = null;
-    try { collab.unbindEditor(); } catch { /* already unbound */ }
-    try { wifiCollab.unbindEditor(); } catch { /* already unbound */ }
-    try { collab.unbindExcalidraw(); } catch { /* already unbound */ }
-    try { wifiCollab.unbindExcalidraw(); } catch { /* already unbound */ }
-    // Tear down the network session now that we've captured the final state.
-    try { collab.endSession(); } catch { /* already gone */ }
-    try { wifiCollab.stopWifiCollab(); } catch { /* already gone */ }
-    if (el.collabStatus) el.collabStatus.classList.add('hidden');
-    clearPeerCarets();
-    closeShareModal();
-    toast('Host ended the session. This tab is now a local document — use Save as… to keep your copy.', { persistent: true });
-  }
-}
-
-// Subscribe once at startup.
-collab.on(updateCollabStatus);
-wifiCollab.onWifiStatusChange(() => updateCollabStatus(collab.getStatus()));
-wifiCollab.onInboundEdit((payload) => {
-  const d = store.active();
-  if (d && d.id === _collabDocId) {
-    if (payload.type === 'text') {
-      d.content = payload.content;
-      d.dirty = true;
-    } else if (payload.type === 'canvas') {
-      d.content = JSON.stringify({ elements: payload.elements });
-      d.dirty = true;
-    }
-  }
-});
-
-// Parse a serialized Excalidraw scene JSON string into its elements array.
-// Returns [] for empty/corrupt input. Used by openShareModal to seed the
-// Excalidraw Yjs session from the host's current canvas state.
-function parseExcalidrawElements(json) {
-  if (!json || typeof json !== 'string') return [];
-  try {
-    const data = JSON.parse(json);
-    return Array.isArray(data?.elements) ? data.elements : [];
-  } catch {
-    return [];
-  }
-}
-
-function openShareModal() {
-  const doc = store.active();
-  if (!doc) return;
-  // v0.68.0: the Share BUTTON is hidden on TLDraw tabs, but the command
-  // palette + other callers can still land here — a TLDraw doc would fall
-  // into the text branch and share raw scene JSON. Guard the entry point.
-  if (doc.tldraw) { toast('Live sharing isn\u2019t available for TLDraw drawings yet'); return; }
-
-  // Default to iPad & Wi-Fi tab on open
-  if (el.shareTabWifi) {
-    el.shareTabWifi.classList.add('active');
-    el.shareTabWifi.setAttribute('aria-selected', 'true');
-    el.shareTabP2p?.classList.remove('active');
-    el.shareTabP2p?.setAttribute('aria-selected', 'false');
-    el.sharePanelWifi?.classList.remove('hidden');
-    el.sharePanelP2p?.classList.add('hidden');
-  }
-
-  const status = collab.getStatus();
-  const wifiStatus = wifiCollab.getWifiCollabStatus();
-  if (status.active || wifiStatus.active) {
-    // Session already running — show current state. Don't clobber the link
-    // (host may want to copy it again) and don't reset the status text to
-    // "waiting" if peers are already connected.
-    refreshShareModal(status);
-    el.shareDialog.classList.remove('hidden');
-    // Focus the panel so its own Esc/scrim paths own the keyboard.
-    (el.wifiLinkInput || el.shareLinkInput || el.shareDialog.querySelector('button, input'))?.focus();
-    return;
-  }
-  // Capture the host's current state before seeding Yjs.
-  //   - Text docs (markdown/code/plain): pull the latest keystrokes from the
-  //     textarea (doc.content can lag by a few ms).
-  //   - Excalidraw: force-flush the canvas scene into doc.content first —
-  //     the viewer's onChange save is debounced 1s, so unflushed strokes
-  //     would be missed.
-  if (doc.excalidraw) {
-    if (_activeExcalidraw) {
-      const json = _activeExcalidraw.flush();
-      if (json) doc.content = json;
-    }
-  } else if (doc.mode === 'edit' && doc.editor) {
-    doc.content = doc.editor.getValue();
-  }
-  if (el.shareLinkInput) el.shareLinkInput.value = 'Generating…';
-  if (el.wifiLinkInput) el.wifiLinkInput.value = 'Starting Wi-Fi server…';
-  el.shareStatus.textContent = 'Generating collaboration links…';
-  el.shareStatus.classList.remove('connected', 'error');
-  el.shareEndBtn.classList.add('hidden');
-  el.shareDialog.classList.remove('hidden');
-  (el.wifiLinkInput || el.shareLinkInput || el.shareDialog.querySelector('button, input'))?.focus();
-  try {
-    const docTitle = doc.path ? doc.path.split(/[\\/]/).pop() : (doc.excalidraw ? 'Shared drawing' : 'Shared note');
-    const docLang = doc.excalidraw ? 'excalidraw' : langForEdit(doc);
-    const docContent = doc.content || '';
-    const docElements = doc.excalidraw ? parseExcalidrawElements(doc.content) : [];
-
-    // Start local Wi-Fi collaboration for iPad & mobile devices
-    wifiCollab.startWifiCollab({
-      title: docTitle,
-      language: docLang,
-      content: docContent,
-      elements: docElements,
-    }).then((wifiInfo) => {
-      if (el.wifiLinkInput) el.wifiLinkInput.value = wifiInfo.url;
-      if (el.wifiQrSvg) {
-        el.wifiQrSvg.innerHTML = generateQrSvg(wifiInfo.url, {
-          size: 140,
-          margin: 2,
-          fgColor: '#0f172a',
-          bgColor: '#ffffff',
-        });
-        el.wifiQrSvg.dataset.renderedUrl = wifiInfo.url;
-      }
-      refreshShareModal(collab.getStatus());
-    }).catch((e) => {
-      console.warn('[mdpeek] Wi-Fi collab start:', e);
-    });
-
-    let result;
-    if (doc.excalidraw) {
-      // Excalidraw session: bind a Y.Map of elements, not a Y.Text.
-      result = collab.startSessionExcalidraw(docElements, {
-        title: docTitle,
-      });
-    } else {
-      result = collab.startSession(docContent, {
-        title: docTitle,
-        language: docLang,
-      });
-    }
-    collab.setLocalIdentity({ name: defaultCollabName() });
-    if (el.shareLinkInput) el.shareLinkInput.value = result.inviteUrl;
-    refreshShareModal(collab.getStatus());
-    // Capture the doc id so the showExcalidraw .then() callback (and the
-    // text-binding rAF below) know which doc to bind to.
-    _collabDocId = doc.id;
-    if (doc.excalidraw) {
-      // The Excalidraw controller already exists (host is viewing the canvas).
-      // Bind immediately — no race on the host side. The receiver's binding
-      // happens later in the showExcalidraw .then() callback because the
-      // canvas mounts async on the receiver.
-      if (_activeExcalidraw) {
-        try { collab.bindExcalidraw(_activeExcalidraw); }
-        catch (e) { console.error('bindExcalidraw failed:', e); }
-        try { wifiCollab.bindExcalidraw(_activeExcalidraw); }
-        catch (e) { console.error('wifiCollab.bindExcalidraw failed:', e); }
-      }
-    } else {
-      // Text doc: force edit mode so the textarea exists (can't share a
-      // read-only view).
-      if (doc.mode !== 'edit') {
-        doc.mode = 'edit';
-        renderActive().catch((e) => console.error('[mdpeek] collab edit-mode render:', e));
-      }
-      // After renderActive rebuilds the editor, bind it on the next tick.
-      // Guard with active-check in case endSession ran in between.
-      requestAnimationFrame(() => {
-        if (!collab.getStatus().active && !wifiCollab.getWifiCollabStatus().active) return;
-        const d = store.active();
-        if (d && d.editor) {
-          try {
-            collab.bindEditor(d.editor);
-            wifiCollab.bindEditor(d.editor);
-            _collabDocId = d.id;
-          } catch (e) { console.error('bindEditor failed:', e); }
-        }
-      });
-    }
-  } catch (err) {
-    el.shareStatus.textContent = 'Could not start session: ' + (err?.message || err);
-    el.shareStatus.classList.add('error');
-  }
-}
-
-// Single source of truth for the share modal's status text + button states.
-// Called whenever collab status changes (via updateCollabStatus) and on open.
-function refreshShareModal(status) {
-  if (!el.shareDialog || el.shareDialog.classList.contains('hidden')) return;
-  const linkBlock = el.shareDialog.querySelector('.share-link-block');
-  const wifiStatus = wifiCollab.getWifiCollabStatus();
-  // Peer count changes flow through here — keep the companion badge honest.
-  syncWifiPreviewBadge();
-
-  // If Wi-Fi server is active and has a URL, update the input and QR code if not populated
-  if (wifiStatus.active && wifiStatus.url && el.wifiLinkInput) {
-    el.wifiLinkInput.value = wifiStatus.url;
-    if (el.wifiQrSvg && (!el.wifiQrSvg.hasChildNodes() || el.wifiQrSvg.dataset.renderedUrl !== wifiStatus.url)) {
-      el.wifiQrSvg.innerHTML = generateQrSvg(wifiStatus.url, {
-        size: 140,
-        margin: 2,
-        fgColor: '#0f172a',
-        bgColor: '#ffffff',
-      });
-      el.wifiQrSvg.dataset.renderedUrl = wifiStatus.url;
-    }
-  }
-
-  const totalPeers = (status.peerCount || 0) + (wifiStatus.peerCount || 0);
-
-  if (status.role === 'host' || wifiStatus.active) {
-    if (totalPeers > 0) {
-      if (wifiStatus.peerCount > 0 && status.peerCount > 0) {
-        el.shareStatus.textContent = `${totalPeers} collaborators connected (iPad & P2P) — editing live`;
-      } else if (wifiStatus.peerCount > 0) {
-        el.shareStatus.textContent = `${wifiStatus.peerCount} ${wifiStatus.peerCount === 1 ? 'iPad' : 'iPads'} connected via Wi-Fi — editing live`;
-      } else {
-        el.shareStatus.textContent = `${status.peerCount} ${status.peerCount === 1 ? 'collaborator' : 'collaborators'} connected — editing live`;
-      }
-      el.shareStatus.classList.add('connected');
-      el.shareStatus.classList.remove('error');
-      el.shareEndBtn.classList.add('active');
-      el.shareEndBtn.classList.remove('hidden');
-      // Hide the link block once a peer is connected (no need to keep copying
-      // the link; End session is the primary action now).
-      if (linkBlock) linkBlock.style.display = 'none';
-    } else {
-      el.shareStatus.textContent = 'Waiting for iPad or collaborator to connect…';
-      el.shareStatus.classList.remove('connected', 'error');
-      el.shareEndBtn.classList.add('active'); // session is active → prominent
-      el.shareEndBtn.classList.remove('hidden');
-      if (linkBlock) linkBlock.style.display = '';
-    }
-  } else if (status.role === 'receiver') {
-    el.shareStatus.textContent = status.peerCount > 0
-      ? 'Connected to host — editing live'
-      : 'Connecting to host…';
-    el.shareStatus.classList.toggle('connected', status.peerCount > 0);
-    el.shareStatus.classList.remove('error');
-    el.shareEndBtn.classList.add('active');
-    el.shareEndBtn.classList.remove('hidden');
-    // Receivers never see the invite link (they're not the host).
-    if (linkBlock) linkBlock.style.display = 'none';
-  } else {
-    // No active session — reset everything to the "generate" state.
-    el.shareStatus.textContent = 'Generating invite link…';
-    el.shareStatus.classList.remove('connected', 'error');
-    el.shareEndBtn.classList.remove('active');
-    el.shareEndBtn.classList.add('hidden');
-    if (linkBlock) linkBlock.style.display = '';
-  }
-}
-
-function closeShareModal() {
-  el.shareDialog.classList.add('hidden');
-  syncModalFocus();
-}
-
-// ---------- Global Kanban board (v0.22.2) ----------
-//
-// A full-page three-column task board (To do / In progress / Done) that lives
-// at the app level — not tied to any tab or document. Tasks are stored globally
-// in localStorage (mdpeek-kanban-tasks) and persist across restarts.
-//
-// v0.22.2 changes from v0.22.1:
-//   - The board is now a FULL-PAGE view (not a modal). Toggled via
-//     `body.kanban-mode` (same pattern the slideshow uses with
-//     `body.presenting`). The board replaces the entire app view while open.
-//   - Tasks can ONLY be added to the "To do" column (the only column with an
-//     Add input). Move them between columns by dragging. There is no Add
-//     footer on In progress / Done — the only way to populate them is to drag
-//     cards in.
-//   - HTML5 drag-and-drop between columns. Cards are `draggable="true"`; each
-//     column is a drop target that tints while a card hovers over it.
-
-const KANBAN_KEY = 'mdpeek-kanban-tasks';
-const KANBAN_STATUSES = ['todo', 'progress', 'done'];
-const KANBAN_LABELS = { todo: 'To do', progress: 'In progress', done: 'Done' };
-const KANBAN_ADD_STATUS = 'todo';
-
-let _kanbanFilter = '';
-
-function parseKanbanTags(text) {
-  if (!text) return [];
-  const tags = [];
-  const tagRegex = /(?:^|\s)(#[a-zA-Z0-9_\-]+|\[[a-zA-Z0-9_\-\s]+\])/g;
-  let match;
-  while ((match = tagRegex.exec(text)) !== null) {
-    const clean = match[1].trim();
-    if (!tags.includes(clean)) tags.push(clean);
-  }
-  return tags;
-}
-
-function formatKanbanTime(ts) {
-  if (!ts) return '';
-  const now = Date.now();
-  const diffSec = Math.floor((now - ts) / 1000);
-  if (diffSec < 60) return 'Just now';
-  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
-  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
-  const d = new Date(ts);
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
-// Load tasks from localStorage. Shape: `{ id, status, text, createdAt }[]`.
-function loadKanbanTasks() {
-  try {
-    const raw = localStorage.getItem(KANBAN_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter((t) => t && typeof t.text === 'string' && KANBAN_STATUSES.includes(t.status))
-      .map((t) => ({
-        id: typeof t.id === 'string' ? t.id : `task-${Math.random().toString(36).slice(2)}`,
-        status: t.status,
-        text: t.text,
-        createdAt: typeof t.createdAt === 'number' ? t.createdAt : Date.now(),
-      }));
-  } catch {
-    return [];
-  }
-}
-
-function saveKanbanTasks(tasks) {
-  try {
-    localStorage.setItem(KANBAN_KEY, JSON.stringify(tasks));
-  } catch (e) {
-    console.error('Could not save Kanban tasks:', e);
-  }
-}
-
-let _kanbanTasks = loadKanbanTasks();
-let _kanbanDrag = null;
-const KANBAN_DRAG_THRESHOLD = 4;
-// UI-only hint (never persisted): id of the task that was just added or moved,
-// so renderKanban can give exactly that card a one-shot entry animation.
-let _kanbanFlashId = null;
-
-function renderKanban() {
-  if (!el.kanbanBoard) return;
-
-  const filter = (_kanbanFilter || '').toLowerCase().trim();
-  const filteredTasks = filter
-    ? _kanbanTasks.filter((t) => t.text.toLowerCase().includes(filter))
-    : _kanbanTasks;
-
-  // Stats and Progress
-  const totalCount = _kanbanTasks.length;
-  const doneCount = _kanbanTasks.filter((t) => t.status === 'done').length;
-  const percent = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
-
-  const statsEl = document.getElementById('kanban-stats');
-  if (statsEl) {
-    statsEl.textContent = totalCount === 0 ? '0 tasks' : `${doneCount} of ${totalCount} done (${percent}%)`;
-  }
-  const barEl = document.getElementById('kanban-progress-bar');
-  if (barEl) {
-    barEl.style.width = `${percent}%`;
-  }
-
-  const html = KANBAN_STATUSES.map((status) => {
-    const cards = filteredTasks
-      .filter((t) => t.status === status)
-      .sort((a, b) => (a.movedAt || a.createdAt) - (b.movedAt || b.createdAt));
-    const count = cards.length;
-    // Column mini-bar: this column's share of all tasks (the Done column's
-    // share is effectively the completion ratio). Purely presentational.
-    const pct = totalCount > 0 ? Math.round((count / totalCount) * 100) : 0;
-
-    const cardsHtml = cards.length
-      ? cards.map((t) => {
-          const isDone = t.status === 'done';
-          const tags = parseKanbanTags(t.text);
-          const tagsHtml = tags.length
-            ? `<div class="kanban-card-tags">${tags.map((tg) => `<span class="kanban-tag">${escapeHtml(tg)}</span>`).join('')}</div>`
-            : '';
-          const timeStr = formatKanbanTime(t.createdAt);
-          // Leading-space form so the class attribute stays clean when unset.
-          const enterCls = t.id === _kanbanFlashId ? ' kanban-card-enter' : '';
-          return `
-            <div class="kanban-card ${isDone ? 'kanban-card-done' : ''}${enterCls}" data-id="${t.id}" tabindex="0">
-              <button class="kanban-card-checkbox ${isDone ? 'checked' : ''}" data-id="${t.id}" title="${isDone ? 'Mark as incomplete' : 'Mark as done'}" aria-label="Toggle status">
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">${isDone ? '<polyline points="20 6 9 17 4 12"/>' : ''}</svg>
-              </button>
-              <div class="kanban-card-body">
-                <span class="kanban-card-text" title="Double-click to edit">${escapeHtml(t.text)}</span>
-                ${tagsHtml}
-                <span class="kanban-card-time">${timeStr}</span>
-              </div>
-              <button class="kanban-card-delete" data-id="${t.id}" title="Delete task" aria-label="Delete task">✕</button>
-            </div>`;
-        }).join('')
-      : `<div class="kanban-empty">
-          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            ${status === 'todo' ? '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>' : status === 'progress' ? '<path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>' : '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>'}
-          </svg>
-          <span>${status === 'todo' ? 'No tasks to do' : status === 'progress' ? 'No tasks in progress' : 'No completed tasks'}</span>
-        </div>`;
-
-    const footer = status === KANBAN_ADD_STATUS
-      ? `<div class="kanban-column-footer">
-          <input class="kanban-add-input" data-status="${status}" type="text" placeholder="+ Add a new task…" maxlength="280" aria-label="Add task to ${KANBAN_LABELS[status]}" />
-          <button class="kanban-add-btn" data-status="${status}" type="button">Add</button>
-        </div>`
-      : '';
-
-    return `
-      <div class="kanban-column" data-status="${status}">
-        <div class="kanban-column-header">
-          <span class="kanban-column-header-label">
-            <span class="kanban-column-dot"></span>
-            ${KANBAN_LABELS[status]}
-          </span>
-          <span class="kanban-column-count">${count}</span>
-        </div>
-        <div class="kanban-column-meter" title="${count} of ${totalCount} task${totalCount === 1 ? '' : 's'}" aria-hidden="true">
-          <span class="kanban-column-meter-fill" style="width: ${pct}%;"></span>
-        </div>
-        <div class="kanban-cards">${cardsHtml}</div>
-        ${footer}
-      </div>`;
-  }).join('');
-
-  el.kanbanBoard.innerHTML = html;
-  // Entry animation is one-shot: consume the hint so re-renders (filtering,
-  // unrelated moves) don't replay it on cards that were already visible.
-  _kanbanFlashId = null;
-}
-
-function addKanbanTask(status, text) {
-  const trimmed = (text || '').trim();
-  if (!trimmed) return;
-  const id = `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  _kanbanTasks.push({
-    id,
-    status: KANBAN_ADD_STATUS,
-    text: trimmed,
-    createdAt: Date.now(),
-  });
-  saveKanbanTasks(_kanbanTasks);
-  // UI-only hint so the fresh card animates in (see _kanbanFlashId).
-  _kanbanFlashId = id;
-  renderKanban();
-}
-
-function moveKanbanTask(id, newStatus) {
-  if (!KANBAN_STATUSES.includes(newStatus)) return;
-  const task = _kanbanTasks.find((t) => t.id === id);
-  if (!task || task.status === newStatus) return;
-  task.status = newStatus;
-  // v0.67.0: keep createdAt (card age + ordering); record the move instead.
-  // (Resetting createdAt made old cards read "just now" and reshuffled them.)
-  task.movedAt = Date.now();
-  saveKanbanTasks(_kanbanTasks);
-  // UI-only hint so the moved card drops into its new column with a
-  // subtle animation (see _kanbanFlashId).
-  _kanbanFlashId = id;
-  renderKanban();
-  // Refocus the moved card — renderKanban rebuilds the DOM and focus is lost
-  // (matters for keyboard moves; harmless after a drag).
-  el.kanbanBoard?.querySelector(`.kanban-card[data-id="${id}"]`)?.focus();
-}
-
-function deleteKanbanTask(id) {
-  const before = _kanbanTasks.length;
-  const removed = _kanbanTasks.find((t) => t.id === id);
-  _kanbanTasks = _kanbanTasks.filter((t) => t.id !== id);
-  if (_kanbanTasks.length === before) return;
-  saveKanbanTasks(_kanbanTasks);
-  renderKanban();
-  // A hover-revealed ✕ is one stray click from destroying data — offer a
-  // one-shot undo window instead of a silent removal.
-  if (!removed) return;
-  toast(`Task deleted — ${removed.text.slice(0, 40)}`, { action: { label: 'Undo', run: () => { _kanbanTasks.push(removed); saveKanbanTasks(_kanbanTasks); renderKanban(); toast('Task restored', { type: 'success' }); } } });
-}
-
-function clearDoneKanbanTasks() {
-  const doneTasks = _kanbanTasks.filter((t) => t.status === 'done');
-  if (doneTasks.length === 0) {
-    toast('No completed tasks to clear');
-    return;
-  }
-  _kanbanTasks = _kanbanTasks.filter((t) => t.status !== 'done');
-  saveKanbanTasks(_kanbanTasks);
-  renderKanban();
-  toast(`Cleared ${doneTasks.length} completed task(s)`);
-}
-
-function openKanban() {
-  if (!el.kanbanView) return;
-  // v0.54.0: the single chokepoint for every hub opener (More-menu button,
-  // Ctrl+Shift+K, palette 'kanban'/'ws-*', pomodoro pill click). featureOn
-  // returns false under Minimal mode, so the whole Workspace hub is sealed.
-  if (!featureOn('kanban')) {
-    toast('Minimal mode is on — turn it off in Settings to use the Workspace hub');
-    return;
-  }
-  // v0.33.0: the Kanban surface is now the Workspace hub. Default to the last
-  // mode (or Board) so reopen feels stable.
-  const saved = localStorage.getItem('mdpeek-workspace-mode');
-  setWorkspaceMode(VALID_MODES.includes(saved) ? saved : 'board', { skipRender: true });
-  renderKanban();
-  document.body.classList.add('kanban-mode');
-  // Focus the To-Do column's add input so the user can immediately type.
-  const input = el.kanbanBoard.querySelector('.kanban-add-input');
-  if (input) input.focus();
-}
-
-function closeKanban() {
-  document.body.classList.remove('kanban-mode');
-  // Remove any per-mode body class too.
-  VALID_MODES.forEach((m) => document.body.classList.remove(`ws-mode-${m}`));
-  // A graph pinned focus must not outlive the hub — a stale pin suppressed
-  // the summary display after the hub was reopened.
-  try { clearGraphPin(); } catch { /* not open — nothing to clear */ }
-}
-
-// =====================================================================
-// WORKSPACE HUB (v0.33.0) — Board · Calendar · Tasks · Review · Graph (v0.50.0)
-// =====================================================================
-
-const VALID_MODES = ['board', 'calendar', 'tasks', 'review', 'graph'];
-// Per-mode, hide toolbar controls that don't apply.
-const MODE_ONLY = {
-  board:   ['#kanban-clear-done-btn', '#kanban-progress-bar-wrap', '#kanban-stats'],
-  tasks:   ['#kanban-search-input', '.workspace-tabs + *', '#workspace-refresh-btn'],
-  calendar: [],
-  review:  ['#workspace-refresh-btn'],
-  graph:   ['#workspace-refresh-btn', '#kanban-search-input'],
-};
-
-let _wsMode = 'board';
-
-// v0.54.0: Minimal mode — a single switch that suppresses every non-core
-// feature + its UI, returning mdpeek to a featherlight reader/editor. The
-// whole feature hinges on featureOn being Minimal-aware: every existing call
-// site (applyFeatureFlags, the palette filter, keyboard handlers, the pomodoro
-// pill render, autocomplete) already reads through featureOn or its flag, so
-// suppression propagates from this one predicate instead of being patched at
-// 14 sites. The pure logic (MINIMAL_SUPPRESSED + minimalModeOn + isFeatureOn)
-// lives in src/lib/minimal.js so it's unit-testable; here we bind it to
-// localStorage via thin local wrappers that the rest of main.js already calls.
-function minimalModeOn() {
-  return _minimalModeOn();
-}
-function featureOn(name) {
-  return isFeatureOn(name);
-}
-
-/** Switch the active Workspace tab. Renders the target panel if needed. */
-function setWorkspaceMode(mode, opts = {}) {
-  if (!VALID_MODES.includes(mode)) mode = 'board';
-  _wsMode = mode;
-  localStorage.setItem('mdpeek-workspace-mode', mode);
-
-  // Tabs
-  document.querySelectorAll('.workspace-tab').forEach((t) => {
-    const on = t.dataset.mode === mode;
-    t.classList.toggle('active', on);
-    t.setAttribute('aria-selected', on ? 'true' : 'false');
-  });
-  // Panels
-  document.querySelectorAll('.workspace-panel').forEach((p) => {
-    p.classList.toggle('active', p.dataset.mode === mode);
-  });
-  // Per-mode body class (drives toolbar visibility + hides disabled tabs)
-  VALID_MODES.forEach((m) => document.body.classList.remove(`ws-mode-${m}`));
-  document.body.classList.add(`ws-mode-${mode}`);
-
-  // The toolbar's "Filter…" box only filters the Board and Tasks lists —
-  // in Calendar/Review it was a dead control and in Graph it duplicated the
-  // dedicated node filter. Hide it everywhere it does nothing.
-  const searchWrap = document.querySelector('.kanban-search-wrap');
-  if (searchWrap) searchWrap.classList.toggle('hidden', mode !== 'board' && mode !== 'tasks');
-
-  // Hide tabs whose feature flag is off.
-  document.querySelectorAll('.workspace-tab').forEach((t) => {
-    const m = t.dataset.mode;
-    const flagMap = { board: 'kanban', calendar: 'calendar', tasks: 'tasks', review: 'review', graph: 'graph' };
-    t.style.display = featureOn(flagMap[m]) ? '' : 'none';
-  });
-
-  // Toolbar button visibility per mode.
-  const showRefresh = (mode === 'tasks' || mode === 'review' || mode === 'graph');
-  if (el.workspaceRefresh) el.workspaceRefresh.classList.toggle('hidden', !showRefresh);
-  const showClearDone = mode === 'board';
-  const clearBtn = document.getElementById('kanban-clear-done-btn');
-  if (clearBtn) clearBtn.classList.toggle('hidden', !showClearDone);
-  const showProgress = mode === 'board';
-  const prog = document.getElementById('kanban-progress-bar-wrap');
-  const stats = document.getElementById('kanban-stats');
-  if (prog) prog.style.visibility = showProgress ? '' : 'hidden';
-  if (stats) stats.style.visibility = showProgress ? '' : 'hidden';
-
-  if (opts.skipRender) return;
-  if (mode === 'calendar') renderCalendar();
-  else if (mode === 'tasks') renderTasks();
-  else if (mode === 'review') renderReview();
-  else if (mode === 'graph') renderGraph();
-}
-
-// Arrow keys switch workspace tabs — the tablist advertises tab semantics
-// (role="tablist"/aria-selected) without actually being arrow-operable.
-el.workspaceTabs?.addEventListener('keydown', (e) => {
-  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-  const tabs = [...el.workspaceTabs.querySelectorAll('.workspace-tab')].filter((t) => t.style.display !== 'none');
-  const idx = tabs.findIndex((t) => t.dataset.mode === _wsMode);
-  if (idx === -1) return;
-  e.preventDefault();
-  const next = tabs[(idx + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
-  next.focus();
-  setWorkspaceMode(next.dataset.mode);
-});
-
-// ---------- Calendar ----------
-let _calYear = new Date().getFullYear();
-let _calMonth = new Date().getMonth();
-let _calCacheKey = null; // memoize the dir listing per month
-let _calCache = null;
-
-async function renderCalendar() {
-  if (!el.calGrid) return;
-  const notesDir = localStorage.getItem('mdpeek-notes-dir');
-  el.calLabel.textContent = monthLabel(_calYear, _calMonth);
-  // Build the grid skeleton first (so the UI feels instant).
-  const cells = calendarGrid(_calYear, _calMonth, 1);
-  const dows = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']; // Mon-start
-  let html = dows.map((d) => `<div class="cal-dow">${d}</div>`).join('');
-  for (const c of cells) {
-    const todayCls = isToday(c.stamp) ? ' cal-day-today' : '';
-    const outCls = c.inMonth ? '' : ' cal-day-out';
-    // Tooltip starts as the full date; the word count is appended once the
-    // month scan lands below.
-    const title = c.date.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-    html += `<div class="cal-day${todayCls}${outCls}" data-stamp="${c.stamp}" title="${title}" role="button" tabindex="0">`
-      + `<span class="cal-day-num">${c.date.getDate()}</span>`
-      + `</div>`;
-  }
-  el.calGrid.innerHTML = html;
-  // Replay the grid's enter animation so switching months reads as a slide
-  // (a no-op under prefers-reduced-motion).
-  el.calGrid.classList.remove('cal-enter');
-  void el.calGrid.offsetWidth; // force reflow so the animation restarts
-  el.calGrid.classList.add('cal-enter');
-  el.calFoot.textContent = notesDir ? '' : 'Set a notes folder in Settings → General to see your daily notes.';
-
-  // Lazily load daily-note metadata for this month + mark cells.
-  if (notesDir) {
-    try {
-      const map = await loadDailyNotesForMonth(_calYear, _calMonth, notesDir);
-      for (const c of cells) {
-        const meta = map.get(c.stamp);
-        const cellEl = el.calGrid.querySelector(`.cal-day[data-stamp="${c.stamp}"]`);
-        if (meta && cellEl) {
-          if (meta.words > 0) {
-            cellEl.title += ` · ${meta.words} words`;
-            // Intensity level: busier days get a stronger accent tint (CSS).
-            const level = meta.words >= 500 ? 3 : meta.words >= 150 ? 2 : 1;
-            cellEl.classList.add(`cal-day-l${level}`);
-          }
-          const dot = document.createElement('span');
-          dot.className = 'cal-day-dot';
-          cellEl.appendChild(dot);
-          if (meta.words > 0) {
-            const w = document.createElement('span');
-            w.className = 'cal-day-words';
-            w.textContent = `${meta.words}w`;
-            cellEl.appendChild(w);
-          }
-        }
-      }
-    } catch (e) {
-      console.error('calendar scan:', e);
-    }
-  }
-}
-
-async function loadDailyNotesForMonth(year, month0, notesDir) {
-  const key = `${year}-${month0}`;
-  if (_calCacheKey === key && _calCache) return _calCache;
-  const map = new Map();
-  try {
-    const entries = await invoke('list_dir', { path: notesDir });
-    for (const e of entries || []) {
-      if (e.is_dir) continue;
-      if (!isDailyNoteName(e.name)) continue;
-      const stamp = e.name.replace(/\.md$/, '');
-      // Cheap word count: read only if it's in the visible month window.
-      const d = parseStamp(stamp);
-      if (!d) continue;
-      let words = 0;
-      try {
-        const content = await invoke('read_file', { path: e.path });
-        words = countWords(content);
-      } catch { /* ignore unreadable */ }
-      map.set(stamp, { path: e.path, words });
-    }
-  } catch { /* notes dir unreadable */ }
-  _calCacheKey = key;
-  _calCache = map;
-  return map;
-}
-
-async function openDailyNoteAt(stamp) {
-  if (!stamp) return;
-  const notesDir = localStorage.getItem('mdpeek-notes-dir');
-  if (!notesDir) { toast('Set a notes folder in Settings → General first.'); return; }
-  const d = parseStamp(stamp);
-  if (!d) return;
-  const sep = /[\\/]/.test(notesDir) && !notesDir.endsWith('/') && !notesDir.endsWith('\\') ? '\\' : '';
-  const path = `${notesDir}${sep}${stamp}.md`;
-  try {
-    await invoke('read_file', { path });
-    openPath(path);
-  } catch {
-    // Create it (mirror openDailyNote's create flow).
-    const pretty = d.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-    const starter = `# ${stamp}\n\n*${pretty}*\n\n## \n\n`;
-    try { await invoke('save_file', { path, content: starter }); } catch (e) { toast('Could not create note: ' + fmtErr(e)); return; }
-    openPath(path, starter);
-  }
-  closeKanban();
-}
-
-// ---------- Tasks inbox ----------
-let _tasksNoteScan = null; // cached note-checkbox scan; null = needs refresh
-
-// 1-indexed line numbers that sit inside ``` / ~~~ fenced code blocks.
-// Used by the tasks scan to ignore sample checkboxes in code blocks.
-function fencedLineSet(text) {
-  const set = new Set();
-  const lines = String(text).split('\n');
-  let fence = null;
-  for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(/^\s*(```+|~~~+)/);
-    if (m) {
-      set.add(i + 1);
-      if (fence && m[1][0] === fence[0]) fence = null;
-      else fence = m[1];
-      continue;
-    }
-    if (fence) set.add(i + 1);
-  }
-  return set;
-}
-
-async function renderTasks() {
-  if (!el.tasksList) return;
-  el.tasksList.innerHTML = '<div class="tasks-empty">Scanning your notes…</div>';
-  if (el.tasksSummary) el.tasksSummary.textContent = '—';
-  try {
-    // v0.67.0: Open/Done/All filter — done Kanban cards + note checkboxes
-    // used to be completely invisible.
-    const filter = el.tasksFilter ? el.tasksFilter.value : 'open';
-    let kanbanOnly = normalizeKanbanTasks(_kanbanTasks, filter !== 'open');
-    if (filter === 'open') kanbanOnly = kanbanOnly.filter((t) => !t.done);
-    else if (filter === 'done') kanbanOnly = kanbanOnly.filter((t) => t.done);
-    let noteTasks = [];
-    const notesDir = localStorage.getItem('mdpeek-notes-dir');
-    if (notesDir && _tasksNoteScan === null) {
-      // Scan open + done checkboxes.
-      const [openHits, doneHits] = await Promise.all([
-        invoke('search_in_folder', { root: notesDir, query: '- [ ]', caseSensitive: false, maxResults: 1000 }).catch(() => ({ results: [] })),
-        invoke('search_in_folder', { root: notesDir, query: '- [x]', caseSensitive: false, maxResults: 500 }).catch(() => ({ results: [] })),
-      ]);
-      const hits = [...((openHits && openHits.results) || []), ...((doneHits && doneHits.results) || [])];
-      // v0.67.0: drop checkbox lines inside fenced code blocks — they're
-      // samples, not real tasks (toggling them used to rewrite code samples).
-      // One read per file with hits, cached with the scan (Refresh only).
-      const kept = [];
-      const byFile = new Map();
-      for (const h of hits) {
-        if (!byFile.has(h.path)) byFile.set(h.path, []);
-        byFile.get(h.path).push(h);
-      }
-      for (const [path, fileHits] of byFile) {
-        try {
-          const text = await invoke('read_file', { path });
-          const fenced = fencedLineSet(text);
-          for (const h of fileHits) if (!fenced.has(h.line)) kept.push(h);
-        } catch { kept.push(...fileHits); }
-      }
-      _tasksNoteScan = normalizeNoteTasks(kept);
-    }
-    noteTasks = _tasksNoteScan || [];
-    if (filter === 'open') noteTasks = noteTasks.filter((t) => !t.done);
-    else if (filter === 'done') noteTasks = noteTasks.filter((t) => t.done);
-    const merged = sortTasks(
-      filterTasks(mergeTasks(kanbanOnly, noteTasks), _kanbanFilter),
-      el.tasksSort ? el.tasksSort.value : 'created'
-    );
-    const stats = taskStats(merged);
-    if (el.tasksSummary) el.tasksSummary.textContent = `${stats.open} open · ${stats.done} done · ${merged.length} total`;
-    if (merged.length === 0) {
-      el.tasksList.innerHTML = '<div class="tasks-empty">No tasks. Add Kanban cards or write `- [ ]` items in your notes.</div>';
-      return;
-    }
-    el.tasksList.innerHTML = merged.map(taskRowHtml).join('');
-  } catch (e) {
-    console.error('tasks render:', e);
-    el.tasksList.innerHTML = `<div class="tasks-empty">Could not load tasks: ${fmtErr(e)}</div>`;
-  }
-}
-
-function taskRowHtml(t) {
-  const check = `<span class="task-check${t.done ? ' checked' : ''}" data-id="${t.id}"></span>`;
-  let badges = '';
-  const isNote = t.kind !== 'kanban';
-  if (t.kind === 'kanban') {
-    badges += `<span class="task-badge task-badge-kanban">Kanban</span>`;
-    if (t.column === 'todo') badges += `<span class="task-badge task-badge-todo">To do</span>`;
-    else if (t.column === 'progress') badges += `<span class="task-badge task-badge-progress">Doing</span>`;
-  } else {
-    badges += `<span class="task-badge task-badge-note">Note</span>`;
-  }
-  const meta = `<div class="task-meta">${badges}${
-    t.source && t.source.path ? `<span class="task-src">${basename(t.source.path)}:${t.source.line}</span>` : ''
-  }</div>`;
-  // Only note rows open their source on click — scope the pointer cursor and
-  // the affordance to them so kanban rows stop advertising a dead click.
-  const openHint = isNote && t.source && t.source.path ? ' title="Open note"' : '';
-  return `<div class="task-row${t.done ? ' done' : ''}${isNote ? ' task-row-note' : ''}" data-id="${t.id}"${openHint}>${check}<div class="task-body"><div class="task-text">${escapeHtml(t.text)}</div>${meta}</div></div>`;
-}
-
-async function toggleNoteCheckbox(path, line, currentDone) {
-  // Read file, flip the matching task line, write back. Round-trip via existing commands.
-  try {
-    const content = await invoke('read_file', { path });
-    const lines = content.split('\n');
-    const idx = line - 1;
-    if (idx < 0 || idx >= lines.length) return false;
-    const ln = lines[idx];
-    const doneRe = /^(\s*[-*+]\s+)\[[xX]\](\s+.*)$/;
-    const openRe = /^(\s*[-*+]\s+)\[ \](\s+.*)$/;
-    if (currentDone && doneRe.test(ln)) {
-      lines[idx] = ln.replace(doneRe, '$1[ ]$2');
-    } else if (!currentDone && openRe.test(ln)) {
-      lines[idx] = ln.replace(openRe, '$1[x]$2');
-    } else {
-      return false; // line changed under us
-    }
-    await invoke('save_file', { path, content: lines.join('\n') });
-    return true;
-  } catch (e) {
-    console.error('toggle checkbox:', e);
-    return false;
-  }
 }
 
 // v0.35.0: toggle a GFM task-list checkbox from the rendered preview. Unlike
@@ -4440,1059 +2375,6 @@ async function togglePreviewCheckbox(itemIndex) {
     enterReading().catch((e) => console.error('[mdpeek] reader checkbox:', e));
   }
   renderActive().catch((e) => console.error('[mdpeek] checkbox render:', e));
-}
-
-// ---------- Review / spaced repetition ----------
-const SRS_KEY = 'mdpeek-srs-cards';
-let _reviewCards = [];     // all parsed cards for this session
-let _reviewQueue = [];     // due cards, in review order
-let _reviewIndex = 0;
-let _reviewRevealed = false;
-let _reviewScan = null;    // cached {cards, at}
-
-function loadSrsState() {
-  try { return JSON.parse(localStorage.getItem(SRS_KEY) || '{}'); } catch { return {}; }
-}
-function saveSrsState(s) {
-  try { localStorage.setItem(SRS_KEY, JSON.stringify(s)); } catch { /* ignore */ }
-}
-
-async function scanFlashcards() {
-  if (_reviewScan) return _reviewScan;
-  const notesDir = localStorage.getItem('mdpeek-notes-dir');
-  const cards = [];
-  if (notesDir) {
-    // Use search_in_folder to find notes containing ":: " or "[!qa]", then parse each.
-    // Cheaper: walk via search for "::" then parse those files.
-    try {
-      const res = await invoke('search_in_folder', { root: notesDir, query: '::', caseSensitive: false, maxResults: 2000 });
-      const files = new Set((res.results || []).map((r) => r.path));
-      // Also scan for callout QA + heading-Q headings.
-      const res2 = await invoke('search_in_folder', { root: notesDir, query: '[!qa]', caseSensitive: false, maxResults: 500 }).catch(() => ({ results: [] }));
-      (res2.results || []).forEach((r) => files.add(r.path));
-      // v0.67.0: heading-syntax cards ("## What is X?") contain neither '::'
-      // nor '[!qa]' — scan every file with an ATX heading too ('## ' is a
-      // substring of '### ', so all heading levels >= 2 are covered).
-      const res3 = await invoke('search_in_folder', { root: notesDir, query: '## ', caseSensitive: false, maxResults: 2000 }).catch(() => ({ results: [] }));
-      (res3.results || []).forEach((r) => files.add(r.path));
-      for (const path of files) {
-        try {
-          const text = await invoke('read_file', { path });
-          const parsed = parseFlashcards(text, path);
-          for (const c of parsed) cards.push({ ...c, path });
-        } catch { /* skip unreadable */ }
-      }
-    } catch (e) { console.error('flashcard scan:', e); }
-  }
-  _reviewScan = { cards, at: Date.now() };
-  return _reviewScan;
-}
-
-async function renderReview() {
-  if (!el.reviewStage) return;
-  el.reviewStage.innerHTML = '<div class="review-done"><p>Scanning notes for flashcards…</p></div>';
-  if (el.reviewSummary) el.reviewSummary.textContent = '—';
-  try {
-    const { cards } = await scanFlashcards();
-    _reviewCards = cards;
-    const state = loadSrsState();
-    // Build the due queue: cards with no state (new) OR state.due <= today.
-    _reviewQueue = cards.filter((c) => {
-      const s = state[c.key];
-      return !s || isDue(s);
-    });
-    _reviewIndex = 0;
-    _reviewRevealed = false;
-    const dueCount = _reviewQueue.length;
-    const total = cards.length;
-    if (el.reviewSummary) el.reviewSummary.textContent = dueCount === 0
-      ? `All caught up — ${total} card${total === 1 ? '' : 's'} tracked.`
-      : `${dueCount} card${dueCount === 1 ? '' : 's'} due of ${total}`;
-    renderReviewCard();
-    // renderReviewCard sets "Session complete." when the queue is empty; the
-    // richer all-caught-up line above (with the tracked-deck count) must win
-    // on a fresh open, so it goes last.
-    if (el.reviewSummary && dueCount > 0) {
-      el.reviewSummary.textContent = `${dueCount} card${dueCount === 1 ? '' : 's'} due of ${total}`;
-    }
-  } catch (e) {
-    console.error('review render:', e);
-    el.reviewStage.innerHTML = `<div class="review-done"><p>Could not load flashcards: ${fmtErr(e)}</p></div>`;
-  }
-}
-
-// 'YYYY-MM-DD' → locale date for the session-complete message.
-function formatReviewDate(stamp) {
-  try { return new Date(stamp + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return stamp; }
-}
-
-function renderReviewCard() {
-  if (!el.reviewStage) return;
-  if (_reviewIndex >= _reviewQueue.length) {
-    // Find the next due date for a friendly message.
-    const state = loadSrsState();
-    let next = null;
-    for (const c of _reviewCards) {
-      const s = state[c.key];
-      if (s && s.due && (!next || s.due < next)) next = s.due;
-    }
-    el.reviewStage.innerHTML = `<div class="review-done">
-      <h3>All caught up!</h3>
-      <p>${next ? `Next review: ${formatReviewDate(next)}` : 'No upcoming reviews. Add Q::A cards to your notes.'}</p>
-    </div>`;
-    if (el.reviewSummary) el.reviewSummary.textContent = 'Session complete.';
-    return;
-  }
-  const card = _reviewQueue[_reviewIndex];
-  const _prevSrs = loadSrsState()[card.key] || null;
-  const front = `<div class="review-face review-face-front">
-    <div class="review-face-label">Question</div>
-    <div class="review-q">${escapeHtml(card.question)}</div>
-    <div class="review-hint">Click card to reveal answer</div>
-  </div>`;
-  const back = `<div class="review-face review-face-back">
-    <div class="review-face-label">Answer</div>
-    <div class="review-a">${escapeHtml(card.answer)}</div>
-    <div class="review-source" data-src="${card.path}" data-line="${card.line}">Edit in note</div>
-  </div>`;
-  const actions = _reviewRevealed ? `<div class="review-actions">
-    ${['again', 'hard', 'good', 'easy'].map((r) => `<button class="review-rate" data-rate="${r}"><span class="review-rate-label">${r[0].toUpperCase() + r.slice(1)}</span><span class="review-rate-hint">${rateHint(r, _prevSrs)}</span></button>`).join('')}
-  </div>` : '';
-  el.reviewStage.innerHTML = `<div class="review-card${_reviewRevealed ? ' revealed' : ''}" id="review-card"><div class="review-card-inner">${front}${back}</div></div>${actions}`;
-}
-
-// Hint shows the REAL next interval from the SRS math. The old static hints
-// lied — "again" schedules +1 day here (SM-2), not "<1m".
-function rateHint(r, prev) {
-  // "Again" on a new/lapsed card re-queues it for THIS session (rateCard) —
-  // advertise "Today" instead of the same "1d" as Good, which gave a beginner
-  // no basis to choose between the buttons.
-  if (r === 'again' && (!prev || prev.reps === 0)) return 'Today';
-  let days;
-  try { days = srsReview(prev || newCard(), r).interval; } catch { days = 0; }
-  return days >= 1 ? `${days}d` : '<1d';
-}
-
-function rateCard(rating) {
-  if (_reviewIndex >= _reviewQueue.length) return;
-  const card = _reviewQueue[_reviewIndex];
-  const state = loadSrsState();
-  const prev = state[card.key] || newCard();
-  state[card.key] = srsReview(prev, rating);
-  saveSrsState(state);
-  // "again" re-queues the card at the end of the session (Anki-style) so a
-  // lapse is re-seen — but only once per card to guarantee termination.
-  if (rating === 'again' && !card._requeued) _reviewQueue.push({ ...card, _requeued: true });
-  _reviewIndex++;
-  _reviewRevealed = false;
-  renderReviewCard();
-  // When the queue is exhausted renderReviewCard has already written
-  // "Session complete." — don't overwrite it with "0 cards due".
-  if (_reviewIndex < _reviewQueue.length) {
-    const dueCount = Math.max(0, _reviewQueue.length - _reviewIndex);
-    if (el.reviewSummary) el.reviewSummary.textContent = `${dueCount} card${dueCount === 1 ? '' : 's'} due`;
-  }
-}
-
-// ---------- Graph view (v0.50.0) ----------
-// Reads every markdown note under the explorer root, builds a node/edge model
-// via buildGraph (pure, in src/lib/graph.js — reuses extractDocLinks), lays it
-// out with circleLayout, and renders an interactive SVG. Clicking a node opens
-// the note and closes the hub (mirrors Tasks/Review). Cached until Refresh.
-let _graphCache = null; // { files, at } — invalidated by Refresh + tree changes
-
-// v0.70.0: pan/zoom/drag state. The view transform composes as
-// translate(tx,ty) scale(k) on a viewport <g>; node drags mutate per-node
-// positions in _graphPositions, which override circleLayout and persist across
-// redraws (hide-unlinked toggle, resize) within one cache generation — cleared
-// whenever renderGraph rebuilds from a cold cache.
-const GRAPH_DRAG_THRESHOLD = 4; // px before a press becomes a drag (mirrors kanban)
-const GRAPH_ZOOM_MIN = 0.25;
-const GRAPH_ZOOM_MAX = 3;
-let _graphView = { tx: 0, ty: 0, k: 1 };
-const _graphPositions = new Map(); // Map<nodeId, {x,y}> — layout + dragged overrides
-let _graphDrag = null;             // active pointer session { kind, ... }
-let _graphSuppressNodeId = null;   // node whose click-open is skipped after a drag
-
-// v0.71.0 (iteration 4): interactivity overlays — hover/pin neighbor focus,
-// node filter, floating tooltip. All class-additive over .graph-node/.graph-edge.
-let _graphPinId = null;        // Alt+click-pinned focus node id (Esc exits)
-let _graphHoverNodeId = null;  // node under the cursor (delegated pointerover)
-let _graphBaseSummary = '';    // raw "N notes · M links · K unlinked" from render
-let _graphQuery = '';          // active filter substring ('' = off)
-let _graphMatchCount = 0;      // nodes matching _graphQuery in the last pass
-let _graphSearchTimer = null;  // debounce handle for the filter input
-
-async function renderGraph() {
-  const svg = el.graphSvg;
-  if (!svg) return;
-  // v0.71.0 polish: leaving the tab while hovering a node never fires
-  // pointerout (the panel is display:none by then), so the tooltip and hover
-  // dim would linger into the next visit. Reset both on every render.
-  _graphHoverNodeId = null;
-  hideGraphTooltip();
-  const root = localStorage.getItem('mdpeek-explorer-root');
-  // Empty state when there's no folder open.
-  if (!root) {
-    svg.innerHTML = '';
-    setGraphBaseSummary('Open a folder to see its note graph.');
-    return;
-  }
-  setGraphBaseSummary('Building graph…');
-  try {
-    // Enumerate notes recursively (walk_notes), then batch-read contents.
-    // read_files_batch isolates per-file errors so one unreadable note is skipped,
-    // not fatal. Cached so re-entering the Graph tab is instant until Refresh.
-    let files;
-    if (_graphCache) {
-      files = _graphCache.files;
-    } else {
-      // Cold build (first open, or Refresh/tree changes invalidated the cache):
-      // drop dragged positions + the view transform from the old generation.
-      _graphPositions.clear();
-      _graphView = { tx: 0, ty: 0, k: 1 };
-      const paths = await invoke('walk_notes', { root });
-      if (!paths || paths.length === 0) {
-        _graphCache = { files: [], at: Date.now() };
-        files = [];
-      } else {
-        const reads = await invoke('read_files_batch', { paths });
-        files = reads
-          .filter((r) => r && r.content != null)
-          .map((r) => ({ path: r.path, content: r.content }));
-        _graphCache = { files, at: Date.now() };
-      }
-    }
-    if (files.length === 0) {
-      svg.innerHTML = '';
-      setGraphBaseSummary('No markdown notes in this folder.');
-      return;
-    }
-    const built = buildGraph(files);
-    // v0.70.0: drop dragged positions for nodes that no longer exist
-    // (renamed/deleted notes). Prune against the FULL node set so positions
-    // survive hide-unlinked toggling.
-    if (_graphPositions.size > 0) {
-      const ids = new Set(built.nodes.map((n) => n.id));
-      for (const id of [..._graphPositions.keys()]) {
-        if (!ids.has(id)) _graphPositions.delete(id);
-      }
-    }
-    // v0.67.0: "Hide unlinked" filter — drop degree-0 nodes + their edges
-    // (none: orphans have none by definition, but keep the guard cheap).
-    const hideOrphans = !!document.getElementById('graph-hide-orphans')?.checked;
-    const nodes = hideOrphans ? built.nodes.filter((n) => n.degree > 0) : built.nodes;
-    const keptIds = new Set(nodes.map((n) => n.id));
-    const edges = hideOrphans
-      ? built.edges.filter((ed) => keptIds.has(ed.from) && keptIds.has(ed.to))
-      : built.edges;
-    const orphans = hideOrphans ? 0 : built.orphans;
-    // v0.71.0: a pin whose node vanished (deleted note, hidden by hide-unlinked)
-    // drops quietly rather than keeping focus on a ghost.
-    if (_graphPinId && !keptIds.has(_graphPinId)) _graphPinId = null;
-    // Render into the SVG's measured box. Defer one frame if it has no size yet
-    // (just-shown panel) so circleLayout has real dimensions to work with.
-    const draw = () => {
-      drawGraph(svg, nodes, edges, orphans);
-      // v0.71.0: the innerHTML rebuild wiped hover/pin/filter classes —
-      // reapply whichever overlays are still active.
-      refreshGraphFocus();
-      applyGraphFilter();
-    };
-    const box = svg.getBoundingClientRect();
-    if (box.width === 0 || box.height === 0) requestAnimationFrame(draw);
-    else draw();
-    const eCount = edges.length;
-    setGraphBaseSummary(
-      `${nodes.length} note${nodes.length === 1 ? '' : 's'} · ${eCount} link${eCount === 1 ? '' : 's'}` +
-      (orphans > 0 ? ` · ${orphans} unlinked` : '')
-    );
-  } catch (e) {
-    console.error('graph render:', e);
-    svg.innerHTML = '';
-    setGraphBaseSummary('Could not build graph: ' + fmtErr(e));
-  }
-}
-
-// Render the node/edge model into an SVG element. Everything lives inside a
-// <g class="graph-viewport"> carrying the pan/zoom transform, so interaction
-// code only ever touches that attribute (or per-node transforms inside the
-// group) — layout stays deterministic underneath. Edges first (so nodes paint
-// over them), then nodes as <circle> + <text> groups with a data-node-id for
-// the delegated click handler. Edges carry data-from/data-to so node drags can
-// update connected lines live. Sizes scale with the canvas; node radius grows
-// with degree so hubs stand out.
-function drawGraph(svg, nodes, edges, orphans) {
-  const box = svg.getBoundingClientRect();
-  const width = Math.max(200, box.width);
-  const height = Math.max(200, box.height);
-  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-  const layout = circleLayout(nodes, width, height);
-  // v0.70.0: user-dragged positions win over the deterministic layout.
-  const positions = new Map();
-  for (const n of nodes) {
-    positions.set(n.id, _graphPositions.get(n.id) || layout.get(n.id));
-  }
-  const maxDeg = nodes.reduce((m, n) => Math.max(m, n.degree), 0);
-  // v0.71.0: 75th-percentile degree marks hub nodes (CSS glow). Guarded with
-  // degree > 0 so an all-orphans graph can't flag every node as a hub.
-  const degSorted = nodes.map((n) => n.degree).sort((a, b) => a - b);
-  const hubAt = degSorted.length ? degSorted[Math.floor(degSorted.length * 0.75)] : 0;
-  const minDim = Math.min(width, height);
-  const baseR = Math.max(6, minDim / 70);
-  // Escape for SVG text content + attributes.
-  const esc = (s) => String(s ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  // Edges: straight lines between connected nodes.
-  const edgeSvg = edges.map((e) => {
-    const a = positions.get(e.from);
-    const b = positions.get(e.to);
-    if (!a || !b) return '';
-    return `<line class="graph-edge" data-from="${esc(e.from)}" data-to="${esc(e.to)}" x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" />`;
-  }).join('');
-  // Nodes: degree scales radius (0..maxDeg → baseR..baseR×2).
-  const nodeSvg = nodes.map((n) => {
-    const p = positions.get(n.id);
-    if (!p) return '';
-    const r = maxDeg > 0 ? baseR + (n.degree / maxDeg) * baseR : baseR;
-    let cls = n.degree === 0 ? 'graph-node graph-node-orphan' : 'graph-node';
-    if (n.degree > 0 && n.degree >= hubAt) cls += ' graph-node-hub';
-    // Daily-note nodes carry a raw YYYY-MM-DD id as their label — render it
-    // as a readable "Sep 15" instead of a date stamp.
-    const isDailyStamp = /^\d{4}-\d{2}-\d{2}$/.test(n.label);
-    const display = isDailyStamp
-      ? new Date(n.label + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-      : n.label;
-    return (
-      `<g class="${cls}" data-node-id="${esc(n.id)}" data-path="${esc(n.path)}">` +
-      `<title>${esc(n.label)}</title>` +
-      `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r.toFixed(1)}" />` +
-      `<text x="${p.x.toFixed(1)}" y="${(p.y + r + 12).toFixed(1)}">${esc(display.length > 18 ? display.slice(0, 17) + '…' : display)}</text>` +
-      `</g>`
-    );
-  }).join('');
-  const v = _graphView;
-  svg.innerHTML =
-    `<g class="graph-viewport" transform="translate(${v.tx.toFixed(2)} ${v.ty.toFixed(2)}) scale(${v.k})">` +
-    edgeSvg + nodeSvg +
-    '</g>';
-}
-
-// ---- v0.71.0 (iteration 4): hover/pin focus, tooltip, node filter ----
-// All overlay state lives in the module lets above; every function here is
-// class toggling + textContent writes on the already-drawn SVG, so none of it
-// re-runs layout or fights the pan/zoom/drag transform code.
-
-// Summary composition: renderGraph stores the raw stats via setGraphBaseSummary;
-// pin + filter overlays are layered on top by refreshGraphSummary.
-function setGraphBaseSummary(text) {
-  _graphBaseSummary = text;
-  refreshGraphSummary();
-}
-
-function refreshGraphSummary() {
-  if (!el.graphSummary) return;
-  if (_graphPinId) {
-    const g = graphNodeGroup(el.graphSvg, _graphPinId);
-    const label = (g && g.querySelector('title')?.textContent) || _graphPinId;
-    const { degree } = graphScanNeighbors(el.graphSvg, _graphPinId);
-    el.graphSummary.textContent =
-      `Focused: ${label} · ${degree} direct link${degree === 1 ? '' : 's'} · Esc to exit`;
-    return;
-  }
-  let text = _graphBaseSummary;
-  if (_graphQuery) text += ` · ${_graphMatchCount} match${_graphMatchCount === 1 ? '' : 'es'}`;
-  el.graphSummary.textContent = text;
-}
-
-function safeCssEscape(s) {
-  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') return CSS.escape(s);
-  return String(s).replace(/["\\]/g, '\\$&');
-}
-
-// Look up a rendered node group by id (null when not drawn / stale id).
-function graphNodeGroup(svg, id) {
-  if (!svg || !id) return null;
-  return svg.querySelector(`g.graph-node[data-node-id="${safeCssEscape(id)}"]`);
-}
-
-// Scan the drawn edges once for everything the overlays need about `id`:
-// neighbor ids + degree. O(E) per call is fine at note-graph scale.
-function graphScanNeighbors(svg, id) {
-  const neighbors = new Set();
-  let degree = 0;
-  if (!svg || !id) return { neighbors, degree };
-  for (const line of svg.querySelectorAll('line.graph-edge')) {
-    const from = line.getAttribute('data-from');
-    const to = line.getAttribute('data-to');
-    if (from === id) { neighbors.add(to); degree++; }
-    else if (to === id) { neighbors.add(from); degree++; }
-  }
-  return { neighbors, degree };
-}
-
-// Apply (or clear, centerId=null) the dim-everything-but-neighbors pass.
-// Additive classes only — .graph-node/.graph-edge stay intact for CSS/tests.
-function applyGraphFocus(svg, centerId) {
-  if (!svg) return;
-  if (!centerId || !graphNodeGroup(svg, centerId)) {
-    svg.classList.remove('graph-focus-on');
-    for (const n of svg.querySelectorAll('.graph-node.graph-dimmed')) n.classList.remove('graph-dimmed');
-    for (const n of svg.querySelectorAll('.graph-node-focus')) n.classList.remove('graph-node-focus');
-    for (const l of svg.querySelectorAll('line.graph-edge')) {
-      l.classList.remove('graph-dimmed', 'graph-edge-active');
-    }
-    return;
-  }
-  const { neighbors } = graphScanNeighbors(svg, centerId);
-  svg.classList.add('graph-focus-on');
-  for (const g of svg.querySelectorAll('g.graph-node')) {
-    const id = g.getAttribute('data-node-id');
-    const keep = id === centerId || neighbors.has(id);
-    g.classList.toggle('graph-dimmed', !keep);
-    g.classList.toggle('graph-node-focus', id === centerId);
-  }
-  for (const line of svg.querySelectorAll('line.graph-edge')) {
-    const touches = line.getAttribute('data-from') === centerId || line.getAttribute('data-to') === centerId;
-    line.classList.toggle('graph-edge-active', touches);
-    line.classList.toggle('graph-dimmed', !touches);
-  }
-}
-
-// One place decides the effective focus center: live hover wins, falling back
-// to the pinned node while the cursor roams elsewhere. Also keeps the pin ring
-// (.graph-node-pinned) on exactly one group.
-function refreshGraphFocus() {
-  const svg = el.graphSvg;
-  if (!svg) return;
-  applyGraphFocus(svg, _graphHoverNodeId || _graphPinId);
-  for (const g of svg.querySelectorAll('g.graph-node-pinned')) g.classList.remove('graph-node-pinned');
-  const pinnedG = _graphPinId ? graphNodeGroup(svg, _graphPinId) : null;
-  if (pinnedG) pinnedG.classList.add('graph-node-pinned');
-}
-
-// Floating tooltip inside .graph-canvas-wrap: label + degree near the pointer,
-// clamped to the canvas box so it never spills out.
-function showGraphTooltip(g, id, clientX, clientY) {
-  const tip = document.getElementById('graph-tooltip');
-  const wrap = document.querySelector('.graph-canvas-wrap');
-  if (!tip || !wrap) return;
-  const titleEl = g.querySelector('title');
-  const label = (titleEl ? titleEl.textContent : '') || id;
-  const { degree } = graphScanNeighbors(el.graphSvg, id);
-  tip.textContent = `${label} · ${degree} link${degree === 1 ? '' : 's'}`;
-  const rect = wrap.getBoundingClientRect();
-  const x = Math.min(clientX - rect.left + 14, rect.width - tip.offsetWidth - 8);
-  const y = Math.min(clientY - rect.top + 14, rect.height - tip.offsetHeight - 8);
-  tip.style.left = `${Math.max(8, x)}px`;
-  tip.style.top = `${Math.max(8, y)}px`;
-  tip.classList.remove('hidden');
-}
-
-function hideGraphTooltip() {
-  document.getElementById('graph-tooltip')?.classList.add('hidden');
-}
-
-// Delegated hover pass — ONE pointerover/pointerout pair on the svg covers all
-// nodes (events bubble from circle/text into the <g>). Both bail during an
-// active drag session so the dimming pass can't fight the drag writes.
-function graphPointerOver(e) {
-  if (_graphDrag) return;
-  const g = e.target.closest ? e.target.closest('[data-node-id]') : null;
-  const id = g ? g.getAttribute('data-node-id') : null;
-  if (id === _graphHoverNodeId) return; // churn among children of the same node
-  _graphHoverNodeId = id;
-  refreshGraphFocus();
-  if (id && g) showGraphTooltip(g, id, e.clientX, e.clientY);
-  else hideGraphTooltip();
-}
-
-function graphPointerOut(e) {
-  if (_graphDrag) return;
-  const from = e.target.closest ? e.target.closest('[data-node-id]') : null;
-  const to = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('[data-node-id]') : null;
-  if (from && to && from === to) return; // internal churn within one node's <g>
-  _graphHoverNodeId = null;
-  refreshGraphFocus();
-  hideGraphTooltip();
-}
-
-// Alt+click pins/unpins neighbor focus. Re-Alt+click on another node moves the
-// pin; Alt+click on the pinned node unpins. Plain click also unpins (below).
-function toggleGraphPin(id) {
-  _graphPinId = _graphPinId === id ? null : id;
-  refreshGraphFocus();
-  refreshGraphSummary();
-}
-
-function clearGraphPin() {
-  if (!_graphPinId) return;
-  _graphPinId = null;
-  refreshGraphFocus();
-  refreshGraphSummary();
-}
-
-// Node filter: label-substring match against each drawn node's <title>.
-// Matches get .graph-node-match (accent ring); non-matches dim via CSS under
-// svg.graph-search-on. Also feeds the "n matches" summary suffix.
-function applyGraphFilter() {
-  const svg = el.graphSvg;
-  if (!svg) return;
-  const q = (document.getElementById('graph-search-input')?.value || '').trim().toLowerCase();
-  _graphQuery = q;
-  let count = 0;
-  if (q) {
-    for (const g of svg.querySelectorAll('g.graph-node')) {
-      const title = g.querySelector('title');
-      const match = (title ? title.textContent : '').toLowerCase().includes(q);
-      g.classList.toggle('graph-node-match', match);
-      if (match) count++;
-    }
-  } else {
-    for (const g of svg.querySelectorAll('g.graph-node-match')) g.classList.remove('graph-node-match');
-  }
-  svg.classList.toggle('graph-search-on', !!q);
-  _graphMatchCount = count;
-  refreshGraphSummary();
-}
-
-// v0.70.0: write the current pan/zoom state onto the viewport <g>. Cheap —
-// one setAttribute, no innerHTML rebuild.
-function applyGraphView(svg) {
-  if (!svg) return;
-  const g = svg.querySelector('.graph-viewport');
-  if (!g) return;
-  const v = _graphView;
-  g.setAttribute('transform', `translate(${v.tx.toFixed(2)} ${v.ty.toFixed(2)}) scale(${v.k})`);
-}
-
-// Map client (pointer) coordinates to viewBox coordinates. The viewBox is
-// sized to the CSS pixel box, but keep the ratio math honest for scaled UIs.
-function graphClientToViewBox(svg, clientX, clientY) {
-  const rect = svg.getBoundingClientRect();
-  const vb = svg.viewBox.baseVal;
-  const sx = vb && vb.width ? vb.width / rect.width : 1;
-  const sy = vb && vb.height ? vb.height / rect.height : 1;
-  return { x: (clientX - rect.left) * sx, y: (clientY - rect.top) * sy };
-}
-
-// Zoom by `factor` keeping the graph point under the cursor pinned. Clamped
-// to GRAPH_ZOOM_MIN..MAX; at the clamp the anchor drifts, which is fine.
-function graphZoomAt(svg, clientX, clientY, factor) {
-  if (!svg || !svg.querySelector('.graph-viewport')) return;
-  // v0.71.0: the tooltip anchors to a stale screen point once zoom moves the
-  // node under it — hide rather than track.
-  hideGraphTooltip();
-  const p = graphClientToViewBox(svg, clientX, clientY);
-  const v = _graphView;
-  const k = Math.min(GRAPH_ZOOM_MAX, Math.max(GRAPH_ZOOM_MIN, v.k * factor));
-  if (k === v.k) return;
-  v.tx = p.x - ((p.x - v.tx) * k) / v.k;
-  v.ty = p.y - ((p.y - v.ty) * k) / v.k;
-  v.k = k;
-  applyGraphView(svg);
-}
-
-function resetGraphView() {
-  _graphView = { tx: 0, ty: 0, k: 1 };
-  applyGraphView(el.graphSvg);
-}
-
-// Pointer session start on the graph canvas: pressing a node arms a node drag,
-// pressing empty canvas arms a pan. Neither starts until the pointer crosses
-// GRAPH_DRAG_THRESHOLD, so plain clicks still open notes via onGraphClick.
-function graphPointerDown(e) {
-  if (e.button !== 0) return;
-  const svg = el.graphSvg;
-  if (!svg) return;
-  const nodeG = e.target.closest('[data-node-id]');
-  // v0.71.0: any press (node drag or pan) dismisses the hover tooltip; the
-  // highlight itself stays put until the next pointerover/out after release.
-  hideGraphTooltip();
-  _graphDrag = {
-    kind: nodeG ? 'node' : 'pan',
-    g: nodeG,
-    id: nodeG ? nodeG.getAttribute('data-node-id') : null,
-    startX: e.clientX,
-    startY: e.clientY,
-    started: false,
-    movedTx: _graphView.tx,
-    movedTy: _graphView.ty,
-    pos: null,      // node's position when the drag began
-    edges: [],      // connected <line>s to update live
-  };
-  window.addEventListener('pointermove', graphPointerMove);
-  window.addEventListener('pointerup', graphPointerUp, { once: true });
-}
-
-function graphPointerMove(e) {
-  const d = _graphDrag;
-  if (!d) return;
-  const svg = el.graphSvg;
-  if (!svg) return;
-  if (!d.started) {
-    const dx = e.clientX - d.startX;
-    const dy = e.clientY - d.startY;
-    if (Math.abs(dx) < GRAPH_DRAG_THRESHOLD && Math.abs(dy) < GRAPH_DRAG_THRESHOLD) return;
-    d.started = true;
-    if (d.kind !== 'node') return; // pan needs no further setup
-    // Snapshot the node's current model position + the edges touching it so
-    // each move is just arithmetic + direct attribute writes.
-    d.pos = _graphPositions.get(d.id);
-    if (!d.pos) {
-      const circle = d.g.querySelector('circle');
-      d.pos = circle ? { x: circle.cx.baseVal.value, y: circle.cy.baseVal.value } : null;
-    }
-    if (!d.pos) { d.kind = 'none'; return; }
-    d.edges = [...svg.querySelectorAll(`line.graph-edge[data-from="${safeCssEscape(d.id)}"], line.graph-edge[data-to="${safeCssEscape(d.id)}"]`)]
-      .map((line) => ({
-        line,
-        otherId: line.getAttribute('data-from') === d.id
-          ? line.getAttribute('data-to')
-          : line.getAttribute('data-from'),
-        fromEnd: line.getAttribute('data-from') === d.id,
-        other: null,
-      }));
-  }
-  // Client px → viewBox px → model px (divide out zoom; the node lives inside
-  // the transformed viewport <g>).
-  const rect = svg.getBoundingClientRect();
-  const vb = svg.viewBox.baseVal;
-  const mx = ((e.clientX - d.startX) * (vb.width / rect.width)) / _graphView.k;
-  const my = ((e.clientY - d.startY) * (vb.height / rect.height)) / _graphView.k;
-  if (d.kind === 'node') {
-    const x = d.pos.x + mx;
-    const y = d.pos.y + my;
-    _graphPositions.set(d.id, { x, y });
-    d.g.setAttribute('transform', `translate(${mx.toFixed(2)} ${my.toFixed(2)})`);
-    for (const ed of d.edges) {
-      // Resolve the other endpoint lazily — it may itself be re-dragged later.
-      const op = ed.other || (_graphPositions.get(ed.otherId) || null);
-      ed.other = op;
-      const ox = op ? op.x : parseFloat(ed.line.getAttribute(ed.fromEnd ? 'x2' : 'x1'));
-      const oy = op ? op.y : parseFloat(ed.line.getAttribute(ed.fromEnd ? 'y2' : 'y1'));
-      if (ed.fromEnd) {
-        ed.line.setAttribute('x1', x.toFixed(1)); ed.line.setAttribute('y1', y.toFixed(1));
-        ed.line.setAttribute('x2', ox.toFixed(1)); ed.line.setAttribute('y2', oy.toFixed(1));
-      } else {
-        ed.line.setAttribute('x1', ox.toFixed(1)); ed.line.setAttribute('y1', oy.toFixed(1));
-        ed.line.setAttribute('x2', x.toFixed(1)); ed.line.setAttribute('y2', y.toFixed(1));
-      }
-    }
-  } else if (d.kind === 'pan') {
-    const vx = (e.clientX - d.startX) * (vb.width / rect.width);
-    const vy = (e.clientY - d.startY) * (vb.height / rect.height);
-    _graphView.tx = d.movedTx + vx;
-    _graphView.ty = d.movedTy + vy;
-    applyGraphView(svg);
-  }
-}
-
-function graphPointerUp() {
-  const d = _graphDrag;
-  window.removeEventListener('pointermove', graphPointerMove);
-  _graphDrag = null;
-  if (!d || !d.started) return;
-  if (d.kind === 'node') {
-    // Bake the dragged position into the DOM (circle cx/cy + text x/y) so
-    // dropping the per-node translate doesn't visually snap the node back.
-    const p = _graphPositions.get(d.id);
-    const circle = d.g?.querySelector('circle');
-    const text = d.g?.querySelector('text');
-    if (p && circle) {
-      const r = circle.r.baseVal.value;
-      circle.setAttribute('cx', p.x.toFixed(1));
-      circle.setAttribute('cy', p.y.toFixed(1));
-      if (text) {
-        text.setAttribute('x', p.x.toFixed(1));
-        text.setAttribute('y', (p.y + r + 12).toFixed(1));
-      }
-    }
-    d.g?.removeAttribute('transform');
-    // Suppress the click-open that fires right after this gesture for the
-    // dragged node (click always trails pointerup).
-    _graphSuppressNodeId = d.id;
-  }
-}
-
-// Delegated click handler: open the clicked note + close the hub. Bound once
-// on init (see the workspace event wiring near the other delegated handlers).
-// v0.70.0: a node drag sets _graphSuppressNodeId so the click that trails its
-// pointerup doesn't open the note (one-shot — any click clears the flag, so a
-// stale value can't eat a later deliberate click).
-function onGraphClick(e) {
-  const g = e.target.closest('[data-node-id]');
-  if (_graphSuppressNodeId) {
-    const suppressed = !!g && g.getAttribute('data-node-id') === _graphSuppressNodeId;
-    _graphSuppressNodeId = null;
-    if (suppressed) return;
-  }
-  if (!g) return;
-  // v0.71.0: Alt+click pins neighbor-focus mode instead of opening the note.
-  if (e.altKey) {
-    e.preventDefault();
-    toggleGraphPin(g.getAttribute('data-node-id'));
-    return;
-  }
-  // Plain click still opens the note (and drops any pinned focus first).
-  clearGraphPin();
-  const path = g.getAttribute('data-path');
-  if (!path) return;
-  openPath(path).catch((err) => toast('Could not open note: ' + fmtErr(err)));
-  closeKanban();
-}
-
-// ---------- Pomodoro ----------
-let _pomoState = null;
-let _pomoInterval = null;
-
-function pomoEnsureLoaded() {
-  if (!_pomoState) _pomoState = pomoLoad();
-}
-// v0.62.1: lucide-style SVGs for the pomodoro toggle (replaces the old text
-// ▶/⏸ glyphs, which rendered inconsistently across fonts/sizes).
-const POMO_PLAY_SVG =
-  '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>';
-const POMO_PAUSE_SVG =
-  '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><rect x="5" y="4" width="4" height="16" rx="1"/><rect x="15" y="4" width="4" height="16" rx="1"/></svg>';
-
-function pomoSyncUi() {
-  pomoEnsureLoaded();
-  if (!el.pomoStatus) return;
-  const on = featureOn('pomodoro');
-  // Show the pill whenever there's an active or started session.
-  // v0.67.0: compare against the CONFIGURED focus length — the old hardcoded
-  // 25min check made the pill flash visible with custom durations.
-  const focusSec = _pomoState && _pomoState.settings ? phaseSeconds('focus', _pomoState.settings) : 25 * 60;
-  const hasSession = _pomoState && (_pomoState.running || _pomoState.remaining !== focusSec || _pomoState.cycle > 0);
-  el.pomoStatus.classList.toggle('hidden', !(on && hasSession));
-  if (!hasSession) return;
-  if (el.pomoTime) el.pomoTime.textContent = pomoFormat(_pomoState.remaining);
-  const phaseEl = document.getElementById('pomo-phase-label');
-  if (phaseEl) phaseEl.textContent = pomoPhaseLabel(_pomoState.phase);
-  if (el.pomoDot) {
-    el.pomoDot.className = 'pomo-dot ' + (_pomoState.phase === 'focus' ? 'pomo-dot-focus' : 'pomo-dot-break');
-  }
-  el.pomoStatus.classList.toggle('running', _pomoState.running);
-  el.pomoStatus.classList.toggle('break', _pomoState.phase !== 'focus');
-  if (el.pomoToggle) el.pomoToggle.innerHTML = _pomoState.running ? POMO_PAUSE_SVG : POMO_PLAY_SVG;
-  // Rich HUD: progress ring arc + phase-tone crossfade (idempotent per tick).
-  try { updatePomodoroHud(_pomoState, el.pomoStatus); } catch (e) { console.error('[mdpeek] pomoHud:', e); }
-}
-
-function pomoStartTicker() {
-  if (_pomoInterval) return;
-  // v0.67.0: wall-clock anchor. WebView2 throttles background timers
-  // (minimize-to-tray), so each tick passes the REAL elapsed seconds to
-  // pomoTick instead of assuming 1s — the countdown stays accurate.
-  let lastTick = Date.now();
-  _pomoInterval = setInterval(() => {
-    pomoEnsureLoaded();
-    const now = Date.now();
-    const elapsed = Math.max(1, Math.round((now - lastTick) / 1000));
-    lastTick = now;
-    if (!_pomoState.running) return;
-    const r = pomoTick(_pomoState, elapsed);
-    _pomoState = r.state;
-    pomoSave(_pomoState);
-    if (r.finished) {
-      notify('Pomodoro', `${pomoPhaseLabel(r.completed)} complete!`);
-      // Auto-start the next phase? Keep it opt-in: stay paused until user resumes.
-    }
-    pomoSyncUi();
-  }, 1000);
-}
-
-function pomoToggleRun() {
-  pomoEnsureLoaded();
-  _pomoState = _pomoState.running ? pomoPause(_pomoState) : pomoStart(_pomoState);
-  pomoSave(_pomoState);
-  if (_pomoState.running) pomoStartTicker();
-  pomoSyncUi();
-}
-
-function pomoStopAndReset() {
-  _pomoState = pomoReset();
-  pomoSave(_pomoState);
-  if (_pomoInterval) { clearInterval(_pomoInterval); _pomoInterval = null; }
-  pomoSyncUi();
-}
-
-function pomoDestroy() {
-  if (_pomoInterval) { clearInterval(_pomoInterval); _pomoInterval = null; }
-}
-
-// ---------- helpers ----------
-// NOTE: `basename` (line ~359) and `escapeHtml` (imported from ./lib/escape.js)
-// are both already in scope; reuse them rather than redeclaring.
-
-
-async function endCollabSession() {
-  // Tear down the network sessions first so peers get a clean disconnect.
-  try { collab.endSession(); } catch (e) { console.error('endSession:', e); }
-  try { await wifiCollab.stopWifiCollab(); } catch (e) { console.error('stopWifiCollab:', e); }
-  // Defensive: unbind whichever binding was active (text or Excalidraw).
-  // endSession already ran boundCleanup, but this protects against half-
-  // initialized state where one of the two was never attached.
-  try { collab.unbindEditor(); } catch { /* already unbound */ }
-  try { wifiCollab.unbindEditor(); } catch { /* already unbound */ }
-  try { collab.unbindExcalidraw(); } catch { /* already unbound */ }
-  try { wifiCollab.unbindExcalidraw(); } catch { /* already unbound */ }
-  // Convert the host's shared doc back to a normal doc (it's still on disk).
-  // On the receiver side, the shared tab becomes a local unsaved doc.
-  const doc = store.docs.find((d) => d.id === _collabDocId);
-  if (doc) {
-    doc.shared = false;
-    // Mark as dirty so the user is prompted to save before closing (they
-    // might want to keep the collaborator's edits locally).
-    if (doc.path === null) doc.dirty = true;
-    renderTabs(store);
-    positionTabIndicator({ strip: el.tabStrip, indicator: el.tabStrip?.querySelector('.tab-indicator') });
-  }
-  _collabDocId = null;
-  // Hide the status pill immediately (the collab.on callback will also do
-  // this, but doing it here avoids a flicker if the callback is delayed).
-  if (el.collabStatus) el.collabStatus.classList.add('hidden');
-  clearPeerCarets();
-  closeWifiPreview();
-  closeShareModal();
-  toast('Session ended');
-}
-
-async function copyShareLink() {
-  const url = el.shareLinkInput.value;
-  if (!url || url === 'Generating…') return;
-  try {
-    await navigator.clipboard.writeText(url);
-    const original = el.shareCopyBtn.textContent;
-    el.shareCopyBtn.textContent = 'Copied!';
-    setTimeout(() => { el.shareCopyBtn.textContent = original; }, 1500);
-  } catch {
-    el.shareLinkInput.focus();
-    el.shareLinkInput.select();
-    toast('Copy failed — select the link manually');
-  }
-}
-
-// ---------- receiver: invite URL → join ----------
-
-function showJoinDialog(roomId) {
-  _pendingInvite = roomId;
-  el.joinStatus.classList.add('hidden');
-  el.joinStatus.textContent = '';
-  el.joinConfirmBtn.disabled = false;
-  el.joinConfirmBtn.textContent = 'Join';
-  el.joinDialog.classList.remove('hidden');
-}
-
-function closeJoinDialog() {
-  el.joinDialog.classList.add('hidden');
-  syncModalFocus();
-  _pendingInvite = null;
-}
-
-function cancelJoin() {
-  const connecting = el.joinConfirmBtn.disabled;
-  closeJoinDialog();
-  if (connecting && collab.getStatus().role === 'receiver') collab.endSession();
-}
-
-async function confirmJoin() {
-  if (!_pendingInvite) { closeJoinDialog(); return; }
-  const roomId = _pendingInvite;
-  el.joinConfirmBtn.disabled = true;
-  el.joinConfirmBtn.textContent = 'Connecting…';
-  el.joinStatus.textContent = 'Reaching the host over P2P…';
-  el.joinStatus.classList.remove('hidden', 'error');
-  try {
-    collab.setLocalIdentity({ name: defaultCollabName() });
-    const result = await collab.joinSession(roomId);
-    if (_pendingInvite !== roomId) return;
-    // Branch on the host's doc type. The host's language meta tells us what
-    // kind of tab to create on the receiver side:
-    //   'excalidraw' → Excalidraw canvas tab
-    //   null         → plain text (.txt) — no markdown preview
-    //   'markdown'   → markdown (default)
-    //   other string → code file in that language (e.g. 'javascript')
-    let doc;
-    if (result.language === 'excalidraw') {
-      // Receiver's tab is a fresh Excalidraw canvas; the actual scene arrives
-      // via Yjs once bindExcalidraw runs (after the canvas mounts — see the
-      // .then() on showExcalidraw in renderActive).
-      doc = store.open({ path: null, content: '', excalidraw: true, shared: true });
-    } else {
-      doc = store.open({
-        path: null,
-        content: result.initialText || '',
-        mode: 'edit',
-        plain: result.language === null,
-        shared: true,
-      });
-      // Code-language host: the editor no longer has per-language syntax
-      // highlighting (the overlay was removed in the v0.22 editor refactor),
-      // so we don't need to propagate the language to the receiver's editor.
-      // The language meta is still round-tripped so future reintroduction of
-      // highlighting (or other language-aware features) can use it.
-    }
-    if (result.title) doc._collabTitle = result.title;
-    // The user-facing tab title for a shared doc: host's filename + "(shared)".
-    // We can't easily override renderTabs here, but the .shared class adds a
-    // "(shared)" suffix via CSS — good enough for MVP.
-    closeJoinDialog();
-    // Capture the doc id so the canvas-mount .then() callback in renderActive
-    // knows which doc to bind Excalidraw to (the receiver canvas mounts async).
-    _collabDocId = doc.id;
-    // Bind the editor after renderActive builds it for the new tab.
-    // For Excalidraw tabs the binding is handled in the showExcalidraw .then()
-    // callback because the controller doesn't exist yet — rAF would race it.
-    requestAnimationFrame(() => {
-      if (!collab.getStatus().active) return;
-      const d = store.active();
-      if (!d || d.id !== doc.id) return;
-      try {
-        if (d.excalidraw && _activeExcalidraw && _activeExcalidrawDocId === d.id) {
-          collab.bindExcalidraw(_activeExcalidraw);
-        } else if (d.editor && !d.excalidraw) {
-          collab.bindEditor(d.editor);
-        }
-      } catch (e) { console.error('bind after join failed:', e); }
-    });
-    toast('Joined session');
-  } catch (err) {
-    if (_pendingInvite !== roomId) return;
-    el.joinStatus.textContent = (err?.message || String(err));
-    el.joinStatus.classList.add('error');
-    el.joinConfirmBtn.disabled = false;
-    el.joinConfirmBtn.textContent = 'Join';
-  }
-}
-
-function handleInviteUrl(url) {
-  const parsed = collab.parseInviteUrl(url);
-  if (!parsed) return;
-  if (collab.getStatus().active) {
-    toast('You are already in a collaboration session. End it first.');
-    return;
-  }
-  showJoinDialog(parsed.roomId);
-}
-
-// ---------- peer caret rendering ----------
-//
-// For each remote peer with a known caret offset, render a thin colored bar
-// at the corresponding character position in the textarea. We measure positions
-// via a hidden mirror <div> with the same font/padding — standard technique.
-
-let _caretMirror = null;
-function ensureCaretMirror() {
-  if (_caretMirror) return _caretMirror;
-  _caretMirror = document.createElement('div');
-  _caretMirror.className = 'collab-mirror';
-  _caretMirror.setAttribute('aria-hidden', 'true');
-  // Match the textarea's typography + box model exactly so the character
-  // bounding boxes line up. Pulled from getComputedStyle at render time.
-  const ta = el.editor;
-  const cs = getComputedStyle(ta);
-  _caretMirror.style.font = cs.font;
-  _caretMirror.style.fontSize = cs.fontSize;
-  _caretMirror.style.fontFamily = cs.fontFamily;
-  _caretMirror.style.lineHeight = cs.lineHeight;
-  _caretMirror.style.letterSpacing = cs.letterSpacing;
-  _caretMirror.style.whiteSpace = 'pre-wrap';
-  _caretMirror.style.wordWrap = 'break-word';
-  _caretMirror.style.padding = cs.padding;
-  _caretMirror.style.border = cs.border;
-  _caretMirror.style.boxSizing = cs.boxSizing;
-  _caretMirror.style.position = 'absolute';
-  _caretMirror.style.visibility = 'hidden';
-  _caretMirror.style.pointerEvents = 'none';
-  _caretMirror.style.zIndex = '-1';
-  // Width matches the textarea's content width (minus scrollbar).
-  _caretMirror.style.width = ta.clientWidth + 'px';
-  el.peerCarets.parentElement.appendChild(_caretMirror);
-  return _caretMirror;
-}
-
-function clearPeerCarets() {
-  if (el.peerCarets) el.peerCarets.innerHTML = '';
-}
-
-function renderPeerCarets(status) {
-  if (!el.peerCarets) return;
-  // Only render when the bound doc is the one currently visible.
-  const doc = store.active();
-  if (!doc || doc.id !== _collabDocId || !doc.editor) {
-    clearPeerCarets();
-    return;
-  }
-  const ta = el.editor;
-  if (!ta || ta.offsetParent === null) { clearPeerCarets(); return; }
-  const mirror = ensureCaretMirror();
-  // Mirror the textarea's current text + scroll so caret positions are correct.
-  mirror.textContent = ta.value;
-  mirror.scrollTop = ta.scrollTop;
-  mirror.scrollLeft = ta.scrollLeft;
-  // Remove carets for peers that no longer exist; add/update the rest.
-  const seenIds = new Set();
-  for (const peer of status.peers) {
-    if (typeof peer.caret !== 'number') continue;
-    seenIds.add(peer.id);
-    let node = el.peerCarets.querySelector(`[data-peer="${cssAttrEscape(peer.id)}"]`);
-    if (!node) {
-      node = document.createElement('div');
-      node.className = 'peer-caret';
-      node.dataset.peer = peer.id;
-      node.style.setProperty('--peer-color', peer.color || '#3b82f6');
-      const label = document.createElement('div');
-      label.className = 'peer-caret-label';
-      label.textContent = peer.name || 'Peer';
-      const bar = document.createElement('div');
-      bar.className = 'peer-caret-bar';
-      node.append(label, bar);
-      el.peerCarets.appendChild(node);
-    }
-    positionCaret(node, peer.caret, mirror, ta);
-  }
-  // Drop carets for peers not in the new status.
-  el.peerCarets.querySelectorAll('.peer-caret').forEach((n) => {
-    if (!seenIds.has(n.dataset.peer)) n.remove();
-  });
-}
-
-// Map a character offset in the textarea to a {left, top, height} rect in
-// peer-carets coordinate space, using the mirror element's caret rect.
-function positionCaret(node, offset, mirror, ta) {
-  // Place a sentinel span at the offset and measure its rect.
-  const text = mirror.textContent;
-  const safeOffset = Math.max(0, Math.min(offset, text.length));
-  const before = document.createTextNode(text.slice(0, safeOffset));
-  const marker = document.createElement('span');
-  marker.textContent = '\u200b'; // zero-width space — preserves layout
-  const after = document.createTextNode(text.slice(safeOffset));
-  mirror.replaceChildren(before, marker, after);
-  const markerRect = marker.getBoundingClientRect();
-  const taRect = ta.getBoundingClientRect();
-  const parentRect = el.peerCarets.getBoundingClientRect();
-  // Caret sits at the right edge of the marker.
-  const left = markerRect.right - parentRect.left;
-  const top = markerRect.top - parentRect.top;
-  node.style.transform = `translate(${left}px, ${top}px)`;
-  node.style.height = `${markerRect.height || 18}px`;
-}
-
-// Escape a string for use in a CSS attribute selector ([data-peer="…"]).
-function cssAttrEscape(s) {
-  return String(s).replace(/["\\]/g, '\\$&');
-}
-
-// The bound doc is being torn down (tab closed or app closing). End the
-// session cleanly and notify peers.
-function teardownCollabIfActive() {
-  if (collab.getStatus().active || wifiCollab.getWifiCollabStatus().active) {
-    collab.endSession();
-    wifiCollab.stopWifiCollab();
-    _collabDocId = null;
-  }
 }
 
 // ---------- daily note ----------
@@ -5536,71 +2418,6 @@ async function openDailyNote() {
     toast(`Created ${stamp}.md`);
   } catch (e) {
     toast('Could not create daily note: ' + fmtErr(e));
-  }
-}
-
-// v0.55.0: quick-capture inbox (Ctrl+Shift+I). Open the transient HUD; on
-// submit, format the entry, inject it under today's daily note's `## Inbox`
-// heading, save, refresh the active tab if it's that note (so the bullet
-// appears live), and mark a writing day for the streak chip.
-function openCaptureHud() {
-  if (!featureOn('capture')) return;
-  const stamp = todayStamp();
-  captureHud.open({
-    destination: `→ ${stamp}.md  (today's note)`,
-    onCapture: onCapture,
-  });
-}
-
-async function onCapture(rawText) {
-  const dir = await resolveNotesDir();
-  if (!dir) throw new Error('No notes folder set');
-  const stamp = todayStamp();
-  const sep = /[\\/]/.test(dir) && !dir.endsWith('/') && !dir.endsWith('\\') ? '\\' : '';
-  const path = `${dir}${sep}${stamp}.md`;
-  // Read existing note; if missing, seed it with the daily-note starter so the
-  // first capture of the day lands in a well-formed note.
-  let content;
-  try {
-    content = await invoke('read_file', { path });
-  } catch (e) {
-    const today = new Date();
-    const prettyDate = today.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-    content = `# ${stamp}\n\n*${prettyDate}*\n\n## \n\n`;
-  }
-  const entry = formatEntry(rawText);
-  const next = injectInbox(content, entry);
-  await invoke('save_file', { path, content: next });
-  // Mark a writing day for the streak chip (capture is one of the streak's
-  // inputs, alongside saving a daily note).
-  try { markWritingDay(); } catch { /* ignore */ }
-  // The capture modified today's daily note — drop the calendar memo so the
-  // dot / word-count chip renders on the next calendar view.
-  _calCacheKey = null; _calCache = null;
-  // If today's note is the active doc, refresh its buffer so the bullet appears.
-  const doc = store.active();
-  if (doc && doc.path === path) {
-    doc.content = next;
-    if (doc.editor && doc.mode === 'edit') doc.editor.setValue(next);
-    store.clearDirty(doc.id);
-    renderActive().catch((e) => console.error('[mdpeek] capture live refresh:', e));
-  } else {
-    toast('Captured to today\'s note');
-  }
-}
-
-// Resolve the notes dir: prefer the persisted mdpeek-notes-dir, fall back to
-// the OS default via get_default_notes_dir. Returns null if neither is set
-// (the caller surfaces an error). Mirrors the top of openDailyNote.
-async function resolveNotesDir() {
-  let dir = localStorage.getItem('mdpeek-notes-dir') || '';
-  if (dir) return dir;
-  try {
-    dir = await invoke('get_default_notes_dir');
-    if (dir) localStorage.setItem('mdpeek-notes-dir', dir);
-    return dir || '';
-  } catch (e) {
-    return '';
   }
 }
 
@@ -5651,40 +2468,6 @@ async function copyAsRichText() {
   }
 }
 
-// ---------- writing goal (v0.44.0) ----------
-// Set a word-count target for the active doc. The status bar then shows a
-// live chip with words written since the goal was set, turning green at 100%.
-function setWritingGoal() {
-  const doc = store.active();
-  if (!doc) { toast('Open a document first'); return; }
-  const cur = localStorage.getItem(GOAL_KEY) || '';
-  const raw = window.prompt('Set a word-count goal (words to write):', cur);
-  if (raw === null) return; // cancelled
-  const n = parseInt(raw, 10);
-  if (!Number.isFinite(n) || n <= 0) {
-    // Empty / invalid clears the goal.
-    localStorage.removeItem(GOAL_KEY);
-    localStorage.removeItem(SESSION_KEY);
-    updateEditorStatus();
-    toast('Writing goal cleared');
-    return;
-  }
-  // Snapshot the current word count so progress measures NEW words written.
-  const text = doc && doc.editor ? doc.editor.getValue() : (doc ? doc.content : '');
-  const { words } = wordCount(text);
-  localStorage.setItem(GOAL_KEY, String(n));
-  localStorage.setItem(SESSION_KEY, String(words));
-  updateEditorStatus();
-  toast(`Goal set: write ${n} words`);
-}
-
-function clearWritingGoal() {
-  localStorage.removeItem(GOAL_KEY);
-  localStorage.removeItem(SESSION_KEY);
-  updateEditorStatus();
-  toast('Writing goal cleared');
-}
-
 // ---------- copy as HTML source (v0.44.0) ----------
 // Sibling to copyAsRichText, but writes the rendered HTML source as plain text
 // (so you can paste it into a CMS, email source, or a code editor).
@@ -5721,7 +2504,7 @@ async function copyAsPlainText() {
 // dialog. Mirrors exportHtml but writes stripped text through save_file_as_text.
 async function exportPlainText() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.csv || doc.notebook || doc.media) {
+  if (!doc || doc.code || doc.csv) {
     toast('Export to text is for Markdown documents');
     return;
   }
@@ -5741,7 +2524,7 @@ async function exportPlainText() {
 // under mdpeek/ and is overwritten on the next open.
 async function openInBrowser() {
   const doc = store.active();
-  if (!doc || doc.pdf || doc.excalidraw || doc.tldraw || doc.code || doc.csv || doc.notebook || doc.media) {
+  if (!doc || doc.code || doc.csv) {
     toast('Open in browser is for Markdown documents');
     return;
   }
@@ -5842,61 +2625,6 @@ async function checkLinks() {
   brokenLinkPicker.open();
 }
 
-// ---------- per-document theme (v0.44.0) ----------
-// Pin a theme to one doc so it always renders in that palette regardless of
-// the global theme. The override lives in a path→themeId map (see doc-theme.js);
-// renderActive applies it on switch-in and restores the global on switch-away.
-let _appliedDocTheme = null; // themeId currently applied via per-doc override (null = global in use)
-
-function pinCurrentDocTheme() {
-  const doc = store.active();
-  if (!doc || !doc.path) { toast('Save the document first to pin a theme to it'); return; }
-  const current = getDocTheme(doc.path, localStorage) || (localStorage.getItem('mdpeek-theme') || 'light');
-  const raw = window.prompt(
-    `Pin a theme to "${basename(doc.path)}".\nTheme id (light, dark, dracula, nord, solar-light, solar-dark, github, github-dark, tokyo-night, catppuccin, oled):`,
-    current,
-  );
-  if (raw === null) return;
-  const id = raw.trim();
-  if (!id) return;
-  setDocTheme(doc.path, id, localStorage);
-  // Apply immediately so the user sees it. We use applyThemeVisuals (not
-  // applyThemeImpl) so we DON'T overwrite the global mdpeek-theme preference.
-  _appliedDocTheme = id;
-  applyThemeVisuals(id);
-  toast(`Pinned "${id}" to this document`);
-}
-
-function clearCurrentDocTheme() {
-  const doc = store.active();
-  if (!doc || !doc.path) return;
-  clearDocTheme(doc.path, localStorage);
-  // Restore the global theme.
-  const global = localStorage.getItem('mdpeek-theme') || 'light';
-  _appliedDocTheme = null;
-  applyThemeVisuals(global);
-  toast('Cleared this document\'s theme');
-}
-
-// Called from renderActive when switching docs: if the newly-active doc has a
-// pinned theme, apply it (visually only); otherwise restore the global. Kept
-// as a no-op when the override matches what's already showing.
-function syncDocThemeForActive() {
-  const doc = store.active();
-  const pinned = doc && doc.path ? getDocTheme(doc.path, localStorage) : null;
-  if (pinned) {
-    if (_appliedDocTheme !== pinned) {
-      _appliedDocTheme = pinned;
-      applyThemeVisuals(pinned);
-    }
-  } else if (_appliedDocTheme !== null) {
-    // Switching away from an overridden doc → restore the global.
-    const global = localStorage.getItem('mdpeek-theme') || 'light';
-    _appliedDocTheme = null;
-    applyThemeVisuals(global);
-  }
-}
-
 // ---------- back / forward navigation ----------
 // Walk the doc history (browser-style). Suppression during the walk prevents
 // the 'change' event from re-pushing the destination onto the stack.
@@ -5928,7 +2656,7 @@ function updateNavButtons() {
 // ---------- sidebar (TOC) toggle & visibility ----------
 function syncSidebarVisibility() {
   const doc = store.active();
-  const hasToc = doc && doc.content.trim() && !doc.pdf && !doc.image && !doc.excalidraw && !doc.tldraw && !doc.code && !doc.csv && !doc.plain && !doc.notebook && !doc.media && doc.mode === 'view';
+  const hasToc = doc && doc.content.trim() && !doc.image && !doc.code && !doc.csv && !doc.plain && doc.mode === 'view';
   
   if (!hasToc) {
     el.toc.classList.add('collapsed');
@@ -5943,7 +2671,7 @@ function syncSidebarVisibility() {
 
 function toggleSidebar() {
   const doc = store.active();
-  const hasToc = doc && doc.content.trim() && !doc.pdf && !doc.image && !doc.excalidraw && !doc.tldraw && !doc.code && !doc.csv && !doc.plain && !doc.notebook && !doc.media && doc.mode === 'view';
+  const hasToc = doc && doc.content.trim() && !doc.image && !doc.code && !doc.csv && !doc.plain && doc.mode === 'view';
   if (!hasToc) return;
 
   const collapsed = el.toc.classList.toggle('collapsed');
@@ -6385,97 +3113,13 @@ const folderSearch = initFolderSearch(
   },
 );
 
-// v0.45.0: tag pane. Clicking a tag chip pre-seeds folder-search with `#tag`
-// against the current explorer root. Tags are gathered via acListTags (the
-// same cache the autocomplete uses).
-const tagPane = initTagPane((tag) => {
-  const root = localStorage.getItem('mdpeek-explorer-root');
-  if (!root) { toast('Open a folder first'); return; }
-  // Close the tag pane so the search results are visible.
-  tagPane.close();
-  folderSearch.searchWith(root, `#${tag}`);
-});
-
 // v0.50.0: Find-in-folder — a first-class entry point to the content search
-// (grep) that already powers backlinks + tags. Surfaces it as a palette command
-// + Ctrl+Shift+F. Reuses folderSearch.searchWith, so zero new search logic.
+// (grep). Surfaces it as a palette command + Ctrl+Shift+F. Reuses
+// folderSearch.searchWith, so zero new search logic.
 function findInFolder() {
   const root = localStorage.getItem('mdpeek-explorer-root');
   if (!root) { toast('Open a folder first'); return; }
   folderSearch.searchWith(root, '');
-}
-
-async function refreshTagPane() {
-  if (!tagPane?.render) return;
-  const tags = await acListTags();
-  tagPane.render(tags);
-}
-
-async function toggleTagPane() {
-  if (!tagPane?.open) return;
-  // Toggle: if open, close; if closed, refresh + open.
-  const overlay = document.getElementById('tag-pane');
-  if (overlay && !overlay.classList.contains('hidden')) {
-    tagPane.close();
-    return;
-  }
-  const root = localStorage.getItem('mdpeek-explorer-root');
-  if (!root) { toast('Open a folder to gather tags'); return; }
-  await refreshTagPane();
-  tagPane.open();
-}
-
-// v0.45.0: side-by-side reference pane. Keep a second doc rendered read-only
-// beside the active editor. _referenceDocId holds the chosen doc's id; the
-// pane reads it back via getContent so it stays fresh when the doc changes.
-let _referenceDocId = null;
-const referencePane = initReferencePane({
-  getContent: () => {
-    const doc = store.docs.find((d) => d.id === _referenceDocId);
-    if (!doc) return null;
-    const content = doc.mode === 'edit' && doc.editor ? doc.editor.getValue() : doc.content;
-    const name = doc.path ? doc.path.replace(/[\\/]/g, ' / ').split(' / ').pop() : docDisplayName(doc);
-    return { name, content: content || '' };
-  },
-  onNavigate: () => { openReferencePicker(); },
-});
-
-// Picker to choose which open doc to show in the reference pane. Reuses the
-// quick-switcher shape against the open tabs.
-function openReferencePicker() {
-  if (!referencePicker?.setItems) return;
-  const items = store.docs
-    // v0.68.0: only text-ish docs render usefully in the pane — canvases and
-    // binary viewers would show raw JSON or nothing.
-    .filter((d) => !d.excalidraw && !d.tldraw && !d.notebook && !d.media && !d.pdf && !d.image && !d.csv)
-    .map((d) => {
-      const name = d.path ? d.path.replace(/[\\/]/g, ' / ').split(' / ').pop() : docDisplayName(d);
-      return { label: name, hint: d.id === store.activeId ? 'active' : '', keywords: name, _id: d.id };
-    });
-  if (items.length === 0) { toast('Open a second doc to use as a reference'); return; }
-  referencePicker.setItems(items);
-  referencePicker.open();
-}
-const referencePicker = initQuickSwitcher(
-  () => [],
-  (item) => {
-    if (!item || !item._id) return;
-    _referenceDocId = item._id;
-    referencePane.open();
-  },
-  { placeholder: 'Pick a reference document…', ariaLabel: 'Reference pane' },
-);
-
-function openBeside() {
-  // If a reference doc is already chosen, just toggle the pane; otherwise
-  // open the picker so the user picks one.
-  const overlay = document.getElementById('reference-pane');
-  if (overlay && !overlay.classList.contains('hidden')) { referencePane.close(); return; }
-  if (_referenceDocId && store.docs.find((d) => d.id === _referenceDocId)) {
-    referencePane.open();
-  } else {
-    openReferencePicker();
-  }
 }
 
 async function openFolderForExplorer() {
@@ -6637,89 +3281,9 @@ function rebuildDocStats() {
     ['Reading time', s.readMins > 0 ? `${s.readMins} min` : '—'],
     ['Speaking time', s.speakMins > 0 ? `${s.speakMins} min` : '—'],
   ];
-  // v0.46.0: word-insights subsection — top words + lexical diversity. Gated on
-  // the mdpeek-doc-insights setting (default on).
-  const wantInsights = localStorage.getItem('mdpeek-doc-insights') !== '0';
-  let insightsHtml = '';
-  if (wantInsights) {
-    const ins = computeInsights(text, { topN: 8 });
-    const topChips = ins.topWords
-      .map(({ word, n }) => `<span class="stat-chip">${escapeHtml(word)} <em>${n}</em></span>`)
-      .join('');
-    insightsHtml =
-      `<div class="stat-section-title">Word insights</div>` +
-      `<div class="stat-chips">${topChips || '<span class="stat-empty">No words yet</span>'}</div>` +
-      `<div class="stat-label">Unique words</div><div class="stat-value">${ins.uniqueWords.toLocaleString()}</div>` +
-      `<div class="stat-label">Lexical diversity</div><div class="stat-value">${ins.lexicalDiversity}</div>` +
-      `<div class="stat-label">Longest sentence</div><div class="stat-value">${ins.longestSentence} words</div>`;
-  }
-  // v0.50.0: readability subsection — Flesch Reading Ease + grade level. Gated
-  // on the mdpeek-doc-readability setting (default on).
-  const wantReadability = localStorage.getItem('mdpeek-doc-readability') !== '0';
-  let readabilityHtml = '';
-  if (wantReadability && s.words > 0) {
-    const r = computeReadability(text);
-    readabilityHtml =
-      `<div class="stat-section-title">Readability</div>` +
-      `<div class="stat-label">Reading ease</div><div class="stat-value">${r.fleschEase} <em class="stat-hint">(${escapeHtml(r.label)})</em></div>` +
-      `<div class="stat-label">Grade level</div><div class="stat-value">${r.gradeLevel}</div>` +
-      `<div class="stat-label">Avg syllables / word</div><div class="stat-value">${r.avgSyllables}</div>` +
-      `<div class="stat-label">Complex words (3+ syl)</div><div class="stat-value">${r.complexWords.toLocaleString()}</div>`;
-  }
   statsBody.innerHTML = rows
     .map(([label, value]) => `<div class="stat-label">${escapeHtml(label)}</div><div class="stat-value">${escapeHtml(value)}</div>`)
-    .join('') + insightsHtml + readabilityHtml;
-}
-
-// v0.50.0: toggle the readability subsection of the stats panel.
-function toggleReadability() {
-  const doc = store.active();
-  if (!doc) { toast('Open a document first'); return; }
-  if (doc.mode !== 'edit') {
-    toast('Switch to edit mode to see statistics');
-    return;
-  }
-  const currentlyOn = localStorage.getItem('mdpeek-doc-readability') !== '0';
-  localStorage.setItem('mdpeek-doc-readability', currentlyOn ? '0' : '1');
-  // Ensure the stats panel is open so the toggle is visible.
-  if (statsEl?.classList.contains('hidden')) setDocStatsVisible(true);
-  else rebuildDocStats();
-  toast(currentlyOn ? 'Readability score hidden' : 'Readability score shown');
-}
-
-// v0.53.0: toggle the visual prose-highlights overlay on the rendered view.
-// Opt-in (default off). Re-renders the active doc so the change shows at once
-// (mirrors the code-line-numbers toggle). A no-op toast in edit mode, since
-// the overlay only applies to the rendered view / reading mode.
-function toggleProseHighlights() {
-  const doc = store.active();
-  if (!doc) { toast('Open a document first'); return; }
-  const currentlyOn = localStorage.getItem('mdpeek-prose-highlights') === '1';
-  localStorage.setItem('mdpeek-prose-highlights', currentlyOn ? '0' : '1');
-  renderActive().catch((err) => console.error('[mdpeek] prose-highlights re-render:', err));
-  toast(currentlyOn ? 'Prose highlights off' : 'Prose highlights on');
-}
-
-// v0.55.0: toggle the word-frequency underline overlay (mirrors prose-highlights).
-function toggleWordFreqUnderline() {
-  const doc = store.active();
-  if (!doc) { toast('Open a document first'); return; }
-  const currentlyOn = localStorage.getItem('mdpeek-wordfreq-underline') === '1';
-  localStorage.setItem('mdpeek-wordfreq-underline', currentlyOn ? '0' : '1');
-  renderActive().catch((err) => console.error('[mdpeek] wordfreq re-render:', err));
-  toast(currentlyOn ? 'Word-frequency underline off' : 'Word-frequency underline on');
-}
-
-// v0.55.0: open the word-frequency popover. Computes topWords from the active
-// doc's prose (raw markdown source with code stripped). Clicking a word just
-// closes the popover — the in-doc find bar has no "seed with query" API today,
-// so navigation is left for a future enhancement.
-function openWordFreqPopover() {
-  const doc = store.active();
-  if (!doc) { toast('Open a document first'); return; }
-  const text = doc.mode === 'edit' && doc.editor ? doc.editor.getValue() : doc.content;
-  const items = topWords(text, { limit: 20 });
-  wordFreqPopover.open({ items, onWord: (word) => { wordFreqPopover.close(); if (word) find.openWithQuery(word); } });
+    .join('');
 }
 
 function setDocStatsVisible(on) {
@@ -6791,49 +3355,16 @@ function updateEditorStatus() {
     posHtml = `<span class="status-sep" aria-hidden="true">·</span><span class="status-pos">Ln ${line}, Col ${col}</span>`;
   }
 
-  // Writing-goal chip (v0.44.0). Reflects words written since the goal was
-  // set, against the target. Turns green when the goal is met.
-  let goalHtml = '';
-  let p = null;
-  const goalRaw = localStorage.getItem(GOAL_KEY);
-  if (goalRaw) {
-    const sessionWords = parseInt(localStorage.getItem(SESSION_KEY) || '0', 10);
-    p = goalProgress(words, goalRaw, sessionWords);
-    if (p) {
-      const cls = p.done ? 'status-goal done' : 'status-goal';
-      goalHtml = `<span class="status-sep" aria-hidden="true">·</span><span class="${cls}" title="Words written since goal was set">🎯 ${formatGoalChip(p)}</span>`;
-    }
-  }
-
-  // Writing-day streak chip removed from chrome to maximize document focus.
-  let streakHtml = '';
-
   el.editorStatus.innerHTML =
     `<span>${fmtNum(words)} words</span>` +
     `<span class="status-sep" aria-hidden="true">·</span>` +
     `<span>${fmtNum(chars)} chars</span>` +
     selHtml +
-    goalHtml +
-    streakHtml +
     (readMins > 0 && !selHtml
       ? `<span class="status-sep" aria-hidden="true">·</span><span>~${readMins} min read</span>`
       : '') +
     posHtml +
     `<span class="save-status" data-state="${savedState}" style="margin-left:auto">${savedLabel}</span>`;
-
-  // Rich chip presentation: goal milestone flashes + streak tier flame.
-  // prevPct rides a dataset flag so re-renders at the same pct never reflash.
-  const goalEl = el.editorStatus.querySelector('.status-goal');
-  if (goalEl && p) {
-    try {
-      applyGoalChipPresentation(goalEl, Number(el.editorStatus.dataset.prevGoalPct || '0'), p);
-    } catch (e) { console.error('[mdpeek] goalChip:', e); }
-  }
-  el.editorStatus.dataset.prevGoalPct = String(p ? p.pct : 0);
-  const streakEl = el.editorStatus.querySelector('.status-streak');
-  if (streakEl) {
-    try { applyStreakChipPresentation(streakEl, currentStreak()); } catch (e) { console.error('[mdpeek] streakChip:', e); }
-  }
 }
 
 // ---------- reading progress bar ----------
@@ -6900,8 +3431,6 @@ function baseFontPx() {
   return parseInt(localStorage.getItem('mdpeek-base-font'), 10) || 15;
 }
 
-let _pdfZoomTimer = null;
-
 function applyZoom() {
   const px = (baseFontPx() * zoomLevel).toFixed(1) + 'px';
   document.documentElement.style.setProperty('--content-font-size', px);
@@ -6918,17 +3447,6 @@ function applyZoom() {
   }
   if (_activeImage && typeof _activeImage.rerender === 'function') {
     _activeImage.rerender();
-  }
-  if (_activePdf && typeof _activePdf.rerenderAll === 'function') {
-    clearTimeout(_pdfZoomTimer);
-    _pdfZoomTimer = setTimeout(() => {
-      if (_activePdf && typeof _activePdf.rerenderAll === 'function') {
-        _activePdf.rerenderAll().catch(() => {});
-      }
-    }, 50);
-  }
-  if (terminal && typeof terminal.updateZoom === 'function') {
-    terminal.updateZoom(zoomLevel);
   }
 }
 
@@ -7104,19 +3622,12 @@ document.addEventListener('selectionchange', () => {
 // ---------- events ----------
 el.open.addEventListener('click', openFileDialog);
 el.save.addEventListener('click', saveActive);
-if (el.export) el.export.addEventListener('click', () => {
-  // v0.68.0: drawing tabs export their canvas (PNG/SVG) instead of HTML.
-  const d = store.active();
-  if (d && (d.excalidraw || d.tldraw)) { exportCanvas(); return; }
-  exportHtml();
-});
+el.mode.addEventListener('click', toggleMode);
+if (el.export) el.export.addEventListener('click', exportHtml);
 if (el.exportPdf) el.exportPdf.addEventListener('click', exportPdf);
 document.getElementById('btn-copy-html')?.addEventListener('click', copyAsHtml);
 document.getElementById('btn-copy-plaintext')?.addEventListener('click', copyAsPlainText);
 document.getElementById('btn-open-browser')?.addEventListener('click', openInBrowser);
-document.getElementById('btn-pin-doc-theme')?.addEventListener('click', pinCurrentDocTheme);
-document.getElementById('btn-clear-doc-theme')?.addEventListener('click', clearCurrentDocTheme);
-if (el.present) el.present.addEventListener('click', togglePresentation);
 if (el.reading) el.reading.addEventListener('click', toggleReading);
 // Reader overlay control buttons. Each is a no-op if Reading Mode isn't open
 // (defensive — the buttons are inside the hidden overlay anyway).
@@ -7127,8 +3638,6 @@ document.getElementById('reader-font-prev')?.addEventListener('click', () => rea
 document.getElementById('reader-font-next')?.addEventListener('click', () => readerCycleFont(1));
 document.getElementById('reader-theme')?.addEventListener('click', readerCycleTheme);
 document.getElementById('reader-font-family')?.addEventListener('click', readerCycleFontFamily);
-// v0.34.1: visible style-toggle button in the slideshow overlay (was S-key only).
-document.getElementById('slide-style-btn')?.addEventListener('click', toggleSlideStyle);
 
 // v0.67.0: floating back-to-top button for long documents. Appears after
 // 400px of scroll in the document pane.
@@ -7142,747 +3651,13 @@ document.getElementById('slide-style-btn')?.addEventListener('click', toggleSlid
     el.document.scrollTo({ top: 0, behavior: 'smooth' });
   });
 })();
-// Visible exit button (Esc was previously the only way out).
-document.getElementById('slide-exit-btn')?.addEventListener('click', exitPresentation);
-if (el.share) el.share.addEventListener('click', openShareModal);
-if (el.shareCopyBtn) el.shareCopyBtn.addEventListener('click', copyShareLink);
-if (el.shareCancelBtn) el.shareCancelBtn.addEventListener('click', closeShareModal);
-// v1.6.2: header ✕ replaces the old bottom "Hide panel" button — dismissive
-// actions belong top-right, End session stays the only footer action.
-if (el.shareCloseBtn) el.shareCloseBtn.addEventListener('click', closeShareModal);
-
-// Wi-Fi & iPad Collaboration tabs & actions (v1.6.0)
-if (el.shareTabWifi) {
-  el.shareTabWifi.addEventListener('click', () => {
-    el.shareTabWifi.classList.add('active');
-    el.shareTabWifi.setAttribute('aria-selected', 'true');
-    el.shareTabP2p?.classList.remove('active');
-    el.shareTabP2p?.setAttribute('aria-selected', 'false');
-    el.sharePanelWifi?.classList.remove('hidden');
-    el.sharePanelP2p?.classList.add('hidden');
-  });
-}
-if (el.shareTabP2p) {
-  el.shareTabP2p.addEventListener('click', () => {
-    el.shareTabP2p.classList.add('active');
-    el.shareTabP2p.setAttribute('aria-selected', 'true');
-    el.shareTabWifi?.classList.remove('active');
-    el.shareTabWifi?.setAttribute('aria-selected', 'false');
-    el.sharePanelP2p?.classList.remove('hidden');
-    el.sharePanelWifi?.classList.add('hidden');
-  });
-}
-if (el.wifiCopyBtn) {
-  el.wifiCopyBtn.addEventListener('click', () => {
-    if (!el.wifiLinkInput || !el.wifiLinkInput.value) return;
-    navigator.clipboard.writeText(el.wifiLinkInput.value).then(() => {
-      const orig = el.wifiCopyBtn.textContent;
-      el.wifiCopyBtn.textContent = 'Copied!';
-      setTimeout(() => { el.wifiCopyBtn.textContent = orig; }, 1800);
-    }).catch(() => {
-      el.wifiLinkInput.select();
-    });
-  });
-}
-// v1.6.2: the companion iframe used to sit on a black void while loading (or
-// forever, if the server was down). Probe the companion URL first, show a
-// loading state while the frame navigates, and surface a retryable error
-// when the server can't be reached.
-function setWifiPreviewState(state) {
-  el.wifiPreviewLoading?.classList.toggle('hidden', state !== 'loading');
-  el.wifiPreviewError?.classList.toggle('hidden', state !== 'error');
-}
-function syncWifiPreviewBadge() {
-  if (!el.wifiPreviewBadge) return;
-  const wifiStatus = wifiCollab.getWifiCollabStatus();
-  const connected = wifiStatus.peerCount > 0;
-  el.wifiPreviewBadge.textContent = connected ? 'Live Sync' : 'Waiting for device…';
-  el.wifiPreviewBadge.classList.toggle('is-waiting', !connected);
-}
-function loadWifiPreviewFrame() {
-  const url = el.wifiLinkInput?.value;
-  if (!url || url.startsWith('Starting') || url.startsWith('Generating')) return;
-  setWifiPreviewState('loading');
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 4000);
-  // no-cors: we can't read the response, but a resolve proves the server is
-  // up; a reject means unreachable (server down / wrong network).
-  fetch(url, { mode: 'no-cors', signal: controller.signal })
-    .then(() => {
-      clearTimeout(timer);
-      if (el.wifiPreviewFrame) el.wifiPreviewFrame.src = url;
-    })
-    .catch(() => {
-      clearTimeout(timer);
-      if (el.wifiPreviewFrame) el.wifiPreviewFrame.src = 'about:blank';
-      setWifiPreviewState('error');
-    });
-}
-function openWifiPreview() {
-  const url = el.wifiLinkInput?.value;
-  if (!url || url.startsWith('Starting') || url.startsWith('Generating')) return;
-  if (el.wifiPreviewDialog) {
-    el.wifiPreviewDialog.classList.remove('hidden');
-    syncModalFocus();
-    el.wifiPreviewClose?.focus();
-  }
-  syncWifiPreviewBadge();
-  loadWifiPreviewFrame();
-}
-
-function closeWifiPreview() {
-  if (el.wifiPreviewDialog) {
-    el.wifiPreviewDialog.classList.add('hidden');
-  }
-  if (el.wifiPreviewFrame) {
-    el.wifiPreviewFrame.src = 'about:blank';
-  }
-  setWifiPreviewState('idle');
-  syncModalFocus();
-  (el.wifiOpenBtn || el.wifiCopyBtn)?.focus();
-}
-
-if (el.wifiOpenBtn) {
-  el.wifiOpenBtn.addEventListener('click', openWifiPreview);
-}
-if (el.wifiPreviewClose) {
-  el.wifiPreviewClose.addEventListener('click', closeWifiPreview);
-}
-if (el.wifiPreviewRetry) {
-  el.wifiPreviewRetry.addEventListener('click', loadWifiPreviewFrame);
-}
-// The companion page loaded → drop the spinner. about:blank navigations
-// (close/reset) shouldn't clear an in-flight loading state.
-if (el.wifiPreviewFrame) {
-  el.wifiPreviewFrame.addEventListener('load', () => {
-    const visible = el.wifiPreviewDialog && !el.wifiPreviewDialog.classList.contains('hidden');
-    const src = el.wifiPreviewFrame.getAttribute('src') || '';
-    if (visible && src && src !== 'about:blank') setWifiPreviewState('idle');
-  });
-}
-el.wifiPreviewDialog?.addEventListener('click', (e) => {
-  if (e.target === el.wifiPreviewDialog) closeWifiPreview();
-});
-
-// Scrim click closes, matching the settings dialog's behavior.
-el.shareDialog?.addEventListener('click', (e) => {
-  if (e.target === el.shareDialog) closeShareModal();
-});
-if (el.shareEndBtn) el.shareEndBtn.addEventListener('click', endCollabSession);
-if (el.joinConfirmBtn) el.joinConfirmBtn.addEventListener('click', confirmJoin);
-if (el.joinCancelBtn) el.joinCancelBtn.addEventListener('click', cancelJoin);
-for (const [dialog, close] of [
-  [el.shareDialog, closeShareModal],
-  [el.joinDialog, cancelJoin],
-  [el.wifiPreviewDialog, closeWifiPreview],
-]) {
-  dialog?.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
-  });
-}
-if (el.collabStatus) el.collabStatus.addEventListener('click', (e) => {
-  // The × button has its own handler; don't double-handle.
-  if (e.target === el.collabEnd) return;
-  openShareModal();
-});
-// The pill is focusable (tabindex in index.html) — Enter/Space open the panel.
-// The inner × is a real <button> and handles its own keys.
-if (el.collabStatus) el.collabStatus.addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter' && e.key !== ' ') return;
-  if (e.target === el.collabEnd) return;
-  e.preventDefault();
-  openShareModal();
-});
-if (el.collabEnd) el.collabEnd.addEventListener('click', (e) => {
-  e.stopPropagation();
-  endCollabSession();
-});
 if (el.daily) el.daily.addEventListener('click', openDailyNote);
 
-// ---------- Kanban event wiring ----------
-// Open button + Done button. Esc-to-close is handled in the global keydown
-// listener (see "Ctrl+Shift+K → open the global Kanban board" below — the Esc
-// branch sits in the same handler). No click-outside-to-close because the
-// Kanban is a full-page view, not an overlay.
-if (el.kanban) el.kanban.addEventListener('click', openKanban);
-if (el.kanbanDoneBtn) el.kanbanDoneBtn.addEventListener('click', closeKanban);
-
-const kanbanClearDoneBtn = document.getElementById('kanban-clear-done-btn');
-if (kanbanClearDoneBtn) kanbanClearDoneBtn.addEventListener('click', clearDoneKanbanTasks);
-
-const kanbanSearchInput = document.getElementById('kanban-search-input');
-if (kanbanSearchInput) {
-  kanbanSearchInput.addEventListener('input', (e) => {
-    _kanbanFilter = e.target.value;
-    if (_wsMode === 'board') renderKanban();
-    else if (_wsMode === 'tasks') renderTasks();
-  });
-}
-
-// ---------- Workspace hub event wiring (v0.33.0) ----------
-// Mode tabs
-if (el.workspaceTabs) {
-  el.workspaceTabs.addEventListener('click', (e) => {
-    const tab = e.target.closest('.workspace-tab');
-    if (tab) setWorkspaceMode(tab.dataset.mode);
-  });
-}
-// Refresh button (re-scan notes for Tasks/Review)
-if (el.workspaceRefresh) {
-  el.workspaceRefresh.addEventListener('click', () => {
-    _tasksNoteScan = null;
-    _reviewScan = null;
-    _calCacheKey = null; _calCache = null;
-    _graphCache = null;
-    // v0.70.0: a cold graph rebuild also drops dragged positions + the view
-    // transform (renderGraph does this too on any cache miss — belt and
-    // suspenders so Refresh always feels like a fresh layout).
-    _graphPositions.clear();
-    _graphView = { tx: 0, ty: 0, k: 1 };
-    toast('Re-scanning notes…');
-    if (_wsMode === 'tasks') renderTasks();
-    else if (_wsMode === 'review') renderReview();
-    else if (_wsMode === 'calendar') renderCalendar();
-    else if (_wsMode === 'graph') renderGraph();
-  });
-}
-
-// Calendar nav
-if (el.calPrev) el.calPrev.addEventListener('click', () => { stepMonth(-1); });
-if (el.calNext) el.calNext.addEventListener('click', () => { stepMonth(1); });
-// v0.67.0: click the month label to jump — picker over the last 18 and next
-// 12 months (nearest first), instead of clicking prev 8 times.
-const calJumpPicker = makePicker({
-  id: 'cal-jump-picker',
-  placeholder: 'Jump to month…',
-  getItems: () => {
-    const now = new Date();
-    const items = [];
-    for (let off = -18; off <= 12; off++) {
-      const d = new Date(now.getFullYear(), now.getMonth() + off, 1);
-      items.push({ label: monthLabel(d.getFullYear(), d.getMonth()), hint: String(d.getFullYear()), ym: `${d.getFullYear()}:${d.getMonth()}` });
-    }
-    return items.reverse(); // nearest first
-  },
-  onSelect: (item) => {
-    const [y, m] = String(item.ym).split(':').map(Number);
-    _calYear = y;
-    _calMonth = m;
-    renderCalendar();
-  },
-});
-const calLabelEl = document.getElementById('cal-label');
-if (calLabelEl) {
-  calLabelEl.setAttribute('tabindex', '0');
-  calLabelEl.setAttribute('role', 'button');
-  calLabelEl.title = 'Jump to month';
-  calLabelEl.addEventListener('click', () => calJumpPicker.open());
-  calLabelEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      calJumpPicker.open();
-    }
-  });
-}
-if (el.calToday) el.calToday.addEventListener('click', () => {
-  const n = new Date();
-  _calYear = n.getFullYear();
-  _calMonth = n.getMonth();
-  renderCalendar();
-});
-if (el.calGrid) {
-  el.calGrid.addEventListener('click', (e) => {
-    const cell = e.target.closest('.cal-day');
-    if (cell) openDailyNoteAt(cell.dataset.stamp);
-  });
-  el.calGrid.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      const cell = e.target.closest('.cal-day');
-      if (cell) { e.preventDefault(); openDailyNoteAt(cell.dataset.stamp); }
-    }
-  });
-}
-function stepMonth(delta) {
-  _calMonth += delta;
-  if (_calMonth < 0) { _calMonth = 11; _calYear--; }
-  else if (_calMonth > 11) { _calMonth = 0; _calYear++; }
-  renderCalendar();
-}
-
-// Tasks: click row → open source (for notes) or do nothing special (kanban);
-// click checkbox → toggle done.
-if (el.tasksList) {
-  el.tasksList.addEventListener('click', async (e) => {
-    const check = e.target.closest('.task-check');
-    const row = e.target.closest('.task-row');
-    if (!row) return;
-    const id = row.dataset.id;
-    if (check) {
-      e.stopPropagation();
-      if (id.startsWith('kanban:')) {
-        const taskId = id.slice('kanban:'.length);
-        const t = _kanbanTasks.find((x) => x.id === taskId);
-        if (t) moveKanbanTask(taskId, t.status === 'done' ? 'todo' : 'done');
-        renderTasks();
-      } else if (id.startsWith('note:')) {
-        // note:<path>:<line>
-        const rest = id.slice('note:'.length);
-        const lastColon = rest.lastIndexOf(':');
-        const path = rest.slice(0, lastColon);
-        const line = Number(rest.slice(lastColon + 1));
-        const wasDone = check.classList.contains('checked');
-        const ok = await toggleNoteCheckbox(path, line, wasDone);
-        if (ok) {
-          _tasksNoteScan = null; // force rescan on next render
-          renderTasks();
-          toast(wasDone ? 'Marked open' : 'Marked done');
-        } else {
-          toast('Could not update note (line changed?)');
-        }
-      }
-      return;
-    }
-    // Row click → jump to source (notes only).
-    if (id.startsWith('note:')) {
-      const rest = id.slice('note:'.length);
-      const lastColon = rest.lastIndexOf(':');
-      const path = rest.slice(0, lastColon);
-      openPath(path);
-      closeKanban();
-    }
-  });
-}
-if (el.tasksSort) {
-  el.tasksSort.addEventListener('change', renderTasks);
-}
-if (el.tasksFilter) el.tasksFilter.addEventListener('change', renderTasks);
-
-// Review: click card to reveal, rate buttons to schedule.
-if (el.reviewStage) {
-  el.reviewStage.addEventListener('click', (e) => {
-    const card = e.target.closest('#review-card');
-    const rate = e.target.closest('.review-rate');
-    const src = e.target.closest('.review-source');
-    if (rate) { rateCard(rate.dataset.rate); return; }
-    if (src) {
-      const path = src.dataset.src;
-      if (path) { openPathAndJump(path, Number(src.dataset.line) || 1); closeKanban(); }
-      return;
-    }
-    if (card && !_reviewRevealed) {
-      _reviewRevealed = true;
-      renderReviewCard();
-    }
-  });
-}
-
-// v0.67.0: review session keyboard operation — Space/Enter reveals the
-// answer, 1-4 rate (again/hard/good/easy). Skips inputs so typing elsewhere
-// is unaffected.
-document.addEventListener('keydown', (e) => {
-  if (e.defaultPrevented) return;
-  if (!document.body.classList.contains('kanban-mode') || _wsMode !== 'review') return;
-  const t = e.target;
-  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
-  if (e.key === ' ' || e.key === 'Enter') {
-    if (_reviewRevealed) return;
-    e.preventDefault();
-    _reviewRevealed = true;
-    renderReviewCard();
-    return;
-  }
-  if (_reviewRevealed) {
-    const ratings = { '1': 'again', '2': 'hard', '3': 'good', '4': 'easy' };
-    if (ratings[e.key]) {
-      e.preventDefault();
-      rateCard(ratings[e.key]);
-    }
-  }
-});
-
-// Graph node click → open the note + close the hub (v0.50.0). v0.70.0 added
-// pan/zoom/drag: pointerdown arms a pan or a node drag (threshold-gated so
-// plain clicks still open notes), wheel zooms toward the cursor, and a
-// double-click on empty canvas resets the view.
-if (el.graphSvg) {
-  el.graphSvg.addEventListener('click', onGraphClick);
-  el.graphSvg.addEventListener('pointerdown', graphPointerDown);
-  // Plain wheel AND Ctrl+wheel both zoom; preventDefault keeps the page from
-  // scrolling while the cursor is over the canvas. Non-passive on purpose.
-  el.graphSvg.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    graphZoomAt(el.graphSvg, e.clientX, e.clientY, Math.exp(-e.deltaY * 0.0015));
-  }, { passive: false });
-  // Double-click EMPTY canvas = reset view. Double-clicking a node stays a
-  // plain click-open (the first click already handled it).
-  el.graphSvg.addEventListener('dblclick', (e) => {
-    if (!e.target.closest('[data-node-id]')) resetGraphView();
-  });
-  // v0.71.0: delegated hover highlighting + tooltip (one listener pair for all
-  // nodes — see graphPointerOver/graphPointerOut).
-  el.graphSvg.addEventListener('pointerover', graphPointerOver);
-  el.graphSvg.addEventListener('pointerout', graphPointerOut);
-}
-// v0.71.0: Esc exits pinned focus. The capture-phase global keymap owns Esc
-// while the hub is open (it unpins before closing); this bubble handler stays
-// as a fallback for events that never reach the keymap.
-document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape' || !_graphPinId) return;
-  if (!document.body.classList.contains('kanban-mode') || _wsMode !== 'graph') return;
-  // Focus inside the filter box: its own Esc-clear handles it instead.
-  const t = e.target;
-  if (t && t.id === 'graph-search-input') return;
-  e.preventDefault();
-  e.stopImmediatePropagation(); // keep the global handler from closing the hub
-  clearGraphPin();
-});
-// v0.71.0: dedicated node-filter box overlaid on the canvas. Live on input,
-// debounced ~150ms; Esc clears first (stopPropagation keeps this from also
-// exiting a pin or closing the workspace hub).
-const graphSearchInput = document.getElementById('graph-search-input');
-graphSearchInput?.addEventListener('input', () => {
-  clearTimeout(_graphSearchTimer);
-  _graphSearchTimer = setTimeout(applyGraphFilter, 150);
-});
-graphSearchInput?.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape') return;
-  e.stopPropagation();
-  e.preventDefault();
-  clearTimeout(_graphSearchTimer);
-  graphSearchInput.value = '';
-  applyGraphFilter();
-  graphSearchInput.blur();
-});
-// v0.70.0: floating zoom controls (bottom-right of the canvas). Zoom steps
-// anchor at the canvas center via the same math as wheel zoom.
-document.getElementById('graph-zoom-in')?.addEventListener('click', () => {
-  const r = el.graphSvg?.getBoundingClientRect();
-  if (r) graphZoomAt(el.graphSvg, r.left + r.width / 2, r.top + r.height / 2, 1.25);
-});
-document.getElementById('graph-zoom-out')?.addEventListener('click', () => {
-  const r = el.graphSvg?.getBoundingClientRect();
-  if (r) graphZoomAt(el.graphSvg, r.left + r.width / 2, r.top + r.height / 2, 0.8);
-});
-document.getElementById('graph-zoom-reset')?.addEventListener('click', resetGraphView);
-// v0.67.0: graph controls — hide-unlinked toggle + re-layout on window resize
-// (the SVG used to stay clipped to the old viewBox after resizing).
-document.getElementById('graph-hide-orphans')?.addEventListener('change', renderGraph);
-let _graphResizeTimer = null;
-window.addEventListener('resize', () => {
-  if (_wsMode !== 'graph') return;
-  clearTimeout(_graphResizeTimer);
-  _graphResizeTimer = setTimeout(() => renderGraph(), 200);
-});
-
-// Pomodoro pill
-// v0.67.0: skip + reset controls on the pill (the state machine supported
-// them; there was just no UI). stopPropagation so the pill's open-panel
-// click handler doesn't also fire.
-document.getElementById('pomo-skip')?.addEventListener('click', (e) => {
-  e.stopPropagation();
-  pomoEnsureLoaded();
-  _pomoState = pomoSkip(_pomoState);
-  pomoSave(_pomoState);
-  pomoSyncUi();
-});
-document.getElementById('pomo-reset')?.addEventListener('click', (e) => {
-  e.stopPropagation();
-  pomoStopAndReset();
-});
-// v0.67.0: configurable durations (Settings → Features). Writes through to
-// the pomodoro state's settings + persists immediately.
-(function wirePomoDurationSettings() {
-  const map = [
-    ['settings-pomo-focus', 'focus'],
-    ['settings-pomo-break', 'break'],
-    ['settings-pomo-longbreak', 'longbreak'],
-    ['settings-pomo-long-every', 'longEvery'],
-  ];
-  pomoEnsureLoaded();
-  for (const [id, key] of map) {
-    const input = document.getElementById(id);
-    if (!input) continue;
-    input.value = String(_pomoState.settings?.[key] ?? '');
-    input.addEventListener('change', () => {
-      pomoEnsureLoaded();
-      const num = Math.max(1, Math.min(180, parseInt(input.value, 10) || 0));
-      input.value = String(num);
-      _pomoState.settings = { ...(_pomoState.settings || {}), [key]: num };
-      pomoSave(_pomoState);
-      pomoSyncUi();
-    });
-  }
-})();
-if (el.pomoStatus) {
-  el.pomoStatus.addEventListener('click', (e) => {
-    // The toggle button has its own target; clicks on the pill body open Board.
-    if (e.target === el.pomoToggle) return;
-    setWorkspaceMode('board', { skipRender: true });
-    openKanban();
-  });
-}
-if (el.pomoToggle) {
-  el.pomoToggle.addEventListener('click', (e) => { e.stopPropagation(); pomoToggleRun(); });
-}
-
-if (el.kanbanBoard) {
-  el.kanbanBoard.addEventListener('click', (e) => {
-    const addBtn = e.target.closest('.kanban-add-btn');
-    if (addBtn) {
-      const status = addBtn.dataset.status;
-      const input = el.kanbanBoard.querySelector(`.kanban-add-input[data-status="${status}"]`);
-      if (input) {
-        addKanbanTask(status, input.value);
-        input.value = '';
-        input.focus();
-      }
-      return;
-    }
-
-    const checkboxBtn = e.target.closest('.kanban-card-checkbox');
-    if (checkboxBtn) {
-      e.stopPropagation();
-      const id = checkboxBtn.dataset.id;
-      const task = _kanbanTasks.find((t) => t.id === id);
-      if (task) {
-        if (task.status === 'done') {
-          moveKanbanTask(id, 'todo');
-        } else {
-          moveKanbanTask(id, 'done');
-        }
-      }
-      return;
-    }
-
-    const del = e.target.closest('.kanban-card-delete');
-    if (del) {
-      deleteKanbanTask(del.dataset.id);
-      return;
-    }
-  });
-
-  // Inline edit task text on double-click
-  el.kanbanBoard.addEventListener('dblclick', (e) => {
-    const textEl = e.target.closest('.kanban-card-text');
-    if (!textEl) return;
-    const cardEl = textEl.closest('.kanban-card');
-    if (!cardEl) return;
-    const id = cardEl.dataset.id;
-    const task = _kanbanTasks.find((t) => t.id === id);
-    if (!task) return;
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'kanban-inline-edit';
-    input.value = task.text;
-    textEl.replaceWith(input);
-    input.focus();
-    input.select();
-
-    const commitEdit = () => {
-      const val = input.value.trim();
-      if (val && val !== task.text) {
-        task.text = val;
-        saveKanbanTasks(_kanbanTasks);
-      }
-      renderKanban();
-    };
-
-    input.addEventListener('keydown', (evt) => {
-      if (evt.key === 'Enter') {
-        evt.preventDefault();
-        commitEdit();
-      } else if (evt.key === 'Escape') {
-        renderKanban();
-      }
-    });
-    input.addEventListener('blur', commitEdit);
-  });
-
-  el.kanbanBoard.addEventListener('keydown', (e) => {
-    // Add-input Enter → create (existing behavior).
-    const input = e.target.closest('.kanban-add-input');
-    if (input) {
-      if (e.key !== 'Enter') return;
-      e.preventDefault();
-      const status = input.dataset.status;
-      addKanbanTask(status, input.value);
-      // renderKanban rebuilds the board DOM, detaching the input — re-query
-      // the live one so rapid entry keeps working (focus used to drop to
-      // <body> and the next typed task was silently lost).
-      const freshInput = el.kanbanBoard.querySelector(`.kanban-add-input[data-status="${status}"]`);
-      if (freshInput) freshInput.focus();
-      return;
-    }
-    // v0.67.0: card keyboard operation. Cards are tabindex=0 (see
-    // renderKanban): ArrowLeft/Right move between columns, Enter edits,
-    // Delete removes. Inner buttons own their Enter/Space and are skipped.
-    const card = e.target.closest('.kanban-card');
-    if (!card || e.target.closest('button')) return;
-    const id = card.dataset.id;
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-      e.preventDefault();
-      const cur = _kanbanTasks.find((t) => t.id === id);
-      if (!cur) return;
-      const at = KANBAN_STATUSES.indexOf(cur.status);
-      const to = Math.max(0, Math.min(KANBAN_STATUSES.length - 1, at + (e.key === 'ArrowRight' ? 1 : -1)));
-      if (to !== at) moveKanbanTask(id, KANBAN_STATUSES[to]);
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      const textEl = card.querySelector('.kanban-card-text');
-      if (textEl) textEl.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-    } else if (e.key === 'Delete') {
-      e.preventDefault();
-      deleteKanbanTask(id);
-    }
-  });
-
-  el.kanbanBoard.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0) return;
-    if (e.target.closest('.kanban-card-delete') || e.target.closest('.kanban-card-checkbox') || e.target.closest('.kanban-inline-edit')) return;
-    const card = e.target.closest('.kanban-card');
-    if (!card) return;
-    _kanbanDrag = {
-      id: card.dataset.id,
-      cardEl: card,
-      startX: e.clientX,
-      startY: e.clientY,
-      started: false,
-      ghost: null,
-      hoverCol: null,
-    };
-    window.addEventListener('pointermove', kanbanPointerMove);
-    window.addEventListener('pointerup', kanbanPointerUp, { once: true });
-  });
-}
-
-// Move the ghost with the cursor + highlight whichever column the pointer is
-// over. `pointermove` fires a lot, so this stays cheap: just translate the
-// ghost and do a single document.elementFromPoint hit-test.
-function kanbanPointerMove(e) {
-  if (!_kanbanDrag) return;
-  const d = _kanbanDrag;
-  if (!d.started) {
-    const dx = e.clientX - d.startX;
-    const dy = e.clientY - d.startY;
-    // Wait until the pointer crosses the threshold so a plain click on a card
-    // (e.g. to focus before pressing Delete via keyboard) doesn't start a drag.
-    if (Math.abs(dx) < KANBAN_DRAG_THRESHOLD && Math.abs(dy) < KANBAN_DRAG_THRESHOLD) return;
-    d.started = true;
-    d.cardEl.classList.add('kanban-card-dragging');
-    // Build a floating ghost from the source card's text. Cloning the node
-    // directly would inherit its layout (grid widths etc.) — we want a
-    // free-floating copy, so build a fresh div with just the text content.
-    const ghost = document.createElement('div');
-    ghost.className = 'kanban-card-ghost';
-    const text = d.cardEl.querySelector('.kanban-card-text')?.textContent || '';
-    ghost.textContent = text;
-    document.body.appendChild(ghost);
-    d.ghost = ghost;
-  }
-  if (d.ghost) {
-    d.ghost.style.left = `${e.clientX}px`;
-    d.ghost.style.top = `${e.clientY}px`;
-  }
-  // Hide the ghost momentarily so elementFromPoint lands on whatever is
-  // actually under the cursor (the column), not the ghost itself. The ghost
-  // is pointer-events:none via CSS, but this is belt-and-suspenders across
-  // browsers that don't honor that on pointer events.
-  const prevDisplay = d.ghost?.style.display;
-  if (d.ghost) d.ghost.style.display = 'none';
-  const hit = document.elementFromPoint(e.clientX, e.clientY);
-  if (d.ghost) d.ghost.style.display = prevDisplay || '';
-  const col = hit?.closest('.kanban-column') || null;
-  if (col !== d.hoverCol) {
-    if (d.hoverCol) d.hoverCol.classList.remove('kanban-column-drop');
-    if (col) col.classList.add('kanban-column-drop');
-    d.hoverCol = col;
-  }
-}
-
-// Release: if the press crossed the drag threshold, drop into the column under
-// the cursor (if any). Always tear down listeners + ghost + highlights.
-function kanbanPointerUp(e) {
-  if (!_kanbanDrag) return;
-  const d = _kanbanDrag;
-  window.removeEventListener('pointermove', kanbanPointerMove);
-  if (d.started) {
-    // Find the drop column by hit-testing the release point — we can't trust
-    // d.hoverCol here because pointermove may not have fired for the exact
-    // release coords (the cursor can land between moves).
-    if (d.ghost) d.ghost.style.display = 'none';
-    const hit = document.elementFromPoint(e.clientX, e.clientY);
-    const col = hit?.closest('.kanban-column') || null;
-    if (col) {
-      const newStatus = col.dataset.status;
-      if (KANBAN_STATUSES.includes(newStatus)) {
-        moveKanbanTask(d.id, newStatus);
-      }
-    }
-  }
-  d.cardEl?.classList.remove('kanban-card-dragging');
-  d.ghost?.remove();
-  el.kanbanBoard?.querySelectorAll('.kanban-column-drop').forEach((c) => c.classList.remove('kanban-column-drop'));
-  _kanbanDrag = null;
-}
-
-// Slideshow click navigation. Arrow buttons + click-on-stage halves advance
-// or retreat (PowerPoint convention). Delegated so it survives rebuilds.
-el.slideshow.addEventListener('click', (e) => {
-  const arrow = e.target.closest('.slide-arrow');
-  if (arrow) {
-    if (arrow.classList.contains('prev')) prevSlide();
-    else if (arrow.classList.contains('next')) nextSlide();
-    return;
-  }
-  // Click on the stage's left/right half → prev/next. Cheap hit-test.
-  const stage = e.target.closest('.slide-stage');
-  if (stage) {
-    const rect = stage.getBoundingClientRect();
-    if (e.clientX < rect.left + rect.width / 2) prevSlide();
-    else nextSlide();
-  }
-});
-
-// Formatting toolbar — one delegated handler covers all .fmt-btn clicks.
-// Looks up the active doc's editor and dispatches to its format(type) method.
-document.querySelector('.fmt-tools')?.addEventListener('click', (e) => {
-  const btn = e.target.closest('.fmt-btn');
-  if (!btn) return;
-  const doc = store.active();
-  if (!doc || !doc.editor || doc.plain) return;
-  doc.editor.format(btn.dataset.fmt);
-});
-el.mode.addEventListener('click', toggleMode);
-el.sidebar.addEventListener('click', toggleSidebar);
-// v1.8.2: menu rows for back/forward removed (see index.html) — navigation
-// stays on Alt+←/→ (wired below) and the palette's Back/Forward commands.
 el.explorer.addEventListener('click', toggleExplorer);
 el.fileTreeClose.addEventListener('click', toggleExplorer);
 el.fileTreeOpen.addEventListener('click', openFolderForExplorer);
-// Toolbar button: open the folder-search panel. Prefers the current explorer
-// root; if none is set, prompts the user to pick a folder.
-const folderSearchBtn = document.getElementById('btn-folder-search');
-if (folderSearchBtn) {
-  folderSearchBtn.addEventListener('click', () => {
-    const root = localStorage.getItem('mdpeek-explorer-root');
-    if (root) {
-      folderSearch.open(root);
-    } else {
-      // No folder open yet — pick one. After picking, open the panel on it.
-      invoke('pick_folder')
-        .then((dir) => {
-          localStorage.setItem('mdpeek-explorer-root', dir);
-          setTreeRoot(dir);
-          if (el.fileTree.classList.contains('hidden')) toggleExplorer();
-          folderSearch.open(dir);
-        })
-        .catch((e) => {
-          if (e !== 'cancelled') toast('Could not open folder: ' + fmtErr(e));
-        });
-    }
-  });
-}
+document.getElementById('btn-folder-search').addEventListener('click', findInFolder);
+el.sidebar.addEventListener('click', toggleSidebar);
 el.zoomIn.addEventListener('click', zoomIn);
 el.zoomOut.addEventListener('click', zoomOut);
 // Clicking the % badge resets to 100% (same as Ctrl+0).
@@ -7915,8 +3690,6 @@ function ensureSystemThemeListener() {
     const mql = window.matchMedia('(prefers-color-scheme: dark)');
     mql.addEventListener('change', (ev) => {
       if ((localStorage.getItem(THEME_MODE_KEY) || 'manual') !== 'system') return;
-      // Don't fight a per-doc override.
-      if (_appliedDocTheme) return;
       applyTheme(prefersDarkFromMedia(ev) ? 'dark' : 'light');
     });
     _systemThemeListenerInstalled = true;
@@ -8250,16 +4023,11 @@ function syncSettingsControls() {
   }
 
   // Feature flags synchronization
-  const features = ['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily', 'pomodoro', 'calendar', 'tasks', 'review', 'autocomplete', 'graph', 'table-editor', 'prose-highlights', 'capture', 'wordfreq'];
+  const features = ['snippets', 'daily', 'autocomplete', 'table-editor'];
   features.forEach((feat) => {
     const cb = document.getElementById(`settings-feature-${feat}`);
     if (cb) cb.checked = localStorage.getItem(`mdpeek-feature-${feat}`) !== '0';
   });
-
-  // v0.54.0: Minimal mode master toggle — sync its checkbox + grey out the
-  // individual feature rows beneath it when Minimal is on (so the UI reads as
-  // "one switch rules them all", not 14 things to untick).
-  syncMinimalMode();
 
   // Windows Explorer context menu setting check (hide on non-Windows)
   const isWindows = navigator.userAgent.includes('Windows') || navigator.platform.indexOf('Win') > -1;
@@ -8278,49 +4046,9 @@ function syncSettingsControls() {
 }
 
 function applyFeatureFlags() {
-  // v0.54.0: read through featureOn (not the raw flag) so Minimal mode — which
-  // makes featureOn return false for non-core features — suppresses these
-  // surfaces automatically without per-flag patches here.
-  const collabEnabled = featureOn('collab');
-  const kanbanEnabled = featureOn('kanban');
-  const terminalEnabled = featureOn('terminal');
-  const presentEnabled = featureOn('present');
-  const dailyEnabled = featureOn('daily');
-  const pomoEnabled = featureOn('pomodoro');
-
-  if (el.share) el.share.style.display = collabEnabled ? '' : 'none';
-  if (el.collabStatus && !collabEnabled) el.collabStatus.classList.add('hidden');
-
-  if (el.kanban) el.kanban.style.display = kanbanEnabled ? '' : 'none';
-  if (el.terminal) el.terminal.style.display = terminalEnabled ? '' : 'none';
-  if (el.present) el.present.style.display = presentEnabled ? '' : 'none';
-  if (el.daily) el.daily.style.display = dailyEnabled ? '' : 'none';
-  // v0.54.0: pomodoro pill was previously only gated in its render fn; hide it
-  // centrally too so Minimal mode clears it immediately on toggle.
-  if (el.pomoStatus && !pomoEnabled) el.pomoStatus.classList.add('hidden');
+  if (el.daily) el.daily.style.display = isFeatureOn('daily') ? '' : 'none';
 
   syncMoreMenuGroups();
-  applyMinimalChrome();
-}
-
-// v0.54.0: the visual reset hook for Minimal mode. Toggling body.minimal-mode
-// lets CSS hide anything not caught by element-level display rules, and is the
-// single class flipped by the Settings toggle + boot default-on.
-function applyMinimalChrome() {
-  const on = minimalModeOn();
-  document.body.classList.toggle('minimal-mode', on);
-}
-
-// v0.54.0: sync the Minimal-mode checkbox + grey out the individual feature
-// rows beneath it. Called on settings open and after the toggle changes.
-function syncMinimalMode() {
-  const on = minimalModeOn();
-  const cb = document.getElementById('settings-minimal-mode');
-  if (cb) cb.checked = on;
-  const card = document.querySelector('.setting-card-features');
-  if (card) card.classList.toggle('features-disabled', on);
-  const note = document.querySelector('.minimal-note');
-  if (note) note.classList.toggle('hidden', !on);
 }
 
 function setSegActive(setting, value) {
@@ -8707,7 +4435,7 @@ document.getElementById('settings-autosave')?.addEventListener('change', (e) => 
 });
 
 // Feature flags change handlers
-['collab', 'kanban', 'terminal', 'present', 'snippets', 'daily', 'pomodoro', 'calendar', 'tasks', 'review', 'autocomplete', 'graph', 'table-editor', 'prose-highlights'].forEach((feat) => {
+['snippets', 'daily', 'autocomplete', 'table-editor'].forEach((feat) => {
   const cb = document.getElementById(`settings-feature-${feat}`);
   if (cb) {
     cb.addEventListener('change', (e) => {
@@ -8719,20 +4447,6 @@ document.getElementById('settings-autosave')?.addEventListener('change', (e) => 
     });
   }
 });
-
-// v0.54.0: Minimal mode master toggle. One switch rules them all: re-apply
-// every feature surface + chrome, re-render the active doc, and sync the
-// grey-out state of the individual feature rows beneath it.
-const minimalCb = document.getElementById('settings-minimal-mode');
-if (minimalCb) {
-  minimalCb.addEventListener('change', (e) => {
-    localStorage.setItem('mdpeek-minimal-mode', e.target.checked ? '1' : '0');
-    applyFeatureFlags();          // hide/show all feature surfaces
-    renderActive().catch((err) => console.error('[mdpeek] minimal re-render:', err));
-    syncMinimalMode();            // grey-out + note
-    toast(e.target.checked ? 'Minimal mode on — non-core features hidden' : 'Minimal mode off — features restored');
-  });
-}
 
 // Explorer context menu — toggle Windows right-click options dynamically.
 const ctxMenuEl = document.getElementById('settings-context-menu');
@@ -8764,11 +4478,11 @@ let _pdfDrawColor = '#1d1d1f';
 function pdfToggleToolbar() {
   // Show/hide the toolbar — meaningful when a PDF or image is active.
   const doc = store.active();
-  if (doc && (doc.pdf || doc.image)) {
+  if (doc && doc.image) {
     el.pdfDrawToolbar.classList.toggle('hidden');
     // Exiting: turn off draw mode on whichever controller is active.
     if (el.pdfDrawToolbar.classList.contains('hidden')) {
-      const target = _activePdf || _activeImage;
+      const target = _activeImage;
       target?.setDrawMode(false);
     }
   }
@@ -8780,7 +4494,7 @@ function pdfSelectTool(tool) {
   document.getElementById('pdf-tool-pen').classList.toggle('active', tool === 'pen');
   document.getElementById('pdf-tool-highlighter').classList.toggle('active', tool === 'highlighter');
   document.getElementById('pdf-tool-eraser').classList.toggle('active', tool === 'eraser');
-  const target = _activePdf || _activeImage;
+  const target = _activeImage;
   if (target) {
     target.setTool(tool);
     // Entering a tool activates draw mode (unless it's already active).
@@ -8793,7 +4507,7 @@ function pdfSelectColor(color) {
   document.querySelectorAll('.pdf-color-swatch').forEach((s) => {
     s.classList.toggle('active', s.dataset.color === color);
   });
-  const target = _activePdf || _activeImage;
+  const target = _activeImage;
   if (target) target.setColor(color);
 }
 
@@ -8804,13 +4518,13 @@ document.querySelectorAll('.pdf-color-swatch').forEach((s) => {
   s.addEventListener('click', () => pdfSelectColor(s.dataset.color));
 });
 document.getElementById('pdf-tool-clear').addEventListener('click', () => {
-  const target = _activePdf || _activeImage;
+  const target = _activeImage;
   if (target) target.clearAll();
 });
 document.getElementById('pdf-tool-close').addEventListener('click', () => {
   el.pdfDrawToolbar.classList.add('hidden');
   document.querySelectorAll('.pdf-tool-btn').forEach((b) => b.classList.remove('active'));
-  const target = _activePdf || _activeImage;
+  const target = _activeImage;
   target?.setDrawMode(false);
 });
 // Save button: writes the annotated image to disk (only meaningful for images).
@@ -8877,7 +4591,7 @@ document.addEventListener('click', (e) => {
 function isInternalDocLink(href) {
   if (!href) return false;
   if (/^(https?:|mailto:|tel:|sms:|file:|data:|javascript:)/i.test(href)) return false;
-  return /\.(md|markdown|mdx|txt|pdf|excalidraw|tldr)$/i.test(href) || !href.includes('.');
+  return /\.(md|markdown|mdx|txt)$/i.test(href) || !href.includes('.');
 }
 
 // Resolve `href` relative to the active doc's folder and open it as a tab.
@@ -9287,10 +5001,6 @@ async function autoSaveActive(doc = store.active()) {
   setSaveStatus('saving');
   try {
     if (doc.mode === 'edit' && doc.editor) doc.content = doc.editor.getValue();
-    // v0.68.0: flush the live canvas scene — its debounced save may not have
-    // fired when the autosave timer beats it to the write.
-    if (doc.excalidraw && _activeExcalidrawDocId === doc.id && _activeExcalidraw) { const j = _activeExcalidraw.flush(); if (j) doc.content = j; }
-    if (doc.tldraw && _activeTLDrawDocId === doc.id && _activeTLDraw) { const j = _activeTLDraw.flush(); if (j) doc.content = j; }
     const content = doc.content;
     await invoke('save_file', { path: doc.path, content });
     if ((doc.editor?.getValue() ?? doc.content) === content) store.clearDirty(doc.id);
@@ -9313,22 +5023,6 @@ function setSaveStatus(state) {
   tag.dataset.state = state;
 }
 
-// v0.68.0: status bar content for canvas tabs — element count + kind + the
-// shared save-status tick. Mirrors updateEditorStatus's markup shape so the
-// same .editor-status styling applies.
-function updateCanvasStatus(doc) {
-  if (!el.editorStatus || el.editorStatus.classList.contains('hidden')) return;
-  const ctrl = doc?.excalidraw ? _activeExcalidraw : _activeTLDraw;
-  const n = ctrl?.getElementCount ? ctrl.getElementCount() : 0;
-  const kind = doc?.excalidraw ? 'Excalidraw' : 'TLDraw';
-  el.editorStatus.innerHTML =
-    `<span>${n} ${n === 1 ? 'element' : 'elements'}</span>` +
-    `<span class="status-sep" aria-hidden="true">·</span>` +
-    `<span>${kind}</span>` +
-    `<span class="save-status" data-state="idle"></span>`;
-  setSaveStatus(doc?.dirty ? 'dirty' : 'saved');
-}
-
 // Keyboard shortcuts — registered on the CAPTURE phase so we intercept the
 // zoom keys before WebView2 can swallow them for native browser zoom.
 window.addEventListener('keydown', (e) => {
@@ -9338,13 +5032,6 @@ window.addEventListener('keydown', (e) => {
   // Modified commands have their own handlers below. Don't run Ctrl+S/E/F
   // first and accidentally save, switch mode or open find as well.
   if (e.altKey || (e.shiftKey && !['g', '=', '+', '-', '_'].includes(k))) return;
-  if (k === '`') {
-    if (!featureOn('terminal')) return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    terminal.toggle();
-    return;
-  }
   if (k === 'o') {
     e.preventDefault();
     openFileDialog();
@@ -9366,10 +5053,6 @@ window.addEventListener('keydown', (e) => {
     toggleSidebar();
   } else if (k === 'f') {
     e.preventDefault();
-    // v0.48.0: canvases aren't text-searchable — skip the find bar entirely.
-    // v0.49.0: notebooks + media likewise aren't text-searchable.
-    const d = store.active();
-    if (d && (d.excalidraw || d.tldraw || d.notebook || d.media)) { toast('Find isn\'t available on this tab type'); return; }
     find.toggle();
   } else if (k === 'h') {
     // Ctrl+H = find & replace. No-op in view/PDF mode (find bar handles that).
@@ -9386,20 +5069,12 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     gotoLine();
   } else if (k === '=' || k === '+' || e.code === 'NumpadAdd') {
-    // v0.49.0: canvases (Excalidraw/TLDraw) handle their own zoom — don't
-    // hijack the keys (the app font-size zoom has no visual effect there).
-    const dc = store.active();
-    if (dc && (dc.excalidraw || dc.tldraw)) return;
     e.preventDefault();
     zoomIn();
   } else if (k === '-' || k === '_' || e.code === 'NumpadSubtract') {
-    const dc = store.active();
-    if (dc && (dc.excalidraw || dc.tldraw)) return;
     e.preventDefault();
     zoomOut();
   } else if (k === '0' || e.code === 'Numpad0') {
-    const dc = store.active();
-    if (dc && (dc.excalidraw || dc.tldraw)) return;
     e.preventDefault();
     zoomReset();
   } else if (k === ',') {
@@ -9466,67 +5141,6 @@ window.addEventListener('keydown', (e) => {
 // focus mode (handled here, before any other Escape handler can grab it).
 window.addEventListener('keydown', (e) => {
   if (modalOwnsKeyboard()) return;
-  // Presentation-mode shortcuts take over the keyboard entirely while the
-  // slideshow is active. We bail out of the rest of the handler after handling
-  // one of these so nothing else (editor, find bar, palette) intercepts.
-  if (document.body.classList.contains('presenting')) {
-    switch (e.key) {
-      case 'ArrowRight':
-      case 'ArrowDown':
-      case 'PageDown':
-      case ' ':
-        e.preventDefault();
-        e.stopPropagation();
-        nextSlide();
-        return;
-      case 'ArrowLeft':
-      case 'ArrowUp':
-      case 'PageUp':
-        e.preventDefault();
-        e.stopPropagation();
-        prevSlide();
-        return;
-      case 'Home':
-        e.preventDefault();
-        e.stopPropagation();
-        goToSlide(0);
-        return;
-      case 'End':
-        e.preventDefault();
-        e.stopPropagation();
-        if (_slideshow) goToSlide(_slideshow.slides.length - 1);
-        return;
-      case 'Escape':
-        e.preventDefault();
-        e.stopPropagation();
-        exitPresentation();
-        return;
-      case 'f':
-      case 'F':
-        e.preventDefault();
-        e.stopPropagation();
-        toggleFullscreen();
-        return;
-      case 's':
-      case 'S':
-        e.preventDefault();
-        e.stopPropagation();
-        toggleSlideStyle();
-        return;
-      // v0.40.0: speaker-notes panel.
-      case 'n':
-      case 'N':
-        e.preventDefault();
-        e.stopPropagation();
-        toggleSpeakerNotes();
-        return;
-    }
-    // Any other key: swallow it so the editor/find bar don't grab keystrokes
-    // while the textarea is hidden behind the slideshow.
-    e.preventDefault();
-    e.stopPropagation();
-    return;
-  }
   // Ctrl+Shift+P → command palette. Capture phase so the editor's keydown
   // handler (which intercepts Ctrl+letter combos for markdown shortcuts)
   // can't swallow it.
@@ -9553,8 +5167,8 @@ window.addEventListener('keydown', (e) => {
     toggleTypewriter();
     return;
   }
-  // v0.45.0: Ctrl+Alt+T → reopen closed tab. (Ctrl+Shift+T is typewriter,
-  // Ctrl+` is terminal, so Alt is the free modifier here.)
+  // v0.45.0: Ctrl+Alt+T → reopen closed tab. (Ctrl+Shift+T is typewriter, so
+  // Alt is the free modifier here.)
   if ((e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey && (e.key === 'T' || e.key === 't')) {
     e.preventDefault();
     e.stopPropagation();
@@ -9584,7 +5198,7 @@ window.addEventListener('keydown', (e) => {
   }
   // Ctrl+Shift+S → open Markdown snippet/template picker.
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'S' || e.key === 's')) {
-    if (!featureOn('snippets')) return;
+    if (!isFeatureOn('snippets')) return;
     e.preventDefault();
     e.stopPropagation();
     snippetPicker.open();
@@ -9596,16 +5210,6 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     e.stopPropagation();
     findInFolder();
-    return;
-  }
-  // Ctrl+Shift+K → toggle the global Kanban board. Also closes it (so the
-  // user can hit the same shortcut to dismiss).
-  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'K' || e.key === 'k')) {
-    if (!featureOn('kanban')) return;
-    e.preventDefault();
-    e.stopPropagation();
-    if (document.body.classList.contains('kanban-mode')) closeKanban();
-    else openKanban();
     return;
   }
   // Ctrl+Shift+R → toggle immersive Reading Mode.
@@ -9620,15 +5224,6 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     e.stopPropagation();
     toggleAlwaysOnTop();
-    return;
-  }
-  // Ctrl+Shift+I → quick-capture inbox (v0.55.0). Mnemonic: Inbox. Gated by
-  // the capture feature flag (and thus hidden under Minimal mode).
-  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'I' || e.key === 'i')) {
-    if (!featureOn('capture')) return;
-    e.preventDefault();
-    e.stopPropagation();
-    openCaptureHud();
     return;
   }
   // Reader-internal keys. Only active while Reading Mode is open, and only
@@ -9655,12 +5250,6 @@ window.addEventListener('keydown', (e) => {
   // this global path covers focus left outside (e.g. after the palette
   // closed and restored focus to chrome).
   if (e.key === 'Escape') {
-    if (!el.shareDialog.classList.contains('hidden')) {
-      e.preventDefault();
-      e.stopPropagation();
-      closeShareModal();
-      return;
-    }
     if (!el.closeDialog.classList.contains('hidden')) {
       e.preventDefault();
       e.stopPropagation();
@@ -9679,28 +5268,6 @@ window.addEventListener('keydown', (e) => {
       closeSettings();
       return;
     }
-  }
-  // Esc → close the Kanban board (full-page view). Only fires when the board
-  // is open. Lives here (the global keydown handler) so it works regardless
-  // of focus inside the board. This capture-phase handler runs BEFORE any
-  // document-level bubble handler, so scoped exits must be resolved here:
-  if (e.key === 'Escape' && document.body.classList.contains('kanban-mode')) {
-    // Focus inside a kanban inline edit: the input's own Esc handler cancels
-    // the edit. Bail (no preventDefault) so that handler sees the key instead
-    // of the whole hub closing under it.
-    if (e.target && e.target.closest && e.target.closest('.kanban-inline-edit')) {
-      return;
-    }
-    // Graph pinned focus: the pinned tooltip promises "Esc to exit" — unpin
-    // first; a second Esc then closes the hub.
-    if (_wsMode === 'graph' && _graphPinId && !(e.target && e.target.id === 'graph-search-input')) {
-      e.preventDefault();
-      clearGraphPin();
-      return;
-    }
-    e.preventDefault();
-    closeKanban();
-    return;
   }
   if (e.key === 'F11') {
     e.preventDefault();
@@ -9730,11 +5297,6 @@ window.addEventListener('keydown', (e) => {
 // matches the browser convention users expect.
 window.addEventListener('wheel', (e) => {
   if (!(e.ctrlKey || e.metaKey)) return;
-  // v0.49.0: Excalidraw & TLDraw have their own native Ctrl+scroll canvas
-  // zoom. Let those events through (no preventDefault/stopPropagation) so
-  // the canvas zooms instead of being silently blocked.
-  const dw = store.active();
-  if (dw && (dw.excalidraw || dw.tldraw)) return;
   e.preventDefault();
   e.stopPropagation();
   if (e.deltaY < 0) zoomIn();
@@ -9751,16 +5313,13 @@ function doMinimizeToTray() {
   invoke('hide_to_tray').catch((e) => toast('Could not minimize: ' + fmtErr(e)));
 }
 async function doQuitApp() {
-  // v0.68.0: flush the active doc's live state before the process goes away —
-  // canvas scenes inside their 1s debounce window (and unsaved keystrokes)
-  // would otherwise never reach the session or disk. Awaited so quit_app
-  // can't race the final write.
+  // Flush the active doc's live state before the process goes away — unsaved
+  // keystrokes inside the editor's debounce window would otherwise never
+  // reach the session or disk. Awaited so quit_app can't race the final write.
   try {
     const d = store.active();
     if (d) {
       if (d.mode === 'edit' && d.editor) d.content = d.editor.getValue();
-      if (d.excalidraw && _activeExcalidraw) { const j = _activeExcalidraw.flush(); if (j) d.content = j; }
-      if (d.tldraw && _activeTLDraw) { const j = _activeTLDraw.flush(); if (j) d.content = j; }
       persist();
       if (d.path && d.dirty) {
         await invoke('save_file', { path: d.path, content: d.content });
@@ -9768,12 +5327,6 @@ async function doQuitApp() {
       }
     }
   } catch (e) { console.error('quit flush failed:', e); }
-  // Kill any live terminal PTYs before quitting so we don't leave zombie
-  // PowerShell processes behind. Safe no-op if the terminal drawer was never
-  // opened.
-  try { if (terminal?.destroyAll) terminal.destroyAll(); } catch (e) { console.error('terminal destroy:', e); }
-  // v0.33.0: stop the Pomodoro interval + flush its state.
-  try { pomoDestroy(); } catch (e) { console.error('pomodoro destroy:', e); }
   invoke('quit_app').catch((e) => toast('Could not quit: ' + fmtErr(e)));
 }
 
@@ -9809,24 +5362,6 @@ function resolveClose(action) {
 }
 
 listen('close-requested', () => {
-  // Warn before hiding/quitting during a live session: minimizing to tray
-  // keeps the session alive (the window is just hidden), but quitting ends
-  // it for everyone. Surface that distinction.
-  if (collab.getStatus().active) {
-    confirmDialog({
-      title: 'Leave the collaboration session?',
-      text: 'You are currently sharing a document live. Quitting will end the session for everyone. Minimizing to tray keeps it running in the background.',
-      buttons: [
-        { id: 'cancel', label: 'Stay', kind: 'secondary' },
-        { id: 'tray', label: 'Minimize to tray', kind: 'primary' },
-        { id: 'quit', label: 'Quit + end session', kind: 'danger' },
-      ],
-    }).then((choice) => {
-      if (choice === 'tray') doMinimizeToTray();
-      else if (choice === 'quit') { collab.endSession(); doQuitApp(); }
-    }).catch(() => {});
-    return;
-  }
   showCloseDialog();
 }).catch((e) => console.error('close-requested listener failed:', e));
 
@@ -9921,7 +5456,7 @@ async function openDroppedPath(path) {
     // Images, PDFs, and audio/video are binary but natively supported — skip
     // the binary rejection and load with empty content (the viewers use the
     // asset protocol to read bytes directly).
-    const isSupportedBinary = isPdfPath(name) || isImagePath(name) || isMediaPath(name);
+    const isSupportedBinary = isImagePath(name);
     if (DROP_BINARY_RE.test(name) && !isSupportedBinary) {
       toast('Not a supported file: ' + name);
       return;
@@ -9982,7 +5517,7 @@ window.addEventListener('drop', async (e) => {
   el.dropzone.classList.add('hidden');
   for (const file of Array.from(files)) {
     try {
-      const isSupportedBinary = isPdfPath(file.name) || isImagePath(file.name) || isMediaPath(file.name);
+      const isSupportedBinary = isImagePath(file.name);
       if (DROP_BINARY_RE.test(file.name) && !isSupportedBinary) {
         toast('Not a supported file: ' + file.name);
         continue;
@@ -10003,7 +5538,7 @@ window.addEventListener('drop', async (e) => {
 // ---------- live reload (file changed on disk) — update active doc ----------
 // The trailing .catch only covers listener *registration* failure. The body
 // itself is wrapped in try/catch because a corrupt-on-disk change (malformed
-// CSV/JSON notebook, a parseCsv/renderCsv throw) would otherwise escape as an
+// CSV, a parseCsv/renderCsv throw) would otherwise escape as an
 // unhandled error and silently stop live-reload working for that doc.
 listen('file-changed', (event) => {
   try {
@@ -10017,14 +5552,6 @@ listen('file-changed', (event) => {
     persistSoon();
     if (store.active()?.id !== doc.id) return;
     const content = doc.content;
-    // PDFs are binary + read-only — the text watcher isn't used for them
-    // (openPath skips rewatch), but guard anyway in case an event leaks through.
-    if (doc.pdf) return;
-    // v0.68.0: canvases never rewatch their own path, but the global watcher
-    // reports only content — not WHICH file changed. Without this guard a
-    // canvas tab could be clobbered by a different file's disk change and
-    // persist the foreign text 1s later.
-    if (doc.excalidraw || doc.tldraw) return;
     // Code files in view mode: re-render the syntax highlighted view on disk change.
     if (doc.code && doc.mode === 'view') {
       if (store.active()?.id === doc.id) {
@@ -10043,19 +5570,6 @@ listen('file-changed', (event) => {
         } catch (e) {
           console.error('[mdpeek] csv reload failed:', e);
           showViewerError(el.document, 'CSV/TSV file', e);
-        }
-      }
-      return;
-    }
-    // v0.49.0: Notebooks are JSON text like CSV — re-parse + re-render on change.
-    if (doc.notebook) {
-      if (store.active()?.id === doc.id) {
-        if (_activeNotebook) { _activeNotebook.destroy(); _activeNotebook = null; }
-        try {
-          _activeNotebook = showNotebook(el.document, doc.content);
-        } catch (e) {
-          console.error('[mdpeek] notebook reload failed:', e);
-          showViewerError(el.document, 'notebook', e);
         }
       }
       return;
@@ -10100,20 +5614,6 @@ listen('open-file', (event) => {
   }
 }).catch((e) => console.error('open-file listener failed:', e));
 
-// Warm-start invite URL: mdpeek was already running when the user clicked a
-// mdpeek://join?room=… link. The single-instance plugin emits `open-url`; the
-// deep-link plugin also fires onOpenUrl. Listen on both so we cover whatever
-// path the OS took. (The two are mutually exclusive in practice — single-
-// instance handles warm launches, deep-link handles cases where the scheme
-// was invoked without going through single-instance.)
-listen('open-url', (event) => {
-  const url = typeof event.payload === 'string' ? event.payload : event.payload?.url;
-  if (url) handleInviteUrl(url);
-}).catch((e) => console.error('open-url listener failed:', e));
-onOpenUrl((urls) => {
-  for (const u of urls || []) handleInviteUrl(String(u));
-}).catch(() => { /* deep-link plugin may be unavailable in dev */ });
-
 window.addEventListener('hljs-language-registered', () => {
   renderActive().catch(() => {});
 });
@@ -10140,7 +5640,6 @@ if (themeMode === 'system') {
   applyTheme(themeForHour(new Date().getHours()));
   // Re-check every 5 minutes so a long-running session crosses day/night.
   setInterval(() => {
-    if (_appliedDocTheme) return;
     applyTheme(themeForHour(new Date().getHours()));
   }, 5 * 60 * 1000);
 } else {
@@ -10160,11 +5659,6 @@ function bootMotion() {
 window.addEventListener('resize', () => {
   positionTabIndicator({ strip: el.tabStrip, indicator: el.tabStrip?.querySelector('.tab-indicator') });
 });
-
-// v0.33.0: restore the Pomodoro pill state on boot (it never auto-resumes
-// running after a reload, but shows the last phase/remaining so the user can
-// pick up where they left off).
-try { pomoSyncUi(); } catch (e) { console.error('[mdpeek] pomoSyncUi:', e); }
 
 // Restore sidebar state (default visible).
 if (localStorage.getItem('mdpeek-sidebar') === 'hidden') {
@@ -10194,16 +5688,6 @@ applyReadingComfort();
 applyLineNumbers();
 applyWordWrap();
 applySpellcheck();
-// v0.54.0: first-run default — new installs (no prior session) start in
-// Minimal mode for a featherlight first impression. Existing users, who have
-// a saved session, keep whatever they'd set (key unset = off) and discover the
-// toggle in Settings → Features. Run before applyFeatureFlags so the very
-// first paint is already minimal for newcomers.
-try {
-  const minimalUnset = localStorage.getItem('mdpeek-minimal-mode') === null;
-  const freshInstall = loadSession() == null;
-  if (minimalUnset && freshInstall) localStorage.setItem('mdpeek-minimal-mode', '1');
-} catch (e) { /* localStorage unavailable — non-fatal */ }
 applyFeatureFlags();
 applyUserCss();
 
@@ -10244,19 +5728,6 @@ applyUserCss();
       }
     } catch {
       /* ignore */
-    }
-
-    // Cold-start: was mdpeek launched by clicking a mdpeek:// invite link?
-    // (Warm launches are handled by the `open-url` event listener below.)
-    try {
-      const initialUrl = await invoke('get_initial_url');
-      if (initialUrl) {
-        await renderActive(); // make sure the window is up before prompting
-        handleInviteUrl(initialUrl);
-        return;
-      }
-    } catch {
-      /* ignore — deep-link plugin not available */
     }
 
     // If still no tabs (fresh launch, no session, no argv), show the welcome

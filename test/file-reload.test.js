@@ -23,9 +23,9 @@ it('external changes preserve unsaved edits in both edit and preview modes', () 
   }
 });
 
-it('ignores unknown files, legacy content-only events and canvas/binary tabs', () => {
+it('ignores unknown files, legacy content-only events and binary tabs', () => {
   const store = new DocumentStore();
-  for (const path of ['/photo.png', '/file.pdf', '/drawing.tldr', '/drawing.excalidraw', '/movie.mp4']) {
+  for (const path of ['/photo.png']) {
     store.open({ path, content: '' });
     expect(applyFileChange(store, { path, content: 'foreign text' })).toBeNull();
   }

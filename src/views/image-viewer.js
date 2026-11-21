@@ -16,7 +16,7 @@
 
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { invoke } from '@tauri-apps/api/core';
-import { createStrokeController, DEFAULT_PALETTE, renderStrokes } from '../lib/drawing.js';
+import { createStrokeController } from '../lib/drawing.js';
 
 // ---------- injected polish styles ----------
 // Idempotent: one <style id="image-viewer-polish-style"> in <head>; appended

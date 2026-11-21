@@ -1,16 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DocumentStore, canSaveDoc, createDocument, isPlainPath, isCodePath, isImagePath, isCsvPath, isExcalidrawPath, isTLDrawPath, isNotebookPath, isMediaPath, ancestorsUnder, langFromPath, langForEdit } from '../src/lib/documents.js';
+import { DocumentStore, canSaveDoc, createDocument, isPlainPath, isCodePath, isImagePath, isCsvPath, ancestorsUnder, langFromPath, langForEdit } from '../src/lib/documents.js';
 
 describe('canSaveDoc', () => {
-  it('allows editable documents and canvas scenes', () => {
+  it('allows editable documents', () => {
     expect(canSaveDoc(createDocument({ path: '/notes/a.md' }))).toBe(true);
-    expect(canSaveDoc(createDocument({ path: null, tldraw: true }))).toBe(true);
-    expect(canSaveDoc(createDocument({ path: null, excalidraw: true }))).toBe(true);
+    expect(canSaveDoc(createDocument({ path: null }))).toBe(true);
   });
 
   it('rejects missing documents and read-only viewers', () => {
     expect(canSaveDoc(null)).toBe(false);
-    for (const path of ['/a.pdf', '/a.png', '/a.csv', '/a.ipynb', '/a.mp4']) {
+    for (const path of ['/a.png', '/a.csv']) {
       expect(canSaveDoc(createDocument({ path }))).toBe(false);
     }
   });
@@ -26,38 +25,9 @@ describe('createDocument', () => {
     expect(d.dirty).toBe(false);
     expect(d.scrollY).toBe(0);
     expect(d.editor).toBe(null);
-    expect(d.shared).toBe(false);
     expect(typeof d.id).toBe('string');
   });
 
-  it('accepts the shared flag for collaboration tabs', () => {
-    const d = createDocument({ content: '# live', shared: true });
-    expect(d.shared).toBe(true);
-  });
-
-  // v0.22.0: collaboration now covers .txt files too (the Share button is no
-  // longer hidden for plain docs). A receiver joining a shared .txt session
-  // gets created via store.open({ path: null, plain: true, shared: true }),
-  // so the receiver's tab stays plain (no markdown preview pane).
-  it('accepts shared + plain together for collaboration on .txt files', () => {
-    const d = createDocument({ path: null, content: 'plain text', plain: true, shared: true });
-    expect(d.shared).toBe(true);
-    expect(d.plain).toBe(true);
-    // Plain docs default to edit mode — the receiver immediately has a textarea
-    // to bind to Yjs.
-    expect(d.mode).toBe('edit');
-  });
-
-  // v0.22.0: shared Excalidraw canvases. The receiver's tab opens with the
-  // excalidraw flag so renderActive mounts the canvas (the scene arrives via
-  // Yjs, not the initial content).
-  it('accepts shared + excalidraw together for canvas collaboration', () => {
-    const d = createDocument({ path: null, content: '', excalidraw: true, shared: true });
-    expect(d.shared).toBe(true);
-    expect(d.excalidraw).toBe(true);
-    // Excalidraw tabs have no edit mode — the canvas is always interactive.
-    expect(d.mode).toBe('view');
-  });
 
   it('untitled docs have null path', () => {
     const d = createDocument({ content: '' });
@@ -117,7 +87,6 @@ describe('createDocument — image flag', () => {
   it('marks png as image, read-only view mode, empty content', () => {
     const d = createDocument({ path: '/pic.png' });
     expect(d.image).toBe(true);
-    expect(d.pdf).toBe(false);
     expect(d.code).toBe(false);
     expect(d.mode).toBe('view');
     expect(d.content).toBe('');
@@ -179,7 +148,7 @@ describe('isCodePath', () => {
     expect(isCodePath('Dockerfile')).toBe(true);
     expect(isCodePath('Makefile')).toBe(true);
   });
-  it('false for markdown/plain/pdf/excalidraw (those have their own paths)', () => {
+  it('false for markdown/plain/unknown (those are not code)', () => {
     expect(isCodePath('/a.md')).toBe(false);
     expect(isCodePath('/a.markdown')).toBe(false);
     expect(isCodePath('/a.txt')).toBe(false);
@@ -253,7 +222,6 @@ describe('createDocument (code flag)', () => {
     expect(d.code).toBe(true);
     expect(d.mode).toBe('view');
     expect(d.plain).toBe(false);
-    expect(d.pdf).toBe(false);
   });
   it('does not mark .md files as code', () => {
     const d = createDocument({ path: '/readme.md', content: '# hi' });
@@ -266,56 +234,8 @@ describe('createDocument (code flag)', () => {
   });
 });
 
-// ---------- v0.47.0: TLDraw canvas flag ----------
-describe('isTLDrawPath (v0.47.0)', () => {
-  it('matches .tldr (case-insensitive) and rejects near-misses', () => {
-    expect(isTLDrawPath('/notes/board.tldr')).toBe(true);
-    expect(isTLDrawPath('C:\\drawings\\PLAN.TLDR')).toBe(true);
-    expect(isTLDrawPath('/notes/board.tldraw')).toBe(false); // wrong ext
-    expect(isTLDrawPath('/notes/board.excalidraw')).toBe(false);
-    expect(isTLDrawPath(null)).toBe(false);
-    expect(isTLDrawPath('')).toBe(false);
-  });
-});
 
-describe('createDocument — tldraw flag (v0.47.0)', () => {
-  it('derives the flag from a .tldr path and forces view mode', () => {
-    const d = createDocument({ path: '/b.tldr', content: '{"schema":{}}' });
-    expect(d.tldraw).toBe(true);
-    expect(d.mode).toBe('view'); // canvases are always interactive (no edit/view toggle)
-    expect(d.content).toBe('{"schema":{}}'); // JSON content survives (not blanked like images)
-    expect(d.excalidraw).toBe(false);
-    expect(d.code).toBe(false);
-    expect(d.csv).toBe(false);
-  });
 
-  it('honors an explicit tldraw:true override without a path (new-tab-format)', () => {
-    const d = createDocument({ path: null, content: '', tldraw: true });
-    expect(d.tldraw).toBe(true);
-    expect(d.mode).toBe('view');
-  });
-
-  it('excludes TLDraw from csv/code detection', () => {
-    // A .tldr path must NOT also be classified as csv or code.
-    const d = createDocument({ path: '/data.tldr', content: '{}' });
-    expect(d.tldraw).toBe(true);
-    expect(d.csv).toBe(false);
-    expect(d.code).toBe(false);
-  });
-});
-
-describe('DocumentStore — tldraw serialize/restore (v0.47.0)', () => {
-  it('round-trips the tldraw flag through serialize/restore', () => {
-    const store = new DocumentStore();
-    store.open({ path: null, content: '{"x":1}', tldraw: true });
-    const snap = store.serialize();
-    expect(snap.docs[0].tldraw).toBe(true);
-    const store2 = new DocumentStore();
-    store2.restore(snap);
-    expect(store2.docs[0].tldraw).toBe(true);
-    expect(store2.docs[0].mode).toBe('view');
-  });
-});
 
 describe('DocumentStore', () => {
   let store;
@@ -462,16 +382,7 @@ describe('DocumentStore', () => {
     expect(snap.docs[0].pinned).toBe(true);
   });
 
-  it('serialize skips shared/collab tabs (they cannot survive a restart)', () => {
-    // Shared tabs are tied to a live network session and have no local path
-    // — they must not be persisted into the session snapshot.
-    const a = store.open({ path: '/local.md', content: 'local' });
-    const b = store.open({ path: null, content: '# from host', shared: true });
-    const snap = store.serialize();
-    const ids = snap.docs.map((d) => d.id);
-    expect(ids).toContain(a.id);
-    expect(ids).not.toContain(b.id);
-  });
+  
 
   it('restore reads pinned back', () => {
     const store2 = new DocumentStore();
@@ -624,53 +535,6 @@ describe('DocumentStore', () => {
     store.setPinned(c.id, true); // pinned, sits first; b is unpinned after a
     store.closeToRight(a.id);
     expect(store.docs.map((d) => d.id)).toEqual([c.id, a.id]);
-  });
-});
-
-// ---------- v0.49.0: notebook + media predicates ----------
-
-describe('isNotebookPath (v0.49.0)', () => {
-  it('matches .ipynb', () => {
-    expect(isNotebookPath('/a/notebook.ipynb')).toBe(true);
-    expect(isNotebookPath('C:\\proj\\n.ipynb')).toBe(true);
-  });
-  it('is case-insensitive', () => {
-    expect(isNotebookPath('/a/n.IPYNB')).toBe(true);
-  });
-  it('rejects non-notebook extensions', () => {
-    expect(isNotebookPath('/a/n.py')).toBe(false);
-    expect(isNotebookPath('/a/n.json')).toBe(false);
-  });
-  it('rejects empty/null', () => {
-    expect(isNotebookPath(null)).toBe(false);
-    expect(isNotebookPath('')).toBe(false);
-  });
-});
-
-describe('isMediaPath (v0.49.0)', () => {
-  it('matches audio extensions', () => {
-    expect(isMediaPath('/a/song.mp3')).toBe(true);
-    expect(isMediaPath('/a/song.wav')).toBe(true);
-    expect(isMediaPath('/a/song.ogg')).toBe(true);
-    expect(isMediaPath('/a/song.flac')).toBe(true);
-    expect(isMediaPath('/a/song.m4a')).toBe(true);
-    expect(isMediaPath('/a/song.aac')).toBe(true);
-  });
-  it('matches video extensions', () => {
-    expect(isMediaPath('/a/clip.mp4')).toBe(true);
-    expect(isMediaPath('/a/clip.webm')).toBe(true);
-    expect(isMediaPath('/a/clip.mov')).toBe(true);
-    expect(isMediaPath('/a/clip.avi')).toBe(true);
-    expect(isMediaPath('/a/clip.m4v')).toBe(true);
-    expect(isMediaPath('/a/clip.mkv')).toBe(true);
-  });
-  it('rejects non-media', () => {
-    expect(isMediaPath('/a/file.md')).toBe(false);
-    expect(isMediaPath('/a/file.png')).toBe(false);
-  });
-  it('rejects empty/null', () => {
-    expect(isMediaPath(null)).toBe(false);
-    expect(isMediaPath('')).toBe(false);
   });
 });
 

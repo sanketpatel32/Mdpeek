@@ -8,28 +8,6 @@ function codeLineNumbersOn() {
   catch { return false; }
 }
 
-// v0.53.0: prose highlights (complex-word underlines + dense-paragraph tint)
-// are opt-in. Read fresh each render so the toggle takes effect on re-render.
-// v0.54.0: short-circuit under Minimal mode so the overlay never renders even
-// if the plain key was left '1' from before Minimal was turned on.
-function proseHighlightsOn() {
-  try {
-    if (localStorage.getItem('mdpeek-minimal-mode') === '1') return false;
-    return localStorage.getItem('mdpeek-prose-highlights') === '1';
-  }
-  catch { return false; }
-}
-
-// v0.55.0: word-frequency underline overlay (overused 5+ use words). Same
-// opt-in + Minimal-suppression rules as prose highlights.
-function wordFreqOn() {
-  try {
-    if (localStorage.getItem('mdpeek-minimal-mode') === '1') return false;
-    return localStorage.getItem('mdpeek-wordfreq-underline') === '1';
-  }
-  catch { return false; }
-}
-
 // Renders `content` (markdown string) into `el`. Returns a promise that resolves
 // after mermaid diagrams are enhanced. Non-throwing: if the parser or enhancer
 // throws on malformed input, a visible error banner is shown instead of leaving
@@ -41,14 +19,14 @@ export async function showDocument(el, content) {
   } catch (e) {
     console.error('[mdpeek] renderMarkdown failed:', e);
     el.innerHTML =
-      `<div class="pdf-error">` +
+      `<div class="viewer-error">` +
       `<div>Couldn't render this document: ${escapeHtml(e && e.message ? e.message : String(e))}</div>` +
       `</div>`;
     return;
   }
   el.innerHTML = html;
   try {
-    await enhanceDom(el, { lineNumbers: codeLineNumbersOn(), proseHighlights: proseHighlightsOn(), wordFreq: wordFreqOn() });
+    await enhanceDom(el, { lineNumbers: codeLineNumbersOn() });
   } catch (e) {
     // Enhance failure (e.g. a quirky mermaid diagram) must never blank the
     // already-rendered body — the markdown is still readable, just without

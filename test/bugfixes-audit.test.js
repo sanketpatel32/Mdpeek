@@ -34,18 +34,9 @@ describe('Codebase bug fixes & hardening audit', () => {
     expect(renderer).toMatch(/if \(!overlay\.classList\.contains\('open'\)\) return;/);
   });
 
-  it('provides safe pointer-capture handling on media viewer scrubber', () => {
-    const mediaViewer = read('src/views/media-viewer.js');
-    expect(mediaViewer).toMatch(/setPointerCapture/);
-    expect(mediaViewer).toMatch(/releasePointerCapture/);
-    expect(mediaViewer).toMatch(/pointercancel/);
-  });
-
-  it('includes save-as command and safeCssEscape in main.js', () => {
+  it('includes save-as command in main.js', () => {
     const main = read('src/main.js');
     expect(main).toMatch(/id:\s*'save-as'/);
     expect(main).toMatch(/async function saveActiveAs\(\)/);
-    expect(main).toMatch(/function safeCssEscape\(/);
-    expect(main).toMatch(/safeCssEscape\(id\)/);
   });
 });

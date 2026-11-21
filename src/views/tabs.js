@@ -14,7 +14,6 @@ function titleFor(doc) {
     const parts = doc.path.split(/[\\/]/);
     return parts[parts.length - 1];
   }
-  if (doc.excalidraw || doc.tldraw) return doc.excalidraw ? 'Excalidraw drawing' : 'TLDraw drawing';
   // Untitled notes derive a title from their content (first heading / first
   // line) so the tab strip stays meaningful while writing before saving.
   const derived = deriveNoteTitle(doc.content || '');
@@ -25,7 +24,7 @@ function titleFor(doc) {
 // several folders are open), then state suffixes. The dirty marker mirrors
 // the status bar's "· edited" wording so both cues read the same way.
 function tooltipFor(doc) {
-  let t = doc.path || (doc.shared ? 'Shared document' : doc.excalidraw || doc.tldraw ? titleFor(doc) : deriveNoteTitle(doc.content || ''));
+  let t = doc.path || deriveNoteTitle(doc.content || '');
   if (doc.dirty) t += ' — unsaved changes';
   if (doc.pinned) t += ' — pinned';
   return t;
@@ -253,17 +252,7 @@ export function renderTabs(store) {
     .map((d) => {
       const active = d.id === store.activeId ? ' active' : '';
       const pinned = d.pinned ? ' pinned' : '';
-      const shared = d.shared ? ' shared' : '';
-      // v0.67.0: dot modifiers — a shared+dirty tab used to render two
-      // identically-green dots (the shared tint overrode the dirty one).
       const dirty = d.dirty ? '<span class="tab-dot tab-dot--dirty" title="Unsaved changes">●</span>' : '';
-      // Shared docs show a green "live" dot so the collab state is visible at
-      // a glance even when there are no unsaved changes. Pulses via the
-      // existing global @keyframes dot-pulse (base.css) applied inline — no
-      // new CSS needed; motion.css's global prefers-reduced-motion kill-switch
-      // still overrides it because inline styles lose to !important rules.
-      const sharedDotStyle = d.dirty ? '' : ' style="animation: dot-pulse 2s ease-in-out infinite"';
-      const sharedDot = d.shared ? `<span class="tab-dot tab-dot--shared"${sharedDotStyle} title="Live collaboration">●</span>` : '';
       const icon = iconFor(d);
       const title = escapeHtml(titleFor(d));
       // Pinned tabs: title is hidden via CSS; the close × is also hidden (you
@@ -275,8 +264,8 @@ export function renderTabs(store) {
       // Close-button hit area: 18px was tight for a pointer target; inline
       // min-width/min-height grow the clickable chip to 20px without touching
       // the stylesheet (inline styles outrank the base.css dimensions).
-      return `<div class="tab${active}${pinned}${shared}" data-id="${d.id}" role="tab" aria-selected="${active ? 'true' : 'false'}" tabindex="${active ? '0' : '-1'}" draggable="true" title="${escapeHtml(tooltipFor(d))}">
-        ${icon}<span class="tab-title">${title}</span>${dirty}${sharedDot}
+      return `<div class="tab${active}${pinned}" data-id="${d.id}" role="tab" aria-selected="${active ? 'true' : 'false'}" tabindex="${active ? '0' : '-1'}" draggable="true" title="${escapeHtml(tooltipFor(d))}">
+        ${icon}<span class="tab-title">${title}</span>${dirty}
         <button class="tab-close" data-id="${d.id}" type="button" title="Close (Ctrl+W)" aria-label="Close tab" style="min-width:20px;min-height:20px;width:20px;height:20px">×</button>
       </div>`;
     })

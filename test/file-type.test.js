@@ -42,21 +42,14 @@ describe('fileTypeClass', () => {
   });
 
   it('maps other known types', () => {
-    expect(fileTypeClass('pdf')).toBe('pdf');
-    expect(fileTypeClass('excalidraw')).toBe('ex');
     expect(fileTypeClass('txt')).toBe('txt');
     expect(fileTypeClass('log')).toBe('txt');
-  });
-
-  it('maps the TLDraw extension to td (v0.47.0)', () => {
-    expect(fileTypeClass('tldr')).toBe('td');
-    expect(fileTypeClass('TLDR')).toBe('td'); // case-insensitive
+    expect(fileTypeClass('csv')).toBe('csv');
   });
 
   it('is case-insensitive', () => {
     expect(fileTypeClass('MD')).toBe('md');
     expect(fileTypeClass('JSON')).toBe('code');
-    expect(fileTypeClass('PDF')).toBe('pdf');
   });
 
   it('returns empty string for unknown extensions or empty input', () => {
@@ -71,7 +64,6 @@ describe('fileTypeFromPath', () => {
   it('extracts the extension and classifies', () => {
     expect(fileTypeFromPath('C:\\Users\\me\\Notes\\hello.md')).toBe('md');
     expect(fileTypeFromPath('/home/me/code/main.rs')).toBe('code');
-    expect(fileTypeFromPath('report.pdf')).toBe('pdf');
   });
 
   it('returns empty string for paths without extension', () => {
@@ -95,7 +87,7 @@ describe('getFileIconHtml', () => {
   });
 
   it('appends an extra class when provided', () => {
-    const html = getFileIconHtml('pdf', 'recent-icon');
+    const html = getFileIconHtml('md', 'recent-icon');
     expect(html).toContain('recent-icon');
   });
 
@@ -106,11 +98,6 @@ describe('getFileIconHtml', () => {
     expect(unknown).not.toContain('pdf');
   });
 
-  it('renders a TLDraw glyph for the td class (v0.47.0)', () => {
-    const html = getFileIconHtml('td');
-    expect(html).toContain('<svg');
-    expect(html).toContain('file-icon td');
-  });
 });
 
 describe('getLanguageIcon', () => {

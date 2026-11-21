@@ -35,9 +35,6 @@ it('untitled plain-text notes request the text Save As kind and complete the sav
     toast: vi.fn(),
     fmtErr: String,
     clearDirty: vi.fn(),
-    maybeSnapshot: vi.fn(),
-    excalidraw: null,
-    tldraw: null,
   };
   await saveActiveDoc(deps, doc);
   expect(invoke).toHaveBeenCalledExactlyOnceWith('save_file_as', { content: 'hello', kind: 'text' });
@@ -54,9 +51,6 @@ it('named docs save in place via save_file and clear the dirty flag', async () =
     toast: vi.fn(),
     fmtErr: String,
     clearDirty: vi.fn(),
-    maybeSnapshot: vi.fn(),
-    excalidraw: null,
-    tldraw: null,
   };
   await saveActiveDoc(deps, doc);
   expect(invoke).toHaveBeenCalledExactlyOnceWith('save_file', { path: 'C:\\notes\\a.md', content: 'hi' });
@@ -64,26 +58,7 @@ it('named docs save in place via save_file and clear the dirty flag', async () =
   expect(deps.toast).toHaveBeenCalledWith('Saved');
 });
 
-it('canvas tabs request their own file kind', async () => {
-  const tldrawDoc = { id: 'tl', path: null, tldraw: true, content: '{}' };
-  const excalidrawDoc = { id: 'ex', path: null, excalidraw: true, content: '{"elements":[]}' };
-  const invoke = vi.fn().mockResolvedValue('C:\\notes\\drawing.tldr');
-  const deps = {
-    invoke,
-    toast: vi.fn(),
-    fmtErr: String,
-    clearDirty: vi.fn(),
-    maybeSnapshot: vi.fn(),
-    excalidraw: null,
-    tldraw: { flush: () => '{}' },
-  };
-  await saveActiveDoc(deps, tldrawDoc);
-  expect(invoke).toHaveBeenCalledWith('save_file_as', { content: '{}', kind: 'tldraw' });
 
-  deps.invoke = vi.fn().mockResolvedValue('C:\\notes\\drawing.excalidraw');
-  await saveActiveDoc({ ...deps, invoke: deps.invoke }, excalidrawDoc);
-  expect(deps.invoke).toHaveBeenCalledWith('save_file_as', { content: '{"elements":[]}', kind: 'excalidraw' });
-});
 
 it("cancelled Save As keeps the doc pathless and stays quiet", async () => {
   const doc = { id: 'cancel-me', path: null, plain: true, content: 'x' };
@@ -92,9 +67,6 @@ it("cancelled Save As keeps the doc pathless and stays quiet", async () => {
     toast: vi.fn(),
     fmtErr: String,
     clearDirty: vi.fn(),
-    maybeSnapshot: vi.fn(),
-    excalidraw: null,
-    tldraw: null,
   };
   const out = await saveActiveDoc(deps, doc);
   expect(out).toBeNull();

@@ -114,15 +114,10 @@
 .settings-cat,
 .tab-new,
 .welcome-action,
-.kanban-card,
-.kanban-add-btn,
 .fmt-btn,
 .about-link,
 .theme-card,
 .file-tree-action-btn,
-.terminal-action-btn,
-.collab-status,
-.slide-arrow,
 .ctx-item,
 .btn-more {
   transition:
@@ -140,13 +135,9 @@
 .settings-cat:active,
 .tab-new:active,
 .welcome-action:active,
-.kanban-card:active:not(.kanban-card-dragging),
-.kanban-add-btn:active,
-.pomo-status:active,
 .fmt-btn:active,
 .about-link:active,
 .theme-card:active,
-.slide-arrow:active,
 .btn-more:active {
   transform: scale(0.96);
 }
@@ -155,7 +146,6 @@
    3. HOVER LIFTS — cards rise + shadow grows
    ====================================================================== */
 
-.kanban-card:hover,
 .welcome-action:hover,
 .about-link:hover,
 .theme-card:hover {
@@ -255,17 +245,12 @@
   .settings-cat:active,
   .tab-new:active,
   .welcome-action:active,
-  .kanban-card:active:not(.kanban-card-dragging),
-  .kanban-add-btn:active,
-  .pomo-status:active,
   .fmt-btn:active,
   .about-link:active,
   .about-link:hover,
   .theme-card:active,
   .theme-card:hover,
-  .kanban-card:hover,
   .welcome-action:hover,
-  .slide-arrow:active,
   .btn-more:active {
     transform: none;
   }

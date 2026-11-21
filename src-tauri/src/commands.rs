@@ -19,13 +19,7 @@ pub async fn open_file() -> Result<OpenResult, String> {
             "java", "c", "h", "cpp", "cs", "php", "swift", "kt", "scala", "sql",
             "graphql", "proto", "lua", "r", "dart", "csv", "tsv", "diff", "patch",
         ])
-        .add_filter("PDF", &["pdf"])
         .add_filter("Images", &["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif"])
-        .add_filter("Audio", &["mp3", "wav", "ogg", "flac", "m4a", "aac"])
-        .add_filter("Video", &["mp4", "webm", "mov", "avi", "m4v", "mkv"])
-        .add_filter("Jupyter Notebook", &["ipynb"])
-        .add_filter("Excalidraw", &["excalidraw"])
-        .add_filter("TLDraw", &["tldr"])
         .add_filter("All files", &["*"])
         .pick_file()
         .await
@@ -33,9 +27,8 @@ pub async fn open_file() -> Result<OpenResult, String> {
 
     let path = file.path().to_path_buf();
     let path_str = path.display().to_string();
-    // PDFs, images, and audio/video are binary — return empty content; the
-    // frontend loads them via the asset protocol instead of through `content`.
-    // Notebooks (.ipynb) are JSON text and ride `content` like CSV/code.
+    // Images are binary — return empty content; the frontend loads them via
+    // the asset protocol instead of through `content`.
     let content = read_file(path_str.clone())?;
     Ok(OpenResult {
         path: path_str,
@@ -147,9 +140,7 @@ pub async fn save_file_as_text(content: String) -> Result<String, String> {
 
 pub(crate) fn is_binary_path(path: &str) -> bool {
     const BINARY_EXTS: &[&str] = &[
-        ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico", ".avif",
-        ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac",
-        ".mp4", ".webm", ".mov", ".avi", ".m4v", ".mkv",
+        ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico", ".avif",
     ];
     let lower = path.to_lowercase();
     BINARY_EXTS.iter().any(|ext| lower.ends_with(ext))
@@ -157,8 +148,7 @@ pub(crate) fn is_binary_path(path: &str) -> bool {
 
 #[tauri::command]
 pub fn read_file(path: String) -> Result<String, String> {
-    // These viewers load bytes through the asset protocol. Notebooks and
-    // canvas documents are JSON text and must still be read normally.
+    // Image viewers load bytes through the asset protocol.
     if is_binary_path(&path) {
         return Ok(String::new());
     }
@@ -1000,111 +990,3 @@ fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::
     Ok(())
 }
 
-// (The old request/response `run_shell_command` lived here. Removed in v0.23.0
-//  in favor of the real-PTY backend in src/pty.rs — see spawn_terminal.)
-
-// ----------------------------- snapshots (v0.45.0) -------------------------
-// Local version history: each save snapshots the doc's content to a per-path
-// folder under %LOCALAPPDATA%\mdpeek\versions\<hash>\<unix-ms>.md. The folder
-// name is an FNV-1a hash of the absolute path (stable across launches, no
-// crypto needed — it's just a filesystem-safe disambiguator). write_snapshot
-// prunes to the 25 newest per path on every write so storage stays bounded.
-
-/// Resolve the versions root: <appdata>/mdpeek/versions/.
-fn versions_root() -> std::path::PathBuf {
-    let mut path = if let Some(local_app_data) = std::env::var_os("LOCALAPPDATA") {
-        std::path::PathBuf::from(local_app_data)
-    } else if let Some(home) = std::env::var_os("HOME") {
-        std::path::PathBuf::from(home).join(".local").join("share")
-    } else {
-        std::env::temp_dir()
-    };
-    path.push("mdpeek");
-    path.push("versions");
-    path
-}
-
-/// FNV-1a 32-bit hash → lowercase hex. Used only as a stable folder name, so
-/// the small hash width is fine (collisions would just merge two docs'
-/// histories, an acceptable failure for a local-only convenience feature).
-fn fnv1a_hex(s: &str) -> String {
-    let mut h: u32 = 0x811c9dc5;
-    for b in s.as_bytes() {
-        h ^= *b as u32;
-        h = h.wrapping_mul(0x01000193);
-    }
-    format!("{:08x}", h)
-}
-
-#[derive(Serialize)]
-pub struct SnapshotEntry {
-    pub ts: u128,   // unix epoch milliseconds (filename stem)
-    pub size: u64,  // bytes
-}
-
-/// Write a timestamped snapshot of `content` for the doc at `path`. Keeps the
-/// 25 newest snapshots per path (older files are deleted). Returns the number
-/// of snapshots now on disk (handy for a toast). Failures are logged but
-/// non-fatal — a snapshot miss must never block a save.
-#[tauri::command]
-pub fn write_snapshot(path: String, content: String) -> Result<usize, String> {
-    if path.is_empty() {
-        return Err("snapshot needs a path".to_string());
-    }
-    let dir = versions_root().join(fnv1a_hex(&path));
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    let file = dir.join(format!("{}.md", ts));
-    fs::write(&file, &content).map_err(|e| e.to_string())?;
-    // Prune to the 25 newest. List entries, sort by filename (timestamp) desc,
-    // delete everything past the cutoff.
-    let mut entries: Vec<std::path::PathBuf> = fs::read_dir(&dir)
-        .map_err(|e| e.to_string())?
-        .filter_map(|e| e.ok())
-        .map(|e| e.path())
-        .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("md"))
-        .collect();
-    entries.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
-    const KEEP: usize = 25;
-    for stale in entries.iter().skip(KEEP) {
-        let _ = fs::remove_file(stale);
-    }
-    Ok(entries.len().min(KEEP))
-}
-
-/// List snapshots for the doc at `path`, newest first. Returns an empty vec
-/// when no snapshots exist (e.g. the path was never saved under this build).
-#[tauri::command]
-pub fn list_snapshots(path: String) -> Result<Vec<SnapshotEntry>, String> {
-    if path.is_empty() {
-        return Ok(vec![]);
-    }
-    let dir = versions_root().join(fnv1a_hex(&path));
-    if !dir.exists() {
-        return Ok(vec![]);
-    }
-    let mut entries: Vec<SnapshotEntry> = fs::read_dir(&dir)
-        .map_err(|e| e.to_string())?
-        .filter_map(|e| e.ok())
-        .filter_map(|e| {
-            let p = e.path();
-            let stem = p.file_stem()?.to_string_lossy().parse::<u128>().ok()?;
-            let size = e.metadata().ok()?.len();
-            Some(SnapshotEntry { ts: stem, size })
-        })
-        .collect();
-    entries.sort_by(|a, b| b.ts.cmp(&a.ts));
-    Ok(entries)
-}
-
-/// Read a single snapshot's content back. `ts` is the unix-ms timestamp from
-/// list_snapshots. Returns the file content or an error if it's gone.
-#[tauri::command]
-pub fn read_snapshot(path: String, ts: u128) -> Result<String, String> {
-    let dir = versions_root().join(fnv1a_hex(&path));
-    let file = dir.join(format!("{}.md", ts));
-    fs::read_to_string(&file).map_err(|e| e.to_string())
-}

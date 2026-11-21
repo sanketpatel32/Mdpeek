@@ -2,7 +2,6 @@ import { afterEach, beforeEach, expect, it } from 'vitest';
 import { initModalFocus, modalOwnsKeyboard, syncModalFocus } from '../src/lib/modal-focus.js';
 import { makePicker } from '../src/views/command-palette.js';
 import { initTableEditor } from '../src/views/table-editor.js';
-import { initDiffViewer } from '../src/views/diff-viewer.js';
 
 let destroy;
 const press = (key, options = {}) => document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...options }));
@@ -122,10 +121,5 @@ it('releases table and diff dialogs before applying changes to the background ed
   document.querySelector('.te-apply').click();
   expect(document.querySelector('main').hasAttribute('inert')).toBe(false);
   expect(editor.value).toContain('Ada');
-  expect(document.activeElement).toBe(editor);
-  const diff = initDiffViewer();
-  diff.open({ oldContent: 'Before', newContent: 'After', onApply: apply, onClose: () => expect(editor.value).toBe('After') });
-  document.querySelector('.diff-apply').click();
-  expect(document.querySelector('main').hasAttribute('inert')).toBe(false);
   expect(document.activeElement).toBe(editor);
 });

@@ -7,10 +7,10 @@
 // scope) throws, aborting the whole module — the known "blank in browser
 // dev" failure. Installing a minimal fake keeps the module alive; every
 // `invoke()` still rejects, which the existing try/catch paths already
-// degrade from gracefully (no files, no terminal — chrome only).
+// degrade from gracefully (no files — chrome only).
 if (!window.__TAURI_INTERNALS__) {
   // Collect runtime errors + unhandled rejections so browser-side debugging
-  // (and the ?term=1 / ?settings=1 previews) can be diagnosed via
+  // (and the ?settings=1 previews) can be diagnosed via
   // window.__devErrors instead of a detached DevTools console.
   window.__devErrors = [];
   window.addEventListener('error', (e) => window.__devErrors.push(String(e.error || e.message)));
@@ -27,27 +27,6 @@ if (!window.__TAURI_INTERNALS__) {
     invoke: (cmd, args = {}) => {
       if (cmd === 'plugin:event|listen' || cmd === 'plugin:event|unlisten') {
         return Promise.resolve(++cbId);
-      }
-      if (cmd === 'start_wifi_collab') {
-        return Promise.resolve({
-          active: true,
-          ip: '192.168.1.104',
-          port: args.port || 4789,
-          url: `http://192.168.1.104:${args.port || 4789}`,
-          peer_count: 0,
-        });
-      }
-      if (cmd === 'stop_wifi_collab' || cmd === 'update_wifi_collab_doc' || cmd === 'sync_wifi_collab_outbound') {
-        return Promise.resolve();
-      }
-      if (cmd === 'get_wifi_collab_status') {
-        return Promise.resolve({
-          active: false,
-          ip: '192.168.1.104',
-          port: 4789,
-          url: 'http://192.168.1.104:4789',
-          peer_count: 0,
-        });
       }
       return Promise.reject(new Error(`dev shim: no backend for "${cmd}"`));
     },
@@ -80,9 +59,6 @@ if (!window.__TAURI_INTERNALS__) {
         document.querySelector(`.settings-cat[data-cat="${panel}"]`)?.click();
       }, 1200);
     }
-  }
-  if (params.get('term') === '1') {
-    setTimeout(() => document.getElementById('btn-terminal')?.click(), 900);
   }
   // Seed a sample document (session restore) so rendered-markdown styling is
   // screenshotable in a plain browser. Seeds once, then reloads so main.js

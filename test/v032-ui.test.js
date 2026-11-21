@@ -40,7 +40,7 @@ describe('v0.32.0 topbar — removed clutter', () => {
     // These IDs moved from the toolbar into #more-menu, but the elements + their
     // handlers must still exist somewhere in the document.
     for (const id of ['btn-open', 'btn-save', 'btn-mode', 'btn-export', 'btn-export-pdf',
-      'btn-present', 'btn-share', 'btn-daily', 'btn-kanban', 'btn-terminal', 'btn-draw']) {
+      'btn-daily', 'btn-draw']) {
       expect(INDEX, `expected #${id} to still exist`).toMatch(new RegExp(`id="${id}"`));
     }
   });
@@ -65,9 +65,8 @@ describe('v0.32.0 Settings — theme grid + updates panel', () => {
     expect(INDEX).not.toMatch(/<select[^>]*id="settings-theme"/);
   });
 
-  it('the theme grid contains all 10 themes as cards', () => {
-    const themes = ['light', 'dark', 'solar-light', 'solar-dark', 'dracula', 'nord',
-      'github', 'github-dark', 'tokyo-night', 'catppuccin'];
+  it('the theme grid contains all 5 themes as cards', () => {
+    const themes = ['light', 'dark', 'solar-light', 'nord', 'oled'];
     for (const t of themes) {
       expect(INDEX, `theme card for ${t}`).toMatch(new RegExp(`class="theme-card"[^>]*data-theme="${t}"`));
     }
@@ -83,12 +82,11 @@ describe('v0.32.0 Settings — theme grid + updates panel', () => {
 
 describe('v0.32.0 themes.css — token fixes', () => {
   it('adds --success to light + dark + every named theme', () => {
-    const themeBlocks = ['solar-light', 'solar-dark', 'dracula', 'nord', 'github',
-      'github-dark', 'tokyo-night', 'catppuccin'];
+    const themeBlocks = ['solar-light', 'nord', 'oled'];
     // light + dark are in the combined `:root, :root[data-theme="light"]` block
-    // + the dark block; just assert --success appears >= 10 times (once per theme).
+    // + the dark block; just assert --success appears once per theme.
     const matches = THEMES.match(/--success:/g) || [];
-    expect(matches.length).toBeGreaterThanOrEqual(10);
+    expect(matches.length).toBeGreaterThanOrEqual(5);
     for (const t of themeBlocks) {
       // crude: each theme block should contain --success within its scope.
       // We just confirm --success shows up after each theme selector.
@@ -101,19 +99,19 @@ describe('v0.32.0 themes.css — token fixes', () => {
   it('defines all 10 --alert-* vars for solar-light (was missing)', () => {
     const block = THEMES.slice(THEMES.indexOf('data-theme="solar-light"'));
     // Cut at the next theme block so we only inspect solar-light's scope.
-    const end = block.indexOf('data-theme="solar-dark"');
+    const end = block.indexOf('data-theme="nord"');
     const scope = block.slice(0, end > 0 ? end : block.length);
     for (const v of ['--alert-note', '--alert-tip', '--alert-important', '--alert-warning', '--alert-caution']) {
       expect(scope, `solar-light defines ${v}`).toContain(v);
     }
   });
 
-  it('defines all 10 --alert-* vars for github (was missing)', () => {
-    const block = THEMES.slice(THEMES.indexOf('data-theme="github"'));
-    const end = block.indexOf('data-theme="github-dark"');
+  it('defines all 10 --alert-* vars for nord', () => {
+    const block = THEMES.slice(THEMES.indexOf('data-theme="nord"'));
+    const end = block.indexOf('data-theme="oled"');
     const scope = block.slice(0, end > 0 ? end : block.length);
     for (const v of ['--alert-note', '--alert-tip', '--alert-important', '--alert-warning', '--alert-caution']) {
-      expect(scope, `github defines ${v}`).toContain(v);
+      expect(scope, `nord defines ${v}`).toContain(v);
     }
   });
 
@@ -187,7 +185,7 @@ describe('v0.32.0 icons.js — lucide registry', () => {
   });
 
   it('renderIcons swaps [data-icon] placeholders and marks them rendered', () => {
-    document.body.innerHTML = '<span data-icon="save"></span><span data-icon="x" data-icon-size="20"></span>';
+    document.body.innerHTML = '<span data-icon="save"></span><span data-icon="plus" data-icon-size="20"></span>';
     renderIcons(document.body);
     const hosts = document.querySelectorAll('[data-icon]');
     expect(hosts[0].innerHTML).toContain('<svg');

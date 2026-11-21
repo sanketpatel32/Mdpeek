@@ -1,5 +1,5 @@
 // Vendor CSS bundling — replaces the CDN <link> tags that used to live in
-// index.html. KaTeX CSS + the 6 highlight.js themes are now bundled locally:
+// index.html. KaTeX CSS + the highlight.js themes are now bundled locally:
 //   • No CDN dependency (works offline)
 //   • Version-matched to the npm deps (no more 0.16.11 vs 0.17.0 skew)
 //   • Vite emits them as hashed assets under dist/assets/
@@ -14,8 +14,6 @@ import 'katex/dist/katex.min.css';
 import hljsLight from 'highlight.js/styles/github.min.css?url';
 import hljsDark from 'highlight.js/styles/github-dark.min.css?url';
 import hljsSolarLight from 'highlight.js/styles/base16/solarized-light.min.css?url';
-import hljsSolarDark from 'highlight.js/styles/base16/solarized-dark.min.css?url';
-import hljsDracula from 'highlight.js/styles/base16/dracula.min.css?url';
 import hljsNord from 'highlight.js/styles/nord.min.css?url';
 
 // Map of element id → bundled asset URL. Order matters only for readability.
@@ -23,8 +21,6 @@ const HLJS_THEMES = {
   'hljs-light': hljsLight,
   'hljs-dark': hljsDark,
   'hljs-solar-light': hljsSolarLight,
-  'hljs-solar-dark': hljsSolarDark,
-  'hljs-dracula': hljsDracula,
   'hljs-nord': hljsNord,
 };
 

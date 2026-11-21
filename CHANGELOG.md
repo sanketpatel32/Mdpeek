@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-22
+
+The simplification release. mdpeek is a Markdown viewer/editor again — everything that made it an IDE, notebook, or knowledge base is gone. ~28,500 lines removed; the app is faster to boot, lighter to build, and calmer to use.
+
+### Removed
+- **Workspace hub** — Kanban board, calendar, tasks inbox, flashcard review, and note-graph views deleted.
+- **Live collaboration** — P2P co-editing (Yjs + Trystero), share/join dialogs, wi-fi collab server, and the `mdpeek://` invite scheme.
+- **Integrated terminal** — PTY backend (ConPTY), drawer UI, and related shortcuts.
+- **Gamification** — writing-day streaks, word-count goals, quick-capture inbox, word-frequency tools.
+- **Presentation mode**, **Pomodoro timer**, **capture HUD**.
+- **Non-markdown viewers** — PDF viewer, Jupyter notebook viewer, audio/video player, Excalidraw and TLDraw canvases.
+- **Knowledge tooling** — backlinks, tag pane, reference pane, snapshots + diff viewer, named workspaces, minimal mode.
+- **6 themes** — theme count is now five: Light, Dark, OLED, Solarized Light, Nord.
+- **Dependencies** — react, react-dom, @excalidraw/excalidraw, pdfjs-dist, yjs, y-protocols, trystero, tauri-plugin-deep-link, portable-pty.
+
+### Changed
+- `main.js` shrunk from ~10,300 to ~5,600 lines; `index.html` ~500 lines lighter; `base.css` 8,141 to ~5,100 lines.
+- Doc model simplified: document types are now markdown, plain text, image, CSV, and code.
+- README rewritten to describe the actual product.
+
+### Fixed
+- The Edit/Preview toggle (`#btn-mode`) lost its click listener during cleanup and silently did nothing — restored.
+- Explorer toolbar buttons (open folder, close explorer) and the ⋯ menu's "Document outline" / "Search in folder" items were visible but unwired — restored.
+- Autocomplete file cache now invalidates when the file tree refreshes.
+
 ## [1.9.0] - 2026-11-21
 
 Lightweight footprint restoration, modern UI overhaul, package updates, and Tier 1 bloat removal.

@@ -64,12 +64,6 @@
   --alert-important: #8250df;   --alert-important-bg: rgba(130, 80, 223, 0.08);
   --alert-warning: #9a6700;     --alert-warning-bg: rgba(154, 103, 0, 0.1);
   --alert-caution: #cf222e;     --alert-caution-bg: rgba(207, 34, 46, 0.08);
-
-  /* Kanban column accents — default (cool spectrum). Themes override to match
-     their palette so Nord kanban looks Nord, not Tailwind. */
-  --kanban-todo:  #3b82f6;
-  --kanban-doing: #f59e0b;
-  --kanban-done:  #22c55e;
 }
 
 /* ---- Light (default) -------------------------------------------------------
@@ -123,9 +117,6 @@
 
   /* Kanban accents — macOS system light-mode colors, matching this theme's
      accent/success family instead of the cool-spectrum defaults. */
-  --kanban-todo:  #0071e3;
-  --kanban-doing: #ff9500;
-  --kanban-done:  #34c759;
 }
 
 /* Design tokens — Dark
@@ -167,9 +158,6 @@
 
   /* Kanban accents — macOS system dark-mode colors, matching this theme's
      accent/success family instead of the cool-spectrum defaults. */
-  --kanban-todo:  #0a84ff;
-  --kanban-doing: #ff9f0a;
-  --kanban-done:  #30d158;
 
   --alert-note: #4493f8;        --alert-note-bg: rgba(68, 147, 248, 0.12);
   --alert-tip: #3fb950;         --alert-tip-bg: rgba(63, 185, 80, 0.12);
@@ -223,101 +211,6 @@
   --alert-warning: #b58900;     --alert-warning-bg: rgba(181, 137, 0, 0.12);
   --alert-caution: #dc322f;     --alert-caution-bg: rgba(220, 50, 47, 0.1);
 
-  --kanban-todo:  #268bd2;
-  --kanban-doing: #b58900;
-  --kanban-done:  #859900;
-}
-
-/* ---- Solarized Dark ----
-   Deep blue base, the same restrained accent set inverted. */
-:root[data-theme="solar-dark"] {
-  --bg: #002b36;
-  --bg-elevated: #073642;
-  --surface: #06303d;
-  --surface-hover: #0e4755;
-  --surface-active: #155a6a;
-
-  --fg: #fdf6e3;
-  --fg-secondary: #9db1b1;
-  --fg-muted: #8ea7ad;
-
-  --border: #10505f;
-  --border-subtle: #0a3d4b;
-
-  --accent: #64b6ea;
-  --accent-hover: #8bc9f0;
-  --accent-soft: rgba(38, 139, 210, 0.18);
-  --danger: #ff7b70;
-  --on-accent: #002b36;
-  --on-danger: #002b36;
-  --warning: #b58900;
-  --success: #859900;
-
-  --code-bg: #073642;
-  --code-border: #0e4654;
-
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.3);
-
-  --sw-bg: #002b36;
-  --sw-accent: #268bd2;
-
-  --alert-note: #268bd2;        --alert-note-bg: rgba(38, 139, 210, 0.15);
-  --alert-tip: #859900;         --alert-tip-bg: rgba(133, 153, 0, 0.15);
-  --alert-important: #6c71c4;   --alert-important-bg: rgba(108, 113, 196, 0.15);
-  --alert-warning: #b58900;     --alert-warning-bg: rgba(181, 137, 0, 0.15);
-  --alert-caution: #dc322f;     --alert-caution-bg: rgba(220, 50, 47, 0.15);
-
-  --kanban-todo:  #268bd2;
-  --kanban-doing: #b58900;
-  --kanban-done:  #859900;
-}
-
-/* ---- Dracula ----
-   The cult dark theme: deep purple base, neon pink/green/purple accents. */
-:root[data-theme="dracula"] {
-  --bg: #282a36;
-  --bg-elevated: #343746;
-  --surface: #2f313f;
-  --surface-hover: #3e4152;
-  --surface-active: #4c506b;
-
-  --fg: #f8f8f2;
-  --fg-secondary: #b9bac9;
-  --fg-muted: #a2b0d0;
-
-  --border: #46495c;
-  --border-subtle: #3a3d4c;
-
-  --accent: #bd93f9;
-  --accent-hover: #caa6ff;
-  --accent-soft: rgba(189, 147, 249, 0.15);
-  --danger: #ff5555;
-  --on-accent: #282a36;
-  --on-danger: #282a36;
-  --warning: #f1fa8c;
-  --success: #50fa7b;
-
-  --code-bg: #21222c;
-  --code-border: #44475a;
-
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.25);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.35);
-
-  --sw-bg: #282a36;
-  --sw-accent: #bd93f9;
-
-  --alert-note: #8be9fd;        --alert-note-bg: rgba(139, 233, 253, 0.1);
-  --alert-tip: #50fa7b;         --alert-tip-bg: rgba(80, 250, 123, 0.1);
-  --alert-important: #ff79c6;   --alert-important-bg: rgba(255, 121, 198, 0.1);
-  --alert-warning: #f1fa8c;     --alert-warning-bg: rgba(241, 250, 140, 0.1);
-  --alert-caution: #ff5555;     --alert-caution-bg: rgba(255, 85, 85, 0.12);
-
-  --kanban-todo:  #bd93f9;
-  --kanban-doing: #ffb86c;
-  --kanban-done:  #50fa7b;
 }
 
 /* ---- Nord ----
@@ -361,195 +254,6 @@
   --alert-warning: #ebcb8b;     --alert-warning-bg: rgba(235, 203, 139, 0.12);
   --alert-caution: #bf616a;     --alert-caution-bg: rgba(191, 97, 106, 0.15);
 
-  --kanban-todo:  #81a1c1;
-  --kanban-doing: #ebcb8b;
-  --kanban-done:  #a3be8c;
-}
-
-/* ---- GitHub (light) ----
-   GitHub.com's actual palette: cool grey surfaces, GitHub-blue links. */
-:root[data-theme="github"] {
-  --bg: #ffffff;
-  --bg-elevated: #ffffff;
-  --surface: #f6f8fa;
-  --surface-hover: #eaeef2;
-  --surface-active: #d8dee4;
-
-  --fg: #1f2328;
-  --fg-secondary: #59636e;
-  --fg-muted: #626c76;
-
-  --border: #d0d7de;
-  --border-subtle: #e4e8ec;
-
-  --accent: #0969da;
-  --accent-hover: #0860ca;
-  --accent-soft: rgba(9, 105, 218, 0.08);
-  --danger: #cf222e;
-  --on-accent: #ffffff;
-  --on-danger: #ffffff;
-  --warning: #9a6700;
-  --success: #1a7f37;
-
-  --code-bg: #f6f8fa;
-  --code-border: #d0d7de;
-
-  --shadow-sm: 0 1px 0 rgba(31, 35, 40, 0.04);
-  --shadow-md: 0 3px 6px rgba(140, 149, 159, 0.15);
-  --shadow-lg: 0 8px 24px rgba(140, 149, 159, 0.2);
-
-  --sw-bg: #ffffff;
-  --sw-accent: #0969da;
-
-  /* GFM alerts — GitHub's own palette (was missing; now matches the GitHub
-     look users expect from this theme). */
-  --alert-note: #0969da;        --alert-note-bg: rgba(9, 105, 218, 0.08);
-  --alert-tip: #1a7f37;         --alert-tip-bg: rgba(26, 127, 55, 0.08);
-  --alert-important: #8250df;   --alert-important-bg: rgba(130, 80, 223, 0.08);
-  --alert-warning: #9a6700;     --alert-warning-bg: rgba(154, 103, 0, 0.1);
-  --alert-caution: #cf222e;     --alert-caution-bg: rgba(207, 34, 46, 0.08);
-
-  --kanban-todo:  #0969da;
-  --kanban-doing: #9a6700;
-  --kanban-done:  #1a7f37;
-}
-
-/* ---- GitHub Dark ----
-   GitHub's dark-default palette: deep slate, bright accents. */
-:root[data-theme="github-dark"] {
-  --bg: #0d1117;
-  --bg-elevated: #161b22;
-  --surface: #131923;
-  --surface-hover: #21262d;
-  --surface-active: #2e3540;
-
-  --fg: #e6edf3;
-  --fg-secondary: #9198a1;
-  --fg-muted: #88929c;
-
-  --border: #323a44;
-  --border-subtle: #222933;
-
-  --accent: #58a6ff;
-  --accent-hover: #79b8ff;
-  --accent-soft: rgba(47, 129, 247, 0.15);
-  --danger: #ff7b72;
-  --on-accent: #0d1117;
-  --on-danger: #0d1117;
-  --warning: #d29922;
-  --success: #3fb950;
-
-  --code-bg: #0d1117;
-  --code-border: #30363d;
-
-  --shadow-sm: 0 0 transparent;
-  --shadow-md: 0 8px 24px rgba(1, 4, 9, 0.85);
-  --shadow-lg: 0 16px 32px rgba(1, 4, 9, 0.9);
-
-  --sw-bg: #0d1117;
-  --sw-accent: #2f81f7;
-
-  --alert-note: #4493f8;        --alert-note-bg: rgba(68, 147, 248, 0.12);
-  --alert-tip: #3fb950;         --alert-tip-bg: rgba(63, 185, 80, 0.12);
-  --alert-important: #a371f7;   --alert-important-bg: rgba(163, 113, 247, 0.12);
-  --alert-warning: #d29922;     --alert-warning-bg: rgba(210, 153, 34, 0.12);
-  --alert-caution: #f85149;     --alert-caution-bg: rgba(248, 81, 73, 0.12);
-
-  --kanban-todo:  #2f81f7;
-  --kanban-doing: #d29922;
-  --kanban-done:  #3fb950;
-}
-
-/* ---- Tokyo Night ----
-   Enkia's deep-blue nightscape with pastel accents. */
-:root[data-theme="tokyo-night"] {
-  --bg: #1a1b26;
-  --bg-elevated: #24283b;
-  --surface: #202335;
-  --surface-hover: #2c3149;
-  --surface-active: #3a4066;
-
-  --fg: #c0caf5;
-  --fg-secondary: #a9b1d6;
-  --fg-muted: #959fce;
-
-  --border: #3d4568;
-  --border-subtle: #2b2f49;
-
-  --accent: #7aa2f7;
-  --accent-hover: #89b4fa;
-  --accent-soft: rgba(122, 162, 247, 0.15);
-  --danger: #f7768e;
-  --on-accent: #1a1b26;
-  --on-danger: #1a1b26;
-  --warning: #e0af68;
-  --success: #9ece6a;
-
-  --code-bg: #16161e;
-  --code-border: #414868;
-
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.25);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.35);
-
-  --sw-bg: #1a1b26;
-  --sw-accent: #7aa2f7;
-
-  --alert-note: #7aa2f7;        --alert-note-bg: rgba(122, 162, 247, 0.12);
-  --alert-tip: #9ece6a;         --alert-tip-bg: rgba(158, 206, 106, 0.12);
-  --alert-important: #bb9af7;   --alert-important-bg: rgba(187, 154, 247, 0.12);
-  --alert-warning: #e0af68;     --alert-warning-bg: rgba(224, 175, 104, 0.12);
-  --alert-caution: #f7768e;     --alert-caution-bg: rgba(247, 118, 142, 0.14);
-
-  --kanban-todo:  #7aa2f7;
-  --kanban-doing: #e0af68;
-  --kanban-done:  #9ece6a;
-}
-
-/* ---- Catppuccin Mocha ----
-   The cozy pastel palette: warm dark base, soft pastel accents. */
-:root[data-theme="catppuccin"] {
-  --bg: #1e1e2e;
-  --bg-elevated: #313244;
-  --surface: #26273a;
-  --surface-hover: #3c3e54;
-  --surface-active: #4b4e68;
-
-  --fg: #cdd6f4;
-  --fg-secondary: #bac2de;
-  --fg-muted: #a6adc8;
-
-  --border: #4a4c63;
-  --border-subtle: #363850;
-
-  --accent: #89b4fa;
-  --accent-hover: #b4befe;
-  --accent-soft: rgba(137, 180, 250, 0.15);
-  --danger: #f38ba8;
-  --on-accent: #1e1e2e;
-  --on-danger: #1e1e2e;
-  --warning: #f9e2af;
-  --success: #a6e3a1;
-
-  --code-bg: #181825;
-  --code-border: #45475a;
-
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.3);
-
-  --sw-bg: #1e1e2e;
-  --sw-accent: #89b4fa;
-
-  --alert-note: #89b4fa;        --alert-note-bg: rgba(137, 180, 250, 0.1);
-  --alert-tip: #a6e3a1;         --alert-tip-bg: rgba(166, 227, 161, 0.1);
-  --alert-important: #cba6f7;   --alert-important-bg: rgba(203, 166, 247, 0.1);
-  --alert-warning: #f9e2af;     --alert-warning-bg: rgba(249, 226, 175, 0.1);
-  --alert-caution: #f38ba8;     --alert-caution-bg: rgba(243, 139, 168, 0.12);
-
-  --kanban-todo:  #89b4fa;
-  --kanban-doing: #f9e2af;
-  --kanban-done:  #a6e3a1;
 }
 
 /* ---- OLED Black (v0.62.1) ----
@@ -600,21 +304,13 @@
   --alert-warning: #e3b341;     --alert-warning-bg: rgba(227, 179, 65, 0.1);
   --alert-caution: #ff6b63;     --alert-caution-bg: rgba(255, 107, 99, 0.12);
 
-  --kanban-todo:  #58a6ff;
-  --kanban-doing: #e3b341;
-  --kanban-done:  #3ddc84;
 }
 
 /* Focus halo on dark themes — the shared :root token mixes the accent at 55%,
    which can sink into low-luminance backgrounds. Dark themes lift the halo to
    70% so keyboard focus stays clearly visible; light themes keep 55%. */
 :root[data-theme="dark"],
-:root[data-theme="solar-dark"],
-:root[data-theme="dracula"],
 :root[data-theme="nord"],
-:root[data-theme="github-dark"],
-:root[data-theme="tokyo-night"],
-:root[data-theme="catppuccin"],
 :root[data-theme="oled"] {
   --focus-ring: 0 0 0 2px var(--bg-elevated),
     0 0 0 4px color-mix(in srgb, var(--accent) 70%, transparent);
@@ -650,12 +346,9 @@ html {
 }
 
 /* Comment-token contrast overrides. The bundled upstream hljs sheets ship
-   comment colors that fail 3:1 on their own code backgrounds in four themes
-   (measured: nord 1.69, dracula 2.51, catppuccin 2.51 — it reuses the dracula
-   sheet — and solarized-light 2.93). Attribute+class specificity beats the
+   comment colors that fail 3:1 on their own code backgrounds (measured:
+   nord 1.69, solarized-light 2.93). Attribute+class specificity beats the
    .hljs sheets regardless of link order; the values stay gray-muted so
    comments keep their visual hierarchy against regular code text. */
 :root[data-theme="nord"] .hljs-comment { color: #8a99ad; }
-:root[data-theme="dracula"] .hljs-comment,
-:root[data-theme="catppuccin"] .hljs-comment { color: #7d85b0; }
 :root[data-theme="solar-light"] .hljs-comment { color: #5f7676; }

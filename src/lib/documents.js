@@ -13,49 +13,17 @@ export function isPlainPath(path) {
   return !!path && /\.txt$/i.test(path);
 }
 
-// A doc is a "pdf" when it's a .pdf file — rendered read-only via pdf.js.
-export function isPdfPath(path) {
-  return !!path && /\.pdf$/i.test(path);
-}
-
-// A doc is an "excalidraw" canvas when it's a .excalidraw file.
-export function isExcalidrawPath(path) {
-  return !!path && /\.excalidraw$/i.test(path);
-}
-
-// v0.47.0: A doc is a "tldraw" canvas when it's a .tldr file (the canonical
-// TLDraw project extension). The scene is JSON, stored in doc.content like
-// Excalidraw — same handling, parallel code path.
-export function isTLDrawPath(path) {
-  return !!path && /\.tldr$/i.test(path);
-}
-
 // A doc is an "image" when it's a raster/vector we can render via <img>:
 // png, jpg/jpeg, gif, webp, svg, bmp, ico, avif. Loaded read-only via the
-// asset protocol (same path PDFs use).
+// asset protocol.
 export function isImagePath(path) {
   return !!path && /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i.test(path);
-}
-
-// v0.49.0: A doc is a "notebook" when it's a Jupyter .ipynb file. The file is
-// JSON text (nbformat 3/4) — it rides doc.content like CSV/code, and the viewer
-// parses + renders cells (markdown via renderMarkdown, code/outputs via
-// renderCode). Read-only, like code/CSV.
-export function isNotebookPath(path) {
-  return !!path && /\.ipynb$/i.test(path);
-}
-
-// v0.49.0: A doc is "media" when it's an audio/video file we can play via
-// <audio>/<video>. Binary (like images) — bytes never ride doc.content; the
-// viewer streams via the asset protocol.
-export function isMediaPath(path) {
-  return !!path && /\.(mp3|wav|ogg|flac|m4a|aac|mp4|webm|mov|avi|m4v|mkv)$/i.test(path);
 }
 
 // Read-only viewers have no editable source to save. Keep this decision shared
 // by the toolbar, command palette, and keyboard shortcuts.
 export function canSaveDoc(doc) {
-  return !!doc && !doc.pdf && !doc.image && !doc.csv && !doc.notebook && !doc.media;
+  return !!doc && !doc.image && !doc.csv;
 }
 
 // A doc is "csv" when it's a .csv or .tsv — rendered as a sortable, filterable
@@ -187,35 +155,24 @@ export function langForEdit(doc) {
   return 'markdown';                    // markdown files + untitled default
 }
 
-export function createDocument({ path = null, content = '', mode = 'view', plain, excalidraw, tldraw, code, csv, notebook, media, pinned = false, shared = false } = {}) {
+export function createDocument({ path = null, content = '', mode = 'view', plain, code, csv, pinned = false } = {}) {
   // `plain` override lets a fresh Untitled tab be plain text without a .txt
   // path (used by the new-tab-format preference). When omitted, plainness is
   // derived from the path as before.
   const isPlain = plain !== undefined ? plain : isPlainPath(path);
-  const isPdf = isPdfPath(path);
   const isImage = isImagePath(path);
-  const isExcalidraw = excalidraw !== undefined ? excalidraw : isExcalidrawPath(path);
-  const isTldraw = tldraw !== undefined ? tldraw : isTLDrawPath(path);
-  const isNotebook = notebook !== undefined ? notebook : (!isPlain && !isPdf && !isImage && !isExcalidraw && !isTldraw && isNotebookPath(path));
-  const isMedia = media !== undefined ? media : (!isPlain && !isPdf && !isImage && !isExcalidraw && !isTldraw && !isNotebook && isMediaPath(path));
-  const isCsv = csv !== undefined ? csv : (!isPlain && !isPdf && !isImage && !isExcalidraw && !isTldraw && !isNotebook && !isMedia && isCsvPath(path));
-  const isCode = code !== undefined ? code : (!isPlain && !isPdf && !isImage && !isExcalidraw && !isTldraw && !isNotebook && !isMedia && !isCsv && isCodePath(path));
+  const isCsv = csv !== undefined ? csv : (!isPlain && !isImage && isCsvPath(path));
+  const isCode = code !== undefined ? code : (!isPlain && !isImage && !isCsv && isCodePath(path));
   return {
     id: newId(),
     path, // string | null (null = Untitled, not yet saved)
-    content: (isPdf || isImage || isMedia) ? '' : content, // PDF + image + media bytes never ride this field
-    mode: isPlain ? 'edit' : ((isPdf || isImage || isExcalidraw || isTldraw || isNotebook || isMedia || isCode || isCsv) ? 'view' : mode),
+    content: isImage ? '' : content, // image bytes never ride this field
+    mode: isPlain ? 'edit' : ((isImage || isCode || isCsv) ? 'view' : mode),
     plain: isPlain, // true = no markdown preview, full-width editor
-    pdf: isPdf, // true = rendered via pdf.js, read-only
     image: isImage, // true = rendered via <img>, read-only
-    excalidraw: isExcalidraw, // true = Excalidraw canvas tab
-    tldraw: isTldraw, // true = TLDraw canvas tab (v0.47.0)
-    notebook: isNotebook, // true = Jupyter .ipynb, rendered as cells (v0.49.0)
-    media: isMedia, // true = audio/video, played via <audio>/<video> (v0.49.0)
     code: isCode, // true = rendered read-only with syntax highlighting
     csv: isCsv, // true = rendered as a sortable/filterable table
     pinned: !!pinned, // true = pinned to the left of the tab strip, survives bulk-close
-    shared: !!shared, // true = P2P collaboration tab; not persisted, no Save button
     dirty: false,
     scrollY: 0,
     editor: null, // lazy-init in main.js when entering edit mode
@@ -243,7 +200,7 @@ export class DocumentStore {
     return this.docs.find((d) => d.id === this.activeId) || null;
   }
 
-  open({ path = null, content = '', plain, mode, excalidraw, tldraw, code, csv, notebook, media, pinned, shared } = {}) {
+  open({ path = null, content = '', plain, mode, code, csv, pinned } = {}) {
     // Duplicate check: files on disk (path != null) open once.
     if (path !== null) {
       const existing = this.docs.find((d) => d.path === path);
@@ -252,7 +209,7 @@ export class DocumentStore {
         return existing;
       }
     }
-    const doc = createDocument({ path, content, plain, mode, excalidraw, tldraw, code, csv, notebook, media, pinned, shared });
+    const doc = createDocument({ path, content, plain, mode, code, csv, pinned });
     this.docs.push(doc);
     this.activeId = doc.id;
     this._emit('change');
@@ -362,9 +319,6 @@ export class DocumentStore {
       // launch (we'd rather show the welcome screen than an empty tab), UNLESS
       // they're pinned (a user explicitly kept a scratch tab around).
       docs: this.docs
-        // Skip shared/collab tabs — they're tied to a live network session
-        // and can't be meaningfully restored after a restart.
-        .filter((d) => !d.shared)
         .filter((d) => d.pinned || d.path !== null || d.content !== '' || d.dirty)
         // Sort so pinned tabs come first — preserves left-to-right ordering
         // across sessions, and the activeId fallback naturally prefers them.
@@ -379,12 +333,7 @@ export class DocumentStore {
           // Persist type flags so untitled tabs (path=null) survive a restart.
           // For saved files, these are also re-derivable from the path.
           plain: d.plain || false,
-          pdf: d.pdf || false,
           image: d.image || false,
-          excalidraw: d.excalidraw || false,
-          tldraw: d.tldraw || false,
-          notebook: d.notebook || false,
-          media: d.media || false,
           code: d.code || false,
           csv: d.csv || false,
           pinned: d.pinned || false,
@@ -402,28 +351,18 @@ export class DocumentStore {
         // Prefer the persisted type flag; fall back to path-based derivation
         // for older sessions that didn't serialize these flags.
         const plain = d.plain !== undefined ? !!d.plain : isPlainPath(path);
-        const pdf = d.pdf !== undefined ? !!d.pdf : isPdfPath(path);
         const image = d.image !== undefined ? !!d.image : isImagePath(path);
-        const excalidraw = d.excalidraw !== undefined ? !!d.excalidraw : isExcalidrawPath(path);
-        const tldraw = d.tldraw !== undefined ? !!d.tldraw : isTLDrawPath(path);
-        const notebook = d.notebook !== undefined ? !!d.notebook : (!plain && !pdf && !image && !excalidraw && !tldraw && isNotebookPath(path));
-        const media = d.media !== undefined ? !!d.media : (!plain && !pdf && !image && !excalidraw && !tldraw && !notebook && isMediaPath(path));
-        const csv = d.csv !== undefined ? !!d.csv : (!plain && !pdf && !image && !excalidraw && !tldraw && !notebook && !media && isCsvPath(path));
-        const code = d.code !== undefined ? !!d.code : (!plain && !pdf && !image && !excalidraw && !tldraw && !notebook && !media && !csv && isCodePath(path));
+        const csv = d.csv !== undefined ? !!d.csv : (!plain && !image && isCsvPath(path));
+        const code = d.code !== undefined ? !!d.code : (!plain && !image && !csv && isCodePath(path));
         const pinned = d.pinned !== undefined ? !!d.pinned : false;
         return {
           id: typeof d.id === 'string' ? d.id : newId(),
           path,
-          content: (pdf || image || media) ? '' : d.content,
-          // plain docs are always in edit mode; PDFs/images/canvases/notebooks/media/code/csv are always view; markdown honors the snapshot.
-          mode: plain ? 'edit' : ((pdf || image || excalidraw || tldraw || notebook || media || code || csv) ? 'view' : d.mode === 'edit' ? 'edit' : 'view'),
+          content: image ? '' : d.content,
+          // plain docs are always in edit mode; image/code/csv are always view; markdown honors the snapshot.
+          mode: plain ? 'edit' : ((image || code || csv) ? 'view' : d.mode === 'edit' ? 'edit' : 'view'),
           plain,
-          pdf,
           image,
-          excalidraw,
-          tldraw,
-          notebook,
-          media,
           code,
           csv,
           pinned,

@@ -1,7 +1,5 @@
 mod commands;
-mod pty;
 mod watcher;
-mod wifi_collab;
 #[cfg(test)]
 mod native_tests;
 
@@ -19,15 +17,6 @@ use watcher::WatcherState;
 /// via `get_initial_file`, and listens for the `open-file` event thereafter.
 #[derive(Default)]
 struct PendingFile(pub Mutex<Option<String>>);
-
-/// Holds a `mdpeek://` invite URL passed on the command line at cold launch
-/// (i.e. the app wasn't running when the user clicked an invite link, so the
-/// OS launched mdpeek with the URL as argv[1]). Warm launches are routed
-/// through the single-instance callback → `open-url` event directly; this
-/// state only covers the cold-start case. The frontend pulls it once on
-/// startup via `get_initial_url`.
-#[derive(Default)]
-struct PendingUrl(pub Mutex<Option<String>>);
 
 #[derive(Serialize, Clone)]
 struct FilePayload {
@@ -82,13 +71,10 @@ pub fn run() {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();
-                    // argv[0] is the exe; argv[1] (if present) is either a file
-                    // path (double-clicked .md) or a `mdpeek://` invite URL.
+                    // argv[0] is the exe; argv[1] (if present) is the file
+                    // path (double-clicked .md) forwarded to the frontend.
                     if argv.len() > 1 {
-                        let arg = argv[1].clone();
-                        if arg.starts_with("mdpeek://") {
-                            let _ = window.emit("open-url", arg);
-                        } else if let Ok(payload) = read_file_for_frontend(&arg) {
+                        if let Ok(payload) = read_file_for_frontend(&argv[1]) {
                             let _ = window.emit("open-file", payload);
                         }
                     }
@@ -96,29 +82,12 @@ pub fn run() {
             }),
         );
         builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
-        // Custom URL scheme (mdpeek://). Registers the scheme with the OS at
-        // install time (Windows registry via NSIS) so clicking an invite link
-        // launches or focuses mdpeek with the URL as argv[1].
-        builder = builder.plugin(tauri_plugin_deep_link::init());
     }
 
-    // Seed pending file / url from argv at launch.
-    //  - argv[1] = "C:\path\notes.md"  → double-clicked .md (PendingFile)
-    //  - argv[1] = "mdpeek://join?…"   → clicked invite link (PendingUrl)
+    // Seed pending file from argv at launch (double-clicked .md).
     let args: Vec<String> = std::env::args().collect();
-    let arg1 = args.get(1).map(String::as_str);
     let initial: PendingFile = PendingFile(Mutex::new(
-        match arg1 {
-            Some(s) if s.starts_with("mdpeek://") => None,
-            Some(s) => Some(s.to_string()),
-            None => None,
-        },
-    ));
-    let initial_url: PendingUrl = PendingUrl(Mutex::new(
-        match arg1 {
-            Some(s) if s.starts_with("mdpeek://") => Some(s.to_string()),
-            _ => None,
-        },
+        args.get(1).map(|s| s.to_string()),
     ));
 
     builder
@@ -126,9 +95,6 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .manage(WatcherState::default())
         .manage(initial)
-        .manage(initial_url)
-        .manage(pty::TermState::default())
-        .manage(wifi_collab::WifiCollabState::default())
         .setup(|app| {
             // Safely build system tray only if a window icon is available
             if let Some(icon) = app.default_window_icon() {
@@ -186,9 +152,6 @@ pub fn run() {
             commands::save_file_as,
             commands::save_file_as_html,
             commands::save_file_as_text,
-            commands::write_snapshot,
-            commands::list_snapshots,
-            commands::read_snapshot,
             commands::read_file,
             commands::read_files_batch,
             commands::write_files_batch,
@@ -209,19 +172,8 @@ pub fn run() {
             commands::unregister_context_menu,
             commands::is_context_menu_registered,
             commands::get_default_notes_dir,
-            pty::spawn_terminal,
-            pty::write_terminal,
-            pty::kill_terminal,
-            pty::kill_all_terminals,
-            pty::resize_terminal,
             watcher::watch_path,
-            wifi_collab::start_wifi_collab,
-            wifi_collab::stop_wifi_collab,
-            wifi_collab::get_wifi_collab_status,
-            wifi_collab::update_wifi_collab_doc,
-            wifi_collab::sync_wifi_collab_outbound,
             get_initial_file,
-            get_initial_url,
             hide_to_tray,
             quit_app,
         ])
@@ -262,12 +214,3 @@ fn get_initial_file(state: tauri::State<PendingFile>) -> Result<Option<FilePaylo
     }
 }
 
-/// Frontend calls this once on startup to pull any `mdpeek://` invite URL that
-/// launched the app cold (e.g. user clicked an invite link in their browser
-/// while mdpeek wasn't running). Returns None for normal launches. Warm
-/// launches go through the single-instance → `open-url` event path instead.
-#[tauri::command]
-fn get_initial_url(state: tauri::State<PendingUrl>) -> Result<Option<String>, String> {
-    let mut guard = state.0.lock().map_err(|e| e.to_string())?;
-    Ok(guard.take())
-}
