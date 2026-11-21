@@ -59,11 +59,8 @@ function injectPolishStyles() {
       color: var(--accent);
       box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
     }
-    /* Active-file row: keep base accent-soft fill, add a left accent bar and
-       a slightly bolder name so the open doc reads at a glance. */
-    .tree-row.active {
-      box-shadow: inset 2px 0 0 var(--accent);
-    }
+    /* Active-file row: --surface-active fill comes from base.css; the name is
+       slightly bolder so the open doc reads at a glance. */
     .tree-row.active .tree-name { font-weight: 600; }
     /* Chevron rotation snaps at the micro duration (was --dur-2 — too slow
        for a 90° flip next to the row's --dur-1 hover tint). */
@@ -247,7 +244,7 @@ function rowFor(entry, depth) {
   row.tabIndex = -1; // roving tabindex — see focusRow / onTreeKeydown
   row.setAttribute('role', 'treeitem');
   if (entry.is_dir) row.setAttribute('aria-expanded', _expanded.has(entry.path) ? 'true' : 'false');
-  row.style.paddingLeft = `${depth * 14 + 10}px`;
+  row.style.paddingLeft = `${depth * 12 + 8}px`;
   const chevron = entry.is_dir ? '<svg class="tree-chevron" viewBox="0 0 16 16" width="10" height="10" aria-hidden="true"><polyline points="6 4 10 8 6 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '<span class="tree-chevron-spacer"></span>';
   const icon = entry.is_dir ? dirIcon() : fileIcon(entry.name);
   row.innerHTML = `${chevron}${icon}<span class="tree-name">${escapeHtml(entry.name)}</span>`;
@@ -264,7 +261,7 @@ function applyIndentGuides(row, depth) {
   const xs = [];
   for (let k = 0; k < depth; k++) {
     layers.push('linear-gradient(var(--border-subtle), var(--border-subtle))');
-    xs.push(`${k * 14 + 9}px 0`);
+    xs.push(`${k * 12 + 7}px 0`);
   }
   row.style.backgroundImage = layers.join(', ');
   row.style.backgroundSize = `1px calc(100% - ${2 * 3}px)`; // inset by row padding
@@ -280,7 +277,7 @@ function treeEmptyGhost(depth, label) {
   ghost.className = 'tree-empty-ghost';
   ghost.dataset.depth = String(depth);
   ghost.textContent = label || 'No files';
-  ghost.style.paddingLeft = `${depth * 14 + 10}px`;
+  ghost.style.paddingLeft = `${depth * 12 + 8}px`;
   return ghost;
 }
 
@@ -325,7 +322,7 @@ async function expandDir(row, path) {
   const loader = document.createElement('div');
   loader.className = 'tree-loading';
   loader.textContent = '…';
-  loader.style.paddingLeft = `${(depth + 1) * 14 + 10}px`;
+  loader.style.paddingLeft = `${(depth + 1) * 12 + 8}px`;
   row.after(loader);
   const entries = await listDir(path).catch(() => []);
   loader.remove();
@@ -375,7 +372,7 @@ function depthOf(row) {
   const d = parseInt(row.dataset.depth, 10);
   if (Number.isFinite(d)) return d;
   const px = parseFloat(row.style.paddingLeft) || 0;
-  return Math.max(0, Math.round((px - 10) / 14));
+  return Math.max(0, Math.round((px - 8) / 12));
 }
 
 // Roving-tabindex focus helper for keyboard navigation.

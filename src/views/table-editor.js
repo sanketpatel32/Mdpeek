@@ -54,11 +54,10 @@ const POLISH_CSS = `
    modal; disabled buttons stay inert. */
 #te-overlay .tool-btn {
   transition:
-    transform var(--dur-1, 120ms) var(--ease-spring, ease),
+    transform var(--dur-1, 120ms) var(--ease-out, ease),
     background-color var(--dur-1, 120ms) var(--ease-out, ease),
     color var(--dur-1, 120ms) var(--ease-out, ease);
 }
-#te-overlay .tool-btn:not(:disabled):active { transform: scale(0.94); }
 /* Add feedback: the freshly added row slides in; new column cells fade in
    from the left so growth direction is visible. Classes are one-shot. */
 @keyframes te-enter-row {

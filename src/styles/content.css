@@ -14,11 +14,11 @@
   overflow-y: auto;
   min-width: 0;
   margin: 0;
-  padding: 56px 64px 128px;
+  padding: 48px 48px 120px;
   scroll-padding-top: 16px;
   line-height: var(--content-line-height, 1.7) !important;
   color: var(--fg);
-  font-size: var(--content-font-size, 15px);
+  font-size: var(--content-font-size, 16px);
   font-family: var(--content-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", sans-serif) !important;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -31,10 +31,15 @@
    whole flex row (including the outline rail) and lands too narrow. Narrow
    panes are unaffected. */
 @media (min-width: 960px) {
-  .markdown-body > * {
-    max-width: 46rem;
-    margin-left: auto;
-    margin-right: auto;
+  /* Center the reading column: one fixed 48rem (~768px) measure shared by
+     every top-level block. The cap must be font-agnostic (rem, not ch — a ch
+     cap scales with each element's own font-size, giving headings a wider
+     measure than paragraphs) and the auto margins must out-rank element
+     rules like `.markdown-body p { margin: 0 0 1em }`, hence the ID-scoped
+     selector. */
+  .markdown-body:is(#document, #preview) > *:not(.welcome) {
+    max-width: 48rem;
+    margin-inline: auto;
   }
 }
 /* width:0 + flex:1 lets #document fill the row in view mode and prevents
@@ -50,23 +55,6 @@
 .preview-pane > .markdown-body {
   width: 100%;
 }
-/* When a document is rendered in the view pane, its top-level children fade
-   + rise in subtly. Scoped to #document (view mode) only, NOT #preview, so the
-   debounced edit-mode re-render doesn't flicker on every keystroke. */
-#document.markdown-body:not(.has-welcome) > * {
-  animation: content-in 280ms cubic-bezier(0.25, 1, 0.5, 1) both;
-}
-@keyframes content-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 /* Reading progress bar — a 2px accent-colored bar pinned across the top of
    the view area, above the TOC and document. Width is set via JS from the
    document's scroll fraction. Sits outside #document so it survives every
@@ -91,7 +79,7 @@
   background: var(--accent);
   transition: width 60ms linear;
 }
-@media (max-width: 900px) {
+@media (max-width: 720px) {
   .markdown-body {
     padding-left: 24px;
     padding-right: 24px;
@@ -118,21 +106,21 @@
 .markdown-body h4,
 .markdown-body h5,
 .markdown-body h6 {
-  font-weight: 700;
-  line-height: 1.2;
-  margin-top: 2em;
-  margin-bottom: 0.7em;
-  letter-spacing: -0.025em;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 1.8em;
+  margin-bottom: 0.6em;
+  letter-spacing: -0.01em;
   scroll-margin-top: calc(var(--header-h) + 16px);
+  position: relative;
 }
 .markdown-body h1 {
-  font-size: 2.25em;
-  letter-spacing: -0.035em;
-  padding-bottom: 0.4em;
-  border-bottom: 2px solid var(--border-subtle);
-}
-.markdown-body h1:first-child {
+  font-size: 2em;
+  line-height: 1.2;
+  font-weight: 650;
+  letter-spacing: -0.02em;
   margin-top: 0;
+  margin-bottom: 0.6em;
 }
 .markdown-body h2 {
   font-size: 1.5em;
@@ -141,18 +129,25 @@
 }
 .markdown-body h3 {
   font-size: 1.25em;
+  line-height: 1.35;
+  margin-top: 1.6em;
+  margin-bottom: 0.5em;
 }
 .markdown-body h4 {
   font-size: 1em;
 }
 /* h5/h6 previously fell through to UA defaults (bold, jumpy sizes) — bring
    them onto the same scale so deep outlines keep the document's rhythm. */
-.markdown-body h5 {
-  font-size: 0.95em;
-}
+.markdown-body h5,
 .markdown-body h6 {
-  font-size: 0.9em;
-  color: var(--fg-secondary);
+  font-size: 0.875em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+}
+/* No top margin on a first-child heading. */
+.markdown-body > :is(h1, h2, h3, h4, h5, h6):first-child {
+  margin-top: 0;
 }
 
 /* text */
@@ -161,13 +156,10 @@
 }
 .markdown-body a {
   color: var(--accent);
-  /* Underline by default so links stay visible even in themes where the accent
-     color is close to body text (e.g. Nord's pale cyan on near-white, Dracula's
-     lavender). Without this, links were effectively invisible. Matches the web
-     convention every doc site (GitHub, MDN) uses for content links. */
   text-decoration: underline;
+  text-decoration-thickness: 1px;
   text-underline-offset: 2px;
-  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 .markdown-body a:hover {
   text-decoration-color: var(--accent);
@@ -209,9 +201,9 @@
    it reads as a highlight rather than a solid block. Falls back to a fixed
    yellow if the token is somehow missing. */
 .markdown-body mark {
-  background: color-mix(in srgb, var(--alert-warning, #ffd54a) 55%, transparent);
+  background: var(--mark-bg);
   color: inherit;
-  padding: 0.05em 0.2em;
+  padding: 0 0.15em;
   border-radius: 3px;
 }
 /* v0.53.0: Prose highlights (opt-in via the "Toggle prose highlights" command).
@@ -312,7 +304,7 @@
   height: 100%;
   background: var(--accent);
   border-radius: 3px;
-  transition: width var(--dur-1) var(--ease);
+  transition: width var(--dur-1) var(--ease-out);
 }
 .markdown-body .task-progress-count { font-variant-numeric: tabular-nums; }
 /* v0.46.0: Discord-style spoilers. The text is masked by setting the text
@@ -324,7 +316,7 @@
   padding: 0 0.2em;
   cursor: pointer;
   user-select: none;
-  transition: color var(--dur-1) var(--ease);
+  transition: color var(--dur-1) var(--ease-out);
 }
 .markdown-body .spoiler.revealed { color: inherit; }
 /* Spoilers are click-toggled divs; if JS gives them tabindex, keyboard users
@@ -362,8 +354,6 @@
   justify-content: center;
   padding: 32px;
   background: rgba(0, 0, 0, 0.88);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   opacity: 0;
   visibility: hidden;
   transition: opacity 180ms ease, visibility 180ms ease;
@@ -434,8 +424,8 @@
 .markdown-body hr {
   border: none;
   height: 1px;
-  margin: 2.2em 0;
-  background: linear-gradient(90deg, transparent, var(--border) 20%, var(--border) 80%, transparent);
+  margin: 2.5em 0;
+  background: var(--border-subtle);
 }
 
 /* lists */
@@ -457,13 +447,10 @@
    body text without adding another hard box. */
 .markdown-body blockquote {
   margin: 0 0 1.25em;
-  padding: 1em 1.4em;
-  border: 1px solid var(--border-subtle);
-  border-left: 4px solid color-mix(in srgb, var(--accent) 70%, transparent);
-  background: color-mix(in srgb, var(--surface) 55%, transparent);
-  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  padding: 0 0 0 1em;
+  border: 0;
+  border-left: 3px solid var(--border);
   color: var(--fg-secondary);
-  box-shadow: var(--shadow-sm);
 }
 .markdown-body blockquote p {
   margin: 0.4em 0;
@@ -497,12 +484,18 @@
 }
 
 /* code */
+/* hljs theme sheets paint their own background (and some set padding) on
+   .hljs — the app owns the surface, so neutralize both and keep code on a
+   single surface in markdown and the code viewer. */
+:is(.markdown-body, .code-viewer) .hljs {
+  background: transparent;
+  padding: 0;
+}
 .markdown-body pre {
   background: var(--code-bg);
   border: 1px solid var(--code-border);
-  padding: 16px 18px;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
+  padding: 16px 20px;
+  border-radius: var(--radius);
   overflow: auto;
   max-width: 100%;   /* never wider than its container; long lines scroll inside */
   font-family: var(--font-mono);
@@ -514,43 +507,44 @@
 /* Code block action buttons (Save / Copy) — appear on hover, top-right */
 .code-actions {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 6px;
+  right: 6px;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   opacity: 0;
-  transform: scale(0.92);
-  transition: opacity 150ms var(--ease, ease), transform 150ms var(--ease, ease);
+  transition: opacity var(--dur-1) var(--ease-out);
   z-index: 5;
 }
 .markdown-body pre:hover .code-actions,
 .code-actions:focus-within {
   opacity: 1;
-  transform: scale(1);
+}
+/* The language badge hides while the action buttons show. */
+.markdown-body pre:hover .code-lang,
+.markdown-body pre:focus-within .code-lang {
+  opacity: 0;
 }
 .code-action-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   padding: 0;
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: var(--radius-sm);
-  background: var(--surface);
+  background: var(--bg-elevated);
   color: var(--fg-muted);
   cursor: pointer;
-  transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+  transition: color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
 }
 .code-action-btn:hover {
   color: var(--fg);
-  background: var(--bg);
-  border-color: var(--border);
+  background: var(--surface-hover);
 }
 .code-action-btn.copied {
-  color: #2da44e;
-  border-color: #2da44e;
+  color: var(--success);
 }
 
 /* Language badge — small pill in the top-left of a code block showing the
@@ -559,64 +553,20 @@
 .code-lang {
   position: absolute;
   top: 8px;
-  left: 12px;
-  padding: 1px 7px;
+  right: 10px;
   font-family: inherit;
-  font-size: 10.5px;
+  font-size: var(--text-micro);
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--fg-muted);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  opacity: 0;
-  transition: opacity 150ms var(--ease, ease);
+  opacity: 1;
+  transition: opacity var(--dur-1) var(--ease-out);
   pointer-events: none;
   z-index: 5;
   user-select: none;
 }
-.markdown-body pre:hover .code-lang {
-  opacity: 1;
-}
-/* When the gutter is on, the badge shifts right so it doesn't overlap the
-   gutter column. The gutter width + padding ≈ 52px; nudge to 60px. */
-.markdown-body pre.with-gutter .code-lang {
-  left: 60px;
-}
 
-/* Line-number gutter on fenced code blocks (opt-in via the
-   mdpeek-code-line-numbers setting). Layout: <pre.with-gutter> wraps a flex
-   .code-row containing .code-gutter + <code>. The gutter shares line-height
-   with the code so rows stay aligned. Mirrors the code-file viewer gutter. */
-.markdown-body pre.with-gutter {
-  padding-left: 0;   /* gutter owns the left padding */
-}
-.markdown-body pre .code-row {
-  display: flex;
-  align-items: flex-start;
-}
-.code-gutter {
-  flex: 0 0 auto;
-  padding: 0 12px 0 16px;
-  color: var(--fg-muted);
-  text-align: right;
-  user-select: none;
-  border-right: 1px solid var(--border-subtle);
-  line-height: 1.55;   /* must match pre code below */
-  font-size: 13px;
-  font-family: inherit;
-  /* no opacity here: --fg-muted is tuned to ≥3:1 per theme, dimming it
-     dropped some themes below that threshold */
-}
-.markdown-body pre .code-row > code {
-  display: block;
-  padding-left: 14px;
-  flex: 1 1 auto;
-  min-width: 0;        /* allow horizontal scroll within the pre */
-  line-height: 1.55;
-  font-size: 13px;
-}
 /* The badge and gutter don't make sense in print — strip them. */
 @media print {
   .code-lang, .code-gutter { display: none !important; }
@@ -727,21 +677,18 @@
    #slug fragment so it can be pasted as a deep link. Hidden by default to keep
    heading text clean; revealed on hover or keyboard focus. */
 .markdown-body .anchor-link {
-  margin-left: 0.4em;
+  position: absolute;
+  left: -44px;
+  top: 0.45em;
   display: inline-flex;
   align-items: center;
-  vertical-align: middle;
   color: var(--fg-muted);
   opacity: 0;
   text-decoration: none;
-  transition: opacity 150ms var(--ease, ease), color 120ms ease;
+  transition: opacity var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
 }
-.markdown-body h1:hover .anchor-link,
-.markdown-body h2:hover .anchor-link,
-.markdown-body h3:hover .anchor-link,
-.markdown-body h4:hover .anchor-link,
-.markdown-body h5:hover .anchor-link,
-.markdown-body h6:hover .anchor-link,
+.markdown-body :is(h1, h2, h3, h4, h5, h6):hover .anchor-link,
+.markdown-body :is(h1, h2, h3, h4, h5, h6):focus-within .anchor-link,
 .markdown-body .anchor-link:focus-visible {
   opacity: 0.85;
 }
@@ -751,7 +698,7 @@
 }
 .markdown-body .anchor-link.copied {
   opacity: 1;
-  color: #2da44e;
+  color: var(--success);
 }
 /* Keyboard focus on the anchor glyph gets the app's layered halo — the hover/
    focus reveal above only fades it in; without this the focused anchor is
@@ -771,6 +718,7 @@
   justify-content: center;
   width: 16px;
   height: 16px;
+  margin-left: -22px;   /* sits in the left gutter, outside the measure */
   margin-right: 6px;
   padding: 0;
   border: none;
@@ -778,15 +726,22 @@
   color: var(--fg-muted);
   cursor: pointer;
   vertical-align: middle;
-  transition: transform 140ms var(--ease, ease), color 120ms ease;
+  opacity: 0;
+  transition: transform var(--dur-2) var(--ease-out), color var(--dur-1) var(--ease-out),
+    opacity var(--dur-1) var(--ease-out);
   transform: rotate(90deg); /* expanded by default */
+}
+:is(h1, h2, h3, h4, h5, h6):hover .fold-toggle,
+:is(h1, h2, h3, h4, h5, h6):focus-within .fold-toggle,
+:is(h2, h3, h4, h5, h6).collapsed .fold-toggle {
+  opacity: 1;
 }
 .markdown-body .fold-toggle .fold-triangle {
   width: 10px;
   height: 10px;
 }
 .markdown-body .fold-toggle:hover {
-  color: var(--accent);
+  color: var(--fg);
 }
 /* Collapsed state — triangle points right. */
 .markdown-body h2.collapsed .fold-toggle,
@@ -804,78 +759,57 @@
 }
 .markdown-body :not(pre) > code {
   background: var(--code-bg);
-  border: 1px solid color-mix(in srgb, var(--code-border) 75%, transparent);
-  padding: 0.15em 0.45em;
-  border-radius: 6px;
-  font-size: 0.87em;
-  font-weight: 500;
+  padding: 0.15em 0.4em;
+  border-radius: var(--radius-xs);
+  font-size: 0.875em;
 }
 /* Keyboard keys in rendered docs — <kbd>Ctrl</kbd> + <kbd>S</kbd> */
 .markdown-body kbd {
   display: inline-block;
-  padding: var(--sp-0) var(--sp-2);
+  padding: 1px 5px;
   font-family: var(--font-mono);
-  font-size: 0.82em;
+  font-size: 12px;
   line-height: 1.4;
-  background: var(--code-bg);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-bottom-width: 2px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
   color: var(--fg-secondary);
   white-space: nowrap;
 }
 
-/* tables — v0.63.0: softer inner hairlines, header on a tinted band, and a
-   hover row so long tables are easier to track across.
-   v2 polish: card frame with rounded corners (border-collapse: separate so
-   the radius actually applies — corner cells clip their own backgrounds),
-   horizontal hairlines + whisper-quiet column separators only, muted header
-   text over a stronger rule, quieter zebra, and an accent row hover that
-   eases in on the motion system. */
+/* tables — flat frame, hairline row separators, header on a neutral band. */
 .markdown-body table {
   border-collapse: separate;
   border-spacing: 0;
   width: 100%;
   margin: 0 0 1.25em;
   font-size: 0.94em;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   overflow: hidden;
 }
 .markdown-body th,
 .markdown-body td {
-  padding: 10px 14px;
+  padding: 8px 12px;
   text-align: left;
   border-bottom: 1px solid var(--border-subtle);
 }
-.markdown-body th:not(:last-child),
-.markdown-body td:not(:last-child) {
-  border-right: 1px solid var(--border-subtle);
-}
 .markdown-body th {
   background: var(--surface);
-  color: var(--fg-secondary);
+  color: var(--fg);
+  font-size: 13px;
   font-weight: 600;
-  border-bottom: 1px solid var(--border);
 }
-/* Clip corner cells to the table's radius (minus the frame width). */
-.markdown-body thead tr:first-child th:first-child { border-top-left-radius: calc(var(--radius) - 1px); }
-.markdown-body thead tr:first-child th:last-child { border-top-right-radius: calc(var(--radius) - 1px); }
-.markdown-body tbody tr:last-child td:first-child { border-bottom-left-radius: calc(var(--radius) - 1px); }
-.markdown-body tbody tr:last-child td:last-child { border-bottom-right-radius: calc(var(--radius) - 1px); }
 /* Last row's hairline would double with the frame — drop it. */
 .markdown-body tbody tr:last-child td {
   border-bottom-color: transparent;
 }
-.markdown-body tr:nth-child(2n) td {
-  background: color-mix(in srgb, var(--surface) 40%, transparent);
-}
 .markdown-body tbody tr {
-  transition: background-color var(--dur-1) var(--ease);
+  transition: background-color var(--dur-1) var(--ease-out);
 }
 .markdown-body tbody tr:hover td {
-  background: var(--accent-soft);
+  background: color-mix(in srgb, var(--surface) 50%, transparent);
 }
 
 /* ----------------------------- task lists -------------------------------- */
@@ -895,8 +829,8 @@
   /* v1.6.2: --border alone was near-invisible on dark themes, so unchecked
      boxes read as disabled/decorative. Mix in foreground so the affordance
      survives every theme. */
-  border: 1.5px solid color-mix(in srgb, var(--fg-muted) 55%, var(--border));
-  border-radius: 4px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-xs);
   background: var(--bg-elevated);
   /* v0.35.0: checkboxes in the preview are now clickable (toggle the source).
      The native input stays disabled so it doesn't toggle visually on its own
@@ -904,8 +838,8 @@
      affordance so users discover they can click. */
   cursor: pointer;
   position: relative;
-  transition: background-color 120ms var(--ease, ease),
-    border-color 120ms var(--ease, ease);
+  transition: background-color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out);
 }
 .markdown-body input[type="checkbox"]:hover {
   border-color: var(--accent);
@@ -950,7 +884,7 @@
   margin-top: 2.5em;
   padding-top: 1em;
   border-top: 1px solid var(--border-subtle);
-  font-size: 0.88em;
+  font-size: 13px;
   color: var(--fg-secondary);
 }
 .markdown-body section.footnotes ol {
@@ -965,11 +899,10 @@
    Each gets a colored left border + tinted background + a bold title. */
 .markdown-body .markdown-alert {
   margin: 0 0 1.25em;
-  padding: 1em 1.3em;
-  border-left: 4px solid var(--border);
-  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  padding: 12px 16px;
+  border-left: 3px solid var(--border);
+  border-radius: 0 var(--radius) var(--radius) 0;
   background: var(--surface);
-  box-shadow: var(--shadow-sm);
 }
 .markdown-body .markdown-alert > p:first-child {
   margin-top: 0;
@@ -981,6 +914,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  font-size: 13px;
   font-weight: 600;
   font-size: 0.95em;
   margin-bottom: 0.3em;
@@ -1062,9 +996,10 @@
   min-width: 100%;
   padding: 28px 0 96px;
 }
+/* Shared line-number gutter — the base metrics for both consumers below. */
 .code-gutter {
   flex: 0 0 auto;
-  padding: 0 12px 0 24px;
+  padding: 0 12px;
   text-align: right;
   font-family: "Cascadia Code", "Cascadia Mono", "SFMono-Regular", Consolas,
     "Liberation Mono", Menlo, monospace;
@@ -1073,13 +1008,42 @@
   color: var(--fg-muted);
   user-select: none;
   white-space: nowrap;
-  position: sticky;
-  left: 0;
-  background: var(--bg);
-  z-index: 1;
 }
 .code-gutter > div {
   height: 1.65em;
+}
+/* Code-viewer gutter: pinned to the left edge during horizontal scroll. */
+.code-viewer .code-gutter {
+  position: sticky;
+  left: 0;
+  padding-left: 24px;
+  background: var(--bg);
+  z-index: 1;
+}
+/* Markdown fence gutter (opt-in via the mdpeek-code-line-numbers setting):
+   <pre.with-gutter> wraps a flex .code-row of .code-gutter + <code>. Gutter
+   metrics must match the code (13px / 1.55). */
+.markdown-body pre.with-gutter {
+  padding-left: 0;   /* gutter owns the left padding */
+}
+.markdown-body pre .code-row {
+  display: flex;
+  align-items: flex-start;
+}
+.markdown-body pre .code-row .code-gutter {
+  padding-left: 16px;
+  border-right: 1px solid var(--border-subtle);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.markdown-body pre .code-row > code {
+  display: block;
+  padding-left: 14px;
+  flex: 1 1 auto;
+  min-width: 0;        /* allow horizontal scroll within the pre */
+  line-height: 1.55;
+  font-size: 13px;
 }
 .code-pre {
   flex: 1 1 auto;
@@ -1135,12 +1099,13 @@
   height: 100%;
 }
 .csv-toolbar {
+  height: 36px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
+  gap: 8px;
+  padding: 0 12px;
+  background: var(--bg-chrome);
   border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-elevated);
   flex-shrink: 0;
 }
 .csv-filter {
@@ -1154,7 +1119,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   outline: none;
-  transition: border-color 120ms var(--ease, ease);
+  transition: border-color 120ms var(--ease-out);
 }
 .csv-filter:focus {
   border-color: var(--accent);

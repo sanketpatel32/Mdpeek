@@ -100,30 +100,27 @@ const DEFAULT_THEME = 'light';
 // injected. Called from every place that shows the welcome screen.
 // The home desk shares the document workspace's ruled surfaces and controls.
 function renderWelcome() {
-  const recents = loadRecents();
+  const recents = loadRecents().slice(0, 8);
   const recentsHtml = `
     <section class="recent-files" aria-label="Recent files">
       <div class="recent-header">
-        <span class="recent-title">Recent documents</span>
+        <span class="micro-label">Recent</span>
         ${recents.length > 0 ? '<button class="recent-clear" data-action="clear-recents" type="button" title="Clear recent list">Clear</button>' : ''}
       </div>
       ${recents.length === 0 ? `
         <div class="recent-empty">
-          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-          <span>Your next document starts here</span>
-          <p class="recent-empty-sub">Open a file to keep it close, or try a sample to explore Markdown.</p>
-          <button class="recent-sample" data-action="sample" type="button">Try a sample document</button>
+          <p class="recent-empty-line">No recent documents yet.</p>
+          <button class="recent-sample" data-action="sample" type="button">Open a sample document</button>
         </div>
       ` : `<div class="recent-list">${recents.map((r) => {
         const path = r.path || '';
-        const showPath = path.length > 44 ? path.slice(0, 18) + '…' + path.slice(-22) : path;
         const iconHtml = getIconForPath(path, 'recent-icon');
         const when = relativeTime(r.openedAt);
         return `<button class="recent-item" data-path="${escapeHtml(r.path)}" type="button" title="${escapeHtml(path)}">
           ${iconHtml}
           <span class="recent-text">
             <span class="recent-name">${escapeHtml(r.name)}</span>
-            <span class="recent-path">${escapeHtml(showPath)}</span>
+            <span class="recent-path">${escapeHtml(path)}</span>
           </span>
           ${when ? `<span class="recent-when">${escapeHtml(when)}</span>` : ''}
         </button>`;
@@ -133,64 +130,56 @@ function renderWelcome() {
   return `
   <div class="welcome">
     <div class="welcome-inner">
-      <div class="welcome-hero">
-        <span class="brand-mark welcome-brand" aria-hidden="true"></span>
-        <h1 class="welcome-title">Room for your next idea.</h1>
-        <p class="welcome-tagline">Read beautifully. Write simply. Your notes, documents and ideas, all in one place.</p>
+      <div class="welcome-head">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <h1 class="welcome-title">mdpeek</h1>
       </div>
+      <p class="welcome-tagline">A quiet place to read and write Markdown.</p>
 
-      <div class="welcome-actions">
-        <button class="welcome-action primary" data-action="open" type="button">
-          <span class="wa-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3-3 3 3"/></svg>
-          </span>
-          <span class="wa-text">
-            <span class="wa-label">Open a document</span>
-            <span class="wa-hint">Markdown, PDF, code and more</span>
-          </span>
-          <kbd>Ctrl+O</kbd>
-        </button>
-        <button class="welcome-action" data-action="new" type="button">
-          <span class="wa-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-          </span>
-          <span class="wa-text">
-            <span class="wa-label">Start a new note</span>
-            <span class="wa-hint">A blank page, ready when you are</span>
-          </span>
-          <kbd>Ctrl+N</kbd>
-        </button>
-        ${isFeatureOn('daily') ? `
-        <button class="welcome-action" data-action="daily" type="button">
-          <span class="wa-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          </span>
-          <span class="wa-text">
-            <span class="wa-label">Today's Note</span>
-            <span class="wa-hint">Open or create the daily note</span>
-          </span>
-        </button>` : ''}
-        <button class="welcome-action" data-action="open-folder" type="button">
-          <span class="wa-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.69.9H18a2 2 0 0 1 2 2v2"/></svg>
-          </span>
-          <span class="wa-text">
-            <span class="wa-label">Open a folder</span>
-            <span class="wa-hint">Bring your files into view</span>
-          </span>
-        </button>
-      </div>
-
-      <div class="welcome-recents">
-        ${recentsHtml}
+      <div class="welcome-cols">
+        <div class="welcome-col">
+          <div class="micro-label">Start</div>
+          <div class="welcome-actions">
+            <button class="welcome-action primary" data-action="open" type="button">
+              <span class="wa-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3-3 3 3"/></svg>
+              </span>
+              <span class="wa-label">Open file…</span>
+              <kbd>Ctrl+O</kbd>
+            </button>
+            <button class="welcome-action" data-action="new" type="button">
+              <span class="wa-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+              </span>
+              <span class="wa-label">New note</span>
+              <kbd>Ctrl+N</kbd>
+            </button>
+            ${isFeatureOn('daily') ? `
+            <button class="welcome-action" data-action="daily" type="button">
+              <span class="wa-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              </span>
+              <span class="wa-label">Today's note</span>
+            </button>` : ''}
+            <button class="welcome-action" data-action="open-folder" type="button">
+              <span class="wa-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.69.9H18a2 2 0 0 1 2 2v2"/></svg>
+              </span>
+              <span class="wa-label">Open folder…</span>
+            </button>
+          </div>
+        </div>
+        <div class="welcome-col">
+          ${recentsHtml}
+        </div>
       </div>
 
       <div class="welcome-footer">
-        <span><kbd>Ctrl+Shift+P</kbd> search everything</span>
-        <span><kbd>Ctrl+E</kbd> edit/view</span>
-        <span><kbd>Ctrl+P</kbd> switch files</span>
-        <span class="welcome-drop">drop a file anywhere to open</span>
-        <span class="workspace-version">mdpeek v${BUILD_VERSION || ''}</span>
+        <span><kbd>Ctrl+Shift+P</kbd> Commands</span>
+        <span><kbd>Ctrl+P</kbd> Switch file</span>
+        <span><kbd>Ctrl+E</kbd> Edit / view</span>
+        <span>Drop a file to open</span>
+        <span class="welcome-version">mdpeek v${BUILD_VERSION || ''}</span>
       </div>
     </div>
   </div>

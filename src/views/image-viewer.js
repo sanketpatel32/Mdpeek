@@ -81,8 +81,6 @@ const POLISH_CSS = `
   padding: 3px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
   border: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-md);
 }
@@ -103,7 +101,6 @@ const POLISH_CSS = `
 }
 .image-zoom-btn:hover { background: var(--surface-hover); color: var(--fg); }
 .image-zoom-btn:active {
-  transform: scale(0.94);
   background: color-mix(in srgb, var(--accent-soft, transparent) 70%, var(--surface-hover));
 }
 .image-zoom-btn:focus-visible {

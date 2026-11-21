@@ -22,7 +22,7 @@ const PALETTE_POLISH_CSS = `
     transform-origin: 50% 0;
   }
   @keyframes mdpeek-palette-in {
-    from { opacity: 0; transform: translateY(calc(var(--sp-3, 8px) * -1)) scale(0.97); }
+    from { opacity: 0; transform: translateY(calc(var(--sp-3, 8px) * -1)) scale(0.985); }
     to   { opacity: 1; transform: none; }
   }
   /* Selection crossfade over --dur-2 so arrowing through items reads as one

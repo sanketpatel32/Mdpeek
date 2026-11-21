@@ -1,64 +1,44 @@
 /* Design tokens — static (theme-independent).
-   These never change with the active theme: shape radii, header height,
-   the motion/easing system, and the default (GitHub) GFM alert palette that
-   themes may override. Kept on bare :root so they always apply. */
+   Fonts, radii, motion and the default (GitHub) GFM alert palette live here;
+   spacing/type/height/z scales live in tokens.css; colors live in the
+   per-theme blocks below. */
 :root {
-  /* shape — larger radii for friendlier corners */
-  --radius-sm: 5px;
+  /* shape */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
   --radius: 8px;
   --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
 
-  --header-h: 52px;
-
-  /* ---- Typography (v0.63.0) -----------------------------------------------
-     Two families maximum: a UI/UI-text sans stack and a mono stack for code.
-     Components should reference these instead of hardcoding stacks. */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text",
-    "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: "SFMono-Regular", "Cascadia Code", Consolas, "Liberation Mono",
-    monospace;
+  /* typography — two families maximum: a UI sans stack and a mono stack */
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
+    BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Cascadia Code", "Cascadia Mono", Consolas, "SFMono-Regular",
+    "Liberation Mono", monospace;
   --mono-font: var(--font-mono);
 
   --reader-surface: var(--surface);
   --reader-surface-hover: var(--surface-hover);
 
-  /* Unified focus treatment — a soft accent halo instead of a hard outline.
-     Use with :focus-visible for a calmer, premium keyboard affordance. */
-  --focus-ring: 0 0 0 2px var(--bg-elevated), 0 0 0 4px color-mix(in srgb, var(--accent) 55%, transparent);
+  /* Unified focus treatment — a soft accent halo applied on :focus-visible
+     via box-shadow; never on mouse focus. */
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px color-mix(in srgb, var(--accent) 60%, transparent);
 
-  /* ---- Spacing scale (v0.60.0) -------------------------------------------
-     An 8-step rhythm. Most values are multiples of 4 so they snap to a grid,
-     with half-steps (2px) for tight clusters (icon gaps, button padding).
-     Prefer these over hardcoded pixels: var(--sp-3) instead of 12px. */
-  --sp-0: 2px;
-  --sp-1: 4px;
-  --sp-2: 6px;
-  --sp-3: 8px;
-  --sp-4: 12px;
-  --sp-5: 16px;
-  --sp-6: 20px;
-  --sp-7: 24px;
-  --sp-8: 32px;
-
-  /* ---- Motion system (v0.32.0) -------------------------------------------
-     Four durations and three easings cover every interaction. Picked to feel
-     "macOS/Linear": spring overshoot for tactile elements (buttons, tabs),
-     decelerate for things entering the viewport (panels, menus), accelerate
-     for things leaving. */
-  --dur-1: 120ms;  /* micro: press, hover tint              */
-  --dur-2: 180ms;  /* standard: tabs, icon swaps, sidebar   */
-  --dur-3: 240ms;  /* deliberate: panel slides, card lifts  */
-  --dur-4: 360ms;  /* showcase: toast land, modal settle    */
-  --ease:        cubic-bezier(0.25, 1, 0.5, 1);   /* legacy alias (decelerate) */
-  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);   /* decelerate — enters       */
-  --ease-in:     cubic-bezier(0.7, 0, 0.84, 0);   /* accelerate — exits        */
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* overshoot — tactile     */
-  --transition: 150ms var(--ease);                /* legacy alias              */
+  /* ---- Motion ----
+     Quiet, non-overshooting. --ease-spring is kept as an alias of --ease-out;
+     nothing may overshoot. Popovers enter with opacity + translateY(-4px),
+     dialogs with opacity + scale(.98). */
+  --dur-1: 100ms;  /* hover/press tint        */
+  --dur-2: 140ms;  /* popover/menu in         */
+  --dur-3: 200ms;  /* panel/sidebar           */
+  --dur-4: 260ms;  /* dialog                  */
+  --ease-out:    cubic-bezier(0.2, 0.8, 0.2, 1);  /* decelerate — enters */
+  --ease-in:     cubic-bezier(0.4, 0, 1, 1);      /* accelerate — exits  */
+  --ease-spring: var(--ease-out);                 /* legacy alias        */
 
   /* Default GFM alert-callout colors (GitHub light). Each theme below may
-     override these; themes that don't (e.g. solar-light, github) inherit the
-     GitHub palette, which is correct for them. */
+     override these. */
   --alert-note: #0969da;        --alert-note-bg: rgba(9, 105, 218, 0.08);
   --alert-tip: #1a7f37;         --alert-tip-bg: rgba(26, 127, 55, 0.08);
   --alert-important: #8250df;   --alert-important-bg: rgba(130, 80, 223, 0.08);
@@ -66,98 +46,84 @@
   --alert-caution: #cf222e;     --alert-caution-bg: rgba(207, 34, 46, 0.08);
 }
 
-/* ---- Light (default) -------------------------------------------------------
-   Neutrals tinted slightly toward the blue accent (chroma ~0.005–0.01) per the
-   design law: never use pure #fff or #000. The tint is barely perceptible but
-   gives the surface warmth instead of clinical flatness.
-   macOS premium feel: softer surfaces, layered shadows, taller header.
-   NOTE: also mirrored on bare :root above the [data-theme] cascade so the
-   default (no attribute set) and the explicit light theme stay in sync. */
+/* ---- Light (default) --------------------------------------------------
+   Also mirrored on bare :root so the default (no attribute set) and the
+   explicit light theme stay in sync. */
 :root,
 :root[data-theme="light"] {
-  /* surfaces — warm-tinted neutrals, not clinical white */
-  --bg: #f8f8fa;
+  --bg: #fcfcfd;
+  --bg-chrome: #f6f7f9;
   --bg-elevated: #ffffff;
-  --surface: #f1f2f6;
-  --surface-hover: #e8eaf0;
-  --surface-active: #dde0e8;
+  --surface: #f0f2f4;
+  --surface-hover: #e8ebee;
+  --surface-active: #dde1e6;
 
-  /* text */
-  --fg: #1d1d1f;
-  --fg-secondary: #4d4d51;
-  --fg-muted: #65656b;
+  --fg: #1b1f24;
+  --fg-secondary: #454d57;
+  --fg-muted: #5f6873;
 
-  /* lines — softer, more natural */
-  --border: #d0d2da;
-  --border-subtle: #e6e7ed;
+  --border: #d3d8de;
+  --border-subtle: #e4e7eb;
 
-  /* accents — macOS system blue */
-  --accent: #0066cc;
-  --accent-hover: #0060c0;
-  --accent-soft: rgba(0, 113, 227, 0.1);
-  --danger: #c8231a;
+  --accent: #0969da;
+  --accent-hover: #0757b5;
+  --accent-soft: rgba(9, 105, 218, 0.12);
+  --danger: #cf222e;
   --on-accent: #ffffff;
   --on-danger: #ffffff;
   --warning: #9a6700;
-  --success: #34c759;
+  --success: #1a7f37;
 
-  /* code */
-  --code-bg: #f1f2f6;
-  --code-border: #e6e7ed;
+  --code-bg: var(--surface);
+  --code-border: var(--border-subtle);
+  --mark-bg: #fff3b0;
+  --scrim: rgba(15, 20, 25, 0.28);
 
-  /* effects — macOS-style layered, soft shadows */
-  --shadow-sm: 0 1px 3px rgba(29, 29, 31, 0.05), 0 1px 2px rgba(29, 29, 31, 0.03);
-  --shadow-md: 0 4px 12px rgba(29, 29, 31, 0.08), 0 1px 3px rgba(29, 29, 31, 0.04);
-  --shadow-lg: 0 12px 32px rgba(29, 29, 31, 0.12), 0 4px 12px rgba(29, 29, 31, 0.06);
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 4px 12px rgba(16, 24, 40, 0.08), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --shadow-lg: 0 16px 40px rgba(16, 24, 40, 0.14), 0 2px 8px rgba(16, 24, 40, 0.06);
 
-  /* theme swatch — drives the live preview in the Appearance grid.
-     Uses the theme's own bg + accent so the swatch always matches reality. */
-  --sw-bg: #f8f8fa;
-  --sw-accent: #0071e3;
-
-  /* Kanban accents — macOS system light-mode colors, matching this theme's
-     accent/success family instead of the cool-spectrum defaults. */
+  /* theme swatch — drives the live preview in the Appearance grid */
+  --sw-bg: #fcfcfd;
+  --sw-accent: #0969da;
 }
 
-/* Design tokens — Dark
-   macOS dark-mode inspired: true neutrals, elevated surfaces, soft borders. */
+/* ---- Dark ---- */
 :root[data-theme="dark"] {
-  --bg: #1b1b1e;
-  --bg-elevated: #2b2b2e;
-  --surface: #262629;
-  --surface-hover: #37373a;
-  --surface-active: #454548;
+  --bg: #18191c;
+  --bg-chrome: #131416;
+  --bg-elevated: #202226;
+  --surface: #24262a;
+  --surface-hover: #2c2f34;
+  --surface-active: #363940;
 
-  --fg: #f5f5f7;
-  --fg-secondary: #b0b0b5;
-  --fg-muted: #9c9ca3;
+  --fg: #e6e7ea;
+  --fg-secondary: #b5b9c0;
+  --fg-muted: #959ba4;
 
-  --border: #3d3d41;
-  --border-subtle: #313134;
+  --border: #383b42;
+  --border-subtle: #2a2c31;
 
-  --accent: #55aaff;
-  --accent-hover: #79bdff;
-  --accent-soft: rgba(10, 132, 255, 0.16);
-  --danger: #ff6961;
-  --on-accent: #1b1b1e;
-  --on-danger: #1b1b1e;
+  --accent: #58a6ff;
+  --accent-hover: #79b8ff;
+  --accent-soft: rgba(88, 166, 255, 0.18);
+  --danger: #f85149;
+  --on-accent: #0b1220;
+  --on-danger: #160606;
   --warning: #d29922;
   --success: #30d158;
 
-  --code-bg: #232326;
-  --code-border: #3d3d41;
+  --code-bg: var(--surface);
+  --code-border: var(--border-subtle);
+  --mark-bg: rgba(250, 204, 21, 0.22);
+  --scrim: rgba(0, 0, 0, 0.55);
 
-  /* Layered like the light theme: a tight contact shadow + a soft ambient
-     one, so elevated panels read as physically stacked on dark too. */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.25);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04);
 
-  --sw-bg: #1b1b1e;
-  --sw-accent: #0a84ff;
-
-  /* Kanban accents — macOS system dark-mode colors, matching this theme's
-     accent/success family instead of the cool-spectrum defaults. */
+  --sw-bg: #18191c;
+  --sw-accent: #58a6ff;
 
   --alert-note: #4493f8;        --alert-note-bg: rgba(68, 147, 248, 0.12);
   --alert-tip: #3fb950;         --alert-tip-bg: rgba(63, 185, 80, 0.12);
@@ -166,154 +132,140 @@
   --alert-caution: #f85149;     --alert-caution-bg: rgba(248, 81, 73, 0.12);
 }
 
-/* ---- Solarized Light (Ethan Schoonover) ----
-   Warm cream paper + muted rainbow accents. */
+/* ---- Solarized Light ---- */
 :root[data-theme="solar-light"] {
   --bg: #fdf6e3;
-  --bg-elevated: #fffbf0;
+  --bg-chrome: #f6efdb;
+  --bg-elevated: #fffbef;
   --surface: #eee8d5;
-  --surface-hover: #e6ddc2;
-  --surface-active: #dbd1af;
+  --surface-hover: #e6dfc9;
+  --surface-active: #ddd5bc;
 
   --fg: #073642;
-  --fg-secondary: #52676f;
-  --fg-muted: #52676f;
+  --fg-secondary: #3d5158;
+  --fg-muted: #55666b;
 
-  --border: #d9d1b8;
-  --border-subtle: #e8e0c6;
+  --border: #d9d0b6;
+  --border-subtle: #e8e1cb;
 
-  --accent: #0069a0;
-  --accent-hover: #005e91;
-  --accent-soft: rgba(38, 139, 210, 0.12);
-  --danger: #b52320;
+  --accent: #1d6aa5;
+  --accent-hover: #175a8c;
+  --accent-soft: rgba(29, 106, 165, 0.12);
+  --danger: #b4272a;
   --on-accent: #ffffff;
   --on-danger: #ffffff;
-  --warning: #b58900;
-  --success: #859900;
+  --warning: #856404;
+  --success: #5f6f00;
 
-  --code-bg: #eee8d5;
-  --code-border: #ddd6c1;
+  --code-bg: var(--surface);
+  --code-border: var(--border-subtle);
+  --mark-bg: #f5e3a3;
+  --scrim: rgba(15, 20, 25, 0.28);
 
-  /* Solarized's shadows are tinted with base01 (101,123,131), never black —
-     layered here too so elevation reads on cream paper like on dark UIs. */
-  --shadow-sm: 0 1px 3px rgba(101, 123, 131, 0.08), 0 1px 2px rgba(101, 123, 131, 0.05);
-  --shadow-md: 0 4px 12px rgba(101, 123, 131, 0.1), 0 1px 3px rgba(101, 123, 131, 0.06);
-  --shadow-lg: 0 12px 32px rgba(101, 123, 131, 0.14), 0 4px 12px rgba(101, 123, 131, 0.08);
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 4px 12px rgba(16, 24, 40, 0.08), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --shadow-lg: 0 16px 40px rgba(16, 24, 40, 0.14), 0 2px 8px rgba(16, 24, 40, 0.06);
 
   --sw-bg: #fdf6e3;
-  --sw-accent: #268bd2;
+  --sw-accent: #1d6aa5;
 
-  /* GFM alerts — Solarized's own accent set (was missing: fell back to GitHub
-     blue, which clashed with the cream paper). */
-  --alert-note: #268bd2;        --alert-note-bg: rgba(38, 139, 210, 0.1);
-  --alert-tip: #859900;         --alert-tip-bg: rgba(133, 153, 0, 0.1);
-  --alert-important: #6c71c4;   --alert-important-bg: rgba(108, 113, 196, 0.1);
-  --alert-warning: #b58900;     --alert-warning-bg: rgba(181, 137, 0, 0.12);
-  --alert-caution: #dc322f;     --alert-caution-bg: rgba(220, 50, 47, 0.1);
-
+  /* GFM alerts — Solarized family, deepened where the originals fell below
+     readable contrast on the cream paper. */
+  --alert-note: #1d6aa5;        --alert-note-bg: rgba(29, 106, 165, 0.1);
+  --alert-tip: #5f6f00;         --alert-tip-bg: rgba(95, 111, 0, 0.1);
+  --alert-important: #575da8;   --alert-important-bg: rgba(87, 93, 168, 0.1);
+  --alert-warning: #856404;     --alert-warning-bg: rgba(133, 100, 4, 0.12);
+  --alert-caution: #c22724;     --alert-caution-bg: rgba(194, 39, 36, 0.1);
 }
 
-/* ---- Nord ----
-   Arctic north-blizzard palette: cool blue-greys, frost blue accent. */
+/* ---- Nord ---- */
 :root[data-theme="nord"] {
   --bg: #2e3440;
-  --bg-elevated: #3b4252;
-  --surface: #353c4b;
-  --surface-hover: #44505f;
-  --surface-active: #505f73;
+  --bg-chrome: #2a2f3a;
+  --bg-elevated: #353c4a;
+  --surface: #3b4252;
+  --surface-hover: #434c5e;
+  --surface-active: #4c566a;
 
   --fg: #eceff4;
   --fg-secondary: #d8dee9;
-  --fg-muted: #aab7ca;
+  --fg-muted: #b3bccb;
 
-  --border: #47536a;
-  --border-subtle: #3c4455;
+  --border: #4c566a;
+  --border-subtle: #3e4554;
 
   --accent: #88c0d0;
-  --accent-hover: #9bcbd8;
-  --accent-soft: rgba(136, 192, 208, 0.15);
-  --danger: #e5a0a8;
-  --on-accent: #2e3440;
-  --on-danger: #2e3440;
+  --accent-hover: #9fcfdc;
+  --accent-soft: rgba(136, 192, 208, 0.18);
+  --danger: #d57780;
+  --on-accent: #1f242d;
+  --on-danger: #1f242d;
   --warning: #ebcb8b;
   --success: #a3be8c;
 
-  --code-bg: #333a4a;
-  --code-border: #434c5e;
+  --code-bg: var(--surface);
+  --code-border: var(--border-subtle);
+  --mark-bg: rgba(250, 204, 21, 0.22);
+  --scrim: rgba(0, 0, 0, 0.55);
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04);
 
   --sw-bg: #2e3440;
   --sw-accent: #88c0d0;
 
-  --alert-note: #81a1c1;        --alert-note-bg: rgba(129, 161, 193, 0.12);
+  --alert-note: #88c0d0;        --alert-note-bg: rgba(136, 192, 208, 0.12);
   --alert-tip: #a3be8c;         --alert-tip-bg: rgba(163, 190, 140, 0.12);
   --alert-important: #b48ead;   --alert-important-bg: rgba(180, 142, 173, 0.12);
   --alert-warning: #ebcb8b;     --alert-warning-bg: rgba(235, 203, 139, 0.12);
   --alert-caution: #bf616a;     --alert-caution-bg: rgba(191, 97, 106, 0.15);
-
 }
 
-/* ---- OLED Black (v0.62.1) ----
-   True #000 base for OLED displays (every "dark" theme here is at least
-   #1c1c1e, so panels still glow on pure-black screens). Surfaces stay
-   near-black with just enough lift to keep hierarchy readable; the accent
-   is brightened vs the dark theme so it survives against #000. */
+/* ---- OLED Black ----
+   True #000 base; surfaces stay near-black with just enough lift to keep
+   hierarchy readable. */
 :root[data-theme="oled"] {
   --bg: #000000;
-  --bg-elevated: #101014;
-  --surface: #0c0c0f;
-  --surface-hover: #1b1b21;
-  --surface-active: #282830;
+  --bg-chrome: #000000;
+  --bg-elevated: #111113;
+  --surface: #151517;
+  --surface-hover: #1d1d20;
+  --surface-active: #27272b;
 
-  /* v0.63.0: secondary/muted text brightened — on true black the previous
-     values fell below comfortable contrast for secondary UI copy. */
-  --fg: #f2f2f5;
-  --fg-secondary: #b8b8c2;
-  --fg-muted: #8f8f9a;
+  --fg: #f2f2f3;
+  --fg-secondary: #c2c3c7;
+  --fg-muted: #9b9ca3;
 
-  --border: #292931;
-  --border-subtle: #1a1a20;
+  --border: #2c2c31;
+  --border-subtle: #1c1c1f;
 
-  --accent: #4f9cf9;
-  --accent-hover: #7ab5fb;
-  --accent-soft: rgba(79, 156, 249, 0.16);
-  --danger: #ff5147;
+  --accent: #5ea8ff;
+  --accent-hover: #80baff;
+  --accent-soft: rgba(94, 168, 255, 0.18);
+  --danger: #ff6b63;
   --on-accent: #000000;
   --on-danger: #000000;
   --warning: #e3b341;
   --success: #3ddc84;
 
-  --code-bg: #08080a;
-  --code-border: #1f1f24;
+  --code-bg: var(--surface);
+  --code-border: var(--border-subtle);
+  --mark-bg: rgba(250, 204, 21, 0.22);
+  --scrim: rgba(0, 0, 0, 0.55);
 
-  /* OLED needs stronger second layers — against true black even soft shadows
-     must stay dense enough to separate elevated panels from the void. */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.65), 0 1px 3px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.8), 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04);
 
   --sw-bg: #000000;
-  --sw-accent: #4f9cf9;
+  --sw-accent: #5ea8ff;
 
   --alert-note: #58a6ff;        --alert-note-bg: rgba(88, 166, 255, 0.1);
   --alert-tip: #3ddc84;         --alert-tip-bg: rgba(61, 220, 132, 0.1);
   --alert-important: #bc8cff;   --alert-important-bg: rgba(188, 140, 255, 0.1);
   --alert-warning: #e3b341;     --alert-warning-bg: rgba(227, 179, 65, 0.1);
   --alert-caution: #ff6b63;     --alert-caution-bg: rgba(255, 107, 99, 0.12);
-
-}
-
-/* Focus halo on dark themes — the shared :root token mixes the accent at 55%,
-   which can sink into low-luminance backgrounds. Dark themes lift the halo to
-   70% so keyboard focus stays clearly visible; light themes keep 55%. */
-:root[data-theme="dark"],
-:root[data-theme="nord"],
-:root[data-theme="oled"] {
-  --focus-ring: 0 0 0 2px var(--bg-elevated),
-    0 0 0 4px color-mix(in srgb, var(--accent) 70%, transparent);
 }
 
 /* Smooth theme switch — scoped to UI chrome only (NOT markdown content,
@@ -338,17 +290,14 @@ html {
 .find-overlay,
 .find-bar-card,
 .find-toggle,
-.theme-menu-wrap,
 .window-controls,
 .window-btn {
-  transition: background-color var(--transition), border-color var(--transition),
-    color var(--transition);
+  transition: background-color var(--dur-2) var(--ease-out),
+    border-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
 }
 
 /* Comment-token contrast overrides. The bundled upstream hljs sheets ship
-   comment colors that fail 3:1 on their own code backgrounds (measured:
-   nord 1.69, solarized-light 2.93). Attribute+class specificity beats the
-   .hljs sheets regardless of link order; the values stay gray-muted so
-   comments keep their visual hierarchy against regular code text. */
+   comment colors that fail 3:1 on their own code backgrounds; these stay
+   gray-muted so comments keep their visual hierarchy. */
 :root[data-theme="nord"] .hljs-comment { color: #8a99ad; }
 :root[data-theme="solar-light"] .hljs-comment { color: #5f7676; }

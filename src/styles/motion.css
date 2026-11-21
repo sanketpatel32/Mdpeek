@@ -1,28 +1,15 @@
-/* motion.css — the unified animation system (v0.32.0)
-   ─────────────────────────────────────────────────────────────────────────
-   Goals:
-   1. Every overlay enters AND leaves gracefully (modals, menus, toasts).
-   2. Every clickable chrome element feels tactile (spring press, soft hover).
-   3. Lifted cards hover up with a shadow grow.
-   4. Ripples on filled buttons (the macOS/Material "press" cue).
-   5. Sidebars glide, don't snap.
-   6. Respects prefers-reduced-motion.
-
-   Tokens (--dur-1..4, --ease-out/in/spring) live in themes.css :root.
+/* motion.css — quiet, non-overshooting animation system.
+   Enters: opacity + translateY(-4px) for popovers, scale(.98) for dialogs.
+   Exits: opacity + the same small offset, ease-in. No springs, no lifts,
+   no press-scale. Tokens live in themes.css :root; durations map to
+   --dur-1 hover tint / --dur-2 popover / --dur-3 panel / --dur-4 dialog.
    Loaded AFTER base.css so these rules win on equal specificity. */
 
-/* ======================================================================
-   1. OVERLAY ENTER / EXIT
-   ======================================================================
-   base.css defines `.hidden { display:none !important }`, which kills any
-   exit transition. The JS helper in motion.js handles the lifecycle: on
-   close it removes .hidden, adds .is-leaving, waits for animationend, then
-   re-adds .hidden. We just provide matching enter + leave keyframes here.
+/* ---------- Overlay enter / exit ----------
+   base.css's `.hidden { display:none !important }` kills exit transitions;
+   motion.js removes .hidden, adds .is-leaving, waits for animationend (the
+   *-out keyframes), then re-adds .hidden. */
 
-   Reuses the existing enter keyframes from base.css (overlay-in, modal-in,
-   ctx-in, find-in, toast-in, welcome-fade-up) and adds the *-out companions. */
-
-/* --- overlay backdrops (modal-overlay, palette-overlay) --- */
 .modal-overlay,
 .palette-overlay {
   animation: overlay-in var(--dur-2) var(--ease-out);
@@ -31,36 +18,29 @@
 .palette-overlay.is-leaving {
   animation: overlay-out var(--dur-1) var(--ease-in) forwards;
 }
-@keyframes overlay-out {
-  to { opacity: 0; }
-}
+@keyframes overlay-in { from { opacity: 0; } }
+@keyframes overlay-out { to { opacity: 0; } }
 
-/* --- centered cards (modal, palette-card) --- */
 .modal,
 .palette-card {
-  animation: modal-in var(--dur-3) var(--ease-spring);
+  animation: modal-in var(--dur-4) var(--ease-out);
 }
 .modal.is-leaving,
 .palette-card.is-leaving {
   animation: modal-out var(--dur-2) var(--ease-in) forwards;
 }
-@keyframes modal-out {
-  to { opacity: 0; transform: translateY(6px) scale(0.97); }
-}
+@keyframes modal-in { from { opacity: 0; transform: scale(0.98); } }
+@keyframes modal-out { to { opacity: 0; transform: scale(0.98); } }
 
-/* --- context menus + theme menu + more-menu --- */
 .ctx-menu {
-  animation: ctx-in var(--dur-1) var(--ease-spring);
-  transform-origin: top right;
+  animation: ctx-in var(--dur-2) var(--ease-out);
 }
 .ctx-menu.is-leaving {
-  animation: ctx-out calc(var(--dur-1) * 0.9) var(--ease-in) forwards;
+  animation: ctx-out var(--dur-1) var(--ease-in) forwards;
 }
-@keyframes ctx-out {
-  to { opacity: 0; transform: scale(0.94) translateY(-2px); }
-}
+@keyframes ctx-in { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes ctx-out { to { opacity: 0; transform: translateY(-4px); } }
 
-/* --- find bar + folder-search (top-docked overlays) --- */
 .find-overlay,
 .folder-search-overlay {
   animation: find-in var(--dur-2) var(--ease-out);
@@ -69,45 +49,30 @@
 .folder-search-overlay.is-leaving {
   animation: find-out var(--dur-1) var(--ease-in) forwards;
 }
-@keyframes find-out {
-  to { opacity: 0; transform: translateY(-6px); }
-}
+@keyframes find-in { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes find-out { to { opacity: 0; transform: translateY(-4px); } }
 
-/* --- toasts --- */
 .toast {
-  animation: toast-in var(--dur-4) var(--ease-spring);
+  animation: toast-in var(--dur-3) var(--ease-out);
 }
-.toast.is-leaving {
+.toast.is-leaving,
+.toast.leaving {
   animation: toast-out var(--dur-2) var(--ease-in) forwards;
 }
-@keyframes toast-out {
-  to { opacity: 0; transform: translateY(8px) scale(0.96); }
-}
+@keyframes toast-in { from { opacity: 0; transform: translateY(4px); } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(4px); } }
 
-/* --- welcome entrance --- */
-/* v0.63.0: the old .welcome-card fade lives no more — the welcome screen is
-   now a staggered column; its choreography (welcome-rise keyframes + per-
-   child delays) lives with the rest of the welcome styles in base.css. */
-
-/* --- Settings panel switch (v0.32.1) ---
-   When a category is clicked, the old panel gets `.hidden` added and the new
-   one has it removed. This animation plays on the newly-shown panel so the
-   switch feels like a gentle fade+rise instead of an instant snap — matching
-   the motion language everywhere else. Reduced-motion clamps it (§7). */
+/* Settings panel switch — a gentle fade when a category becomes visible. */
 .settings-panel:not(.hidden) {
   animation: settings-panel-in var(--dur-2) var(--ease-out);
 }
 @keyframes settings-panel-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-/* ======================================================================
-   2. TACTILE BUTTONS — unified press + hover
-   ======================================================================
-   Replaces the dozen bespoke `transition: 120ms ease` / `:active{scale(.95)}`
-   declarations scattered through base.css. One rule, one feel. */
-
+/* ---------- Shared control transitions ----------
+   One rule for chrome controls: tint + border + color changes only. */
 .tool-btn,
 .modal-btn,
 .seg-btn,
@@ -121,7 +86,6 @@
 .ctx-item,
 .btn-more {
   transition:
-    transform var(--dur-1) var(--ease-spring),
     background-color var(--dur-1) var(--ease-out),
     border-color var(--dur-1) var(--ease-out),
     color var(--dur-1) var(--ease-out),
@@ -129,36 +93,9 @@
     opacity var(--dur-1) var(--ease-out);
 }
 
-.tool-btn:active,
-.modal-btn:active,
-.seg-btn:active,
-.settings-cat:active,
-.tab-new:active,
-.welcome-action:active,
-.fmt-btn:active,
-.about-link:active,
-.theme-card:active,
-.btn-more:active {
-  transform: scale(0.96);
-}
-
-/* ======================================================================
-   3. HOVER LIFTS — cards rise + shadow grows
-   ====================================================================== */
-
-.welcome-action:hover,
-.about-link:hover,
-.theme-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-}
-
-/* ======================================================================
-   4. RIPPLE — on filled/primary buttons only (tasteful)
-   ======================================================================
-   motion.js attaches a pointerdown listener to [data-ripple] elements and
-   injects a <span class="ripple-wave"> at the click point. */
-
+/* ---------- Ripple ----------
+   motion.js injects a <span class="ripple-wave"> at the pointer position on
+   [data-ripple] elements. Kept subtle; disabled under reduced motion. */
 [data-ripple] {
   position: relative;
   overflow: hidden;
@@ -169,23 +106,16 @@
   pointer-events: none;
   transform: scale(0);
   background: currentColor;
-  opacity: 0.25;
+  opacity: 0.18;
   animation: ripple-grow var(--dur-3) var(--ease-out);
 }
 @keyframes ripple-grow {
-  to {
-    transform: scale(2.4);
-    opacity: 0;
-  }
+  to { transform: scale(2.4); opacity: 0; }
 }
 
-/* ======================================================================
-   5. SIDEBAR GLIDE — file tree opens/closes with a width+opacity sweep
-   ======================================================================
-   base.css toggles `.hidden` on #file-tree (snap). motion.js swaps that for
-   an `.is-collapsed` class so the transition can run. The widths must match
-   the layout values in base.css (.file-tree = 260px). */
-
+/* ---------- Sidebar glide ----------
+   motion.js swaps .hidden on #file-tree for .is-collapsed so the width
+   transition can run. */
 .file-tree.is-animating {
   transition:
     width var(--dur-3) var(--ease-out),
@@ -198,34 +128,12 @@
   overflow: hidden;
 }
 
-/* ======================================================================
-   6. TAB INDICATOR TRAVEL
-   ======================================================================
-   The active-tab underline lives in .tab-strip as a single absolutely-
-   positioned bar (.tab-indicator) that JS measures + positions. It
-   transitions left/width so it slides between tabs instead of popping. */
+/* ---------- Tab indicator ----------
+   Kept in markup for tests; the redesign uses bordered active tabs instead
+   of a traveling underline, so it stays hidden. */
+.tab-indicator { display: none; }
 
-.tab-indicator {
-  position: absolute;
-  bottom: 4px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--accent);
-  transition:
-    left var(--dur-3) var(--ease-spring),
-    width var(--dur-3) var(--ease-spring),
-    opacity var(--dur-1) var(--ease-out);
-  pointer-events: none;
-  z-index: 2;
-}
-.tab-indicator.is-hidden {
-  opacity: 0;
-}
-
-/* ======================================================================
-   7. REDUCED MOTION — accessibility
-   ====================================================================== */
-
+/* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -234,28 +142,5 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
-  }
-  /* The press/hover transforms feel jarring when instant; neutralize every
-     selector from §2 (press) and §3 (hover lift), not just a sample —
-     .about-link:hover and the seg/tab/fmt/btn-more presses were previously
-     left snapping while their transitions were clamped. */
-  .tool-btn:active,
-  .modal-btn:active,
-  .seg-btn:active,
-  .settings-cat:active,
-  .tab-new:active,
-  .welcome-action:active,
-  .fmt-btn:active,
-  .about-link:active,
-  .about-link:hover,
-  .theme-card:active,
-  .theme-card:hover,
-  .welcome-action:hover,
-  .btn-more:active {
-    transform: none;
-  }
-  /* v0.62.1: the new global press-scale feedback (base.css) too. */
-  :where(button):not(.no-press):active {
-    transform: none;
   }
 }

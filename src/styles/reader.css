@@ -25,17 +25,20 @@
   color: var(--reader-fg, #1d1d1f);
 }
 
-/* ---- control bar (frosted pill, mirrors app-header aesthetic) ---- */
+/* ---- control bar: a quiet floating card centered in the first grid row ---- */
 .reader-bar {
   grid-column: 1 / -1;
+  justify-self: center;
+  width: min(720px, calc(100vw - 32px));
+  margin: 12px 0 0;
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 10px 18px;
-  background: var(--reader-bar-bg, rgba(255, 255, 255, 0.72));
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1px solid var(--reader-border, rgba(0, 0, 0, 0.08));
+  padding: 4px 10px;
+  background: var(--reader-bar-bg, #ffffff);
+  border: 1px solid var(--reader-border, rgba(0, 0, 0, 0.08));
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.08));
 }
 .reader-title {
   font-weight: 600;
@@ -64,8 +67,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 30px;
-  height: 30px;
+  min-width: 32px;
+  height: 32px;
   padding: 0 8px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm, 6px);
@@ -74,14 +77,11 @@
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+  transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
 }
 .reader-btn:hover {
   background: var(--reader-btn-hover, rgba(0, 0, 0, 0.06));
   color: var(--reader-fg, #1d1d1f);
-}
-.reader-btn:active {
-  transform: scale(0.94);   /* tactile press, matches app-header buttons */
 }
 .reader-btn-lg { font-size: 15px; }
 .reader-btn:focus-visible {
@@ -102,7 +102,7 @@
    slideshow's progress bar pattern. */
 .reader-progress-bar {
   grid-column: 1 / -1;
-  height: 3px;
+  height: 2px;
   background: var(--reader-border, rgba(0, 0, 0, 0.06));
   position: relative;
   overflow: hidden;
@@ -262,8 +262,6 @@
   letter-spacing: 0.02em;
   color: var(--reader-fg-muted, #6e6e73);
   background: var(--reader-bar-bg, rgba(255, 255, 255, 0.72));
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--reader-border, rgba(0, 0, 0, 0.08));
   border-radius: 999px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.10);   /* legibility over body text */
@@ -311,8 +309,12 @@
   --reader-bg: #ffffff;
   --reader-fg: #1d1d1f;
   --reader-fg-muted: #6e6e73;
+  --bg: #ffffff;
+  --fg: #1d1d1f;
+  --fg-secondary: #4b4b50;
+  --fg-muted: #6e6e73;
   --reader-border: rgba(0, 0, 0, 0.08);
-  --reader-bar-bg: rgba(255, 255, 255, 0.78);
+  --reader-bar-bg: #ffffff;
   --reader-btn-hover: rgba(0, 0, 0, 0.06);
   --code-bg: #f6f8fa;
   --code-border: #e1e4e8;
@@ -326,8 +328,12 @@
   --reader-bg: #f8f1e3;
   --reader-fg: #5b4636;
   --reader-fg-muted: #8a7560;
+  --bg: #f8f1e3;
+  --fg: #5b4636;
+  --fg-secondary: #7a6552;
+  --fg-muted: #8a7560;
   --reader-border: rgba(91, 70, 54, 0.14);
-  --reader-bar-bg: rgba(248, 241, 227, 0.82);
+  --reader-bar-bg: #f2e9d6;
   --reader-btn-hover: rgba(91, 70, 54, 0.10);
   --code-bg: #efe6d3;
   --code-border: #ddd0b8;
@@ -341,8 +347,12 @@
   --reader-bg: #1a1a1c;
   --reader-fg: #e6e6e6;
   --reader-fg-muted: #9a9a9f;
+  --bg: #1a1a1c;
+  --fg: #e6e6e6;
+  --fg-secondary: #b5b5ba;
+  --fg-muted: #9a9a9f;
   --reader-border: rgba(255, 255, 255, 0.10);
-  --reader-bar-bg: rgba(26, 26, 28, 0.78);
+  --reader-bar-bg: #222225;
   --reader-btn-hover: rgba(255, 255, 255, 0.08);
   --code-bg: #242427;
   --code-border: #34343a;
@@ -379,7 +389,6 @@
 @media (prefers-reduced-motion: reduce) {
   .reader:not(.hidden) { animation: none; }
   .reader-hint { transition: none; }
-  .reader-btn:active { transform: none; }
 }
 
 /* Small screens: collapse the bar's text, shrink article padding, narrow the

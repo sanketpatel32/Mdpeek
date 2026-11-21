@@ -39,7 +39,6 @@
     <link rel="stylesheet" href="/src/styles/content.css" />
     <link rel="stylesheet" href="/src/styles/reader.css" />
     <link rel="stylesheet" href="/src/styles/motion.css" />
-    <link rel="stylesheet" href="/src/styles/workspace.css" />
     <!-- KaTeX math CSS + the 6 highlight.js themes are bundled locally from
          the npm deps (katex, highlight.js) by src/styles/vendors.css.js — no
          more CDN <link> tags. installHljsThemes() injects the 6 hljs <link>
@@ -48,8 +47,7 @@
   </head>
   <body>
     <header class="app-header" data-tauri-drag-region>
-      <div class="app-brand" data-tauri-drag-region><span class="brand-mark" aria-hidden="true" data-tauri-drag-region></span><span data-tauri-drag-region>mdpeek</span></div>
-      <div class="header-file-tools"><button id="btn-open" class="tool-btn" type="button" title="Open file (Ctrl+O)"><span data-icon="folder-open"></span><span>Open</span></button></div>
+      <div class="app-brand" data-tauri-drag-region><span class="brand-mark" aria-hidden="true" data-tauri-drag-region></span></div>
       <div id="tab-strip-container" class="tab-strip-container" data-tauri-drag-region>
         <div id="tab-strip" class="tab-strip" role="tablist" aria-label="Open tabs" data-tauri-drag-region>
           <span class="tab-indicator is-hidden" aria-hidden="true"></span>
@@ -59,15 +57,15 @@
 
       <div class="toolbar">
         <div class="tool-group document-tools" aria-label="Document actions">
-
-          <button id="btn-save" class="tool-btn hidden" type="button" title="Save file (Ctrl+S)"><span data-icon="save"></span><span>Save</span></button>
+          <button id="btn-open" class="tool-btn icon-only" type="button" title="Open file (Ctrl+O)" aria-label="Open file"><span data-icon="folder-open"></span></button>
           <button id="btn-mode" class="tool-btn hidden" type="button" title="Toggle edit/view (Ctrl+E)"><span data-icon="pencil"></span><span class="mode-label">Edit</span></button>
-
+          <button id="btn-save" class="tool-btn hidden" type="button" title="Save file (Ctrl+S)"><span data-icon="save"></span><span>Save</span></button>
         </div>
+        <span class="tool-separator" aria-hidden="true"></span>
         <!-- Search stays one click away without taking space from file tabs. -->
         <button id="btn-command-k" class="cmd-k-pill" type="button" title="Search & run commands (Ctrl+Shift+P)" aria-label="Search and run commands">
           <span class="cmd-k-search" data-icon="search" data-icon-size="14"></span>
-          <span class="cmd-k-text">Commands</span>
+          <span class="cmd-k-text">Search</span>
           <kbd class="cmd-k-kbd">Ctrl+Shift+P</kbd>
         </button>
 
@@ -205,16 +203,19 @@
                 <button class="fmt-btn" data-fmt="h1" type="button" title="Heading 1" aria-label="Heading 1"><span data-icon="fmt-h1" data-icon-size="15"></span></button>
                 <button class="fmt-btn" data-fmt="h2" type="button" title="Heading 2" aria-label="Heading 2"><span data-icon="fmt-h2" data-icon-size="15"></span></button>
                 <button class="fmt-btn" data-fmt="h3" type="button" title="Heading 3" aria-label="Heading 3"><span data-icon="fmt-h3" data-icon-size="15"></span></button>
+                <span class="fmt-sep" aria-hidden="true"></span>
                 <button class="fmt-btn" data-fmt="bold" type="button" title="Bold (Ctrl+B)" aria-label="Bold"><span data-icon="fmt-bold" data-icon-size="15"></span></button>
                 <button class="fmt-btn" data-fmt="italic" type="button" title="Italic (Ctrl+I)" aria-label="Italic"><span data-icon="fmt-italic" data-icon-size="15"></span></button>
                 <button class="fmt-btn" data-fmt="strike" type="button" title="Strikethrough (Ctrl+Shift+X)" aria-label="Strikethrough"><span data-icon="fmt-strike" data-icon-size="15"></span></button>
                 <button class="fmt-btn" data-fmt="highlight" type="button" title="Highlight (Ctrl+Shift+H)" aria-label="Highlight"><span data-icon="fmt-highlight" data-icon-size="15"></span></button>
                 <button class="fmt-btn" data-fmt="code" type="button" title="Inline code" aria-label="Inline code"><span data-icon="fmt-code" data-icon-size="15"></span></button>
                 <button class="fmt-btn" data-fmt="link" type="button" title="Link" aria-label="Link"><span data-icon="fmt-link" data-icon-size="15"></span></button>
+                <span class="fmt-sep" aria-hidden="true"></span>
                 <button class="fmt-btn" data-fmt="ul" type="button" title="Bulleted list" aria-label="Bulleted list"><span data-icon="fmt-ul" data-icon-size="15"></span></button>
                 <button class="fmt-btn" data-fmt="ol" type="button" title="Numbered list" aria-label="Numbered list"><span data-icon="fmt-ol" data-icon-size="15"></span></button>
                 <button class="fmt-btn" data-fmt="task" type="button" title="Task list item (- [ ])" aria-label="Task list item"><span data-icon="fmt-task" data-icon-size="15"></span></button>
                 <button class="fmt-btn" data-fmt="quote" type="button" title="Quote" aria-label="Quote"><span data-icon="fmt-quote" data-icon-size="15"></span></button>
+                <span class="fmt-sep" aria-hidden="true"></span>
                 <button class="fmt-btn" data-fmt="fence" type="button" title="Code block" aria-label="Code block">{ }</button>
                 <button class="fmt-btn" data-fmt="table" type="button" title="Insert table" aria-label="Insert table"><span data-icon="fmt-table" data-icon-size="15"></span></button>
                 <button class="fmt-btn" data-fmt="hr" type="button" title="Horizontal rule (---)" aria-label="Horizontal rule"><span data-icon="fmt-hr" data-icon-size="15"></span></button>
@@ -246,7 +247,7 @@
           </div>
           <div id="pane-resizer" class="pane-resizer" title="Drag to resize split panes"></div>
           <div class="preview-pane">
-            <div class="pane-header">Preview</div>
+            <div class="pane-header"><span class="pane-label">Preview</span></div>
             <article id="preview" class="markdown-body"></article>
           </div>
         </main>

@@ -168,7 +168,7 @@ src/
 │                   file-tree, find-bar, command-palette, folder-search, …
 ├── main.js         App wiring: tabs, shortcuts, IPC, settings, file watcher
 └── styles/         tokens.css, themes.css (5 themes), base.css, content.css,
-                    reader.css, motion.css, workspace.css
+                    reader.css, motion.css
 
 src-tauri/src/      Rust backend — lib.rs (tray, updater, single-instance),
                     commands.rs (open/save/search/file-ops), watcher.rs

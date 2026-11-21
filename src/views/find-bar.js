@@ -34,7 +34,7 @@ const POLISH_CSS = `
   transition: color var(--dur-2, 180ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
 }
 #find-overlay .find-count.pop {
-  animation: fx-count-pop var(--dur-3, 240ms) var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1));
+  animation: fx-count-pop var(--dur-3, 240ms) var(--ease-out, cubic-bezier(0.2, 0, 0, 1));
 }
 #find-overlay .find-count.zero {
   color: var(--danger, #cf222e);
