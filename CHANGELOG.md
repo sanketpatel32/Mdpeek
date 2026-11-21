@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.0.0] - 2026-11-22
+## [2.0.0] - 2026-11-21
 
 The simplification release. mdpeek is a Markdown viewer/editor again — everything that made it an IDE, notebook, or knowledge base is gone. ~28,500 lines removed; the app is faster to boot, lighter to build, and calmer to use.
 
