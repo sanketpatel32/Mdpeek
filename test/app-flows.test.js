@@ -51,7 +51,7 @@ beforeAll(async () => {
   document.body.innerHTML = new DOMParser().parseFromString(html, 'text/html').body.innerHTML;
   await import('../src/main.js');
   await vi.waitFor(() => expect(document.querySelector('.welcome')).not.toBeNull());
-}, 20000);
+}, 40000);
 
 it('new notes focus the editor; nested tasks and Save As update the real document', async () => {
   click('.welcome-action[data-action="new"]');

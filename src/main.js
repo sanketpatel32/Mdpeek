@@ -6805,14 +6805,8 @@ function updateEditorStatus() {
     }
   }
 
-  // Writing-day streak chip (v0.55.0). Invisible until the user has a streak
-  // of 2+ (formatStreakChip returns '' otherwise), so it earns its place
-  // rather than adding permanent noise to the status bar.
+  // Writing-day streak chip removed from chrome to maximize document focus.
   let streakHtml = '';
-  const streakChip = formatStreakChip(currentStreak());
-  if (streakChip) {
-    streakHtml = `<span class="status-sep" aria-hidden="true">·</span><span class="status-streak" title="Writing-day streak">${streakChip}</span>`;
-  }
 
   el.editorStatus.innerHTML =
     `<span>${fmtNum(words)} words</span>` +

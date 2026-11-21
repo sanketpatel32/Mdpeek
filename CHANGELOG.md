@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-11-21
+
+Lightweight footprint restoration, modern UI overhaul, package updates, and Tier 1 bloat removal.
+
+### Removed
+- **ConPTY Terminal Drawer**: Dropped `@xterm/*` and terminal drawer DOM to eliminate background process overhead and simplify window chrome.
+- **TLDraw Canvas Redundancy**: Removed `tldraw` SDK (~440 transitive dependencies) to prune bundle size, standardizing on Excalidraw as the single infinite canvas engine.
+- **Titlebar Pomodoro Pill & Streak Chip**: Removed `#pomo-status` HUD and status-bar writing streak flame chip to restore document reading space.
+
+### Changed
+- **Dependencies Updated**: Upgraded all core dependencies to latest compatible versions (`vite` 8.3.8, `vitest` 4.1.12, `@tauri-apps/api` 2.12.5, `@tauri-apps/cli` 2.12.6, all Tauri plugins, `marked` 18.2.1, `katex` 0.18.11, `lucide` 1.77.0, `dompurify` 3.4.18, `highlight.js` 11.12.0, `mermaid` 11.17.2, `yjs` 13.6.33).
+- **Build Performance**: Shaved >1,100 transformed modules; production build time dropped from ~6.8s to 2.35s.
+
+### Fixed
+- **Calm Glass Design System Restored**: Reverted conflicting experimental paper color tokens in `tokens.css` and `workspace.css`. Restored high-contrast WCAG 4.5:1 compliant light and dark themes, frosted glass `backdrop-filter: blur(20px)` headers, traveling active tab indicator, elevated tab pills, and Linear-style Spotlight Command-K bar.
+
 ## [1.8.0] - 2026-11-08
 
 The ⋯ overflow is no longer a bare dropdown — it's a filterable command menu.

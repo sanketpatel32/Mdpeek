@@ -1,98 +1,27 @@
-// Unit tests for the integrated terminal module's pure helpers.
-//
-// We can't integration-test a live PTY from vitest (it needs the Tauri Rust
-// runtime), so we test the pure pieces: the CSS-var reader and the
-// xterm-theme mapper. These are the only bits with non-trivial logic.
-//
-// This file also establishes the Tauri IPC mock pattern for the suite — the
-// first test file to mock `@tauri-apps/api/core`. Future tests of modules
-// that call invoke/Channel can copy this shape.
+// Unit tests for the terminal module's pure helpers and lifecycle controller.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { invoke } from '@tauri-apps/api/core';
-
-// Mock the Tauri core module so importing terminal.js doesn't try to talk to
-// the (absent) Rust runtime. Channel is a minimal stand-in: `onmessage` is the
-// handler the real API calls on every backend send; send() invokes it.
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(async () => ({ id: 1 })),
-  Channel: class {
-    constructor(fn) { this.onmessage = fn || null; }
-    send(m) { if (this.onmessage) this.onmessage(m); }
-  },
-}));
-
-// Mock xterm.js + addons as inert constructors so we don't pull in the full
-// renderer (which needs canvas/Workers that jsdom doesn't provide).
-vi.mock('@xterm/xterm', () => ({
-  Terminal: class {
-    constructor(opts) { this.options = opts || {}; }
-    loadAddon() {}
-    open() {}
-    write() {}
-    clear() {}
-    focus() {}
-    dispose() {}
-    on() {}
-    onData() { return { dispose() {} }; }
-    onResize() { return { dispose() {} }; }
-    get cols() { return 80; }
-    get rows() { return 24; }
-    paste() {}
-    hasSelection() { return false; }
-    getSelection() { return ''; }
-    get parser() {
-      return { registerOscHandler() {} };
-    }
-    attachCustomKeyEventHandler() {}
-  },
-}));
-vi.mock('@xterm/addon-fit', () => ({
-  FitAddon: class { activate() {} dispose() {} fit() {} },
-}));
-vi.mock('@xterm/addon-web-links', () => ({
-  WebLinksAddon: class { activate() {} dispose() {} },
-}));
-vi.mock('@xterm/addon-webgl', () => ({
-  WebglAddon: class {
-    activate() {}
-    dispose() {}
-    onContextLoss() {}
-  },
-}));
-vi.mock('@xterm/addon-search', () => ({
-  SearchAddon: class {
-    activate() {}
-    dispose() {}
-    findNext() {}
-    findPrevious() {}
-    clearActiveDecoration() {}
-  },
-}));
-
 import { initTerminal, readCssVar, xtermThemeFromApp, normalizeOscCwd } from '../src/views/terminal.js';
 
-it('kills a native session that arrives after the terminal startup timeout', async () => {
-  vi.useFakeTimers();
-  let resolveSpawn;
-  invoke.mockImplementation((command) => command === 'spawn_terminal'
-    ? new Promise((resolve) => { resolveSpawn = resolve; })
-    : Promise.resolve());
-  document.body.innerHTML = '<div id="terminal-drawer" class="hidden"><div id="terminal-body"></div></div>';
-  vi.stubGlobal('requestAnimationFrame', (callback) => setTimeout(callback, 16));
-  const terminal = initTerminal({ cwdProvider: () => '.', onToast: vi.fn() });
-  try {
+describe('initTerminal', () => {
+  it('returns a safe controller with no-op lifecycle methods and notifies on open/toggle', () => {
+    const onToast = vi.fn();
+    const terminal = initTerminal({ cwdProvider: () => '.', onToast });
+    expect(typeof terminal.open).toBe('function');
+    expect(typeof terminal.close).toBe('function');
+    expect(typeof terminal.toggle).toBe('function');
+    expect(typeof terminal.destroyAll).toBe('function');
+
     terminal.open();
-    await vi.advanceTimersByTimeAsync(15001);
-    expect(document.querySelector('.terminal-exit-head')?.textContent).toBe('Shell error');
-    resolveSpawn({ id: 42 });
-    await Promise.resolve();
-    expect(invoke).toHaveBeenCalledWith('kill_terminal', { id: 42 });
-  } finally {
-    terminal.destroyAll();
-    vi.useRealTimers();
-    vi.unstubAllGlobals();
-  }
+    expect(onToast).toHaveBeenCalledWith(expect.stringContaining('removed'));
+
+    terminal.toggle();
+    expect(onToast).toHaveBeenCalledTimes(2);
+
+    expect(() => terminal.destroyAll()).not.toThrow();
+    expect(() => terminal.setTheme()).not.toThrow();
+    expect(() => terminal.updateZoom(1.2)).not.toThrow();
+  });
 });
 
 beforeEach(() => {
@@ -143,17 +72,11 @@ describe('xtermThemeFromApp', () => {
     const theme = xtermThemeFromApp();
     expect(theme.background).toBe('#000000');
     expect(theme.foreground).toBe('#e8e8e8');
-    // Fallbacks are a sane neutral ANSI palette (close to xterm.js defaults),
-    // not pure primary hexes — keeps the terminal legible before the theme
-    // stylesheet applies.
     expect(theme.red).toBe('#ff5555');
     expect(theme.blue).toBe('#8be9fd');
   });
 
   it('derives the ANSI palette from the theme alert/success tokens', () => {
-    // Each theme tunes --alert-* to its signature palette (Dracula greens,
-    // Solarized yellows, Nord frosts). The mapper must pass those through so
-    // the terminal actually matches the chosen theme.
     document.documentElement.style.setProperty('--success', '#50fa7b');
     document.documentElement.style.setProperty('--alert-warning', '#f1fa8c');
     document.documentElement.style.setProperty('--alert-note', '#8be9fd');
@@ -163,14 +86,12 @@ describe('xtermThemeFromApp', () => {
     expect(theme.yellow).toBe('#f1fa8c');
     expect(theme.cyan).toBe('#8be9fd');
     expect(theme.magenta).toBe('#ff79c6');
-    // Bright variants reuse the same source colors.
     expect(theme.brightGreen).toBe('#50fa7b');
     expect(theme.brightYellow).toBe('#f1fa8c');
   });
 
   it('always returns the full ANSI 16-color palette', () => {
     const theme = xtermThemeFromApp();
-    // xterm.js requires all 16 base colors; missing keys break the renderer.
     for (const slot of [
       'black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white',
       'brightBlack', 'brightRed', 'brightGreen', 'brightYellow', 'brightBlue',
@@ -182,9 +103,6 @@ describe('xtermThemeFromApp', () => {
   });
 });
 
-
-// v0.64.0: OSC cwd normalization (live working-directory tracking).
-// String.raw keeps the backslashes literal without escape-sequence gymnastics.
 describe('normalizeOscCwd', () => {
   it('parses OSC 7 Windows drive paths (file://host/C:/…)', () => {
     expect(normalizeOscCwd('file://desktop/C:/Users/sanpa/docs')).toBe(String.raw`C:\Users\sanpa\docs`);
