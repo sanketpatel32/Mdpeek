@@ -86,7 +86,7 @@ fn toggle_case(source: &str) -> String {
         .collect()
 }
 
-fn heading_slug(text: &str) -> String {
+pub fn heading_slug(text: &str) -> String {
     text.chars()
         .filter_map(|ch| {
             if ch.is_alphanumeric() {
@@ -104,33 +104,56 @@ fn heading_slug(text: &str) -> String {
         .join("-")
 }
 
-pub fn table_of_contents(source: &str) -> String {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MarkdownHeading {
+    pub level: usize,
+    pub title: String,
+    pub slug: String,
+    pub start: usize,
+    pub end: usize,
+}
+
+pub fn markdown_headings(source: &str) -> Vec<MarkdownHeading> {
     let mut in_fence = false;
-    let mut entries = Vec::new();
-    for line in source.lines() {
-        let trimmed = line.trim_start();
+    let mut headings = Vec::new();
+    let mut line_start = 0;
+    for line in source.split_inclusive('\n') {
+        let content = line.trim_end_matches(['\n', '\r']);
+        let trimmed = content.trim_start();
         if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
             in_fence = !in_fence;
-            continue;
+        } else if !in_fence && trimmed.starts_with('#') {
+            let hashes = trimmed.chars().take_while(|ch| *ch == '#').count();
+            if (1..=6).contains(&hashes) && trimmed[hashes..].starts_with(' ') {
+                let title = trimmed[hashes..].trim();
+                if !title.is_empty() {
+                    headings.push(MarkdownHeading {
+                        level: hashes,
+                        title: title.to_string(),
+                        slug: heading_slug(title),
+                        start: line_start,
+                        end: line_start + content.len(),
+                    });
+                }
+            }
         }
-        if in_fence || !trimmed.starts_with('#') {
-            continue;
-        }
-        let hashes = trimmed.chars().take_while(|ch| *ch == '#').count();
-        if hashes == 0 || hashes > 6 || !trimmed[hashes..].starts_with(' ') {
-            continue;
-        }
-        let title = trimmed[hashes..].trim();
-        if title.is_empty() {
-            continue;
-        }
-        entries.push(format!(
-            "{}- [{}](#{})",
-            "  ".repeat(hashes.saturating_sub(1)),
-            title,
-            heading_slug(title)
-        ));
+        line_start += line.len();
     }
+    headings
+}
+
+pub fn table_of_contents(source: &str) -> String {
+    let entries = markdown_headings(source)
+        .iter()
+        .map(|heading| {
+            format!(
+                "{}- [{}](#{})",
+                "  ".repeat(heading.level.saturating_sub(1)),
+                heading.title,
+                heading.slug
+            )
+        })
+        .collect::<Vec<_>>();
     if entries.is_empty() {
         String::new()
     } else {

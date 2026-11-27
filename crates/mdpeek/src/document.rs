@@ -589,6 +589,19 @@ impl DocumentView {
             }))
     }
 
+    fn reveal_heading(&self, fragment: &str, cx: &mut Context<Self>) {
+        let source = self.editor.read(cx).value().to_string();
+        let Some(heading) = crate::text_transform::markdown_headings(&source)
+            .into_iter()
+            .find(|heading| heading.slug == fragment)
+        else {
+            return;
+        };
+        self.preview.update(cx, |preview, cx| {
+            _ = preview.reveal_range(heading.start..heading.end, cx);
+        });
+    }
+
     fn render_toolbar(&self, compact: bool, cx: &mut Context<Self>) -> impl IntoElement {
         h_flex()
             .w_full()
@@ -836,6 +849,7 @@ impl DocumentView {
                 })
                 .on_link_click({
                     let owner = self.owner.clone();
+                    let document_entity = cx.weak_entity();
                     let base = self
                         .path
                         .as_ref()
@@ -862,7 +876,11 @@ impl DocumentView {
                             || url.starts_with("mailto:")
                         {
                             cx.open_url(url);
-                        } else if !url.starts_with('#') {
+                        } else if let Some(fragment) = url.strip_prefix('#') {
+                            _ = document_entity.update(cx, |document, cx| {
+                                document.reveal_heading(fragment, cx);
+                            });
+                        } else {
                             let path = base
                                 .as_ref()
                                 .map(|base| base.join(url.as_str()))

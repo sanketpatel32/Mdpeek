@@ -1,3 +1,5 @@
+use crate::text_transform::markdown_headings;
+
 pub fn markdown_to_html_document(title: &str, source: &str) -> String {
     markdown_to_html_document_with_base(title, source, None)
 }
@@ -9,6 +11,7 @@ pub fn markdown_to_html_document_with_base(
 ) -> String {
     let body = markdown::to_html_with_options(source, &markdown::Options::gfm())
         .unwrap_or_else(|error| format!("<pre>Markdown export failed: {error}</pre>"));
+    let body = add_heading_ids(&body, source);
     let base_tag = base_href
         .map(|href| format!("<base href=\"{}\">", escape_html(href)))
         .unwrap_or_default();
@@ -38,6 +41,37 @@ img {{ max-width: 100%; }}
         escape_html(title),
         body
     )
+}
+
+fn add_heading_ids(html: &str, source: &str) -> String {
+    let headings = markdown_headings(source);
+    if headings.is_empty() {
+        return html.to_string();
+    }
+    let pattern = regex::Regex::new(r"<h([1-6])>").expect("valid heading pattern");
+    let mut output = String::with_capacity(html.len() + headings.len() * 16);
+    let mut last = 0;
+    let mut next_heading = 0;
+    for captures in pattern.captures_iter(html) {
+        let Some(whole) = captures.get(0) else {
+            continue;
+        };
+        output.push_str(&html[last..whole.start()]);
+        let level = captures[1].parse::<usize>().unwrap_or_default();
+        if headings
+            .get(next_heading)
+            .is_some_and(|heading| heading.level == level)
+        {
+            let heading = &headings[next_heading];
+            output.push_str(&format!("<h{} id=\"{}\">", heading.level, heading.slug));
+            next_heading += 1;
+        } else {
+            output.push_str(whole.as_str());
+        }
+        last = whole.end();
+    }
+    output.push_str(&html[last..]);
+    output
 }
 
 pub fn markdown_to_plain_text(source: &str) -> String {
@@ -99,7 +133,7 @@ mod tests {
     fn html_export_escapes_title() {
         let html = markdown_to_html_document("<x>", "# Hi");
         assert!(html.contains("<title>&lt;x&gt;</title>"));
-        assert!(html.contains("<h1>Hi</h1>"));
+        assert!(html.contains("<h1 id=\"hi\">Hi</h1>"));
     }
 
     #[test]
