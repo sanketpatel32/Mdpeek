@@ -18,13 +18,11 @@ fn split_row(line: &str) -> Vec<String> {
     let trimmed = line.trim().trim_start_matches('|').trim_end_matches('|');
     let mut cells = Vec::new();
     let mut cell = String::new();
-    let mut escaped = false;
-    for ch in trimmed.chars() {
-        if escaped {
-            cell.push(ch);
-            escaped = false;
-        } else if ch == '\\' {
-            escaped = true;
+    let mut chars = trimmed.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\\' && chars.peek() == Some(&'|') {
+            chars.next();
+            cell.push('|');
         } else if ch == '|' {
             cells.push(cell.trim().to_string());
             cell.clear();
@@ -88,11 +86,36 @@ pub fn parse_table_at(text: &str, cursor: usize) -> Option<MarkdownTable> {
     {
         bottom += 1;
     }
-    if bottom - top < 2 {
+    let mut in_fence = false;
+    let mut fenced_lines = Vec::new();
+    for (_, line) in &lines {
+        let trimmed = line.trim_start();
+        let fence = trimmed.starts_with("```") || trimmed.starts_with("~~~");
+        fenced_lines.push(in_fence || fence);
+        if fence {
+            in_fence = !in_fence;
+        }
+    }
+    if fenced_lines[row_index] || bottom - top < 2 {
         return None;
     }
 
-    let delimiter_index = top + 1;
+    let delimiter_index = (top + 1..=bottom).find(|index| {
+        !fenced_lines[*index]
+            && split_row(lines[*index].1)
+                .iter()
+                .all(|cell| parse_alignment(cell).is_some())
+    })?;
+    top = delimiter_index - 1;
+    bottom = delimiter_index + 1;
+    while bottom + 1 < lines.len()
+        && !fenced_lines[bottom + 1]
+        && lines[bottom + 1].1.trim().contains('|')
+        && !lines[bottom + 1].1.trim().is_empty()
+        && !lines[bottom + 1].1.trim_start().starts_with('#')
+    {
+        bottom += 1;
+    }
     let delimiter_cells = split_row(lines[delimiter_index].1);
     let alignments = delimiter_cells
         .iter()
@@ -132,7 +155,11 @@ pub fn emit_table(table: &MarkdownTable) -> String {
     let emit_row = |cells: &[String]| {
         let cells = (0..column_count)
             .map(|index| {
-                let cell = cells.get(index).map(String::as_str).unwrap_or_default();
+                let cell = cells
+                    .get(index)
+                    .map(String::as_str)
+                    .unwrap_or_default()
+                    .replace('|', "\\|");
                 format!(" {:width$} ", cell, width = widths[index])
             })
             .collect::<Vec<_>>()
@@ -194,6 +221,22 @@ mod tests {
             &text[table.start..table.end],
             "| Name | Value |\n| :--- | ---: |\n| A | 1 |"
         );
+    }
+
+    #[test]
+    fn escaped_pipes_round_trip() {
+        let text = "| A | B |\n| --- | --- |\n| one \\| two | x |\n";
+        let table = parse_table_at(text, text.find("one").unwrap()).unwrap();
+        assert_eq!(table.rows[1][0], "one | two");
+        assert!(emit_table(&table).contains("one \\| two"));
+    }
+
+    #[test]
+    fn does_not_absorb_following_heading() {
+        let text = "| A |\n| --- |\n| x |\n# heading | not table\n";
+        let table = parse_table_at(text, text.find("| x").unwrap()).unwrap();
+        assert_eq!(table.rows.len(), 2);
+        assert!(!text[table.start..table.end].contains("heading"));
     }
 
     #[test]
