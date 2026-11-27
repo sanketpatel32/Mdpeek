@@ -80,6 +80,22 @@ jobs:
           Pop-Location
           Copy-Item "nsis-build/mdpeek-$version-setup.exe" "artifacts/mdpeek-$version-setup.exe"
 
+      - name: Smoke test Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = "${{ steps.ver.outputs.version }}"
+          $installer = Resolve-Path "artifacts/mdpeek-$version-setup.exe"
+          $program = "C:\Program Files\mdpeek\mdpeek.exe"
+          $uninstaller = "C:\Program Files\mdpeek\uninstall.exe"
+          $install = Start-Process $installer -ArgumentList "/S" -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "installer exited with $($install.ExitCode)" }
+          if (-not (Test-Path $program)) { throw "installer did not install mdpeek.exe" }
+          if (-not (Test-Path $uninstaller)) { throw "installer did not install uninstall.exe" }
+          $uninstall = Start-Process $uninstaller -ArgumentList "/S" -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) { throw "uninstaller exited with $($uninstall.ExitCode)" }
+          if (Test-Path $program) { throw "uninstaller left mdpeek.exe behind" }
+
       - name: Sign Windows updater installer
         if: runner.os == 'Windows'
         shell: bash
