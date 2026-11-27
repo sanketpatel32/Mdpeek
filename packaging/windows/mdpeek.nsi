@@ -149,6 +149,25 @@ Function SkipIfPassive
   ${EndIf}
 FunctionEnd
 
+Function EnsureMdpeekWritable
+  ${IfNot} ${FileExists} "$INSTDIR\${MAINBINARYNAME}"
+    Return
+  ${EndIf}
+
+  mdpeek_check_lock:
+    ClearErrors
+    FileOpen $0 "$INSTDIR\${MAINBINARYNAME}" a
+    ${If} ${Errors}
+      ${If} $PassiveMode = 1
+      ${OrIf} $SilentMode = 1
+        Abort
+      ${EndIf}
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "mdpeek is currently running. Close it, then choose Retry." IDRETRY mdpeek_check_lock
+      Abort
+    ${EndIf}
+    FileClose $0
+FunctionEnd
+
 Function .onInit
   StrCpy $PassiveMode 0
   StrCpy $UpdateMode 0
@@ -188,6 +207,7 @@ Section "Install"
   SetOutPath $INSTDIR
   SetOverwrite on
 
+  Call EnsureMdpeekWritable
   File "${BINARY}"
   File "${ICONFILE}"
   WriteUninstaller "$INSTDIR\uninstall.exe"
