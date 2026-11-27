@@ -216,7 +216,7 @@ impl MarkdownTable {
     }
 
     pub fn remove_row(&mut self, index: usize) {
-        if index > 0 && index < self.rows.len() && self.rows.len() > 2 {
+        if index > 0 && index < self.rows.len() && self.rows.len() > 1 {
             self.rows.remove(index);
         }
     }
@@ -344,11 +344,12 @@ mod tests {
             end: 0,
         };
         table.remove_row(0);
-        table.remove_row(1);
         table.remove_column(0);
         table.move_row(1, true);
         assert_eq!(table.rows.len(), 2);
         assert_eq!(table.alignments.len(), 1);
+        table.remove_row(1);
+        assert_eq!(table.rows.len(), 1);
     }
 
     #[test]

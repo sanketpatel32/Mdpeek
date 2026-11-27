@@ -170,6 +170,30 @@ enum TableOperation {
     None,
     AddRow,
     AddColumn,
+    RemoveRow(usize),
+    MoveRow(usize, bool),
+    RemoveColumn(usize),
+    MoveColumn(usize, bool),
+    CycleAlignment(usize),
+}
+
+impl TableOperation {
+    fn reopens_editor(self) -> bool {
+        !matches!(self, Self::None)
+    }
+
+    fn status_message(self) -> &'static str {
+        match self {
+            Self::None => "Updated table",
+            Self::AddRow => "Added table row",
+            Self::AddColumn => "Added table column",
+            Self::RemoveRow(_) => "Removed table row",
+            Self::MoveRow(_, _) => "Moved table row",
+            Self::RemoveColumn(_) => "Removed table column",
+            Self::MoveColumn(_, _) => "Moved table column",
+            Self::CycleAlignment(_) => "Changed column alignment",
+        }
+    }
 }
 
 impl Mdpeek {
@@ -808,33 +832,112 @@ impl Mdpeek {
             let owner = owner.clone();
             dialog
                 .title("Edit table")
-                .w(px(760.))
+                .w(px(900.))
                 .content(move |content, _, cx| {
-                    let rows =
-                        inputs
-                            .iter()
-                            .enumerate()
-                            .map(|(row_index, row)| {
-                                h_flex()
-                                    .gap_2()
-                                    .items_center()
-                                    .child(
-                                        div()
-                                            .w(px(44.))
-                                            .text_xs()
-                                            .text_color(cx.theme().muted_foreground)
-                                            .child(if row_index == 0 {
-                                                "Header".to_string()
-                                            } else {
-                                                format!("Row {row_index}")
-                                            }),
-                                    )
-                                    .children(row.iter().map(|input| {
+                    let column_controls = h_flex()
+                        .gap_2()
+                        .items_center()
+                        .child(div().w(px(64.)))
+                        .children((0..table.alignments.len()).map(|column| {
+                            h_flex()
+                                .w(px(132.))
+                                .justify_center()
+                                .gap_1()
+                                .child(table_operation_button(
+                                    ("table-column-left", column),
+                                    "<",
+                                    owner.clone(),
+                                    table.clone(),
+                                    inputs.clone(),
+                                    TableOperation::MoveColumn(column, true),
+                                ))
+                                .child(table_operation_button(
+                                    ("table-column-align", column),
+                                    "A",
+                                    owner.clone(),
+                                    table.clone(),
+                                    inputs.clone(),
+                                    TableOperation::CycleAlignment(column),
+                                ))
+                                .child(table_operation_button(
+                                    ("table-column-remove", column),
+                                    "x",
+                                    owner.clone(),
+                                    table.clone(),
+                                    inputs.clone(),
+                                    TableOperation::RemoveColumn(column),
+                                ))
+                                .child(table_operation_button(
+                                    ("table-column-right", column),
+                                    ">",
+                                    owner.clone(),
+                                    table.clone(),
+                                    inputs.clone(),
+                                    TableOperation::MoveColumn(column, false),
+                                ))
+                                .into_any_element()
+                        }))
+                        .into_any_element();
+                    let rows = inputs
+                        .iter()
+                        .enumerate()
+                        .map(|(row_index, row)| {
+                            h_flex()
+                                .gap_2()
+                                .items_center()
+                                .child(
+                                    v_flex()
+                                        .w(px(64.))
+                                        .gap_1()
+                                        .child(
+                                            div()
+                                                .text_xs()
+                                                .text_color(cx.theme().muted_foreground)
+                                                .child(if row_index == 0 {
+                                                    "Header".to_string()
+                                                } else {
+                                                    format!("Row {row_index}")
+                                                }),
+                                        )
+                                        .when(row_index > 0, |controls| {
+                                            controls.child(
+                                                h_flex()
+                                                    .gap_1()
+                                                    .child(table_operation_button(
+                                                        ("table-row-up", row_index),
+                                                        "^",
+                                                        owner.clone(),
+                                                        table.clone(),
+                                                        inputs.clone(),
+                                                        TableOperation::MoveRow(row_index, true),
+                                                    ))
+                                                    .child(table_operation_button(
+                                                        ("table-row-down", row_index),
+                                                        "v",
+                                                        owner.clone(),
+                                                        table.clone(),
+                                                        inputs.clone(),
+                                                        TableOperation::MoveRow(row_index, false),
+                                                    ))
+                                                    .child(table_operation_button(
+                                                        ("table-row-remove", row_index),
+                                                        "x",
+                                                        owner.clone(),
+                                                        table.clone(),
+                                                        inputs.clone(),
+                                                        TableOperation::RemoveRow(row_index),
+                                                    )),
+                                            )
+                                        }),
+                                )
+                                .children(
+                                    row.iter().map(|input| {
                                         Input::new(input).w(px(132.)).into_any_element()
-                                    }))
-                                    .into_any_element()
-                            })
-                            .collect::<Vec<_>>();
+                                    }),
+                                )
+                                .into_any_element()
+                        })
+                        .collect::<Vec<_>>();
                     let apply_owner = owner.clone();
                     let apply_inputs = inputs.clone();
                     let apply_table = table.clone();
@@ -851,8 +954,9 @@ impl Mdpeek {
                             .child(
                                 v_flex()
                                     .gap_2()
-                                    .max_h(px(420.))
+                                    .max_h(px(430.))
                                     .overflow_y_scrollbar()
+                                    .child(column_controls)
                                     .children(rows),
                             )
                             .child(
@@ -864,16 +968,14 @@ impl Mdpeek {
                                             .outline()
                                             .label("Add row")
                                             .on_click(move |_, window, cx| {
-                                                _ = add_row_owner.update(cx, |this, cx| {
-                                                    this.apply_table_edit(
-                                                        add_row_table.clone(),
-                                                        this.read_table_inputs(&add_row_inputs, cx),
-                                                        TableOperation::AddRow,
-                                                        window,
-                                                        cx,
-                                                    );
-                                                });
-                                                window.close_dialog(cx);
+                                                perform_table_operation(
+                                                    add_row_owner.clone(),
+                                                    add_row_table.clone(),
+                                                    add_row_inputs.clone(),
+                                                    TableOperation::AddRow,
+                                                    window,
+                                                    cx,
+                                                );
                                             }),
                                     )
                                     .child(
@@ -881,19 +983,14 @@ impl Mdpeek {
                                             .outline()
                                             .label("Add column")
                                             .on_click(move |_, window, cx| {
-                                                _ = add_column_owner.update(cx, |this, cx| {
-                                                    this.apply_table_edit(
-                                                        add_column_table.clone(),
-                                                        this.read_table_inputs(
-                                                            &add_column_inputs,
-                                                            cx,
-                                                        ),
-                                                        TableOperation::AddColumn,
-                                                        window,
-                                                        cx,
-                                                    );
-                                                });
-                                                window.close_dialog(cx);
+                                                perform_table_operation(
+                                                    add_column_owner.clone(),
+                                                    add_column_table.clone(),
+                                                    add_column_inputs.clone(),
+                                                    TableOperation::AddColumn,
+                                                    window,
+                                                    cx,
+                                                );
                                             }),
                                     )
                                     .child(
@@ -901,16 +998,14 @@ impl Mdpeek {
                                             .primary()
                                             .label("Apply")
                                             .on_click(move |_, window, cx| {
-                                                _ = apply_owner.update(cx, |this, cx| {
-                                                    this.apply_table_edit(
-                                                        apply_table.clone(),
-                                                        this.read_table_inputs(&apply_inputs, cx),
-                                                        TableOperation::None,
-                                                        window,
-                                                        cx,
-                                                    );
-                                                });
-                                                window.close_dialog(cx);
+                                                perform_table_operation(
+                                                    apply_owner.clone(),
+                                                    apply_table.clone(),
+                                                    apply_inputs.clone(),
+                                                    TableOperation::None,
+                                                    window,
+                                                    cx,
+                                                );
                                             }),
                                     ),
                             ),
@@ -943,6 +1038,11 @@ impl Mdpeek {
             TableOperation::None => {}
             TableOperation::AddRow => table.add_row(),
             TableOperation::AddColumn => table.add_column(),
+            TableOperation::RemoveRow(index) => table.remove_row(index),
+            TableOperation::MoveRow(index, upward) => table.move_row(index, upward),
+            TableOperation::RemoveColumn(index) => table.remove_column(index),
+            TableOperation::MoveColumn(index, left) => table.move_column(index, left),
+            TableOperation::CycleAlignment(index) => table.cycle_alignment(index),
         }
         let replacement = emit_table(&table);
         let range = table.start..table.end;
@@ -952,14 +1052,7 @@ impl Mdpeek {
         document.update(cx, |document, cx| {
             document.replace_range(range, replacement, window, cx);
         });
-        self.set_status(
-            match operation {
-                TableOperation::None => "Updated table",
-                TableOperation::AddRow => "Added table row; reopen table editor to continue",
-                TableOperation::AddColumn => "Added table column; reopen table editor to continue",
-            },
-            cx,
-        );
+        self.set_status(operation.status_message(), cx);
     }
 
     fn open_workspace_replace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -1626,6 +1719,54 @@ impl Mdpeek {
                     .text_color(cx.theme().muted_foreground)
                     .child("Ctrl+O open · Ctrl+S save · Ctrl+E edit/preview"),
             )
+    }
+}
+
+fn table_operation_button(
+    id: impl Into<ElementId>,
+    label: &'static str,
+    owner: WeakEntity<Mdpeek>,
+    table: MarkdownTable,
+    inputs: Vec<Vec<Entity<InputState>>>,
+    operation: TableOperation,
+) -> Button {
+    Button::new(id)
+        .ghost()
+        .xsmall()
+        .label(label)
+        .on_click(move |_, window, cx| {
+            perform_table_operation(
+                owner.clone(),
+                table.clone(),
+                inputs.clone(),
+                operation,
+                window,
+                cx,
+            );
+        })
+}
+
+fn perform_table_operation(
+    owner: WeakEntity<Mdpeek>,
+    table: MarkdownTable,
+    inputs: Vec<Vec<Entity<InputState>>>,
+    operation: TableOperation,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let reopen = operation.reopens_editor();
+    let reopen_owner = owner.clone();
+    _ = owner.update(cx, |this, cx| {
+        let rows = this.read_table_inputs(&inputs, cx);
+        this.apply_table_edit(table, rows, operation, window, cx);
+    });
+    window.close_dialog(cx);
+    if reopen {
+        window.defer(cx, move |window, cx| {
+            _ = reopen_owner.update(cx, |this, cx| {
+                this.open_table_editor(window, cx);
+            });
+        });
     }
 }
 
