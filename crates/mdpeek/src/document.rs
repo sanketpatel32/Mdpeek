@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::OnceLock,
+};
 
 use gpui_kit::component::{
     ActiveTheme as _, Sizable as _,
@@ -13,7 +16,10 @@ use gpui_kit::component::{
 };
 use gpui_kit::{prelude::FluentBuilder as _, *};
 
-use crate::math::{InlineMathPlugin, MathPlugin};
+use crate::{
+    app::Mdpeek,
+    math::{InlineMathPlugin, MathPlugin},
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DocumentKind {
@@ -112,6 +118,7 @@ pub struct DocumentView {
     saved_value: String,
     dirty: bool,
     preview_zoom: f32,
+    owner: Option<WeakEntity<Mdpeek>>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -170,6 +177,7 @@ impl DocumentView {
             saved_value: content,
             dirty: false,
             preview_zoom: 1.0,
+            owner: None,
             _subscriptions,
         }
     }
@@ -202,6 +210,10 @@ impl DocumentView {
         }
         self.mode = self.mode.next_for_edit_toggle();
         cx.notify();
+    }
+
+    pub fn set_owner(&mut self, owner: WeakEntity<Mdpeek>) {
+        self.owner = Some(owner);
     }
 
     pub fn show_preview(&mut self, cx: &mut Context<Self>) {
@@ -296,6 +308,47 @@ impl DocumentView {
                 .markdown_extensions(markdown_extensions())
                 .plugin(MathPlugin)
                 .plugin(InlineMathPlugin)
+                .on_link_click({
+                    let owner = self.owner.clone();
+                    let base = self
+                        .path
+                        .as_ref()
+                        .and_then(|path| path.parent().map(Path::to_path_buf));
+                    move |url, event, window, cx| {
+                        if event.is_right_click() {
+                            return;
+                        }
+                        if let Some(encoded) = url.strip_prefix("mdpeek-wiki:") {
+                            let Some(owner) = owner.clone() else { return };
+                            let target = decode_wiki_target(encoded);
+                            let target = if Path::new(&target).extension().is_some() {
+                                target
+                            } else {
+                                format!("{target}.md")
+                            };
+                            let path = base
+                                .as_ref()
+                                .map(|base| base.join(&target))
+                                .unwrap_or_else(|| PathBuf::from(&target));
+                            _ = owner.update(cx, |app, cx| app.open_path(path, window, cx));
+                        } else if url.starts_with("http://")
+                            || url.starts_with("https://")
+                            || url.starts_with("mailto:")
+                        {
+                            cx.open_url(url);
+                        } else if !url.starts_with('#') {
+                            let path = base
+                                .as_ref()
+                                .map(|base| base.join(url.as_str()))
+                                .unwrap_or_else(|| PathBuf::from(url.as_str()));
+                            if path.exists()
+                                && let Some(owner) = owner.clone()
+                            {
+                                _ = owner.update(cx, |app, cx| app.open_path(path, window, cx));
+                            }
+                        }
+                    }
+                })
                 .code_block_actions(|code_block, _, _| {
                     h_flex().child(Clipboard::new("copy").value(code_block.code()))
                 })
@@ -439,6 +492,9 @@ fn alert_surface(cx: &App, color: Hsla) -> Div {
 }
 
 fn renderable_source(kind: DocumentKind, source: &str) -> String {
+    if kind == DocumentKind::Markdown {
+        return expand_wiki_links(source);
+    }
     if kind != DocumentKind::Csv {
         return source.to_string();
     }
@@ -478,6 +534,50 @@ fn renderable_source(kind: DocumentKind, source: &str) -> String {
         markdown.push_str(&format!("| {} |\n", row.join(" | ")));
     }
     markdown
+}
+
+fn expand_wiki_links(source: &str) -> String {
+    static WIKI_RE: OnceLock<regex::Regex> = OnceLock::new();
+    let regex = WIKI_RE.get_or_init(|| {
+        regex::Regex::new(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]]").expect("wiki link regex")
+    });
+    regex
+        .replace_all(source, |captures: &regex::Captures<'_>| {
+            let target = captures.get(1).map(|m| m.as_str()).unwrap_or_default();
+            let label = captures.get(2).map(|m| m.as_str()).unwrap_or(target);
+            format!("[{label}](mdpeek-wiki:{})", encode_wiki_target(target))
+        })
+        .into_owned()
+}
+
+fn encode_wiki_target(target: &str) -> String {
+    let mut out = String::new();
+    for byte in target.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'/') {
+            out.push(byte as char);
+        } else {
+            out.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    out
+}
+
+fn decode_wiki_target(encoded: &str) -> String {
+    let bytes = encoded.as_bytes();
+    let mut out = Vec::new();
+    let mut ix = 0;
+    while ix < bytes.len() {
+        if bytes[ix] == b'%' && ix + 2 < bytes.len() {
+            if let Ok(value) = u8::from_str_radix(&encoded[ix + 1..ix + 3], 16) {
+                out.push(value);
+                ix += 3;
+                continue;
+            }
+        }
+        out.push(bytes[ix]);
+        ix += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 pub fn read_document(path: &Path) -> Result<(String, DocumentKind)> {

@@ -131,7 +131,9 @@ impl Mdpeek {
     }
 
     fn new_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let owner = cx.weak_entity();
         let document = cx.new(|cx| DocumentView::untitled(window, cx));
+        document.update(cx, |document, _| document.set_owner(owner));
         self.documents.push(document);
         self.active = self.documents.len() - 1;
         self.clear_status(cx);
@@ -190,7 +192,7 @@ impl Mdpeek {
         self.set_status(format!("Opened {}", path.display()), cx);
     }
 
-    fn open_path(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
+    pub fn open_path(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(index) = self.documents.iter().position(|document| {
             document
                 .read(cx)
@@ -205,8 +207,10 @@ impl Mdpeek {
 
         match read_document(&path) {
             Ok((content, kind)) => {
+                let owner = cx.weak_entity();
                 let document =
                     cx.new(|cx| DocumentView::new(Some(path.clone()), content, kind, window, cx));
+                document.update(cx, |document, _| document.set_owner(owner));
                 self.documents.push(document);
                 self.active = self.documents.len() - 1;
                 self.clear_status(cx);
