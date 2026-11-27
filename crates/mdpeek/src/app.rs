@@ -895,9 +895,11 @@ impl Mdpeek {
         }
         for document in self.documents.clone() {
             let Some((path, content)) = document.read_with(cx, |document, cx| {
-                (document.is_dirty() && document.kind.is_text_editable())
-                    .then(|| (document.path.clone(), document.value(cx)))
-                    .and_then(|(path, content)| path.map(|path| (path, content)))
+                (document.is_dirty()
+                    && document.kind.is_text_editable()
+                    && !document.externally_changed())
+                .then(|| (document.path.clone(), document.value(cx)))
+                .and_then(|(path, content)| path.map(|path| (path, content)))
             }) else {
                 continue;
             };
