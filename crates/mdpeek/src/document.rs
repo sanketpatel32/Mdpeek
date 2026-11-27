@@ -589,7 +589,7 @@ impl DocumentView {
             }))
     }
 
-    fn render_toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_toolbar(&self, compact: bool, cx: &mut Context<Self>) -> impl IntoElement {
         h_flex()
             .w_full()
             .h_8()
@@ -645,47 +645,49 @@ impl DocumentView {
                         cx,
                     ))
                     .child(Self::format_button(
-                        "fmt-ol",
-                        "1. List",
-                        "Numbered list",
-                        FormatOperation::OrderedList,
-                        cx,
-                    ))
-                    .child(Self::format_button(
-                        "fmt-task",
-                        "Task",
-                        "Task list",
-                        FormatOperation::TaskList,
-                        cx,
-                    ))
-                    .child(Self::format_button(
-                        "fmt-quote",
-                        "Quote",
-                        "Blockquote",
-                        FormatOperation::Quote,
-                        cx,
-                    ))
-                    .child(Self::format_button(
-                        "fmt-fence",
-                        "{ }",
-                        "Code block",
-                        FormatOperation::CodeBlock,
-                        cx,
-                    ))
-                    .child(Self::format_button(
                         "fmt-table",
                         "Table",
                         "Insert table",
                         FormatOperation::Table,
                         cx,
                     ))
-                    .child(Self::format_button(
-                        "fmt-hr",
-                        "HR",
-                        "Horizontal rule",
-                        FormatOperation::HorizontalRule,
-                        cx,
-                    ))
+                    .when(!compact, |this| {
+                        this.child(Self::format_button(
+                            "fmt-ol",
+                            "1. List",
+                            "Numbered list",
+                            FormatOperation::OrderedList,
+                            cx,
+                        ))
+                        .child(Self::format_button(
+                            "fmt-task",
+                            "Task",
+                            "Task list",
+                            FormatOperation::TaskList,
+                            cx,
+                        ))
+                        .child(Self::format_button(
+                            "fmt-quote",
+                            "Quote",
+                            "Blockquote",
+                            FormatOperation::Quote,
+                            cx,
+                        ))
+                        .child(Self::format_button(
+                            "fmt-fence",
+                            "{ }",
+                            "Code block",
+                            FormatOperation::CodeBlock,
+                            cx,
+                        ))
+                        .child(Self::format_button(
+                            "fmt-hr",
+                            "HR",
+                            "Horizontal rule",
+                            FormatOperation::HorizontalRule,
+                            cx,
+                        ))
+                    })
                     .child(div().flex_1())
                 },
             )
@@ -1079,12 +1081,13 @@ impl DocumentView {
 }
 
 impl Render for DocumentView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let compact_toolbar = window.viewport_size().width < px(760.);
         v_flex()
             .size_full()
             .bg(cx.theme().background)
             .text_color(cx.theme().foreground)
-            .child(self.render_toolbar(cx))
+            .child(self.render_toolbar(compact_toolbar, cx))
             .child(
                 div()
                     .flex_1()
