@@ -59,8 +59,8 @@ fn toggle_inline(
     let marker_len = marker.len();
     if start >= marker_len
         && end + marker_len <= text.len()
-        && text[start - marker_len..start] == *marker
-        && text[end..end + marker_len] == *marker
+        && text.get(start - marker_len..start) == Some(marker)
+        && text.get(end..end + marker_len) == Some(marker)
     {
         let mut output = String::with_capacity(text.len() - marker_len * 2);
         output.push_str(&text[..start - marker_len]);
@@ -247,6 +247,13 @@ mod tests {
             FormatOperation::TaskList,
         );
         assert_eq!(result.text, "one\ntwo");
+    }
+
+    #[test]
+    fn inline_formatting_handles_unicode_boundaries() {
+        let source = "éa";
+        let result = apply_format(source, 2, 3, FormatOperation::Bold);
+        assert_eq!(result.text, "é**a**");
     }
 
     #[test]
