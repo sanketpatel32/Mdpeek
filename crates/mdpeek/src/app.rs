@@ -7,6 +7,7 @@ use gpui_kit::component::{
     command::{Command, CommandItem, CommandState},
     h_flex,
     list::ListItem,
+    scroll::ScrollableElement,
     tab::{Tab, TabBar},
     tree::{TreeState, tree},
     v_flex,
@@ -142,6 +143,7 @@ impl Mdpeek {
         }
         if let Some(root) = session.root_dir.clone() {
             this.open_folder(root, cx);
+            this.sidebar_visible = session.sidebar_visible;
         }
         let paths = if initial_paths.is_empty() {
             session.open_paths.clone()
@@ -283,6 +285,9 @@ impl Mdpeek {
                 .is_some_and(|open| *open == path)
         }) {
             self.active = index;
+            if self.documents[index].read(cx).kind == crate::document::DocumentKind::Image {
+                self.focus_handle.focus(window, cx);
+            }
             cx.notify();
             return;
         }
@@ -293,8 +298,12 @@ impl Mdpeek {
                 let document =
                     cx.new(|cx| DocumentView::new(Some(path.clone()), content, kind, window, cx));
                 document.update(cx, |document, _| document.set_owner(owner));
+                let is_image = kind == crate::document::DocumentKind::Image;
                 self.documents.push(document);
                 self.active = self.documents.len() - 1;
+                if is_image {
+                    self.focus_handle.focus(window, cx);
+                }
                 self.clear_status(cx);
             }
             Err(error) => {
@@ -785,11 +794,10 @@ impl Mdpeek {
 
     fn toggle_reading(&mut self, cx: &mut Context<Self>) {
         self.reading_mode = !self.reading_mode;
-        if self.reading_mode {
-            self.sidebar_visible = false;
-            if let Some(document) = self.active_document() {
-                document.update(cx, |document, cx| document.show_preview(cx));
-            }
+        if self.reading_mode
+            && let Some(document) = self.active_document()
+        {
+            document.update(cx, |document, cx| document.show_preview(cx));
         }
         cx.notify();
     }
@@ -1026,23 +1034,28 @@ impl Mdpeek {
                     .text_color(cx.theme().muted_foreground)
                     .child("OUTLINE"),
             )
-            .child(v_flex().flex_1().overflow_hidden().px_1().pb_1().children(
-                headings.into_iter().map(|(level, text, offset)| {
-                    let document = document.clone();
-                    Button::new(("outline-heading", offset))
-                        .ghost()
-                        .xsmall()
-                        .w_full()
-                        .justify_start()
-                        .pl(px(8. + (level.saturating_sub(1) as f32 * 12.)))
-                        .label(text)
-                        .on_click(cx.listener(move |_, _, window, cx| {
-                            document.update(cx, |document, cx| {
-                                document.reveal_offset(offset, window, cx);
-                            });
-                        }))
-                }),
-            ))
+            .child(
+                v_flex()
+                    .flex_1()
+                    .overflow_y_scrollbar()
+                    .px_1()
+                    .pb_1()
+                    .children(headings.into_iter().map(|(level, text, offset)| {
+                        let document = document.clone();
+                        Button::new(("outline-heading", offset))
+                            .ghost()
+                            .xsmall()
+                            .w_full()
+                            .justify_start()
+                            .pl(px(8. + (level.saturating_sub(1) as f32 * 12.)))
+                            .label(text)
+                            .on_click(cx.listener(move |_, _, window, cx| {
+                                document.update(cx, |document, cx| {
+                                    document.reveal_offset(offset, window, cx);
+                                });
+                            }))
+                    })),
+            )
             .into_any_element()
     }
 
@@ -1199,9 +1212,6 @@ impl Render for Mdpeek {
             }))
             .on_action(cx.listener(|this, _: &PreviousTab, _, cx| {
                 this.step_tab(-1, cx);
-            }))
-            .on_click(cx.listener(|this, _, window, cx| {
-                this.focus_handle.focus(window, cx);
             }))
             .on_action(cx.listener(|this, _: &Quit, _, cx| {
                 this.persist(cx);
