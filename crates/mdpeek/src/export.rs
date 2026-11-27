@@ -115,9 +115,13 @@ fn unique_export_slug(
 }
 
 fn html_heading_text(html: &str) -> String {
+    let footnote_pattern =
+        regex::Regex::new(r##"(?is)<sup><a href="#(?:user-content-)?fn-[^"]*".*?</a></sup>"##)
+            .expect("valid footnote pattern");
+    let without_footnotes = footnote_pattern.replace_all(html, "");
     let image_pattern =
         regex::Regex::new(r##"(?is)<img[^>]*alt="([^"]*)"[^>]*>"##).expect("valid image pattern");
-    let with_alt = image_pattern.replace_all(html, "$1");
+    let with_alt = image_pattern.replace_all(&without_footnotes, "$1");
     let tag_pattern = regex::Regex::new(r"(?s)<[^>]+>").expect("valid tag pattern");
     decode_html_entities(tag_pattern.replace_all(&with_alt, "").as_ref())
 }
@@ -199,6 +203,13 @@ mod tests {
         let html = markdown_to_html_document("x", "# ![Diagram alt](image.png)\n\n# Next\n");
         assert!(html.contains("<h1 id=\"diagram-alt\">"));
         assert!(html.contains("<h1 id=\"next\">Next</h1>"));
+    }
+
+    #[test]
+    fn html_heading_ids_ignore_footnote_reference_numbers() {
+        let html = markdown_to_html_document("x", "# Title[^note]\n\n[^note]: note\n");
+        assert!(html.contains("<h1 id=\"title\">"));
+        assert!(!html.contains("id=\"title1\""));
     }
 
     #[test]
