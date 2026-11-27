@@ -939,6 +939,7 @@ impl Mdpeek {
             Ok(()) => self.set_status("Settings saved", cx),
             Err(error) => self.set_status(format!("Could not save settings: {error}"), cx),
         }
+        cx.refresh_windows();
     }
 
     fn open_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -949,6 +950,10 @@ impl Mdpeek {
             let current_settings = current_settings.clone();
             dialog.title("Settings").w(px(560.)).content(
                 move |content, _window, cx| {
+                    let current_settings = owner
+                        .upgrade()
+                        .map(|entity| entity.read(cx).settings.clone())
+                        .unwrap_or_else(|| current_settings.clone());
                     let line_owner = owner.clone();
                     let wrap_owner = owner.clone();
                     let autosave_owner = owner.clone();
