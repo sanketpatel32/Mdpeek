@@ -410,6 +410,14 @@ impl DocumentView {
         Ok(())
     }
 
+    fn is_svg_image(&self) -> bool {
+        self.path
+            .as_ref()
+            .and_then(|path| path.extension())
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("svg"))
+    }
+
     fn annotation_color(&self) -> Hsla {
         const COLORS: [Hsla; 6] = [red(), yellow(), green(), blue(), white(), black()];
         COLORS[self.annotation_color_index % COLORS.len()]
@@ -533,63 +541,66 @@ impl DocumentView {
                         .on_click(cx.listener(|this, _, _, cx| this.cycle_mode(cx))),
                 )
             })
-            .when(self.kind == DocumentKind::Image, |this| {
-                this.child(
-                    Button::new("annotate")
-                        .ghost()
-                        .xsmall()
-                        .label(if self.annotation_enabled {
-                            "Annotating"
-                        } else {
-                            "Annotate"
-                        })
-                        .tooltip("Toggle freehand image annotation")
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.annotation_enabled = !this.annotation_enabled;
-                            this.current_annotation = None;
-                            cx.notify();
-                        })),
-                )
-                .when(self.annotation_enabled, |this| {
-                    this.child(self.render_annotation_color_picker(cx))
-                        .child(
-                            Button::new("annotation-size")
-                                .ghost()
-                                .xsmall()
-                                .label(format!("Brush {:.0}", self.annotation_size))
-                                .tooltip("Cycle brush size")
-                                .on_click(cx.listener(|this, _, _, cx| {
-                                    this.annotation_size = match this.annotation_size as u32 {
-                                        0..=3 => 4.0,
-                                        4 => 8.0,
-                                        8 => 12.0,
-                                        _ => 2.0,
-                                    };
-                                    cx.notify();
-                                })),
-                        )
-                        .child(
-                            Button::new("annotation-clear")
-                                .ghost()
-                                .xsmall()
-                                .label("Clear")
-                                .tooltip("Clear annotations")
-                                .on_click(cx.listener(|this, _, _, cx| {
-                                    this.clear_annotations(cx);
-                                })),
-                        )
-                        .child(
-                            Button::new("annotation-save")
-                                .ghost()
-                                .xsmall()
-                                .label("Save PNG")
-                                .tooltip("Save annotated copy as PNG")
-                                .on_click(cx.listener(|this, _, window, cx| {
-                                    this.save_annotations(window, cx);
-                                })),
-                        )
-                })
-            })
+            .when(
+                self.kind == DocumentKind::Image && !self.is_svg_image(),
+                |this| {
+                    this.child(
+                        Button::new("annotate")
+                            .ghost()
+                            .xsmall()
+                            .label(if self.annotation_enabled {
+                                "Annotating"
+                            } else {
+                                "Annotate"
+                            })
+                            .tooltip("Toggle freehand image annotation")
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.annotation_enabled = !this.annotation_enabled;
+                                this.current_annotation = None;
+                                cx.notify();
+                            })),
+                    )
+                    .when(self.annotation_enabled, |this| {
+                        this.child(self.render_annotation_color_picker(cx))
+                            .child(
+                                Button::new("annotation-size")
+                                    .ghost()
+                                    .xsmall()
+                                    .label(format!("Brush {:.0}", self.annotation_size))
+                                    .tooltip("Cycle brush size")
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.annotation_size = match this.annotation_size as u32 {
+                                            0..=3 => 4.0,
+                                            4 => 8.0,
+                                            8 => 12.0,
+                                            _ => 2.0,
+                                        };
+                                        cx.notify();
+                                    })),
+                            )
+                            .child(
+                                Button::new("annotation-clear")
+                                    .ghost()
+                                    .xsmall()
+                                    .label("Clear")
+                                    .tooltip("Clear annotations")
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.clear_annotations(cx);
+                                    })),
+                            )
+                            .child(
+                                Button::new("annotation-save")
+                                    .ghost()
+                                    .xsmall()
+                                    .label("Save PNG")
+                                    .tooltip("Save annotated copy as PNG")
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.save_annotations(window, cx);
+                                    })),
+                            )
+                    })
+                },
+            )
             .child(
                 Button::new("zoom-out")
                     .ghost()
