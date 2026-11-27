@@ -61,6 +61,9 @@ actions!(
         ReloadFile,
         ReopenClosedTab,
         ExportHtml,
+        CopyHtml,
+        CopyPlainText,
+        OpenInBrowser,
         ExportText,
         ExportPdf,
         NextTab,
@@ -163,6 +166,9 @@ fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
         ("Toggle reading mode", "F11"),
         ("Toggle theme", "Ctrl+Shift+L"),
         ("Export HTML", "Ctrl+Shift+H"),
+        ("Copy as HTML", ""),
+        ("Copy as plain text", ""),
+        ("Open rendered document in browser", ""),
         ("Export plain text", "Ctrl+Shift+T"),
         ("Export PDF", "Ctrl+Shift+P"),
         ("Go to line", "Ctrl+G"),
@@ -516,6 +522,55 @@ impl Mdpeek {
         }
     }
 
+    fn copy_active_html(&mut self, cx: &mut Context<Self>) {
+        let Some(document) = self.active_document() else {
+            return;
+        };
+        let (title, content) = document.read_with(cx, |document, cx| {
+            (document.title().to_string(), document.value(cx))
+        });
+        cx.write_to_clipboard(ClipboardItem::new_string(markdown_to_html_document(
+            &title, &content,
+        )));
+        self.set_status("Copied rendered HTML", cx);
+    }
+
+    fn copy_active_plain_text(&mut self, cx: &mut Context<Self>) {
+        let Some(document) = self.active_document() else {
+            return;
+        };
+        let content = document.read_with(cx, |document, cx| document.value(cx));
+        cx.write_to_clipboard(ClipboardItem::new_string(markdown_to_plain_text(&content)));
+        self.set_status("Copied plain text", cx);
+    }
+
+    fn open_active_in_browser(&mut self, cx: &mut Context<Self>) {
+        let Some(document) = self.active_document() else {
+            return;
+        };
+        let (title, content) = document.read_with(cx, |document, cx| {
+            (document.title().to_string(), document.value(cx))
+        });
+        let safe_name = title
+            .chars()
+            .map(|ch| {
+                if ch.is_ascii_alphanumeric() || ch == '-' {
+                    ch
+                } else {
+                    '-'
+                }
+            })
+            .collect::<String>();
+        let path = std::env::temp_dir().join(format!("mdpeek-{safe_name}.html"));
+        match std::fs::write(&path, markdown_to_html_document(&title, &content)) {
+            Ok(()) => {
+                cx.open_url(&format!("file://{}", path.display()));
+                self.set_status("Opened rendered document in browser", cx);
+            }
+            Err(error) => self.set_status(format!("Could not open in browser: {error}"), cx),
+        }
+    }
+
     fn export_active_html(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(document) = self.active_document() else {
             return;
@@ -745,15 +800,18 @@ impl Mdpeek {
             16 => self.toggle_reading(window, cx),
             17 => self.toggle_theme(cx),
             18 => self.export_active_html(window, cx),
-            19 => self.export_active_text(window, cx),
-            20 => self.export_active_pdf(window, cx),
-            21 => self.open_go_to_line(window, cx),
-            22 => self.apply_line_operation(EditorLineOperation::Duplicate, window, cx),
-            23 => self.apply_line_operation(EditorLineOperation::MoveUp, window, cx),
-            24 => self.apply_line_operation(EditorLineOperation::MoveDown, window, cx),
-            25 => self.apply_line_operation(EditorLineOperation::Join, window, cx),
-            26 => self.close_active_tab(cx),
-            27 => {
+            19 => self.copy_active_html(cx),
+            20 => self.copy_active_plain_text(cx),
+            21 => self.open_active_in_browser(cx),
+            22 => self.export_active_text(window, cx),
+            23 => self.export_active_pdf(window, cx),
+            24 => self.open_go_to_line(window, cx),
+            25 => self.apply_line_operation(EditorLineOperation::Duplicate, window, cx),
+            26 => self.apply_line_operation(EditorLineOperation::MoveUp, window, cx),
+            27 => self.apply_line_operation(EditorLineOperation::MoveDown, window, cx),
+            28 => self.apply_line_operation(EditorLineOperation::Join, window, cx),
+            29 => self.close_active_tab(cx),
+            30 => {
                 self.persist(cx);
                 cx.quit();
             }
@@ -2089,6 +2147,15 @@ impl Render for Mdpeek {
             }))
             .on_action(cx.listener(|this, _: &ExportHtml, window, cx| {
                 this.export_active_html(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &CopyHtml, _, cx| {
+                this.copy_active_html(cx);
+            }))
+            .on_action(cx.listener(|this, _: &CopyPlainText, _, cx| {
+                this.copy_active_plain_text(cx);
+            }))
+            .on_action(cx.listener(|this, _: &OpenInBrowser, _, cx| {
+                this.open_active_in_browser(cx);
             }))
             .on_action(cx.listener(|this, _: &ExportText, window, cx| {
                 this.export_active_text(window, cx);
