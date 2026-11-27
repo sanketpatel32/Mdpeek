@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added visual table row/column deletion, movement, and alignment cycling.
 - Added editor line operations: go to line, duplicate, move up/down, and join with next.
 - Added basic native Mermaid flowchart rendering in Markdown previews.
+- Added a Markdown formatting toolbar and context-sensitive formatting shortcuts.
+- Added command-palette text transformations for sorting, case conversion, table of contents insertion, and date insertion.
+- Added copy-as-HTML/plain-text actions, browser preview, and bulk tab close commands.
+- Added document back/forward history and keyboard zoom controls.
+- Added persistent editor settings for line numbers, word wrap, autosave, and theme access.
+- Added expanded document statistics with paragraph count and reading time.
 
 ### Known limitations
 - Mermaid support currently covers basic flowchart/graph edges rather than the full Mermaid diagram language.
