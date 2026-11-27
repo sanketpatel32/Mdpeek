@@ -55,6 +55,9 @@ actions!(
         Save,
         SaveAs,
         CloseTab,
+        CloseOtherTabs,
+        CloseTabsToRight,
+        CloseAllTabs,
         ToggleEdit,
         ToggleSidebar,
         ToggleTheme,
@@ -176,6 +179,9 @@ fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
         ("Move line up", "Alt+Up"),
         ("Move line down", "Alt+Down"),
         ("Join line with next", "Ctrl+J"),
+        ("Close other tabs", ""),
+        ("Close tabs to the right", ""),
+        ("Close all tabs", ""),
         ("Close tab", "Ctrl+W"),
         ("Quit", "Ctrl+Q"),
     ]
@@ -427,6 +433,30 @@ impl Mdpeek {
             self.active = self.active.min(self.documents.len() - 1);
         }
         cx.notify();
+    }
+
+    fn close_other_tabs(&mut self, cx: &mut Context<Self>) {
+        for index in (0..self.documents.len()).rev() {
+            if index != self.active {
+                self.close_tab(index, cx);
+                if index < self.active {
+                    self.active = self.active.saturating_sub(1);
+                }
+            }
+        }
+    }
+
+    fn close_tabs_to_right(&mut self, cx: &mut Context<Self>) {
+        for index in ((self.active + 1)..self.documents.len()).rev() {
+            self.close_tab(index, cx);
+        }
+    }
+
+    fn close_all_tabs(&mut self, cx: &mut Context<Self>) {
+        while !self.documents.is_empty() {
+            let index = self.documents.len() - 1;
+            self.close_tab(index, cx);
+        }
     }
 
     fn close_active_tab(&mut self, cx: &mut Context<Self>) {
@@ -810,8 +840,11 @@ impl Mdpeek {
             26 => self.apply_line_operation(EditorLineOperation::MoveUp, window, cx),
             27 => self.apply_line_operation(EditorLineOperation::MoveDown, window, cx),
             28 => self.apply_line_operation(EditorLineOperation::Join, window, cx),
-            29 => self.close_active_tab(cx),
-            30 => {
+            29 => self.close_other_tabs(cx),
+            30 => self.close_tabs_to_right(cx),
+            31 => self.close_all_tabs(cx),
+            32 => self.close_active_tab(cx),
+            33 => {
                 self.persist(cx);
                 cx.quit();
             }
@@ -2128,6 +2161,15 @@ impl Render for Mdpeek {
             }))
             .on_action(cx.listener(|this, _: &CloseTab, _, cx| {
                 this.close_active_tab(cx);
+            }))
+            .on_action(cx.listener(|this, _: &CloseOtherTabs, _, cx| {
+                this.close_other_tabs(cx);
+            }))
+            .on_action(cx.listener(|this, _: &CloseTabsToRight, _, cx| {
+                this.close_tabs_to_right(cx);
+            }))
+            .on_action(cx.listener(|this, _: &CloseAllTabs, _, cx| {
+                this.close_all_tabs(cx);
             }))
             .on_action(cx.listener(|this, _: &ToggleEdit, window, cx| {
                 this.toggle_edit(window, cx);
