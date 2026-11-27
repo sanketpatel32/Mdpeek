@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Set Markdown previews in a larger serif face with more line spacing. Increase the editor’s monospace text size and make the outline easier to scan.
 - Make table headers easier to read in both themes and let wide preview tables scroll horizontally.
 - Include underlined Markdown headings in the outline and scroll to headings without leaving Preview.
 - Add a Copy file path button to the document status bar.

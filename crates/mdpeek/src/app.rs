@@ -1535,7 +1535,7 @@ impl Mdpeek {
                     .child(img(LOGO.clone()).size_5().flex_none())
                     .child(
                         div()
-                            .text_sm()
+                            .text_base()
                             .font_weight(FontWeight::SEMIBOLD)
                             .truncate()
                             .child("Mdpeek"),
@@ -1785,7 +1785,7 @@ impl Mdpeek {
                 div()
                     .px_3()
                     .py_2()
-                    .text_xs()
+                    .text_sm()
                     .font_weight(FontWeight::SEMIBOLD)
                     .text_color(cx.theme().muted_foreground)
                     .child("Outline"),
@@ -1802,7 +1802,7 @@ impl Mdpeek {
                         let source = heading.source.clone();
                         Button::new(("outline-heading", source.start))
                             .ghost()
-                            .xsmall()
+                            .small()
                             .w_full()
                             .justify_start()
                             .pl(px(8. + (heading.level.saturating_sub(1) as f32 * 10.)))

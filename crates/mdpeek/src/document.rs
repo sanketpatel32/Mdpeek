@@ -517,9 +517,14 @@ impl DocumentView {
     }
 
     fn render_editor(&self) -> impl IntoElement {
-        div()
-            .size_full()
-            .child(Editor::new(&self.editor).h(relative(1.)).p_0().border_0())
+        div().size_full().child(
+            Editor::new(&self.editor)
+                .h(relative(1.))
+                .text_size(px(14.))
+                .line_height(relative(1.55))
+                .p_0()
+                .border_0(),
+        )
     }
 
     fn render_preview(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -529,9 +534,31 @@ impl DocumentView {
             .bg(cx.theme().muted)
             .text_color(cx.theme().foreground)
             .font_weight(FontWeight::SEMIBOLD);
+        let cells = StyleRefinement::default().font_family(cx.theme().font_family.clone());
+        let markdown = self.kind == DocumentKind::Markdown;
+        let reading_size = px(18. * self.preview_zoom);
+        let mut style = TextViewStyle::default()
+            .table(table)
+            .table_head(header)
+            .table_cell(cells);
+        if markdown {
+            style.heading_base_font_size = reading_size;
+            style = style
+                .paragraph_gap(rems(0.9))
+                .heading_font_size(|level, body| {
+                    let scale = match level {
+                        1 => 1.65,
+                        2 => 1.35,
+                        3 => 1.18,
+                        4 => 1.08,
+                        _ => 1.0,
+                    };
+                    body * scale
+                });
+        }
         div().size_full().child(
             TextView::new(&self.preview)
-                .style(TextViewStyle::default().table(table).table_head(header))
+                .style(style)
                 .image_source({
                     let base = self
                         .path
@@ -633,6 +660,11 @@ impl DocumentView {
                         )
                 })
                 .text_size(rems(self.preview_zoom))
+                .when(markdown, |view| {
+                    view.font_family(reading_font(cx))
+                        .text_size(reading_size)
+                        .line_height(relative(1.6))
+                })
                 .px_5()
                 .py_4()
                 .scrollable(true)
@@ -772,6 +804,26 @@ impl Render for DocumentView {
             )
             .child(self.render_status(compact, cx))
     }
+}
+
+fn reading_font(cx: &App) -> SharedString {
+    static FAMILY: OnceLock<Option<SharedString>> = OnceLock::new();
+    FAMILY
+        .get_or_init(|| {
+            let installed = cx.text_system().all_font_names();
+            [
+                "Georgia",
+                "Bitstream Charter",
+                "Noto Serif",
+                "Liberation Serif",
+                "DejaVu Serif",
+            ]
+            .into_iter()
+            .find(|family| installed.iter().any(|name| name == family))
+            .map(SharedString::from)
+        })
+        .clone()
+        .unwrap_or_else(|| cx.theme().font_family.clone())
 }
 
 fn table_to_csv(headers: &[String], rows: &[Vec<String>]) -> String {
