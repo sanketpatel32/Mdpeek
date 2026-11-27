@@ -21,6 +21,7 @@ use gpui_kit::{prelude::FluentBuilder as _, *};
 use crate::{
     annotation::{AnnotationStroke, normalized_point, save_annotated_png, stroke_path},
     app::Mdpeek,
+    editor_format::FormatOperation,
     math::{InlineMathPlugin, MathPlugin},
     mermaid::MermaidPlugin,
 };
@@ -527,6 +528,36 @@ impl DocumentView {
             )
     }
 
+    fn apply_formatting(
+        &mut self,
+        operation: FormatOperation,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let value = self.editor.read(cx).value().to_string();
+        let range = self.editor.read(cx).selected_range();
+        let result = crate::editor_format::apply_format(&value, range.start, range.end, operation);
+        self.apply_edit_result(result, window, cx);
+        self.focus_editor(window, cx);
+    }
+
+    fn format_button(
+        id: &'static str,
+        label: &'static str,
+        tooltip: &'static str,
+        operation: FormatOperation,
+        cx: &mut Context<Self>,
+    ) -> Button {
+        Button::new(id)
+            .ghost()
+            .xsmall()
+            .label(label)
+            .tooltip(tooltip)
+            .on_click(cx.listener(move |this, _, window, cx| {
+                this.apply_formatting(operation, window, cx);
+            }))
+    }
+
     fn render_toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement {
         h_flex()
             .w_full()
@@ -534,10 +565,99 @@ impl DocumentView {
             .px_2()
             .gap_1()
             .items_center()
-            .justify_end()
             .border_b_1()
             .border_color(cx.theme().border)
             .bg(cx.theme().title_bar)
+            .when(
+                self.kind == DocumentKind::Markdown && self.mode != ViewMode::Preview,
+                |this| {
+                    this.child(Self::format_button(
+                        "fmt-bold",
+                        "B",
+                        "Bold",
+                        FormatOperation::Bold,
+                        cx,
+                    ))
+                    .child(Self::format_button(
+                        "fmt-italic",
+                        "I",
+                        "Italic",
+                        FormatOperation::Italic,
+                        cx,
+                    ))
+                    .child(Self::format_button(
+                        "fmt-strike",
+                        "S",
+                        "Strikethrough",
+                        FormatOperation::Strikethrough,
+                        cx,
+                    ))
+                    .child(Self::format_button(
+                        "fmt-code",
+                        "<>",
+                        "Inline code",
+                        FormatOperation::InlineCode,
+                        cx,
+                    ))
+                    .child(Self::format_button(
+                        "fmt-link",
+                        "Link",
+                        "Insert link",
+                        FormatOperation::Link,
+                        cx,
+                    ))
+                    .child(Self::format_button(
+                        "fmt-ul",
+                        "• List",
+                        "Bulleted list",
+                        FormatOperation::BulletList,
+                        cx,
+                    ))
+                    .child(Self::format_button(
+                        "fmt-ol",
+                        "1. List",
+                        "Numbered list",
+                        FormatOperation::OrderedList,
+                        cx,
+                    ))
+                    .child(Self::format_button(
+                        "fmt-task",
+                        "Task",
+                        "Task list",
+                        FormatOperation::TaskList,
+                        cx,
+                    ))
+                    .child(Self::format_button(
+                        "fmt-quote",
+                        "Quote",
+                        "Blockquote",
+                        FormatOperation::Quote,
+                        cx,
+                    ))
+                    .child(Self::format_button(
+                        "fmt-fence",
+                        "{ }",
+                        "Code block",
+                        FormatOperation::CodeBlock,
+                        cx,
+                    ))
+                    .child(Self::format_button(
+                        "fmt-table",
+                        "Table",
+                        "Insert table",
+                        FormatOperation::Table,
+                        cx,
+                    ))
+                    .child(Self::format_button(
+                        "fmt-hr",
+                        "HR",
+                        "Horizontal rule",
+                        FormatOperation::HorizontalRule,
+                        cx,
+                    ))
+                    .child(div().flex_1())
+                },
+            )
             .when(self.kind != DocumentKind::Image, |this| {
                 this.child(
                     Button::new("mode")

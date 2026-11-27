@@ -3,6 +3,7 @@ mod app;
 mod completion;
 mod csv;
 mod document;
+mod editor_format;
 mod editor_ops;
 mod export;
 mod links;
