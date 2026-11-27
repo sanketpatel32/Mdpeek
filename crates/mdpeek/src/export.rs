@@ -28,11 +28,11 @@ document.addEventListener('click', function (event) {
   var target = document.getElementById(id) || document.getElementsByName(id)[0];
   if (!target) return;
   event.preventDefault();
-  target.scrollIntoView();
   try {
     var targetUrl = window.location.href.split('#')[0] + '#' + encodeURIComponent(id);
     history.pushState(null, '', targetUrl);
   } catch (_) {}
+  target.scrollIntoView();
 });
 </script>"##;
 
