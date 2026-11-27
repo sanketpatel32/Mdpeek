@@ -815,6 +815,7 @@ impl Mdpeek {
                 document.update(cx, |document, cx| {
                     document.mark_saved(path.clone(), cx);
                 });
+                self.record_navigation(path.clone());
                 self.remember_path(path.clone());
                 self.sync_explorer_selection(cx);
                 self.persist(cx);
