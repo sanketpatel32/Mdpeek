@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Make table headers easier to read in both themes and let wide preview tables scroll horizontally.
+- Include underlined Markdown headings in the outline and scroll to headings without leaving Preview.
+- Add a Copy file path button to the document status bar.
+- Make welcome-screen recent files keyboard-accessible and shorten their folder labels within the workspace.
+
 ## [3.2.0] - 2026-11-27
 
 ### Added

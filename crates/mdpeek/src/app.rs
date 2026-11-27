@@ -88,33 +88,6 @@ pub struct Mdpeek {
     focus_handle: FocusHandle,
 }
 
-fn markdown_headings(source: &str) -> Vec<(usize, String, usize)> {
-    let mut headings = Vec::new();
-    let mut in_fence = false;
-    let mut offset = 0;
-    for source_line in source.split_inclusive('\n') {
-        let line = source_line.trim_end_matches(['\r', '\n']);
-        let trimmed = line.trim_start();
-        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
-            in_fence = !in_fence;
-        } else if !in_fence {
-            let level = trimmed.chars().take_while(|ch| *ch == '#').count();
-            if (1..=6).contains(&level) && trimmed[level..].starts_with(char::is_whitespace) {
-                let text = trimmed[level..]
-                    .trim()
-                    .trim_end_matches('#')
-                    .trim()
-                    .to_string();
-                if !text.is_empty() {
-                    headings.push((level, text, offset));
-                }
-            }
-        }
-        offset += source_line.len();
-    }
-    headings
-}
-
 fn snippet_entries() -> Vec<(&'static str, &'static str)> {
     vec![
         ("Note callout", "> [!NOTE]\nUseful information.\n"),
@@ -237,6 +210,7 @@ impl Mdpeek {
         if let Some(root) = session.root_dir.filter(|root| root.is_dir()) {
             this.open_folder(root, cx);
             this.sidebar_visible = session.sidebar_visible;
+            this.clear_status(cx);
         }
         if initial_paths.is_empty() {
             let active_path = session
@@ -339,7 +313,7 @@ impl Mdpeek {
         })
     }
 
-    fn focus_active(&self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn focus_active(&self, window: &mut Window, cx: &mut Context<Self>) {
         let focus = self
             .active_document()
             .and_then(|document| document.read(cx).editor_focus(cx))
@@ -370,7 +344,7 @@ impl Mdpeek {
         self.active = self.documents.len() - 1;
     }
 
-    fn copy_file_path(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn copy_file_path(&mut self, cx: &mut Context<Self>) {
         let path = self
             .active_document()
             .and_then(|document| document.read(cx).path.clone());
@@ -1796,7 +1770,7 @@ impl Mdpeek {
         if active.kind != DocumentKind::Markdown {
             return div().into_any_element();
         }
-        let headings = markdown_headings(&active.value(cx));
+        let headings = active.headings(cx);
         if headings.is_empty() {
             return div().into_any_element();
         }
@@ -1822,24 +1796,44 @@ impl Mdpeek {
                     .overflow_y_scrollbar()
                     .px_1()
                     .pb_1()
-                    .children(headings.into_iter().map(|(level, text, offset)| {
+                    .children(headings.iter().map(|heading| {
                         let document = document.clone();
-                        Button::new(("outline-heading", offset))
+                        let title = heading.title.clone();
+                        let source = heading.source.clone();
+                        Button::new(("outline-heading", source.start))
                             .ghost()
                             .xsmall()
                             .w_full()
                             .justify_start()
-                            .pl(px(8. + (level.saturating_sub(1) as f32 * 10.)))
-                            .tooltip(text.clone())
-                            .child(div().w_full().min_w_0().truncate().child(text))
-                            .on_click(cx.listener(move |_, _, window, cx| {
+                            .pl(px(8. + (heading.level.saturating_sub(1) as f32 * 10.)))
+                            .tooltip(title.clone())
+                            .accessibility_label(title.clone())
+                            .child(div().w_full().min_w_0().truncate().child(title))
+                            .on_click(cx.listener(move |this, _, window, cx| {
                                 document.update(cx, |document, cx| {
-                                    document.reveal_offset(offset, window, cx);
+                                    document.reveal_heading(source.clone(), window, cx);
                                 });
+                                this.focus_active(window, cx);
                             }))
                     })),
             )
             .into_any_element()
+    }
+
+    fn recent_parent_label(&self, path: &StdPath) -> String {
+        let Some(parent) = path.parent() else {
+            return String::new();
+        };
+        if let Some(root) = self.root_dir.as_deref()
+            && let Some(root_name) = root.file_name()
+            && let Ok(relative) = parent.strip_prefix(root)
+        {
+            return PathBuf::from(root_name)
+                .join(relative)
+                .display()
+                .to_string();
+        }
+        parent.display().to_string()
     }
 
     fn render_empty_state(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -1849,7 +1843,6 @@ impl Mdpeek {
             .filter(|path| path.is_file())
             .take(8);
         let muted = cx.theme().muted_foreground;
-        let hover = cx.theme().accent;
         div()
             .id("welcome")
             .size_full()
@@ -1920,38 +1913,40 @@ impl Mdpeek {
                             )
                             .children(recent.enumerate().map(|(index, path)| {
                                 let path = path.clone();
-                                h_flex()
-                                    .id(("recent-file", index))
+                                let title = path
+                                    .file_name()
+                                    .unwrap_or_default()
+                                    .to_string_lossy()
+                                    .into_owned();
+                                Button::new(("recent-file", index))
+                                    .ghost()
                                     .w_full()
-                                    .min_w_0()
-                                    .gap_3()
-                                    .rounded_md()
-                                    .p_2()
-                                    .cursor_pointer()
-                                    .hover(move |style| style.bg(hover))
+                                    .h(px(52.))
+                                    .px_2()
+                                    .accessibility_label(title.clone())
                                     .child(
-                                        Icon::new(IconName::FileText)
-                                            .small()
-                                            .text_color(muted)
-                                            .flex_none(),
-                                    )
-                                    .child(
-                                        v_flex()
+                                        h_flex()
+                                            .w_full()
                                             .min_w_0()
+                                            .gap_3()
                                             .child(
-                                                div().truncate().text_sm().child(
-                                                    path.file_name()
-                                                        .unwrap_or_default()
-                                                        .to_string_lossy()
-                                                        .into_owned(),
-                                                ),
+                                                Icon::new(IconName::FileText)
+                                                    .small()
+                                                    .text_color(muted)
+                                                    .flex_none(),
                                             )
                                             .child(
-                                                div().truncate().text_xs().text_color(muted).child(
-                                                    path.parent()
-                                                        .map(|parent| parent.display().to_string())
-                                                        .unwrap_or_default(),
-                                                ),
+                                                v_flex()
+                                                    .min_w_0()
+                                                    .text_left()
+                                                    .child(div().truncate().text_sm().child(title))
+                                                    .child(
+                                                        div()
+                                                            .truncate()
+                                                            .text_xs()
+                                                            .text_color(muted)
+                                                            .child(self.recent_parent_label(&path)),
+                                                    ),
                                             ),
                                     )
                                     .on_click(cx.listener(move |this, _, window, cx| {
