@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [3.1.0] - 2026-11-27
 
 ### Added
 - Added project-wide plain-text replacement across workspace files, with dirty-document protection and case-sensitivity control.
