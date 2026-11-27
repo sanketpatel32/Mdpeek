@@ -61,6 +61,11 @@ actions!(
         ToggleCaseSelection,
         InsertToc,
         InsertDate,
+        ItalicSelection,
+        InlineCodeSelection,
+        LinkSelection,
+        StrikethroughSelection,
+        QuoteSelection,
         CheckLinks,
         DailyNote,
         WorkspaceSearch,
@@ -1251,6 +1256,37 @@ impl Mdpeek {
         document.update(cx, |document, cx| {
             document.apply_edit_result(result, window, cx);
         });
+    }
+
+    fn apply_markdown_format(
+        &mut self,
+        operation: crate::editor_format::FormatOperation,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(document) = self.active_document() else {
+            return;
+        };
+        if document.read(cx).kind != crate::document::DocumentKind::Markdown {
+            self.set_status("Markdown formatting requires a Markdown document", cx);
+            return;
+        }
+        document.update(cx, |document, cx| {
+            document.apply_formatting(operation, window, cx);
+        });
+    }
+
+    fn toggle_sidebar_or_bold(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let editor_focused = self.active_document().is_some_and(|document| {
+            document.read(cx).kind == crate::document::DocumentKind::Markdown
+                && document.read(cx).editor_is_focused(window, cx)
+        });
+        if editor_focused {
+            self.apply_markdown_format(crate::editor_format::FormatOperation::Bold, window, cx);
+        } else {
+            self.sidebar_visible = !self.sidebar_visible;
+            cx.notify();
+        }
     }
 
     fn apply_text_transform(
@@ -2483,6 +2519,37 @@ impl Render for Mdpeek {
             .on_action(cx.listener(|this, _: &JoinLines, window, cx| {
                 this.apply_line_operation(EditorLineOperation::Join, window, cx);
             }))
+            .on_action(cx.listener(|this, _: &ItalicSelection, window, cx| {
+                this.apply_markdown_format(
+                    crate::editor_format::FormatOperation::Italic,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &InlineCodeSelection, window, cx| {
+                this.apply_markdown_format(
+                    crate::editor_format::FormatOperation::InlineCode,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &LinkSelection, window, cx| {
+                this.apply_markdown_format(crate::editor_format::FormatOperation::Link, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &StrikethroughSelection, window, cx| {
+                this.apply_markdown_format(
+                    crate::editor_format::FormatOperation::Strikethrough,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &QuoteSelection, window, cx| {
+                this.apply_markdown_format(
+                    crate::editor_format::FormatOperation::Quote,
+                    window,
+                    cx,
+                );
+            }))
             .on_action(cx.listener(|this, _: &SortLinesAscending, window, cx| {
                 this.apply_text_transform(
                     crate::text_transform::TransformOperation::SortAscending,
@@ -2578,9 +2645,8 @@ impl Render for Mdpeek {
             .on_action(cx.listener(|this, _: &ToggleEdit, window, cx| {
                 this.toggle_edit(window, cx);
             }))
-            .on_action(cx.listener(|this, _: &ToggleSidebar, _, cx| {
-                this.sidebar_visible = !this.sidebar_visible;
-                cx.notify();
+            .on_action(cx.listener(|this, _: &ToggleSidebar, window, cx| {
+                this.toggle_sidebar_or_bold(window, cx);
             }))
             .on_action(cx.listener(|this, _: &ToggleTheme, _, cx| {
                 this.toggle_theme(cx);

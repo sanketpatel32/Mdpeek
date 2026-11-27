@@ -375,6 +375,10 @@ impl DocumentView {
         cx.notify();
     }
 
+    pub fn editor_is_focused(&self, window: &Window, cx: &App) -> bool {
+        self.editor.focus_handle(cx).is_focused(window)
+    }
+
     pub fn focus_editor(&self, window: &mut Window, cx: &mut Context<Self>) {
         let focus_handle = self.editor.focus_handle(cx);
         focus_handle.focus(window, cx);
@@ -555,7 +559,7 @@ impl DocumentView {
             )
     }
 
-    fn apply_formatting(
+    pub fn apply_formatting(
         &mut self,
         operation: FormatOperation,
         window: &mut Window,
