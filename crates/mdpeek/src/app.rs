@@ -847,9 +847,20 @@ impl Mdpeek {
         .detach();
     }
 
+    fn record_tab_navigation(&mut self, index: usize, cx: &App) {
+        if let Some(path) = self
+            .documents
+            .get(index)
+            .and_then(|document| document.read(cx).path.clone())
+        {
+            self.record_navigation(path);
+        }
+    }
+
     fn select_tab(&mut self, index: usize, cx: &mut Context<Self>) {
         if index < self.documents.len() {
             self.active = index;
+            self.record_tab_navigation(index, cx);
             cx.notify();
         }
     }
@@ -860,6 +871,7 @@ impl Mdpeek {
         }
         let len = self.documents.len() as isize;
         self.active = ((self.active as isize + delta).rem_euclid(len)) as usize;
+        self.record_tab_navigation(self.active, cx);
         cx.notify();
     }
 
