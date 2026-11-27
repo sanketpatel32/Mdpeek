@@ -76,10 +76,20 @@ fn main() {
                 KeyBinding::new("alt-f4", Quit, Some("Mdpeek")),
             ]);
 
+            let current_dir = std::env::current_dir().ok();
             let initial_paths = std::env::args_os()
                 .skip(1)
                 .map(std::path::PathBuf::from)
                 .filter(|path| path.exists())
+                .map(|path| {
+                    if path.is_absolute() {
+                        path
+                    } else if let Some(current_dir) = &current_dir {
+                        current_dir.join(path)
+                    } else {
+                        path
+                    }
+                })
                 .collect::<Vec<_>>();
             gpui_kit::open_window(WindowOptions::default(), cx, |window, cx| {
                 Mdpeek::view(window, cx, &initial_paths)
