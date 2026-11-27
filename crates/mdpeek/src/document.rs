@@ -11,6 +11,7 @@ use gpui_kit::component::{
     h_flex,
     input::{Editor, EditorState, InputEvent, Position, TabSize},
     resizable::{h_resizable, resizable_panel},
+    scroll::ScrollableElement,
     status_bar::StatusBar,
     text::{MarkdownExtensions, TextView, TextViewState},
     v_flex,
@@ -386,17 +387,35 @@ impl DocumentView {
                     .on_click(cx.listener(|this, _, _, cx| this.cycle_mode(cx))),
             )
             .child(
-                Button::new("zoom")
+                Button::new("zoom-out")
+                    .ghost()
+                    .xsmall()
+                    .label("−")
+                    .tooltip("Zoom out")
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.preview_zoom = (this.preview_zoom - 0.25).max(0.5);
+                        cx.notify();
+                    })),
+            )
+            .child(
+                Button::new("zoom-reset")
                     .ghost()
                     .xsmall()
                     .label(format!("{:.0}%", self.preview_zoom * 100.0))
-                    .tooltip("Cycle preview zoom")
+                    .tooltip("Reset zoom to 100%")
                     .on_click(cx.listener(|this, _, _, cx| {
-                        this.preview_zoom = if this.preview_zoom >= 2.0 {
-                            0.75
-                        } else {
-                            this.preview_zoom + 0.25
-                        };
+                        this.preview_zoom = 1.0;
+                        cx.notify();
+                    })),
+            )
+            .child(
+                Button::new("zoom-in")
+                    .ghost()
+                    .xsmall()
+                    .label("+")
+                    .tooltip("Zoom in")
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.preview_zoom = (this.preview_zoom + 0.25).min(4.0);
                         cx.notify();
                     })),
             )
@@ -525,16 +544,25 @@ impl DocumentView {
             return if let Some(path) = self.path.clone() {
                 div()
                     .size_full()
-                    .overflow_hidden()
-                    .flex()
-                    .items_center()
-                    .justify_center()
+                    .overflow_scrollbar()
                     .bg(cx.theme().secondary.opacity(0.25))
                     .child(
-                        img(path)
-                            .object_fit(ObjectFit::Contain)
-                            .max_w_full()
-                            .max_h_full(),
+                        div()
+                            .min_w_full()
+                            .min_h_full()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(
+                                img(path)
+                                    .object_fit(ObjectFit::Contain)
+                                    .when(self.preview_zoom == 1.0, |image| {
+                                        image.max_w_full().max_h_full()
+                                    })
+                                    .when(self.preview_zoom != 1.0, |image| {
+                                        image.w(relative(self.preview_zoom))
+                                    }),
+                            ),
                     )
                     .into_any_element()
             } else {
