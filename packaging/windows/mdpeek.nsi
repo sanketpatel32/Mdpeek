@@ -42,12 +42,15 @@ SetCompressor /SOLID lzma
 !macroend
 
 !macro MPEEK_UNASSOCIATE EXT FILECLASS
-  ReadRegStr $R0 HKCR ".${EXT}" ""
-  ${If} $R0 == "${FILECLASS}"
-    ReadRegStr $R1 HKCR ".${EXT}" "${FILECLASS}_backup"
-    WriteRegStr HKCR ".${EXT}" "" "$R1"
+  ReadRegStr $R2 HKCR "${FILECLASS}\shell\open\command" ""
+  ${If} $R2 == "$\"$INSTDIR\${MAINBINARYNAME}$\" $\"%1$\""
+    ReadRegStr $R0 HKCR ".${EXT}" ""
+    ${If} $R0 == "${FILECLASS}"
+      ReadRegStr $R1 HKCR ".${EXT}" "${FILECLASS}_backup"
+      WriteRegStr HKCR ".${EXT}" "" "$R1"
+    ${EndIf}
+    DeleteRegKey HKCR "${FILECLASS}"
   ${EndIf}
-  DeleteRegKey HKCR "${FILECLASS}"
 !macroend
 
 !macro MPEEK_REMOVE_V2_OPENWITH_ENTRIES
