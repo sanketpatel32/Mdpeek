@@ -13,6 +13,7 @@ use gpui_kit::{prelude::FluentBuilder as _, *};
 
 use crate::document::{DocumentView, read_document};
 use crate::export::{markdown_to_html_document, markdown_to_plain_text};
+use crate::settings::{SessionState, load_session, save_session};
 use crate::workspace::{build_file_items, resolve_tree_path};
 
 actions!(
@@ -49,21 +50,61 @@ pub struct Mdpeek {
 }
 
 impl Mdpeek {
-    pub fn new(_window: &mut Window, cx: &mut Context<Self>) -> Self {
-        Self {
+    pub fn new(window: &mut Window, cx: &mut Context<Self>, initial_paths: &[PathBuf]) -> Self {
+        let session = load_session();
+        let mut this = Self {
             documents: Vec::new(),
             active: 0,
             closed_paths: Vec::new(),
-            sidebar_visible: true,
-            root_dir: None,
+            sidebar_visible: session.sidebar_visible,
+            root_dir: session.root_dir.clone(),
             tree_state: cx.new(|cx| TreeState::new(cx)),
             status_message: None,
             focus_handle: cx.focus_handle(),
+        };
+        if session.dark_mode {
+            Theme::change(ThemeMode::Dark, None, cx);
         }
+        if let Some(root) = session.root_dir.clone() {
+            this.open_folder(root, cx);
+        }
+        let paths = if initial_paths.is_empty() {
+            session.open_paths.clone()
+        } else {
+            initial_paths.to_vec()
+        };
+        for path in paths {
+            if path.is_dir() {
+                this.open_folder(path, cx);
+            } else {
+                this.open_path(path, window, cx);
+            }
+        }
+        if initial_paths.is_empty() {
+            this.active = session.active.min(this.documents.len().saturating_sub(1));
+        }
+        this
     }
 
-    pub fn view(window: &mut Window, cx: &mut App) -> Entity<Self> {
-        cx.new(|cx| Self::new(window, cx))
+    pub fn view(window: &mut Window, cx: &mut App, initial_paths: &[PathBuf]) -> Entity<Self> {
+        cx.new(|cx| Self::new(window, cx, initial_paths))
+    }
+
+    fn persist(&self, cx: &App) {
+        let state = SessionState {
+            open_paths: self
+                .documents
+                .iter()
+                .filter_map(|document| document.read(cx).path.clone())
+                .collect(),
+            active: self.active,
+            root_dir: self.root_dir.clone(),
+            sidebar_visible: self.sidebar_visible,
+            dark_mode: cx.theme().is_dark(),
+        };
+        if let Err(error) = save_session(&state) {
+            eprintln!("could not save mdpeek session: {error}");
+        }
     }
 
     fn active_document(&self) -> Option<Entity<DocumentView>> {
@@ -631,7 +672,10 @@ impl Render for Mdpeek {
             .on_action(cx.listener(|this, _: &PreviousTab, _, cx| {
                 this.step_tab(-1, cx);
             }))
-            .on_action(|_: &Quit, _, cx| cx.quit())
+            .on_action(cx.listener(|this, _: &Quit, _, cx| {
+                this.persist(cx);
+                cx.quit();
+            }))
             .when(!self.documents.is_empty(), |this| {
                 this.child(self.render_tab_bar(cx))
             })

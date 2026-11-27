@@ -1,6 +1,7 @@
 mod app;
 mod document;
 mod export;
+mod settings;
 mod workspace;
 
 use app::{
@@ -34,8 +35,13 @@ fn main() {
                 KeyBinding::new("alt-f4", Quit, Some("Mdpeek")),
             ]);
 
+            let initial_paths = std::env::args_os()
+                .skip(1)
+                .map(std::path::PathBuf::from)
+                .filter(|path| path.exists())
+                .collect::<Vec<_>>();
             gpui_kit::open_window(WindowOptions::default(), cx, |window, cx| {
-                Mdpeek::view(window, cx)
+                Mdpeek::view(window, cx, &initial_paths)
             })
             .expect("failed to open mdpeek window");
         });
