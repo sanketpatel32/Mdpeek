@@ -14,7 +14,7 @@ use gpui_kit::component::{
 use gpui_kit::{prelude::FluentBuilder as _, *};
 
 use crate::document::{DocumentView, read_document};
-use crate::export::{markdown_to_html_document, markdown_to_plain_text};
+use crate::export::{markdown_to_html_document, markdown_to_pdf, markdown_to_plain_text};
 use crate::settings::{SessionState, load_session, save_session};
 use crate::workspace::{
     SearchMatch, build_file_items, collect_files, resolve_tree_path, search_files,
@@ -43,6 +43,7 @@ actions!(
         ReopenClosedTab,
         ExportHtml,
         ExportText,
+        ExportPdf,
         NextTab,
         PreviousTab,
         Quit
@@ -437,6 +438,36 @@ impl Mdpeek {
             _ = this.update_in(window, |this, _, cx| match result {
                 Ok(()) => this.set_status(format!("Exported {}", path.display()), cx),
                 Err(error) => this.set_status(format!("Could not export text: {error}"), cx),
+            });
+        })
+        .detach();
+    }
+
+    fn export_active_pdf(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(document) = self.active_document() else {
+            return;
+        };
+        let title = document.read(cx).title().to_string();
+        let content = document.read(cx).value(cx);
+        let start_dir = document
+            .read(cx)
+            .path
+            .as_ref()
+            .and_then(|path| path.parent().map(|parent| parent.to_path_buf()))
+            .or_else(|| std::env::var_os("HOME").map(PathBuf::from))
+            .unwrap_or_else(std::env::temp_dir);
+        let file_name = format!("{}.pdf", title.trim_end_matches(".md"));
+        let receiver = cx.prompt_for_new_path(&start_dir, Some(file_name.as_str()));
+
+        cx.spawn_in(window, async move |this, window| {
+            let Some(path) = receiver.await.ok().into_iter().flatten().flatten().next() else {
+                return;
+            };
+            let pdf = markdown_to_pdf(&title, &content);
+            let result = std::fs::write(&path, pdf);
+            _ = this.update_in(window, |this, _, cx| match result {
+                Ok(()) => this.set_status(format!("Exported {}", path.display()), cx),
+                Err(error) => this.set_status(format!("Could not export PDF: {error}"), cx),
             });
         })
         .detach();
@@ -1050,6 +1081,9 @@ impl Render for Mdpeek {
             }))
             .on_action(cx.listener(|this, _: &ExportText, window, cx| {
                 this.export_active_text(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &ExportPdf, window, cx| {
+                this.export_active_pdf(window, cx);
             }))
             .on_action(cx.listener(|this, _: &NextTab, _, cx| {
                 this.step_tab(1, cx);

@@ -8,8 +8,8 @@ mod settings;
 mod workspace;
 
 use app::{
-    CheckLinks, CloseTab, DailyNote, ExportHtml, ExportText, Mdpeek, NewTab, NextTab, OpenFile,
-    OpenFolder, PreviousTab, QuickOpen, Quit, ReloadFile, ReopenClosedTab, Save, SaveAs,
+    CheckLinks, CloseTab, DailyNote, ExportHtml, ExportPdf, ExportText, Mdpeek, NewTab, NextTab,
+    OpenFile, OpenFolder, PreviousTab, QuickOpen, Quit, ReloadFile, ReopenClosedTab, Save, SaveAs,
     ToggleEdit, ToggleReading, ToggleSidebar, ToggleTheme, WorkspaceSearch,
 };
 use gpui_kit::*;
@@ -25,7 +25,7 @@ fn main() {
                 KeyBinding::new("ctrl-p", QuickOpen, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-f", WorkspaceSearch, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-d", DailyNote, Some("Mdpeek")),
-                KeyBinding::new("ctrl-shift-l", CheckLinks, Some("Mdpeek")),
+                KeyBinding::new("ctrl-alt-l", CheckLinks, Some("Mdpeek")),
                 KeyBinding::new("f11", ToggleReading, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-e", OpenFolder, Some("Mdpeek")),
                 KeyBinding::new("ctrl-s", Save, Some("Mdpeek")),
@@ -38,6 +38,7 @@ fn main() {
                 KeyBinding::new("ctrl-alt-t", ReopenClosedTab, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-h", ExportHtml, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-t", ExportText, Some("Mdpeek")),
+                KeyBinding::new("ctrl-shift-p", ExportPdf, Some("Mdpeek")),
                 KeyBinding::new("ctrl-tab", NextTab, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-tab", PreviousTab, Some("Mdpeek")),
                 KeyBinding::new("ctrl-q", Quit, Some("Mdpeek")),
