@@ -1127,18 +1127,33 @@ impl Render for DocumentView {
     }
 }
 
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn percent_encoded_byte(bytes: &[u8], index: usize) -> Option<u8> {
+    if bytes.get(index) != Some(&b'%') {
+        return None;
+    }
+    let high = hex_value(*bytes.get(index + 1)?)?;
+    let low = hex_value(*bytes.get(index + 2)?)?;
+    Some(high * 16 + low)
+}
+
 fn percent_decode(value: &str) -> String {
     let bytes = value.as_bytes();
     let mut decoded = Vec::with_capacity(bytes.len());
     let mut index = 0;
     while index < bytes.len() {
-        if bytes[index] == b'%' && index + 2 < bytes.len() {
-            let hex = &value[index + 1..index + 3];
-            if let Ok(byte) = u8::from_str_radix(hex, 16) {
-                decoded.push(byte);
-                index += 3;
-                continue;
-            }
+        if let Some(byte) = percent_encoded_byte(bytes, index) {
+            decoded.push(byte);
+            index += 3;
+            continue;
         }
         decoded.push(bytes[index]);
         index += 1;
@@ -1247,10 +1262,7 @@ fn decode_wiki_target(encoded: &str) -> String {
     let mut out = Vec::new();
     let mut ix = 0;
     while ix < bytes.len() {
-        if bytes[ix] == b'%'
-            && ix + 2 < bytes.len()
-            && let Ok(value) = u8::from_str_radix(&encoded[ix + 1..ix + 3], 16)
-        {
+        if let Some(value) = percent_encoded_byte(bytes, ix) {
             out.push(value);
             ix += 3;
             continue;
@@ -1269,4 +1281,15 @@ pub fn read_document(path: &Path) -> Result<(String, DocumentKind)> {
         std::fs::read_to_string(path)?
     };
     Ok((content, kind))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::percent_decode;
+
+    #[test]
+    fn percent_decode_does_not_slice_through_utf8() {
+        assert_eq!(percent_decode("100%完了"), "100%完了");
+        assert_eq!(percent_decode("caf%C3%A9"), "café");
+    }
 }
