@@ -756,6 +756,7 @@ impl DocumentView {
             .on_mouse_down(MouseButton::Left, cx.listener(Self::annotation_mouse_down))
             .on_mouse_move(cx.listener(Self::annotation_mouse_move))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::annotation_mouse_up))
+            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::annotation_mouse_up))
             .on_prepaint(move |bounds, _, cx| {
                 state_entity.update(cx, |this, _| {
                     this.annotation_bounds = Some(bounds);
