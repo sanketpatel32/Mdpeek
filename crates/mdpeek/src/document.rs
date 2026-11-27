@@ -1011,6 +1011,11 @@ impl DocumentView {
         let words = value.split_whitespace().count();
         let lines = value.lines().count();
         let characters = value.chars().count();
+        let paragraphs = value
+            .split("\n\n")
+            .filter(|part| !part.trim().is_empty())
+            .count();
+        let reading_minutes = (words.max(1) as f32 / 200.0).ceil() as usize;
         let path = self
             .path
             .as_ref()
@@ -1056,6 +1061,18 @@ impl DocumentView {
                             .text_xs()
                             .text_color(cx.theme().muted_foreground)
                             .child(format!("{characters} chars")),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(cx.theme().muted_foreground)
+                            .child(format!("{paragraphs} paragraphs")),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(cx.theme().muted_foreground)
+                            .child(format!("{reading_minutes} min read")),
                     ),
             )
     }
