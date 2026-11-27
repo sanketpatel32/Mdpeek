@@ -109,7 +109,7 @@ fn draw_line(
     }
 }
 
-fn output_path(source: &Path) -> PathBuf {
+fn output_path(source: &Path) -> Option<PathBuf> {
     let parent = source.parent().unwrap_or_else(|| Path::new("."));
     let stem = source
         .file_stem()
@@ -123,10 +123,10 @@ fn output_path(source: &Path) -> PathBuf {
         };
         let candidate = parent.join(format!("{stem}-annotated{suffix}.png"));
         if !candidate.exists() {
-            return candidate;
+            return Some(candidate);
         }
     }
-    parent.join(format!("{stem}-annotated.png"))
+    None
 }
 
 pub fn save_annotated_png(source: &Path, strokes: &[AnnotationStroke]) -> Result<PathBuf, String> {
@@ -152,7 +152,12 @@ pub fn save_annotated_png(source: &Path, strokes: &[AnnotationStroke]) -> Result
         }
     }
 
-    let output = output_path(source);
+    let Some(output) = output_path(source) else {
+        return Err(
+            "Too many annotated copies already exist; remove or rename one before saving"
+                .to_string(),
+        );
+    };
     image
         .save(&output)
         .map_err(|error| format!("Could not save annotated PNG: {error}"))?;
