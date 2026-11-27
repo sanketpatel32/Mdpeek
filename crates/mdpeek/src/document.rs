@@ -371,6 +371,23 @@ impl DocumentView {
     fn render_preview(&self, cx: &mut Context<Self>) -> impl IntoElement {
         div().size_full().child(
             TextView::new(&self.preview)
+                .image_source({
+                    let base = self
+                        .path
+                        .as_ref()
+                        .and_then(|path| path.parent().map(Path::to_path_buf))
+                        .unwrap_or_else(|| PathBuf::from("."));
+                    move |uri| {
+                        let raw = uri.as_ref();
+                        let path = PathBuf::from(raw.strip_prefix("file://").unwrap_or(raw));
+                        let path = if path.is_absolute() {
+                            path
+                        } else {
+                            base.join(path)
+                        };
+                        ImageSource::from(path)
+                    }
+                })
                 .markdown_extensions(markdown_extensions())
                 .plugin(MathPlugin)
                 .plugin(InlineMathPlugin)
