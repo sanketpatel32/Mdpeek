@@ -1,7 +1,9 @@
 use std::{
     cell::Cell,
+    io::Write as _,
     path::{Path as StdPath, PathBuf},
     rc::Rc,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use gpui_kit::component::{
@@ -21,7 +23,10 @@ use gpui_kit::component::{
 use gpui_kit::{prelude::FluentBuilder as _, *};
 
 use crate::document::{DocumentView, read_document};
-use crate::export::{markdown_to_html_document, markdown_to_pdf, markdown_to_plain_text};
+use crate::export::{
+    markdown_to_html_document, markdown_to_html_document_with_base, markdown_to_pdf,
+    markdown_to_plain_text,
+};
 use crate::settings::{
     AppSettings, SessionState, load_session, load_settings, save_session, save_settings,
 };
@@ -707,22 +712,20 @@ impl Mdpeek {
         let Some(document) = self.active_document() else {
             return;
         };
-        let (title, content) = document.read_with(cx, |document, cx| {
-            (document.title().to_string(), document.value(cx))
+        let (title, content, base_href) = document.read_with(cx, |document, cx| {
+            (
+                document.title().to_string(),
+                document.value(cx),
+                document
+                    .path
+                    .as_ref()
+                    .and_then(|path| path.parent())
+                    .map(file_uri_for_directory),
+            )
         });
-        let safe_name = title
-            .chars()
-            .map(|ch| {
-                if ch.is_ascii_alphanumeric() || ch == '-' {
-                    ch
-                } else {
-                    '-'
-                }
-            })
-            .collect::<String>();
-        let path = std::env::temp_dir().join(format!("mdpeek-{safe_name}.html"));
-        match std::fs::write(&path, markdown_to_html_document(&title, &content)) {
-            Ok(()) => {
+        let html = markdown_to_html_document_with_base(&title, &content, base_href.as_deref());
+        match write_browser_preview(&html) {
+            Ok(path) => {
                 cx.open_url(&format!("file://{}", path.display()));
                 self.set_status("Opened rendered document in browser", cx);
             }
@@ -2406,6 +2409,72 @@ fn perform_table_operation(
             });
         });
     }
+}
+
+fn percent_encode_file_path(value: &str) -> String {
+    value
+        .bytes()
+        .map(|byte| match byte {
+            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'/' | b':' | b'-' | b'.' | b'_' | b'~' => {
+                (byte as char).to_string()
+            }
+            _ => format!("%{byte:02X}"),
+        })
+        .collect()
+}
+
+fn file_uri_for_directory(path: &StdPath) -> String {
+    let raw = path.to_string_lossy().replace('\\', "/");
+    let prefix = if raw.starts_with('/') {
+        "file://"
+    } else {
+        "file:///"
+    };
+    let mut uri = format!("{prefix}{}", percent_encode_file_path(&raw));
+    if !uri.ends_with('/') {
+        uri.push('/');
+    }
+    uri
+}
+
+fn write_browser_preview(html: &str) -> std::io::Result<PathBuf> {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    for attempt in 0..100 {
+        let directory = std::env::temp_dir().join(format!(
+            "mdpeek-preview-{}-{nonce}-{attempt}",
+            std::process::id()
+        ));
+        match std::fs::create_dir(&directory) {
+            Ok(()) => {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt as _;
+                    std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o700))?;
+                }
+                let path = directory.join("preview.html");
+                let mut options = std::fs::OpenOptions::new();
+                options.write(true).create_new(true);
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::OpenOptionsExt as _;
+                    options.mode(0o600);
+                }
+                let mut file = options.open(&path)?;
+                file.write_all(html.as_bytes())?;
+                file.sync_all()?;
+                return Ok(path);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    Err(std::io::Error::new(
+        std::io::ErrorKind::AlreadyExists,
+        "could not allocate a private browser preview directory",
+    ))
 }
 
 fn write_file_atomically(path: &StdPath, contents: &str) -> std::io::Result<()> {

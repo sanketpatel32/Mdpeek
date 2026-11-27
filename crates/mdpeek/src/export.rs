@@ -1,6 +1,17 @@
 pub fn markdown_to_html_document(title: &str, source: &str) -> String {
+    markdown_to_html_document_with_base(title, source, None)
+}
+
+pub fn markdown_to_html_document_with_base(
+    title: &str,
+    source: &str,
+    base_href: Option<&str>,
+) -> String {
     let body = markdown::to_html_with_options(source, &markdown::Options::gfm())
         .unwrap_or_else(|error| format!("<pre>Markdown export failed: {error}</pre>"));
+    let base_tag = base_href
+        .map(|href| format!("<base href=\"{}\">", escape_html(href)))
+        .unwrap_or_default();
 
     format!(
         r#"<!doctype html>
@@ -8,6 +19,7 @@ pub fn markdown_to_html_document(title: &str, source: &str) -> String {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+{}
 <title>{}</title>
 <style>
 body {{ max-width: 760px; margin: 48px auto; padding: 0 24px; color: #24292f; font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
@@ -22,6 +34,7 @@ img {{ max-width: 100%; }}
 {}
 </body>
 </html>"#,
+        base_tag,
         escape_html(title),
         body
     )
