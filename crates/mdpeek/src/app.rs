@@ -32,6 +32,8 @@ actions!(
         QuickOpenPick,
         CommandPalette,
         CommandPalettePick,
+        SnippetPicker,
+        SnippetPick,
         CheckLinks,
         DailyNote,
         WorkspaceSearch,
@@ -67,6 +69,7 @@ pub struct Mdpeek {
     quick_open: Entity<CommandState>,
     workspace_search: Entity<CommandState>,
     command_palette: Entity<CommandState>,
+    snippet_picker: Entity<CommandState>,
     search_results: Vec<SearchMatch>,
     reading_mode: bool,
     focus_handle: FocusHandle,
@@ -98,6 +101,36 @@ fn markdown_headings(source: &str) -> Vec<(usize, String, usize)> {
     headings
 }
 
+fn snippet_entries() -> Vec<(&'static str, &'static str)> {
+    vec![
+        ("Note callout", "> [!NOTE]\nUseful information.\n"),
+        ("Warning callout", "> [!WARNING]\nImportant caution.\n"),
+        ("Task list", "- [ ] First task\n- [ ] Second task\n"),
+        (
+            "Table",
+            "| Column | Value |\n| --- | --- |\n| Item | Text |\n",
+        ),
+        ("Code block", "```rust\n\n```\n"),
+        ("Inline math", "$E = mc^2$"),
+        ("Block math", "$$\nE = mc^2\n$$\n"),
+        (
+            "Mermaid diagram",
+            "```mermaid\nflowchart TD\n  A[Start] --> B[Done]\n```\n",
+        ),
+        ("Frontmatter", "---\ntitle: Document\ntags: []\n---\n\n"),
+        (
+            "Details disclosure",
+            "<details>\n<summary>More</summary>\n\nHidden details.\n\n</details>\n",
+        ),
+        (
+            "Footnote",
+            "Text with a footnote.[^1]\n\n[^1]: Footnote text.\n",
+        ),
+        ("Link", "[Link text](https://example.com)"),
+        ("Image", "![Alt text](image.png)"),
+    ]
+}
+
 fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
     vec![
         ("New document", "Ctrl+N"),
@@ -105,6 +138,7 @@ fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
         ("Open folder", "Ctrl+Shift+E"),
         ("Quick open", "Ctrl+P"),
         ("Search workspace", "Ctrl+Shift+F"),
+        ("Insert snippet", "Ctrl+Shift+S"),
         ("Replace in workspace", "Ctrl+Shift+R"),
         ("Open today's daily note", "Ctrl+Shift+D"),
         ("Check document links", "Ctrl+Alt+I"),
@@ -138,6 +172,7 @@ impl Mdpeek {
             quick_open: cx.new(|cx| CommandState::new(window, cx)),
             workspace_search: cx.new(|cx| CommandState::new(window, cx)),
             command_palette: cx.new(|cx| CommandState::new(window, cx)),
+            snippet_picker: cx.new(|cx| CommandState::new(window, cx)),
             search_results: Vec::new(),
             reading_mode: false,
             focus_handle: cx.focus_handle(),
@@ -633,30 +668,93 @@ impl Mdpeek {
             2 => self.open_folder_action(window, cx),
             3 => self.open_quick_open(window, cx),
             4 => self.open_workspace_search(window, cx),
-            5 => self.open_workspace_replace(window, cx),
-            6 => self.open_daily_note(window, cx),
-            7 => self.check_links(cx),
-            8 => self.save_active(window, cx),
-            9 => self.save_active_as(window, cx),
-            10 => self.reload_active(window, cx),
-            11 => self.reopen_closed_tab(window, cx),
-            12 => self.toggle_edit(window, cx),
-            13 => {
+            5 => self.open_snippet_picker(window, cx),
+            6 => self.open_workspace_replace(window, cx),
+            7 => self.open_daily_note(window, cx),
+            8 => self.check_links(cx),
+            9 => self.save_active(window, cx),
+            10 => self.save_active_as(window, cx),
+            11 => self.reload_active(window, cx),
+            12 => self.reopen_closed_tab(window, cx),
+            13 => self.toggle_edit(window, cx),
+            14 => {
                 self.sidebar_visible = !self.sidebar_visible;
                 cx.notify();
             }
-            14 => self.toggle_reading(window, cx),
-            15 => self.toggle_theme(cx),
-            16 => self.export_active_html(window, cx),
-            17 => self.export_active_text(window, cx),
-            18 => self.export_active_pdf(window, cx),
-            19 => self.close_active_tab(cx),
-            20 => {
+            15 => self.toggle_reading(window, cx),
+            16 => self.toggle_theme(cx),
+            17 => self.export_active_html(window, cx),
+            18 => self.export_active_text(window, cx),
+            19 => self.export_active_pdf(window, cx),
+            20 => self.close_active_tab(cx),
+            21 => {
                 self.persist(cx);
                 cx.quit();
             }
             _ => {}
         }
+    }
+
+    fn open_snippet_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.active_document().is_none() {
+            self.set_status("Open a document before inserting a snippet", cx);
+            return;
+        }
+        let command = self.snippet_picker.clone();
+        command.update(cx, |command, cx| {
+            command.set_query("", window, cx);
+        });
+        let owner = cx.weak_entity();
+        let focus_on_mount = Rc::new(Cell::new(true));
+        window.open_dialog(cx, move |dialog, _, _| {
+            let command = command.clone();
+            let owner = owner.clone();
+            let focus_on_mount = focus_on_mount.clone();
+            dialog
+                .close_button(false)
+                .p_0()
+                .content(move |content, window, cx| {
+                    if focus_on_mount.replace(false) {
+                        let command = command.clone();
+                        window.defer(cx, move |window, cx| {
+                            command.read(cx).focus_handle(cx).focus(window, cx);
+                        });
+                    }
+                    let confirm_owner = owner.clone();
+                    content.child(
+                        Command::new(&command)
+                            .w(px(560.))
+                            .bordered(false)
+                            .rounded(cx.theme().radius_lg)
+                            .placeholder("Insert Markdown snippet...")
+                            .items(snippet_entries().iter().map(|(label, content)| {
+                                CommandItem::new()
+                                    .label(*label)
+                                    .keywords([*content])
+                                    .icon(IconName::Plus)
+                                    .action(Box::new(SnippetPick))
+                            }))
+                            .on_confirm(move |index, window, cx| {
+                                _ = confirm_owner.update(cx, |this, cx| {
+                                    this.insert_snippet(index.row, window, cx);
+                                });
+                                window.close_dialog(cx);
+                            }),
+                    )
+                })
+        });
+    }
+
+    fn insert_snippet(&mut self, row: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let Some((label, content)) = snippet_entries().get(row).copied() else {
+            return;
+        };
+        let Some(document) = self.active_document() else {
+            self.set_status("Open a document before inserting a snippet", cx);
+            return;
+        };
+        document.update(cx, |document, cx| document.insert_text(content, window, cx));
+        self.set_status(format!("Inserted {label}"), cx);
     }
 
     fn open_workspace_replace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -1354,6 +1452,9 @@ impl Render for Mdpeek {
             }))
             .on_action(cx.listener(|this, _: &CommandPalette, window, cx| {
                 this.open_command_palette(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &SnippetPicker, window, cx| {
+                this.open_snippet_picker(window, cx);
             }))
             .on_action(cx.listener(|this, _: &ToggleReading, window, cx| {
                 this.toggle_reading(window, cx);

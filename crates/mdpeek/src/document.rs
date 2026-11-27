@@ -135,7 +135,7 @@ impl DocumentView {
         let content = content.into();
         let language = kind.language(path.as_deref());
         let editor = cx.new(|cx| {
-            EditorState::new(window, cx)
+            let mut state = EditorState::new(window, cx)
                 .language(language)
                 .line_number(true)
                 .indent_guides(true)
@@ -146,7 +146,12 @@ impl DocumentView {
                 })
                 .searchable(true)
                 .placeholder("Write Markdown…")
-                .default_value(content.clone())
+                .default_value(content.clone());
+            if kind == DocumentKind::Markdown {
+                state.lsp_mut().completion_provider =
+                    Some(crate::completion::MarkdownCompletions::provider());
+            }
+            state
         });
         let preview_source = renderable_source(kind, &content);
         let preview = cx.new(|cx| TextViewState::markdown(preview_source.as_str(), cx));
@@ -269,6 +274,17 @@ impl DocumentView {
         self.preview.update(cx, |preview, cx| {
             preview.set_text(&preview_source, cx);
         });
+        cx.notify();
+    }
+
+    pub fn insert_text(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.kind.is_text_editable() {
+            return;
+        }
+        self.editor.update(cx, |editor, cx| {
+            editor.insert(text, window, cx);
+        });
+        self.dirty = self.editor.read(cx).value().as_ref() != self.saved_value;
         cx.notify();
     }
 

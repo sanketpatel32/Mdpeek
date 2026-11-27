@@ -1,4 +1,5 @@
 mod app;
+mod completion;
 mod csv;
 mod document;
 mod export;
@@ -10,8 +11,8 @@ mod workspace;
 use app::{
     CheckLinks, CloseTab, CommandPalette, DailyNote, ExportHtml, ExportPdf, ExportText, Mdpeek,
     NewTab, NextTab, OpenFile, OpenFolder, PreviousTab, QuickOpen, Quit, ReloadFile,
-    ReopenClosedTab, Save, SaveAs, ToggleEdit, ToggleReading, ToggleSidebar, ToggleTheme,
-    WorkspaceReplace, WorkspaceSearch,
+    ReopenClosedTab, Save, SaveAs, SnippetPicker, ToggleEdit, ToggleReading, ToggleSidebar,
+    ToggleTheme, WorkspaceReplace, WorkspaceSearch,
 };
 use gpui_kit::*;
 
@@ -27,6 +28,7 @@ fn main() {
                 KeyBinding::new("ctrl-shift-f", WorkspaceSearch, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-r", WorkspaceReplace, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-d", DailyNote, Some("Mdpeek")),
+                KeyBinding::new("ctrl-shift-s", SnippetPicker, Some("Mdpeek")),
                 KeyBinding::new("ctrl-alt-i", CheckLinks, Some("Mdpeek")),
                 KeyBinding::new("ctrl-alt-p", CommandPalette, Some("Mdpeek")),
                 KeyBinding::new("f11", ToggleReading, Some("Mdpeek")),

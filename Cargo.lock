@@ -4047,6 +4047,7 @@ dependencies = [
  "chrono",
  "csv",
  "gpui-kit",
+ "lsp-types",
  "markdown",
  "regex",
  "serde",
