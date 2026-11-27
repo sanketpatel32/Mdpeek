@@ -29,7 +29,10 @@ document.addEventListener('click', function (event) {
   if (!target) return;
   event.preventDefault();
   target.scrollIntoView();
-  history.replaceState(null, '', '#' + encodeURIComponent(id));
+  try {
+    var targetUrl = window.location.href.split('#')[0] + '#' + encodeURIComponent(id);
+    history.pushState(null, '', targetUrl);
+  } catch (_) {}
 });
 </script>"##;
 
