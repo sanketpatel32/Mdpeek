@@ -779,8 +779,11 @@ impl DocumentView {
             .child(
                 div()
                     .on_prepaint(move |bounds, _, cx| {
-                        state_entity.update(cx, |this, _| {
-                            this.annotation_bounds = Some(bounds);
+                        state_entity.update(cx, |this, cx| {
+                            if this.annotation_bounds != Some(bounds) {
+                                this.annotation_bounds = Some(bounds);
+                                cx.notify();
+                            }
                         });
                     })
                     .child(
