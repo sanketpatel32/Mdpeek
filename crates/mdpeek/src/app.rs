@@ -45,6 +45,14 @@ actions!(
         MoveLinesUp,
         MoveLinesDown,
         JoinLines,
+        SortLinesAscending,
+        SortLinesDescending,
+        UppercaseSelection,
+        LowercaseSelection,
+        TitleCaseSelection,
+        ToggleCaseSelection,
+        InsertToc,
+        InsertDate,
         CheckLinks,
         DailyNote,
         WorkspaceSearch,
@@ -179,6 +187,14 @@ fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
         ("Move line up", "Alt+Up"),
         ("Move line down", "Alt+Down"),
         ("Join line with next", "Ctrl+J"),
+        ("Sort lines A to Z", ""),
+        ("Sort lines Z to A", ""),
+        ("UPPERCASE selection", ""),
+        ("lowercase selection", ""),
+        ("Title Case selection", ""),
+        ("tOGGLE cASE selection", ""),
+        ("Insert table of contents", ""),
+        ("Insert today's date", ""),
         ("Close other tabs", ""),
         ("Close tabs to the right", ""),
         ("Close all tabs", ""),
@@ -840,11 +856,51 @@ impl Mdpeek {
             26 => self.apply_line_operation(EditorLineOperation::MoveUp, window, cx),
             27 => self.apply_line_operation(EditorLineOperation::MoveDown, window, cx),
             28 => self.apply_line_operation(EditorLineOperation::Join, window, cx),
-            29 => self.close_other_tabs(cx),
-            30 => self.close_tabs_to_right(cx),
-            31 => self.close_all_tabs(cx),
-            32 => self.close_active_tab(cx),
-            33 => {
+            29 => self.apply_text_transform(
+                crate::text_transform::TransformOperation::SortAscending,
+                window,
+                cx,
+            ),
+            30 => self.apply_text_transform(
+                crate::text_transform::TransformOperation::SortDescending,
+                window,
+                cx,
+            ),
+            31 => self.apply_text_transform(
+                crate::text_transform::TransformOperation::Uppercase,
+                window,
+                cx,
+            ),
+            32 => self.apply_text_transform(
+                crate::text_transform::TransformOperation::Lowercase,
+                window,
+                cx,
+            ),
+            33 => self.apply_text_transform(
+                crate::text_transform::TransformOperation::TitleCase,
+                window,
+                cx,
+            ),
+            34 => self.apply_text_transform(
+                crate::text_transform::TransformOperation::ToggleCase,
+                window,
+                cx,
+            ),
+            35 => self.apply_text_transform(
+                crate::text_transform::TransformOperation::InsertToc,
+                window,
+                cx,
+            ),
+            36 => self.apply_text_transform(
+                crate::text_transform::TransformOperation::InsertDate,
+                window,
+                cx,
+            ),
+            37 => self.close_other_tabs(cx),
+            38 => self.close_tabs_to_right(cx),
+            39 => self.close_all_tabs(cx),
+            40 => self.close_active_tab(cx),
+            41 => {
                 self.persist(cx);
                 cx.quit();
             }
@@ -953,6 +1009,39 @@ impl Mdpeek {
         }
         document.update(cx, |document, cx| {
             document.apply_edit_result(result, window, cx);
+        });
+    }
+
+    fn apply_text_transform(
+        &mut self,
+        operation: crate::text_transform::TransformOperation,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(document) = self.active_document() else {
+            self.set_status("Open a document before transforming text", cx);
+            return;
+        };
+        let (kind, value, range) = document.read_with(cx, |document, cx| {
+            (
+                document.kind,
+                document.value(cx),
+                document.selected_range(cx),
+            )
+        });
+        if !kind.is_text_editable() {
+            self.set_status("Text transforms require an editable text document", cx);
+            return;
+        }
+        let result =
+            crate::text_transform::apply_transform(&value, range.start, range.end, operation);
+        if result.text == value {
+            self.set_status("Text transform made no changes", cx);
+            return;
+        }
+        document.update(cx, |document, cx| {
+            document.apply_edit_result(result, window, cx);
+            document.focus_editor(window, cx);
         });
     }
 
@@ -2134,6 +2223,62 @@ impl Render for Mdpeek {
             }))
             .on_action(cx.listener(|this, _: &JoinLines, window, cx| {
                 this.apply_line_operation(EditorLineOperation::Join, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &SortLinesAscending, window, cx| {
+                this.apply_text_transform(
+                    crate::text_transform::TransformOperation::SortAscending,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &SortLinesDescending, window, cx| {
+                this.apply_text_transform(
+                    crate::text_transform::TransformOperation::SortDescending,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &UppercaseSelection, window, cx| {
+                this.apply_text_transform(
+                    crate::text_transform::TransformOperation::Uppercase,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &LowercaseSelection, window, cx| {
+                this.apply_text_transform(
+                    crate::text_transform::TransformOperation::Lowercase,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &TitleCaseSelection, window, cx| {
+                this.apply_text_transform(
+                    crate::text_transform::TransformOperation::TitleCase,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &ToggleCaseSelection, window, cx| {
+                this.apply_text_transform(
+                    crate::text_transform::TransformOperation::ToggleCase,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &InsertToc, window, cx| {
+                this.apply_text_transform(
+                    crate::text_transform::TransformOperation::InsertToc,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &InsertDate, window, cx| {
+                this.apply_text_transform(
+                    crate::text_transform::TransformOperation::InsertDate,
+                    window,
+                    cx,
+                );
             }))
             .on_action(cx.listener(|this, _: &DailyNote, window, cx| {
                 this.open_daily_note(window, cx);

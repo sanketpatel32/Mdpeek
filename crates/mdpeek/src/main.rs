@@ -11,6 +11,7 @@ mod math;
 mod mermaid;
 mod settings;
 mod table;
+mod text_transform;
 mod workspace;
 
 use app::{
