@@ -80,7 +80,7 @@ cargo run -p mdpeek -- README.md path/to/workspace
 
 ## Rebuild status
 
-This is an alpha native rebuild. Core document workflows are implemented in Rust/GPUI, but the legacy application had a much larger feature surface. Not yet ported: Mermaid diagrams, full KaTeX-typeset math, rich PDF pagination/print preview, visual table cell editing, project-wide replace, workspace collaboration/graph/calendar views, installer signing, and automatic updates. Workspace search is implemented, but replacement is not.
+This is an alpha native rebuild. Core document workflows are implemented in Rust/GPUI, but the legacy application had a much larger feature surface. Not yet ported: Mermaid diagrams, full KaTeX-typeset math, rich system print preview, visual table cell editing, project-wide replace, image annotation, installer signing, and automatic updates. Workspace search is implemented, but replacement is not.
 
 ## Contributing
 
