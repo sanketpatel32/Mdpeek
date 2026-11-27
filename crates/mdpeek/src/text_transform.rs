@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::editor_ops::EditResult;
 
@@ -124,11 +124,21 @@ pub fn markdown_headings(source: &str) -> Vec<MarkdownHeading> {
     collect_headings(&markdown::mdast::Node::Root(root), &mut headings);
     headings.sort_by_key(|heading| heading.start);
     let mut occurrences = HashMap::<String, usize>::new();
+    let mut used = HashSet::<String>::new();
     for heading in &mut headings {
         let base = heading.slug.clone();
         let occurrence = occurrences.entry(base.clone()).or_insert(0);
-        if *occurrence > 0 {
-            heading.slug = format!("{base}-{occurrence}");
+        loop {
+            let candidate = if *occurrence == 0 {
+                base.clone()
+            } else {
+                format!("{base}-{occurrence}")
+            };
+            if used.insert(candidate.clone()) {
+                heading.slug = candidate;
+                break;
+            }
+            *occurrence += 1;
         }
         *occurrence += 1;
     }
@@ -283,6 +293,20 @@ mod tests {
         let headings = markdown_headings(source);
         assert_eq!(headings.len(), 1);
         assert_eq!(headings[0].title, "Real");
+    }
+
+    #[test]
+    #[test]
+    fn slug_suffixes_do_not_collide_with_literal_heading_slugs() {
+        let source = "# A-1\n\n# A\n\n# A\n";
+        let headings = markdown_headings(source);
+        assert_eq!(
+            headings
+                .iter()
+                .map(|heading| heading.slug.as_str())
+                .collect::<Vec<_>>(),
+            vec!["a-1", "a", "a-2"]
+        );
     }
 
     #[test]
