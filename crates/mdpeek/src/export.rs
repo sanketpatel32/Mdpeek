@@ -15,6 +15,23 @@ pub fn markdown_to_html_document_with_base(
     let base_tag = base_href
         .map(|href| format!("<base href=\"{}\">", escape_html(href)))
         .unwrap_or_default();
+    let fragment_script = r##"<script>
+document.addEventListener('click', function (event) {
+  var anchor = event.target.closest('a[href^="#"]');
+  if (!anchor) return;
+  var id;
+  try {
+    id = decodeURIComponent(anchor.getAttribute('href').slice(1));
+  } catch (_) {
+    return;
+  }
+  var target = document.getElementById(id) || document.getElementsByName(id)[0];
+  if (!target) return;
+  event.preventDefault();
+  target.scrollIntoView();
+  history.replaceState(null, '', '#' + encodeURIComponent(id));
+});
+</script>"##;
 
     format!(
         r#"<!doctype html>
@@ -35,11 +52,13 @@ img {{ max-width: 100%; }}
 </head>
 <body>
 {}
+{}
 </body>
 </html>"#,
         base_tag,
         escape_html(title),
-        body
+        body,
+        fragment_script
     )
 }
 
@@ -134,6 +153,7 @@ mod tests {
         let html = markdown_to_html_document("<x>", "# Hi");
         assert!(html.contains("<title>&lt;x&gt;</title>"));
         assert!(html.contains("<h1 id=\"hi\">Hi</h1>"));
+        assert!(html.contains("a[href^=\"#\"]"));
     }
 
     #[test]
