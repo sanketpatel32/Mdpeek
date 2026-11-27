@@ -109,6 +109,36 @@ fn draw_line(
     }
 }
 
+fn read_exif_orientation(source: &Path) -> Option<u32> {
+    let extension = source
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if !matches!(extension.as_str(), "jpg" | "jpeg" | "tif" | "tiff") {
+        return None;
+    }
+    let file = std::fs::File::open(source).ok()?;
+    let exif = exif::Reader::new()
+        .read_from_container(&mut std::io::BufReader::new(file))
+        .ok()?;
+    exif.get_field(exif::Tag::Orientation, exif::In::PRIMARY)
+        .and_then(|field| field.value.get_uint(0))
+}
+
+fn apply_orientation(image: image::DynamicImage, orientation: Option<u32>) -> image::DynamicImage {
+    match orientation {
+        Some(2) => image.fliph(),
+        Some(3) => image.rotate180(),
+        Some(4) => image.flipv(),
+        Some(5) => image.rotate90().fliph(),
+        Some(6) => image.rotate90(),
+        Some(7) => image.rotate270().fliph(),
+        Some(8) => image.rotate270(),
+        _ => image,
+    }
+}
+
 fn output_path(source: &Path) -> Option<PathBuf> {
     let parent = source.parent().unwrap_or_else(|| Path::new("."));
     let stem = source
@@ -133,9 +163,9 @@ pub fn save_annotated_png(source: &Path, strokes: &[AnnotationStroke]) -> Result
     if strokes.is_empty() {
         return Err("Draw at least one annotation before saving".to_string());
     }
-    let mut image = image::open(source)
-        .map_err(|error| format!("Could not decode image for annotation: {error}"))?
-        .to_rgba8();
+    let image = image::open(source)
+        .map_err(|error| format!("Could not decode image for annotation: {error}"))?;
+    let mut image = apply_orientation(image, read_exif_orientation(source)).to_rgba8();
     let image_width = image.width() as f32;
     let image_height = image.height() as f32;
 
@@ -166,7 +196,7 @@ pub fn save_annotated_png(source: &Path, strokes: &[AnnotationStroke]) -> Result
 
 #[cfg(test)]
 mod tests {
-    use super::{AnnotationStroke, save_annotated_png};
+    use super::{AnnotationStroke, apply_orientation, save_annotated_png};
     use gpui_kit::{Hsla, hsla};
 
     #[test]
@@ -195,6 +225,17 @@ mod tests {
     }
 
     use std::path::Path;
+
+    #[test]
+    fn orientation_ninety_degrees_swaps_dimensions() {
+        let image = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            7,
+            3,
+            image::Rgba([255, 255, 255, 255]),
+        ));
+        let oriented = apply_orientation(image, Some(6));
+        assert_eq!((oriented.width(), oriented.height()), (3, 7));
+    }
 
     #[test]
     fn hsla_red_is_opaque_red() {
