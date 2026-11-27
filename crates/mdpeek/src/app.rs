@@ -1,11 +1,17 @@
-use std::{cell::Cell, path::PathBuf, rc::Rc};
+use std::{
+    cell::Cell,
+    path::{Path as StdPath, PathBuf},
+    rc::Rc,
+};
 
 use gpui_kit::component::{
     ActiveTheme as _, Icon, IconName, Selectable as _, Sizable as _, Theme, ThemeMode,
     WindowExt as _,
     button::{Button, ButtonVariants as _},
+    checkbox::Checkbox,
     command::{Command, CommandItem, CommandState},
     h_flex,
+    input::{Input, InputState},
     list::ListItem,
     scroll::ScrollableElement,
     tab::{Tab, TabBar},
@@ -17,6 +23,7 @@ use gpui_kit::{prelude::FluentBuilder as _, *};
 use crate::document::{DocumentView, read_document};
 use crate::export::{markdown_to_html_document, markdown_to_pdf, markdown_to_plain_text};
 use crate::settings::{SessionState, load_session, save_session};
+use crate::table::{MarkdownTable, emit_table};
 use crate::workspace::{
     SearchMatch, build_file_items, collect_files, resolve_tree_path, search_files,
 };
@@ -30,10 +37,14 @@ actions!(
         QuickOpenPick,
         CommandPalette,
         CommandPalettePick,
+        SnippetPicker,
+        SnippetPick,
+        EditTable,
         CheckLinks,
         DailyNote,
         WorkspaceSearch,
         WorkspaceSearchPick,
+        WorkspaceReplace,
         ToggleReading,
         OpenFolder,
         Save,
@@ -64,6 +75,7 @@ pub struct Mdpeek {
     quick_open: Entity<CommandState>,
     workspace_search: Entity<CommandState>,
     command_palette: Entity<CommandState>,
+    snippet_picker: Entity<CommandState>,
     search_results: Vec<SearchMatch>,
     reading_mode: bool,
     focus_handle: FocusHandle,
@@ -95,6 +107,36 @@ fn markdown_headings(source: &str) -> Vec<(usize, String, usize)> {
     headings
 }
 
+fn snippet_entries() -> Vec<(&'static str, &'static str)> {
+    vec![
+        ("Note callout", "> [!NOTE]\nUseful information.\n"),
+        ("Warning callout", "> [!WARNING]\nImportant caution.\n"),
+        ("Task list", "- [ ] First task\n- [ ] Second task\n"),
+        (
+            "Table",
+            "| Column | Value |\n| --- | --- |\n| Item | Text |\n",
+        ),
+        ("Code block", "```rust\n\n```\n"),
+        ("Inline math", "$E = mc^2$"),
+        ("Block math", "$$\nE = mc^2\n$$\n"),
+        (
+            "Mermaid diagram",
+            "```mermaid\nflowchart TD\n  A[Start] --> B[Done]\n```\n",
+        ),
+        ("Frontmatter", "---\ntitle: Document\ntags: []\n---\n\n"),
+        (
+            "Details disclosure",
+            "<details>\n<summary>More</summary>\n\nHidden details.\n\n</details>\n",
+        ),
+        (
+            "Footnote",
+            "Text with a footnote.[^1]\n\n[^1]: Footnote text.\n",
+        ),
+        ("Link", "[Link text](https://example.com)"),
+        ("Image", "![Alt text](image.png)"),
+    ]
+}
+
 fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
     vec![
         ("New document", "Ctrl+N"),
@@ -102,6 +144,9 @@ fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
         ("Open folder", "Ctrl+Shift+E"),
         ("Quick open", "Ctrl+P"),
         ("Search workspace", "Ctrl+Shift+F"),
+        ("Insert snippet", "Ctrl+Shift+S"),
+        ("Edit table at cursor", "Ctrl+Alt+M"),
+        ("Replace in workspace", "Ctrl+Shift+R"),
         ("Open today's daily note", "Ctrl+Shift+D"),
         ("Check document links", "Ctrl+Alt+I"),
         ("Save", "Ctrl+S"),
@@ -120,6 +165,13 @@ fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
     ]
 }
 
+#[derive(Clone, Copy)]
+enum TableOperation {
+    None,
+    AddRow,
+    AddColumn,
+}
+
 impl Mdpeek {
     pub fn new(window: &mut Window, cx: &mut Context<Self>, initial_paths: &[PathBuf]) -> Self {
         let session = load_session();
@@ -134,6 +186,7 @@ impl Mdpeek {
             quick_open: cx.new(|cx| CommandState::new(window, cx)),
             workspace_search: cx.new(|cx| CommandState::new(window, cx)),
             command_palette: cx.new(|cx| CommandState::new(window, cx)),
+            snippet_picker: cx.new(|cx| CommandState::new(window, cx)),
             search_results: Vec::new(),
             reading_mode: false,
             focus_handle: cx.focus_handle(),
@@ -612,10 +665,14 @@ impl Mdpeek {
                                     .action(Box::new(CommandPalettePick))
                             }))
                             .on_confirm(move |index, window, cx| {
-                                _ = confirm_owner.update(cx, |this, cx| {
-                                    this.run_command_palette_row(index.row, window, cx);
-                                });
+                                let row = index.row;
+                                let confirm_owner = confirm_owner.clone();
                                 window.close_dialog(cx);
+                                window.defer(cx, move |window, cx| {
+                                    _ = confirm_owner.update(cx, |this, cx| {
+                                        this.run_command_palette_row(row, window, cx);
+                                    });
+                                });
                             }),
                     )
                 })
@@ -629,29 +686,463 @@ impl Mdpeek {
             2 => self.open_folder_action(window, cx),
             3 => self.open_quick_open(window, cx),
             4 => self.open_workspace_search(window, cx),
-            5 => self.open_daily_note(window, cx),
-            6 => self.check_links(cx),
-            7 => self.save_active(window, cx),
-            8 => self.save_active_as(window, cx),
-            9 => self.reload_active(window, cx),
-            10 => self.reopen_closed_tab(window, cx),
-            11 => self.toggle_edit(window, cx),
-            12 => {
+            5 => self.open_snippet_picker(window, cx),
+            6 => self.open_table_editor(window, cx),
+            7 => self.open_workspace_replace(window, cx),
+            8 => self.open_daily_note(window, cx),
+            9 => self.check_links(cx),
+            10 => self.save_active(window, cx),
+            11 => self.save_active_as(window, cx),
+            12 => self.reload_active(window, cx),
+            13 => self.reopen_closed_tab(window, cx),
+            14 => self.toggle_edit(window, cx),
+            15 => {
                 self.sidebar_visible = !self.sidebar_visible;
                 cx.notify();
             }
-            13 => self.toggle_reading(window, cx),
-            14 => self.toggle_theme(cx),
-            15 => self.export_active_html(window, cx),
-            16 => self.export_active_text(window, cx),
-            17 => self.export_active_pdf(window, cx),
-            18 => self.close_active_tab(cx),
-            19 => {
+            16 => self.toggle_reading(window, cx),
+            17 => self.toggle_theme(cx),
+            18 => self.export_active_html(window, cx),
+            19 => self.export_active_text(window, cx),
+            20 => self.export_active_pdf(window, cx),
+            21 => self.close_active_tab(cx),
+            22 => {
                 self.persist(cx);
                 cx.quit();
             }
             _ => {}
         }
+    }
+
+    fn open_snippet_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.active_document().is_none() {
+            self.set_status("Open a document before inserting a snippet", cx);
+            return;
+        }
+        let command = self.snippet_picker.clone();
+        command.update(cx, |command, cx| {
+            command.set_query("", window, cx);
+        });
+        let owner = cx.weak_entity();
+        let focus_on_mount = Rc::new(Cell::new(true));
+        window.open_dialog(cx, move |dialog, _, _| {
+            let command = command.clone();
+            let owner = owner.clone();
+            let focus_on_mount = focus_on_mount.clone();
+            dialog
+                .close_button(false)
+                .p_0()
+                .content(move |content, window, cx| {
+                    if focus_on_mount.replace(false) {
+                        let command = command.clone();
+                        window.defer(cx, move |window, cx| {
+                            command.read(cx).focus_handle(cx).focus(window, cx);
+                        });
+                    }
+                    let confirm_owner = owner.clone();
+                    content.child(
+                        Command::new(&command)
+                            .w(px(560.))
+                            .bordered(false)
+                            .rounded(cx.theme().radius_lg)
+                            .placeholder("Insert Markdown snippet...")
+                            .items(snippet_entries().iter().map(|(label, content)| {
+                                CommandItem::new()
+                                    .label(*label)
+                                    .keywords([*content])
+                                    .icon(IconName::Plus)
+                                    .action(Box::new(SnippetPick))
+                            }))
+                            .on_confirm(move |index, window, cx| {
+                                _ = confirm_owner.update(cx, |this, cx| {
+                                    this.insert_snippet(index.row, window, cx);
+                                });
+                                window.close_dialog(cx);
+                            }),
+                    )
+                })
+        });
+    }
+
+    fn insert_snippet(&mut self, row: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let Some((label, content)) = snippet_entries().get(row).copied() else {
+            return;
+        };
+        let Some(document) = self.active_document() else {
+            self.set_status("Open a document before inserting a snippet", cx);
+            return;
+        };
+        document.update(cx, |document, cx| document.insert_text(content, window, cx));
+        self.set_status(format!("Inserted {label}"), cx);
+    }
+
+    fn open_table_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(document) = self.active_document() else {
+            self.set_status("Open a Markdown document before editing a table", cx);
+            return;
+        };
+        let Some(table) = document.read_with(cx, |document, cx| document.table_at_cursor(cx))
+        else {
+            self.set_status("Place the cursor inside a Markdown table", cx);
+            return;
+        };
+        if table.rows.len() > 50 || table.alignments.len() > 12 {
+            self.set_status("Table is too large for the visual editor", cx);
+            return;
+        }
+        let inputs = table
+            .rows
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|cell| {
+                        cx.new(|cx| InputState::new(window, cx).default_value(cell.clone()))
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let owner = cx.weak_entity();
+        window.open_dialog(cx, move |dialog, _, _| {
+            let inputs = inputs.clone();
+            let table = table.clone();
+            let owner = owner.clone();
+            dialog
+                .title("Edit table")
+                .w(px(760.))
+                .content(move |content, _, cx| {
+                    let rows =
+                        inputs
+                            .iter()
+                            .enumerate()
+                            .map(|(row_index, row)| {
+                                h_flex()
+                                    .gap_2()
+                                    .items_center()
+                                    .child(
+                                        div()
+                                            .w(px(44.))
+                                            .text_xs()
+                                            .text_color(cx.theme().muted_foreground)
+                                            .child(if row_index == 0 {
+                                                "Header".to_string()
+                                            } else {
+                                                format!("Row {row_index}")
+                                            }),
+                                    )
+                                    .children(row.iter().map(|input| {
+                                        Input::new(input).w(px(132.)).into_any_element()
+                                    }))
+                                    .into_any_element()
+                            })
+                            .collect::<Vec<_>>();
+                    let apply_owner = owner.clone();
+                    let apply_inputs = inputs.clone();
+                    let apply_table = table.clone();
+                    let add_row_owner = owner.clone();
+                    let add_row_inputs = inputs.clone();
+                    let add_row_table = table.clone();
+                    let add_column_owner = owner.clone();
+                    let add_column_inputs = inputs.clone();
+                    let add_column_table = table.clone();
+                    content.child(
+                        v_flex()
+                            .gap_3()
+                            .p_4()
+                            .child(
+                                v_flex()
+                                    .gap_2()
+                                    .max_h(px(420.))
+                                    .overflow_y_scrollbar()
+                                    .children(rows),
+                            )
+                            .child(
+                                h_flex()
+                                    .justify_end()
+                                    .gap_2()
+                                    .child(
+                                        Button::new("table-add-row")
+                                            .outline()
+                                            .label("Add row")
+                                            .on_click(move |_, window, cx| {
+                                                _ = add_row_owner.update(cx, |this, cx| {
+                                                    this.apply_table_edit(
+                                                        add_row_table.clone(),
+                                                        this.read_table_inputs(&add_row_inputs, cx),
+                                                        TableOperation::AddRow,
+                                                        window,
+                                                        cx,
+                                                    );
+                                                });
+                                                window.close_dialog(cx);
+                                            }),
+                                    )
+                                    .child(
+                                        Button::new("table-add-column")
+                                            .outline()
+                                            .label("Add column")
+                                            .on_click(move |_, window, cx| {
+                                                _ = add_column_owner.update(cx, |this, cx| {
+                                                    this.apply_table_edit(
+                                                        add_column_table.clone(),
+                                                        this.read_table_inputs(
+                                                            &add_column_inputs,
+                                                            cx,
+                                                        ),
+                                                        TableOperation::AddColumn,
+                                                        window,
+                                                        cx,
+                                                    );
+                                                });
+                                                window.close_dialog(cx);
+                                            }),
+                                    )
+                                    .child(
+                                        Button::new("table-apply")
+                                            .primary()
+                                            .label("Apply")
+                                            .on_click(move |_, window, cx| {
+                                                _ = apply_owner.update(cx, |this, cx| {
+                                                    this.apply_table_edit(
+                                                        apply_table.clone(),
+                                                        this.read_table_inputs(&apply_inputs, cx),
+                                                        TableOperation::None,
+                                                        window,
+                                                        cx,
+                                                    );
+                                                });
+                                                window.close_dialog(cx);
+                                            }),
+                                    ),
+                            ),
+                    )
+                })
+        });
+    }
+
+    fn read_table_inputs(&self, inputs: &[Vec<Entity<InputState>>], cx: &App) -> Vec<Vec<String>> {
+        inputs
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|input| input.read(cx).value().to_string())
+                    .collect()
+            })
+            .collect()
+    }
+
+    fn apply_table_edit(
+        &mut self,
+        mut table: MarkdownTable,
+        rows: Vec<Vec<String>>,
+        operation: TableOperation,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        table.set_cells(rows);
+        match operation {
+            TableOperation::None => {}
+            TableOperation::AddRow => table.add_row(),
+            TableOperation::AddColumn => table.add_column(),
+        }
+        let replacement = emit_table(&table);
+        let range = table.start..table.end;
+        let Some(document) = self.active_document() else {
+            return;
+        };
+        document.update(cx, |document, cx| {
+            document.replace_range(range, replacement, window, cx);
+        });
+        self.set_status(
+            match operation {
+                TableOperation::None => "Updated table",
+                TableOperation::AddRow => "Added table row; reopen table editor to continue",
+                TableOperation::AddColumn => "Added table column; reopen table editor to continue",
+            },
+            cx,
+        );
+    }
+
+    fn open_workspace_replace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.root_dir.is_none() {
+            self.set_status("Open a folder before replacing in the workspace", cx);
+            return;
+        }
+
+        let query_input = cx.new(|cx| InputState::new(window, cx).placeholder("Find"));
+        let replacement_input =
+            cx.new(|cx| InputState::new(window, cx).placeholder("Replace with"));
+        let case_sensitive = Rc::new(Cell::new(false));
+        let owner = cx.weak_entity();
+        let focus_on_mount = Rc::new(Cell::new(true));
+
+        window.open_dialog(cx, move |dialog, _, _| {
+            let query_input = query_input.clone();
+            let replacement_input = replacement_input.clone();
+            let case_sensitive = case_sensitive.clone();
+            let owner = owner.clone();
+            let focus_on_mount = focus_on_mount.clone();
+            dialog
+                .title("Replace in workspace")
+                .w(px(560.))
+                .content(move |content, window, cx| {
+                    if focus_on_mount.replace(false) {
+                        let query_input = query_input.clone();
+                        window.defer(cx, move |window, cx| {
+                            query_input.read(cx).focus_handle(cx).focus(window, cx);
+                        });
+                    }
+                    let replace_owner = owner.clone();
+                    let replace_query = query_input.clone();
+                    let replace_replacement = replacement_input.clone();
+                    let replace_case_sensitive = case_sensitive.clone();
+                    content.child(
+                        v_flex()
+                            .w_full()
+                            .gap_3()
+                            .p_4()
+                            .child(Input::new(&query_input).w_full())
+                            .child(Input::new(&replacement_input).w_full())
+                            .child(
+                                Checkbox::new("workspace-case-sensitive")
+                                    .label("Case sensitive")
+                                    .checked(case_sensitive.get())
+                                    .on_click({
+                                        let case_sensitive = case_sensitive.clone();
+                                        move |checked, _, _| {
+                                            case_sensitive.set(*checked);
+                                        }
+                                    }),
+                            )
+                            .child(
+                                h_flex().w_full().justify_end().gap_2().child(
+                                    Button::new("workspace-replace-all")
+                                        .primary()
+                                        .label("Replace all")
+                                        .on_click(move |_, window, cx| {
+                                            let query = replace_query.read(cx).value().to_string();
+                                            let replacement =
+                                                replace_replacement.read(cx).value().to_string();
+                                            let sensitive = replace_case_sensitive.get();
+                                            _ = replace_owner.update(cx, |this, cx| {
+                                                this.replace_in_workspace(
+                                                    query,
+                                                    replacement,
+                                                    sensitive,
+                                                    window,
+                                                    cx,
+                                                );
+                                            });
+                                            window.close_dialog(cx);
+                                        }),
+                                ),
+                            ),
+                    )
+                })
+        });
+    }
+
+    fn replace_in_workspace(
+        &mut self,
+        query: String,
+        replacement: String,
+        case_sensitive: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(root) = self.root_dir.clone() else {
+            self.set_status("Open a folder before replacing in the workspace", cx);
+            return;
+        };
+        if query.is_empty() {
+            self.set_status("Enter text to find before replacing", cx);
+            return;
+        }
+
+        let dirty_paths = self
+            .documents
+            .iter()
+            .filter_map(|document| {
+                document.read_with(cx, |document, _| {
+                    document
+                        .is_dirty()
+                        .then(|| {
+                            document
+                                .path
+                                .clone()
+                                .map(|path| path.canonicalize().unwrap_or(path))
+                        })
+                        .flatten()
+                })
+            })
+            .collect::<std::collections::HashSet<_>>();
+        let canonical_root = root.canonicalize().unwrap_or_else(|_| root.clone());
+        let mut files_changed = 0usize;
+        let mut replacements = 0usize;
+        let mut skipped_dirty = 0usize;
+        let mut errors = 0usize;
+
+        for path in collect_files(&root, 1_000) {
+            if std::fs::symlink_metadata(&path)
+                .is_ok_and(|metadata| metadata.file_type().is_symlink())
+            {
+                continue;
+            }
+            let Ok(metadata) = std::fs::metadata(&path) else {
+                continue;
+            };
+            let canonical_path = path.canonicalize().unwrap_or_else(|_| path.clone());
+            if metadata.len() > 512_000
+                || metadata.permissions().readonly()
+                || dirty_paths.contains(&canonical_path)
+            {
+                skipped_dirty += usize::from(dirty_paths.contains(&canonical_path));
+                continue;
+            }
+            if !canonical_path.starts_with(&canonical_root) {
+                continue;
+            }
+            let Ok(content) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            let result = crate::workspace::apply_replacements(
+                &content,
+                &query,
+                &replacement,
+                case_sensitive,
+            );
+            if result.count == 0 {
+                continue;
+            }
+            match write_file_atomically(&path, &result.result) {
+                Ok(()) => {
+                    files_changed += 1;
+                    replacements += result.count;
+                }
+                Err(_) => errors += 1,
+            }
+        }
+
+        for document in self.documents.clone() {
+            let should_reload = document.read_with(cx, |document, _| {
+                !document.is_dirty() && document.externally_changed()
+            });
+            if should_reload {
+                _ = document.update(cx, |document, cx| document.reload_from_disk(window, cx));
+            }
+        }
+
+        let mut message = format!(
+            "Replaced {replacements} occurrence{} in {files_changed} file{}",
+            if replacements == 1 { "" } else { "s" },
+            if files_changed == 1 { "" } else { "s" },
+        );
+        if skipped_dirty > 0 {
+            message.push_str(&format!("; skipped {skipped_dirty} dirty file"));
+        }
+        if errors > 0 {
+            message.push_str(&format!("; {errors} write error"));
+        }
+        self.set_status(message, cx);
     }
 
     fn check_links(&mut self, cx: &mut Context<Self>) {
@@ -1138,6 +1629,60 @@ impl Mdpeek {
     }
 }
 
+fn write_file_atomically(path: &StdPath, contents: &str) -> std::io::Result<()> {
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("document");
+    let parent = path.parent().unwrap_or_else(|| StdPath::new("."));
+    let mut temporary = None;
+    for counter in 0..100 {
+        let candidate = parent.join(format!(
+            ".{file_name}.mdpeek-{}-{counter}.tmp",
+            std::process::id()
+        ));
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&candidate)
+        {
+            Ok(mut file) => {
+                use std::io::Write as _;
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt as _;
+                    let _ = std::fs::set_permissions(
+                        &candidate,
+                        std::fs::Permissions::from_mode(0o600),
+                    );
+                }
+                file.write_all(contents.as_bytes())?;
+                file.sync_all()?;
+                if let Ok(metadata) = std::fs::metadata(path) {
+                    let _ = std::fs::set_permissions(&candidate, metadata.permissions());
+                }
+                temporary = Some(candidate);
+                break;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    let Some(temporary) = temporary else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            "could not allocate temporary replacement file",
+        ));
+    };
+    match std::fs::rename(&temporary, path) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            let _ = std::fs::remove_file(&temporary);
+            Err(error)
+        }
+    }
+}
+
 impl Focusable for Mdpeek {
     fn focus_handle(&self, _: &App) -> FocusHandle {
         self.focus_handle.clone()
@@ -1169,6 +1714,9 @@ impl Render for Mdpeek {
             .on_action(cx.listener(|this, _: &WorkspaceSearch, window, cx| {
                 this.open_workspace_search(window, cx);
             }))
+            .on_action(cx.listener(|this, _: &WorkspaceReplace, window, cx| {
+                this.open_workspace_replace(window, cx);
+            }))
             .on_action(cx.listener(|this, _: &DailyNote, window, cx| {
                 this.open_daily_note(window, cx);
             }))
@@ -1177,6 +1725,12 @@ impl Render for Mdpeek {
             }))
             .on_action(cx.listener(|this, _: &CommandPalette, window, cx| {
                 this.open_command_palette(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &SnippetPicker, window, cx| {
+                this.open_snippet_picker(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &EditTable, window, cx| {
+                this.open_table_editor(window, cx);
             }))
             .on_action(cx.listener(|this, _: &ToggleReading, window, cx| {
                 this.toggle_reading(window, cx);

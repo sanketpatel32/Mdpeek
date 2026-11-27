@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.1.0] - 2026-11-27
+
+### Added
+- Added project-wide plain-text replacement across workspace files, with dirty-document protection and case-sensitivity control.
+- Added a Markdown snippet picker and inline Markdown completion suggestions in the source editor.
+- Added visual table editing at the cursor, including cell editing and row/column insertion.
+- Added explicit zoom controls for Markdown previews and scrollable image zoom.
+
 All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),

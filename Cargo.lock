@@ -4041,12 +4041,13 @@ dependencies = [
 
 [[package]]
 name = "mdpeek"
-version = "3.0.1"
+version = "3.1.0"
 dependencies = [
  "anyhow",
  "chrono",
  "csv",
  "gpui-kit",
+ "lsp-types",
  "markdown",
  "regex",
  "serde",
