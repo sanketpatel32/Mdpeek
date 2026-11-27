@@ -199,12 +199,17 @@ pub fn apply_format(
         FormatOperation::CodeBlock => {
             let inner = selected_or_placeholder(text, start, end, "code");
             let inner_len = inner.len();
+            let prefix = if start > 0 && text.as_bytes().get(start - 1) != Some(&b'\n') {
+                "\n"
+            } else {
+                ""
+            };
             replace_range(
                 text,
                 start,
                 end,
-                format!("```\n{inner}\n```\n"),
-                4,
+                format!("{prefix}```\n{inner}\n```\n"),
+                prefix.len() + 4,
                 inner_len,
             )
         }
@@ -262,6 +267,12 @@ mod tests {
             apply_format("a\nb", 0, 3, FormatOperation::OrderedList).text,
             "1. a\n2. b"
         );
+    }
+
+    #[test]
+    fn code_fence_starts_on_a_new_line() {
+        let result = apply_format("intro tail", 6, 10, FormatOperation::CodeBlock);
+        assert_eq!(result.text, "intro \n```\ntail\n```\n");
     }
 
     #[test]
