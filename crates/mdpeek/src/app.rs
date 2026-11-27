@@ -593,8 +593,9 @@ impl Mdpeek {
     ) {
         let path = std::path::absolute(&path).unwrap_or(path);
         if let Some(index) = self.document_index(&file_identity(&path), cx) {
+            let switched_tabs = self.active != index;
             self.active = index;
-            if record {
+            if record && switched_tabs {
                 self.record_navigation(path.clone());
             }
         } else {
