@@ -173,6 +173,9 @@ pub fn markdown_headings(source: &str) -> Vec<MarkdownHeading> {
             || title
                 .split_once(". ")
                 .is_some_and(|(number, _)| number.chars().all(|ch| ch.is_ascii_digit()))
+            || title
+                .split_once(") ")
+                .is_some_and(|(number, _)| number.chars().all(|ch| ch.is_ascii_digit()))
         {
             continue;
         }
@@ -297,6 +300,14 @@ mod tests {
             vec!["title", "title-1", "title-2"]
         );
         assert_eq!(headings[0].level, 1);
+    }
+
+    #[test]
+    fn ordered_list_before_rule_is_not_a_setext_heading() {
+        let source = "1) item\n---\n\n## Real\n";
+        let headings = markdown_headings(source);
+        assert_eq!(headings.len(), 1);
+        assert_eq!(headings[0].title, "Real");
     }
 
     #[test]
