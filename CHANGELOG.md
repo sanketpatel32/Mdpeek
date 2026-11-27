@@ -1,5 +1,31 @@
 # Changelog
 
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [3.2.0] - 2026-11-27
+
+### Added
+
+- Persistent recent files on the welcome screen and in Quick Open, with duplicate and missing paths omitted.
+- Copy file path in the command palette and estimated reading time in the Markdown status bar.
+
+### Changed
+
+- Refreshed the light and dark workspace with Quick Open, explorer, theme, and command palette controls in the header.
+- Improved active and modified tab indicators, file and outline navigation, and the welcome screen.
+- Added direct Edit, Split, and Preview controls. Split stacks vertically in narrow windows, and the existing keyboard shortcuts still work.
+- Replaced the app and installer artwork with a Markdown M and down arrow.
+
+### Fixed
+
+- Preserve the active file when restoring a session with missing files or untitled tabs.
+- Keep save shortcuts from overwriting image files.
+
 ## [3.1.0] - 2026-11-27
 
 ### Added
@@ -7,13 +33,6 @@
 - Added a Markdown snippet picker and inline Markdown completion suggestions in the source editor.
 - Added visual table editing at the cursor, including cell editing and row/column insertion.
 - Added explicit zoom controls for Markdown previews and scrollable image zoom.
-
-All notable changes to this project are documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
 
 ## [3.0.1] - 2026-11-27
 

@@ -57,7 +57,15 @@ fn main() {
                 .map(std::path::PathBuf::from)
                 .filter(|path| path.exists())
                 .collect::<Vec<_>>();
-            gpui_kit::open_window(WindowOptions::default(), cx, |window, cx| {
+            let options = WindowOptions {
+                titlebar: Some(TitlebarOptions {
+                    title: Some("Mdpeek".into()),
+                    ..Default::default()
+                }),
+                window_min_size: Some(size(px(300.), px(260.))),
+                ..Default::default()
+            };
+            gpui_kit::open_window(options, cx, |window, cx| {
                 Mdpeek::view(window, cx, &initial_paths)
             })
             .expect("failed to open mdpeek window");
