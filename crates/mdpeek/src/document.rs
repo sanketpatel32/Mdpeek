@@ -277,6 +277,30 @@ impl DocumentView {
         cx.notify();
     }
 
+    pub fn table_at_cursor(&self, cx: &App) -> Option<crate::table::MarkdownTable> {
+        if self.kind != DocumentKind::Markdown {
+            return None;
+        }
+        self.editor.read_with(cx, |editor, _| {
+            crate::table::parse_table_at(editor.value().as_ref(), editor.selected_range().start)
+        })
+    }
+
+    pub fn replace_range(
+        &mut self,
+        range: std::ops::Range<usize>,
+        text: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.editor.update(cx, |editor, cx| {
+            editor.set_selected_range(range, cx);
+            editor.replace(text, window, cx);
+        });
+        self.dirty = self.editor.read(cx).value().as_ref() != self.saved_value;
+        cx.notify();
+    }
+
     pub fn insert_text(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
         if !self.kind.is_text_editable() {
             return;

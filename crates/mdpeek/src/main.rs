@@ -6,11 +6,12 @@ mod export;
 mod links;
 mod math;
 mod settings;
+mod table;
 mod workspace;
 
 use app::{
-    CheckLinks, CloseTab, CommandPalette, DailyNote, ExportHtml, ExportPdf, ExportText, Mdpeek,
-    NewTab, NextTab, OpenFile, OpenFolder, PreviousTab, QuickOpen, Quit, ReloadFile,
+    CheckLinks, CloseTab, CommandPalette, DailyNote, EditTable, ExportHtml, ExportPdf, ExportText,
+    Mdpeek, NewTab, NextTab, OpenFile, OpenFolder, PreviousTab, QuickOpen, Quit, ReloadFile,
     ReopenClosedTab, Save, SaveAs, SnippetPicker, ToggleEdit, ToggleReading, ToggleSidebar,
     ToggleTheme, WorkspaceReplace, WorkspaceSearch,
 };
@@ -30,6 +31,7 @@ fn main() {
                 KeyBinding::new("ctrl-shift-d", DailyNote, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-s", SnippetPicker, Some("Mdpeek")),
                 KeyBinding::new("ctrl-alt-i", CheckLinks, Some("Mdpeek")),
+                KeyBinding::new("ctrl-alt-m", EditTable, Some("Mdpeek")),
                 KeyBinding::new("ctrl-alt-p", CommandPalette, Some("Mdpeek")),
                 KeyBinding::new("f11", ToggleReading, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-e", OpenFolder, Some("Mdpeek")),

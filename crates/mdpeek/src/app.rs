@@ -19,6 +19,7 @@ use gpui_kit::{prelude::FluentBuilder as _, *};
 use crate::document::{DocumentView, read_document};
 use crate::export::{markdown_to_html_document, markdown_to_pdf, markdown_to_plain_text};
 use crate::settings::{SessionState, load_session, save_session};
+use crate::table::{MarkdownTable, emit_table};
 use crate::workspace::{
     SearchMatch, build_file_items, collect_files, resolve_tree_path, search_files,
 };
@@ -34,6 +35,7 @@ actions!(
         CommandPalettePick,
         SnippetPicker,
         SnippetPick,
+        EditTable,
         CheckLinks,
         DailyNote,
         WorkspaceSearch,
@@ -139,6 +141,7 @@ fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
         ("Quick open", "Ctrl+P"),
         ("Search workspace", "Ctrl+Shift+F"),
         ("Insert snippet", "Ctrl+Shift+S"),
+        ("Edit table at cursor", "Ctrl+Alt+M"),
         ("Replace in workspace", "Ctrl+Shift+R"),
         ("Open today's daily note", "Ctrl+Shift+D"),
         ("Check document links", "Ctrl+Alt+I"),
@@ -156,6 +159,13 @@ fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
         ("Close tab", "Ctrl+W"),
         ("Quit", "Ctrl+Q"),
     ]
+}
+
+#[derive(Clone, Copy)]
+enum TableOperation {
+    None,
+    AddRow,
+    AddColumn,
 }
 
 impl Mdpeek {
@@ -669,25 +679,26 @@ impl Mdpeek {
             3 => self.open_quick_open(window, cx),
             4 => self.open_workspace_search(window, cx),
             5 => self.open_snippet_picker(window, cx),
-            6 => self.open_workspace_replace(window, cx),
-            7 => self.open_daily_note(window, cx),
-            8 => self.check_links(cx),
-            9 => self.save_active(window, cx),
-            10 => self.save_active_as(window, cx),
-            11 => self.reload_active(window, cx),
-            12 => self.reopen_closed_tab(window, cx),
-            13 => self.toggle_edit(window, cx),
-            14 => {
+            6 => self.open_table_editor(window, cx),
+            7 => self.open_workspace_replace(window, cx),
+            8 => self.open_daily_note(window, cx),
+            9 => self.check_links(cx),
+            10 => self.save_active(window, cx),
+            11 => self.save_active_as(window, cx),
+            12 => self.reload_active(window, cx),
+            13 => self.reopen_closed_tab(window, cx),
+            14 => self.toggle_edit(window, cx),
+            15 => {
                 self.sidebar_visible = !self.sidebar_visible;
                 cx.notify();
             }
-            15 => self.toggle_reading(window, cx),
-            16 => self.toggle_theme(cx),
-            17 => self.export_active_html(window, cx),
-            18 => self.export_active_text(window, cx),
-            19 => self.export_active_pdf(window, cx),
-            20 => self.close_active_tab(cx),
-            21 => {
+            16 => self.toggle_reading(window, cx),
+            17 => self.toggle_theme(cx),
+            18 => self.export_active_html(window, cx),
+            19 => self.export_active_text(window, cx),
+            20 => self.export_active_pdf(window, cx),
+            21 => self.close_active_tab(cx),
+            22 => {
                 self.persist(cx);
                 cx.quit();
             }
@@ -755,6 +766,192 @@ impl Mdpeek {
         };
         document.update(cx, |document, cx| document.insert_text(content, window, cx));
         self.set_status(format!("Inserted {label}"), cx);
+    }
+
+    fn open_table_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(document) = self.active_document() else {
+            self.set_status("Open a Markdown document before editing a table", cx);
+            return;
+        };
+        let Some(table) = document.read_with(cx, |document, cx| document.table_at_cursor(cx))
+        else {
+            self.set_status("Place the cursor inside a Markdown table", cx);
+            return;
+        };
+        if table.rows.len() > 50 || table.alignments.len() > 12 {
+            self.set_status("Table is too large for the visual editor", cx);
+            return;
+        }
+        let inputs = table
+            .rows
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|cell| {
+                        cx.new(|cx| InputState::new(window, cx).default_value(cell.clone()))
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let owner = cx.weak_entity();
+        window.open_dialog(cx, move |dialog, _, _| {
+            let inputs = inputs.clone();
+            let table = table.clone();
+            let owner = owner.clone();
+            dialog
+                .title("Edit table")
+                .w(px(760.))
+                .content(move |content, _, cx| {
+                    let rows =
+                        inputs
+                            .iter()
+                            .enumerate()
+                            .map(|(row_index, row)| {
+                                h_flex()
+                                    .gap_2()
+                                    .items_center()
+                                    .child(
+                                        div()
+                                            .w(px(44.))
+                                            .text_xs()
+                                            .text_color(cx.theme().muted_foreground)
+                                            .child(if row_index == 0 {
+                                                "Header".to_string()
+                                            } else {
+                                                format!("Row {row_index}")
+                                            }),
+                                    )
+                                    .children(row.iter().map(|input| {
+                                        Input::new(input).w(px(132.)).into_any_element()
+                                    }))
+                                    .into_any_element()
+                            })
+                            .collect::<Vec<_>>();
+                    let apply_owner = owner.clone();
+                    let apply_inputs = inputs.clone();
+                    let apply_table = table.clone();
+                    let add_row_owner = owner.clone();
+                    let add_row_inputs = inputs.clone();
+                    let add_row_table = table.clone();
+                    let add_column_owner = owner.clone();
+                    let add_column_inputs = inputs.clone();
+                    let add_column_table = table.clone();
+                    content.child(
+                        v_flex()
+                            .gap_3()
+                            .p_4()
+                            .child(
+                                v_flex()
+                                    .gap_2()
+                                    .max_h(px(420.))
+                                    .overflow_y_scrollbar()
+                                    .children(rows),
+                            )
+                            .child(
+                                h_flex()
+                                    .justify_end()
+                                    .gap_2()
+                                    .child(
+                                        Button::new("table-add-row")
+                                            .outline()
+                                            .label("Add row")
+                                            .on_click(move |_, window, cx| {
+                                                _ = add_row_owner.update(cx, |this, cx| {
+                                                    this.apply_table_edit(
+                                                        add_row_table.clone(),
+                                                        this.read_table_inputs(&add_row_inputs, cx),
+                                                        TableOperation::AddRow,
+                                                        window,
+                                                        cx,
+                                                    );
+                                                });
+                                                window.close_dialog(cx);
+                                            }),
+                                    )
+                                    .child(
+                                        Button::new("table-add-column")
+                                            .outline()
+                                            .label("Add column")
+                                            .on_click(move |_, window, cx| {
+                                                _ = add_column_owner.update(cx, |this, cx| {
+                                                    this.apply_table_edit(
+                                                        add_column_table.clone(),
+                                                        this.read_table_inputs(
+                                                            &add_column_inputs,
+                                                            cx,
+                                                        ),
+                                                        TableOperation::AddColumn,
+                                                        window,
+                                                        cx,
+                                                    );
+                                                });
+                                                window.close_dialog(cx);
+                                            }),
+                                    )
+                                    .child(
+                                        Button::new("table-apply")
+                                            .primary()
+                                            .label("Apply")
+                                            .on_click(move |_, window, cx| {
+                                                _ = apply_owner.update(cx, |this, cx| {
+                                                    this.apply_table_edit(
+                                                        apply_table.clone(),
+                                                        this.read_table_inputs(&apply_inputs, cx),
+                                                        TableOperation::None,
+                                                        window,
+                                                        cx,
+                                                    );
+                                                });
+                                                window.close_dialog(cx);
+                                            }),
+                                    ),
+                            ),
+                    )
+                })
+        });
+    }
+
+    fn read_table_inputs(&self, inputs: &[Vec<Entity<InputState>>], cx: &App) -> Vec<Vec<String>> {
+        inputs
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|input| input.read(cx).value().to_string())
+                    .collect()
+            })
+            .collect()
+    }
+
+    fn apply_table_edit(
+        &mut self,
+        mut table: MarkdownTable,
+        rows: Vec<Vec<String>>,
+        operation: TableOperation,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        table.set_cells(rows);
+        match operation {
+            TableOperation::None => {}
+            TableOperation::AddRow => table.add_row(),
+            TableOperation::AddColumn => table.add_column(),
+        }
+        let replacement = emit_table(&table);
+        let range = table.start..table.end;
+        let Some(document) = self.active_document() else {
+            return;
+        };
+        document.update(cx, |document, cx| {
+            document.replace_range(range, replacement, window, cx);
+        });
+        self.set_status(
+            match operation {
+                TableOperation::None => "Updated table",
+                TableOperation::AddRow => "Added table row; reopen table editor to continue",
+                TableOperation::AddColumn => "Added table column; reopen table editor to continue",
+            },
+            cx,
+        );
     }
 
     fn open_workspace_replace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -1455,6 +1652,9 @@ impl Render for Mdpeek {
             }))
             .on_action(cx.listener(|this, _: &SnippetPicker, window, cx| {
                 this.open_snippet_picker(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &EditTable, window, cx| {
+                this.open_table_editor(window, cx);
             }))
             .on_action(cx.listener(|this, _: &ToggleReading, window, cx| {
                 this.toggle_reading(window, cx);
