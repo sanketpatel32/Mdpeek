@@ -1322,6 +1322,10 @@ impl Mdpeek {
             self.set_status("Markdown formatting requires a Markdown document", cx);
             return;
         }
+        if document.read(cx).is_preview_only() {
+            self.set_status("Switch to edit or split mode to format Markdown", cx);
+            return;
+        }
         document.update(cx, |document, cx| {
             document.apply_formatting(operation, window, cx);
         });

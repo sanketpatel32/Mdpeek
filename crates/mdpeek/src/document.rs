@@ -384,6 +384,10 @@ impl DocumentView {
         focus_handle.focus(window, cx);
     }
 
+    pub fn is_preview_only(&self) -> bool {
+        self.mode == ViewMode::Preview
+    }
+
     pub fn insert_text(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
         if !self.kind.is_text_editable() {
             return;
