@@ -5,14 +5,13 @@ use std::{
 };
 
 use gpui_kit::component::{
-    ActiveTheme as _, ElementExt as _, Sizable as _, WindowExt as _,
+    ActiveTheme as _, ElementExt as _, Selectable as _, Sizable as _, WindowExt as _,
     button::{Button, ButtonVariants as _},
     clipboard::Clipboard,
     h_flex,
     input::{Editor, EditorState, InputEvent, Position, TabSize},
-    resizable::{h_resizable, resizable_panel},
+    resizable::{h_resizable, resizable_panel, v_resizable},
     scroll::ScrollableElement,
-    status_bar::StatusBar,
     text::{MarkdownExtensions, TextView, TextViewState},
     v_flex,
 };
@@ -165,11 +164,6 @@ impl DocumentView {
         });
         let preview_source = renderable_source(kind, &content);
         let preview = cx.new(|cx| TextViewState::markdown(preview_source.as_str(), cx));
-        let focus_handle = editor.focus_handle(cx);
-        window.defer(cx, move |window, cx| {
-            focus_handle.focus(window, cx);
-        });
-
         let _subscriptions = vec![cx.subscribe(&editor, |this, _, event: &InputEvent, cx| {
             if matches!(event, InputEvent::Change) {
                 let value = this.editor.read(cx).value().to_string();
@@ -232,11 +226,12 @@ impl DocumentView {
     }
 
     pub fn toggle_edit(&mut self, cx: &mut Context<Self>) {
-        if !self.kind.is_text_editable() {
-            return;
-        }
-        self.mode = self.mode.next_for_edit_toggle();
-        cx.notify();
+        self.set_mode(self.mode.next_for_edit_toggle(), cx);
+    }
+
+    pub fn editor_focus(&self, cx: &App) -> Option<FocusHandle> {
+        (self.kind.is_text_editable() && self.mode != ViewMode::Preview)
+            .then(|| self.editor.focus_handle(cx))
     }
 
     pub fn externally_changed(&self) -> bool {
@@ -265,6 +260,9 @@ impl DocumentView {
     }
 
     pub fn reveal_offset(&mut self, offset: usize, window: &mut Window, cx: &mut Context<Self>) {
+        if self.mode == ViewMode::Preview {
+            self.set_mode(ViewMode::Edit, cx);
+        }
         self.editor.update(cx, |editor, cx| {
             let value = editor.value();
             let offset = offset.min(value.len());
@@ -410,16 +408,11 @@ impl DocumentView {
         }
     }
 
-    pub fn cycle_mode(&mut self, cx: &mut Context<Self>) {
-        if !self.kind.is_text_editable() {
-            return;
+    fn set_mode(&mut self, mode: ViewMode, cx: &mut Context<Self>) {
+        if self.kind.is_text_editable() && self.mode != mode {
+            self.mode = mode;
+            cx.notify();
         }
-        self.mode = match self.mode {
-            ViewMode::Preview => ViewMode::Edit,
-            ViewMode::Edit => ViewMode::Split,
-            ViewMode::Split => ViewMode::Preview,
-        };
-        cx.notify();
     }
 
     pub fn mark_saved(&mut self, path: PathBuf, cx: &mut Context<Self>) {
@@ -616,207 +609,241 @@ impl DocumentView {
     fn render_toolbar(&self, compact: bool, cx: &mut Context<Self>) -> impl IntoElement {
         h_flex()
             .w_full()
-            .h_8()
+            .flex_none()
+            .min_h(px(36.))
             .px_2()
-            .gap_1()
+            .gap_2()
             .items_center()
+            .justify_between()
+            .flex_wrap()
             .border_b_1()
             .border_color(cx.theme().border)
             .bg(cx.theme().title_bar)
-            .when(
-                self.kind == DocumentKind::Markdown && self.mode != ViewMode::Preview,
-                |this| {
-                    this.child(Self::format_button(
-                        "fmt-bold",
-                        "B",
-                        "Bold",
-                        FormatOperation::Bold,
-                        cx,
-                    ))
-                    .child(Self::format_button(
-                        "fmt-italic",
-                        "I",
-                        "Italic",
-                        FormatOperation::Italic,
-                        cx,
-                    ))
-                    .child(Self::format_button(
-                        "fmt-strike",
-                        "S",
-                        "Strikethrough",
-                        FormatOperation::Strikethrough,
-                        cx,
-                    ))
-                    .child(Self::format_button(
-                        "fmt-code",
-                        "<>",
-                        "Inline code",
-                        FormatOperation::InlineCode,
-                        cx,
-                    ))
-                    .child(Self::format_button(
-                        "fmt-link",
-                        "Link",
-                        "Insert link",
-                        FormatOperation::Link,
-                        cx,
-                    ))
-                    .child(Self::format_button(
-                        "fmt-ul",
-                        "• List",
-                        "Bulleted list",
-                        FormatOperation::BulletList,
-                        cx,
-                    ))
-                    .child(Self::format_button(
-                        "fmt-table",
-                        "Table",
-                        "Insert table",
-                        FormatOperation::Table,
-                        cx,
-                    ))
-                    .when(!compact, |this| {
-                        this.child(Self::format_button(
-                            "fmt-ol",
-                            "1. List",
-                            "Numbered list",
-                            FormatOperation::OrderedList,
-                            cx,
-                        ))
-                        .child(Self::format_button(
-                            "fmt-task",
-                            "Task",
-                            "Task list",
-                            FormatOperation::TaskList,
-                            cx,
-                        ))
-                        .child(Self::format_button(
-                            "fmt-quote",
-                            "Quote",
-                            "Blockquote",
-                            FormatOperation::Quote,
-                            cx,
-                        ))
-                        .child(Self::format_button(
-                            "fmt-fence",
-                            "{ }",
-                            "Code block",
-                            FormatOperation::CodeBlock,
-                            cx,
-                        ))
-                        .child(Self::format_button(
-                            "fmt-hr",
-                            "HR",
-                            "Horizontal rule",
-                            FormatOperation::HorizontalRule,
-                            cx,
-                        ))
-                    })
-                    .child(div().flex_1())
-                },
-            )
-            .when(self.kind != DocumentKind::Image, |this| {
-                this.child(
-                    Button::new("mode")
-                        .ghost()
-                        .xsmall()
-                        .label(self.mode.label())
-                        .tooltip("Cycle preview/edit/split")
-                        .on_click(cx.listener(|this, _, _, cx| this.cycle_mode(cx))),
-                )
-            })
-            .when(
-                self.kind == DocumentKind::Image && !self.is_svg_image(),
-                |this| {
-                    this.child(
-                        Button::new("annotate")
-                            .ghost()
-                            .xsmall()
-                            .label(if self.annotation_enabled {
-                                "Annotating"
-                            } else {
-                                "Annotate"
+            .child(
+                h_flex()
+                    .gap_1()
+                    .items_center()
+                    .flex_wrap()
+                    .when(
+                        self.kind == DocumentKind::Markdown && self.mode != ViewMode::Preview,
+                        |this| {
+                            this.child(Self::format_button(
+                                "fmt-bold",
+                                "B",
+                                "Bold",
+                                FormatOperation::Bold,
+                                cx,
+                            ))
+                            .child(Self::format_button(
+                                "fmt-italic",
+                                "I",
+                                "Italic",
+                                FormatOperation::Italic,
+                                cx,
+                            ))
+                            .child(Self::format_button(
+                                "fmt-strike",
+                                "S",
+                                "Strikethrough",
+                                FormatOperation::Strikethrough,
+                                cx,
+                            ))
+                            .child(Self::format_button(
+                                "fmt-code",
+                                "<>",
+                                "Inline code",
+                                FormatOperation::InlineCode,
+                                cx,
+                            ))
+                            .child(Self::format_button(
+                                "fmt-link",
+                                "Link",
+                                "Insert link",
+                                FormatOperation::Link,
+                                cx,
+                            ))
+                            .child(Self::format_button(
+                                "fmt-ul",
+                                "• List",
+                                "Bulleted list",
+                                FormatOperation::BulletList,
+                                cx,
+                            ))
+                            .child(Self::format_button(
+                                "fmt-table",
+                                "Table",
+                                "Insert table",
+                                FormatOperation::Table,
+                                cx,
+                            ))
+                            .when(!compact, |this| {
+                                this.child(Self::format_button(
+                                    "fmt-ol",
+                                    "1. List",
+                                    "Numbered list",
+                                    FormatOperation::OrderedList,
+                                    cx,
+                                ))
+                                .child(Self::format_button(
+                                    "fmt-task",
+                                    "Task",
+                                    "Task list",
+                                    FormatOperation::TaskList,
+                                    cx,
+                                ))
+                                .child(Self::format_button(
+                                    "fmt-quote",
+                                    "Quote",
+                                    "Blockquote",
+                                    FormatOperation::Quote,
+                                    cx,
+                                ))
+                                .child(Self::format_button(
+                                    "fmt-fence",
+                                    "{ }",
+                                    "Code block",
+                                    FormatOperation::CodeBlock,
+                                    cx,
+                                ))
+                                .child(Self::format_button(
+                                    "fmt-hr",
+                                    "HR",
+                                    "Horizontal rule",
+                                    FormatOperation::HorizontalRule,
+                                    cx,
+                                ))
                             })
-                            .tooltip("Toggle freehand image annotation")
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.annotation_enabled = !this.annotation_enabled;
-                                this.current_annotation = None;
-                                cx.notify();
-                            })),
+                        },
                     )
-                    .when(self.annotation_enabled, |this| {
-                        this.child(self.render_annotation_color_picker(cx))
-                            .child(
-                                Button::new("annotation-size")
+                    .when(
+                        self.kind == DocumentKind::Image && !self.is_svg_image(),
+                        |this| {
+                            this.child(
+                                Button::new("annotate")
                                     .ghost()
                                     .xsmall()
-                                    .label(format!("Brush {:.0}", self.annotation_size))
-                                    .tooltip("Cycle brush size")
+                                    .label(if self.annotation_enabled {
+                                        "Annotating"
+                                    } else {
+                                        "Annotate"
+                                    })
+                                    .tooltip("Toggle freehand image annotation")
                                     .on_click(cx.listener(|this, _, _, cx| {
-                                        this.annotation_size = match this.annotation_size as u32 {
-                                            0..=3 => 4.0,
-                                            4 => 8.0,
-                                            8 => 12.0,
-                                            _ => 2.0,
-                                        };
+                                        this.annotation_enabled = !this.annotation_enabled;
+                                        this.current_annotation = None;
                                         cx.notify();
                                     })),
                             )
+                            .when(self.annotation_enabled, |this| {
+                                this.child(self.render_annotation_color_picker(cx))
+                                    .child(
+                                        Button::new("annotation-size")
+                                            .ghost()
+                                            .xsmall()
+                                            .label(format!("Brush {:.0}", self.annotation_size))
+                                            .tooltip("Cycle brush size")
+                                            .on_click(cx.listener(|this, _, _, cx| {
+                                                this.annotation_size =
+                                                    match this.annotation_size as u32 {
+                                                        0..=3 => 4.0,
+                                                        4 => 8.0,
+                                                        8 => 12.0,
+                                                        _ => 2.0,
+                                                    };
+                                                cx.notify();
+                                            })),
+                                    )
+                                    .child(
+                                        Button::new("annotation-clear")
+                                            .ghost()
+                                            .xsmall()
+                                            .label("Clear")
+                                            .tooltip("Clear annotations")
+                                            .on_click(cx.listener(|this, _, _, cx| {
+                                                this.clear_annotations(cx);
+                                            })),
+                                    )
+                                    .child(
+                                        Button::new("annotation-save")
+                                            .ghost()
+                                            .xsmall()
+                                            .label("Save PNG")
+                                            .tooltip("Save annotated copy as PNG")
+                                            .on_click(cx.listener(|this, _, window, cx| {
+                                                this.save_annotations(window, cx);
+                                            })),
+                                    )
+                            })
+                        },
+                    ),
+            )
+            .child(
+                h_flex()
+                    .gap_2()
+                    .items_center()
+                    .child(h_flex().gap_0p5().p_0p5().rounded_md().when(
+                        self.kind.is_text_editable(),
+                        |this| {
+                            this.bg(cx.theme().muted).children(
+                                [ViewMode::Edit, ViewMode::Split, ViewMode::Preview]
+                                    .into_iter()
+                                    .map(|mode| {
+                                        Button::new(mode.label())
+                                            .ghost()
+                                            .xsmall()
+                                            .selected(self.mode == mode)
+                                            .label(mode.label())
+                                            .on_click(cx.listener(move |this, _, window, cx| {
+                                                this.set_mode(mode, cx);
+                                                if let Some(focus) = this.editor_focus(cx) {
+                                                    window.defer(cx, move |window, cx| {
+                                                        focus.focus(window, cx)
+                                                    });
+                                                }
+                                            }))
+                                    }),
+                            )
+                        },
+                    ))
+                    .child(
+                        h_flex()
+                            .gap_0p5()
                             .child(
-                                Button::new("annotation-clear")
+                                Button::new("zoom-out")
                                     .ghost()
                                     .xsmall()
-                                    .label("Clear")
-                                    .tooltip("Clear annotations")
+                                    .label("−")
+                                    .tooltip("Zoom out")
                                     .on_click(cx.listener(|this, _, _, cx| {
-                                        this.clear_annotations(cx);
+                                        this.preview_zoom = (this.preview_zoom - 0.25).max(0.5);
+                                        cx.notify();
                                     })),
                             )
+                            .when(!compact, |this| {
+                                this.child(
+                                    Button::new("zoom-reset")
+                                        .ghost()
+                                        .xsmall()
+                                        .label(format!("{:.0}%", self.preview_zoom * 100.0))
+                                        .tooltip("Reset zoom to 100%")
+                                        .on_click(cx.listener(|this, _, _, cx| {
+                                            this.preview_zoom = 1.0;
+                                            cx.notify();
+                                        })),
+                                )
+                            })
                             .child(
-                                Button::new("annotation-save")
+                                Button::new("zoom-in")
                                     .ghost()
                                     .xsmall()
-                                    .label("Save PNG")
-                                    .tooltip("Save annotated copy as PNG")
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.save_annotations(window, cx);
+                                    .label("+")
+                                    .tooltip("Zoom in")
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.preview_zoom = (this.preview_zoom + 0.25).min(4.0);
+                                        cx.notify();
                                     })),
-                            )
-                    })
-                },
-            )
-            .child(
-                Button::new("zoom-out")
-                    .ghost()
-                    .xsmall()
-                    .label("−")
-                    .tooltip("Zoom out")
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.preview_zoom = (this.preview_zoom - 0.25).max(0.5);
-                        cx.notify();
-                    })),
-            )
-            .child(
-                Button::new("zoom-reset")
-                    .ghost()
-                    .xsmall()
-                    .label(format!("{:.0}%", self.preview_zoom * 100.0))
-                    .tooltip("Reset zoom to 100%")
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.preview_zoom = 1.0;
-                        cx.notify();
-                    })),
-            )
-            .child(
-                Button::new("zoom-in")
-                    .ghost()
-                    .xsmall()
-                    .label("+")
-                    .tooltip("Zoom in")
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.preview_zoom = (this.preview_zoom + 0.25).min(4.0);
-                        cx.notify();
-                    })),
+                            ),
+                    ),
             )
     }
 
@@ -999,7 +1026,7 @@ impl DocumentView {
             )
     }
 
-    fn render_content(&self, cx: &mut Context<Self>) -> AnyElement {
+    fn render_content(&self, compact: bool, cx: &mut Context<Self>) -> AnyElement {
         if self.kind == DocumentKind::Image {
             return if let Some(path) = self.path.clone() {
                 div()
@@ -1030,100 +1057,82 @@ impl DocumentView {
         match self.mode {
             ViewMode::Edit => self.render_editor().into_any_element(),
             ViewMode::Preview => self.render_preview(cx).into_any_element(),
-            ViewMode::Split => h_resizable("document-split")
-                .child(resizable_panel().child(self.render_editor()))
-                .child(resizable_panel().child(self.render_preview(cx)))
-                .into_any_element(),
+            ViewMode::Split => (if compact {
+                v_resizable("document-split-vertical")
+            } else {
+                h_resizable("document-split-horizontal")
+            })
+            .child(resizable_panel().child(self.render_editor()))
+            .child(resizable_panel().child(self.render_preview(cx)))
+            .into_any_element(),
         }
     }
 
-    fn render_status(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_status(&self, compact: bool, cx: &mut Context<Self>) -> impl IntoElement {
         let value = self.editor.read(cx).value().to_string();
         let words = value.split_whitespace().count();
-        let lines = value.lines().count();
-        let characters = value.chars().count();
         let paragraphs = value
             .split("\n\n")
             .filter(|part| !part.trim().is_empty())
             .count();
-        let reading_minutes = (words.max(1) as f32 / 200.0).ceil() as usize;
         let path = self
             .path
             .as_ref()
             .map(|path| path.display().to_string())
             .unwrap_or_else(|| "Unsaved document".to_string());
 
-        StatusBar::new()
-            .left(
-                h_flex()
-                    .gap_2()
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(cx.theme().muted_foreground)
-                            .child(path),
-                    )
-                    .when(self.dirty, |this| {
-                        this.child(
-                            div()
-                                .text_xs()
-                                .text_color(cx.theme().warning)
-                                .child("Modified"),
-                        )
-                    }),
-            )
-            .right(
-                h_flex()
-                    .gap_3()
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(cx.theme().muted_foreground)
-                            .child(format!("{lines} lines")),
-                    )
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(cx.theme().muted_foreground)
-                            .child(format!("{words} words")),
-                    )
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(cx.theme().muted_foreground)
-                            .child(format!("{characters} chars")),
-                    )
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(cx.theme().muted_foreground)
-                            .child(format!("{paragraphs} paragraphs")),
-                    )
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(cx.theme().muted_foreground)
-                            .child(format!("{reading_minutes} min read")),
-                    ),
-            )
+        h_flex()
+            .flex_none()
+            .w_full()
+            .h_7()
+            .gap_3()
+            .px_3()
+            .text_xs()
+            .text_color(cx.theme().muted_foreground)
+            .bg(cx.theme().title_bar)
+            .border_t_1()
+            .border_color(cx.theme().border)
+            .child(div().flex_1().min_w_0().truncate().child(path))
+            .when(self.dirty, |this| {
+                this.child(
+                    div()
+                        .flex_none()
+                        .text_color(cx.theme().warning)
+                        .child("Modified"),
+                )
+            })
+            .when(self.kind.is_text_editable() && !compact, |this| {
+                this.child(div().flex_none().child(format!(
+                    "{} lines · {words} words · {} chars · {paragraphs} paragraphs",
+                    value.lines().count(),
+                    value.chars().count()
+                )))
+            })
+            .when(self.kind == DocumentKind::Markdown && words > 0, |this| {
+                this.child(
+                    div()
+                        .flex_none()
+                        .child(format!("{} min read", words.div_ceil(225))),
+                )
+            })
     }
 }
 
 impl Render for DocumentView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let compact_toolbar = window.viewport_size().width < px(760.);
+        let compact = window.viewport_size().width < px(720.);
         v_flex()
             .size_full()
             .bg(cx.theme().background)
             .text_color(cx.theme().foreground)
-            .child(self.render_toolbar(compact_toolbar, cx))
+            .child(self.render_toolbar(compact, cx))
             .child(
                 div()
                     .flex_1()
                     .overflow_hidden()
-                    .child(self.render_content(cx)),
+                    .child(self.render_content(compact, cx)),
             )
-            .child(self.render_status(cx))
+            .child(self.render_status(compact, cx))
     }
 }
 

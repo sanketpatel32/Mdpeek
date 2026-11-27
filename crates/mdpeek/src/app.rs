@@ -1,8 +1,10 @@
 use std::{
     cell::Cell,
+    collections::HashSet,
     io::Write as _,
     path::{Path as StdPath, PathBuf},
     rc::Rc,
+    sync::{Arc, LazyLock},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -11,7 +13,7 @@ use gpui_kit::component::{
     ThemeMode, WindowExt as _,
     button::{Button, ButtonVariants as _},
     checkbox::Checkbox,
-    command::{Command, CommandItem, CommandState},
+    command::{Command, CommandGroup, CommandItem, CommandState},
     h_flex,
     input::{Input, InputEvent, InputState},
     list::ListItem,
@@ -22,17 +24,19 @@ use gpui_kit::component::{
 };
 use gpui_kit::{prelude::FluentBuilder as _, *};
 
-use crate::document::{DocumentView, read_document};
+use crate::document::{DocumentKind, DocumentView, read_document};
 use crate::export::{
     markdown_to_html_document, markdown_to_html_document_with_base, markdown_to_pdf,
     markdown_to_plain_text,
 };
 use crate::settings::{
-    AppSettings, SessionState, load_session, load_settings, save_session, save_settings,
+    AppSettings, SessionState, file_identity, load_session, load_settings, recent_files,
+    save_session, save_settings, unique_existing_files,
 };
 use crate::table::{MarkdownTable, emit_table};
 use crate::workspace::{
-    SearchMatch, build_file_items, collect_files, resolve_tree_path, search_files,
+    SearchMatch, build_file_items, collect_files, file_tree_id, resolve_tree_path, search_files,
+    write_file_atomically,
 };
 
 actions!(
@@ -105,6 +109,8 @@ pub struct Mdpeek {
     documents: Vec<Entity<DocumentView>>,
     active: usize,
     closed_paths: Vec<PathBuf>,
+    recent_paths: Vec<PathBuf>,
+    restoring: bool,
     sidebar_visible: bool,
     root_dir: Option<PathBuf>,
     tree_state: Entity<TreeState>,
@@ -125,7 +131,8 @@ fn markdown_headings(source: &str) -> Vec<(usize, String, usize)> {
     let mut headings = Vec::new();
     let mut in_fence = false;
     let mut offset = 0;
-    for line in source.lines() {
+    for source_line in source.split_inclusive('\n') {
+        let line = source_line.trim_end_matches(['\r', '\n']);
         let trimmed = line.trim_start();
         if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
             in_fence = !in_fence;
@@ -142,7 +149,7 @@ fn markdown_headings(source: &str) -> Vec<(usize, String, usize)> {
                 }
             }
         }
-        offset += line.len() + 1;
+        offset += source_line.len();
     }
     headings
 }
@@ -193,7 +200,7 @@ fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
         ("Save as", "Ctrl+Alt+S"),
         ("Reload file", "Ctrl+R"),
         ("Reopen closed tab", "Ctrl+Alt+T"),
-        ("Cycle edit/preview", "Ctrl+E"),
+        ("Toggle edit/preview", "Ctrl+E"),
         ("Toggle sidebar", "Ctrl+B"),
         ("Toggle reading mode", "F11"),
         ("Toggle theme", "Ctrl+Shift+L"),
@@ -227,6 +234,7 @@ fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
         ("Close tab", "Ctrl+W"),
         ("Open settings", "Ctrl+,"),
         ("Quit", "Ctrl+Q"),
+        ("Copy file path", ""),
     ]
 }
 
@@ -283,6 +291,26 @@ enum ZoomOperation {
     Reset,
 }
 
+static LOGO: LazyLock<Arc<Image>> = LazyLock::new(|| {
+    Arc::new(Image::from_bytes(
+        ImageFormat::Png,
+        include_bytes!("../../../app-icon.png").to_vec(),
+    ))
+});
+
+fn quick_open_item(path: &StdPath) -> CommandItem {
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let folder = path.parent().map(StdPath::display);
+    CommandItem::new()
+        .label(match folder {
+            Some(folder) => format!("{name}  ·  {folder}"),
+            None => name.into_owned(),
+        })
+        .keywords([path.display().to_string()])
+        .icon(IconName::FileText)
+        .action(Box::new(QuickOpenPick))
+}
+
 impl Mdpeek {
     pub fn new(window: &mut Window, cx: &mut Context<Self>, initial_paths: &[PathBuf]) -> Self {
         let session = load_session();
@@ -290,8 +318,16 @@ impl Mdpeek {
             documents: Vec::new(),
             active: 0,
             closed_paths: Vec::new(),
+            recent_paths: recent_files(
+                session
+                    .recent_paths
+                    .iter()
+                    .chain(session.open_paths.iter().rev())
+                    .cloned(),
+            ),
+            restoring: true,
             sidebar_visible: session.sidebar_visible,
-            root_dir: session.root_dir.clone(),
+            root_dir: None,
             tree_state: cx.new(|cx| TreeState::new(cx)),
             status_message: None,
             quick_open: cx.new(|cx| CommandState::new(window, cx)),
@@ -305,28 +341,48 @@ impl Mdpeek {
             settings: load_settings(),
             focus_handle: cx.focus_handle(),
         };
-        if session.dark_mode {
-            Theme::change(ThemeMode::Dark, None, cx);
-        }
-        if let Some(root) = session.root_dir.clone() {
+        let mode = if session.dark_mode {
+            ThemeMode::Dark
+        } else {
+            ThemeMode::Light
+        };
+        Theme::change(mode, None, cx);
+        if let Some(root) = session.root_dir.filter(|root| root.is_dir()) {
             this.open_folder(root, cx);
             this.sidebar_visible = session.sidebar_visible;
         }
-        let paths = if initial_paths.is_empty() {
-            session.open_paths.clone()
-        } else {
-            initial_paths.to_vec()
-        };
-        for path in paths {
-            if path.is_dir() {
-                this.open_folder(path, cx);
-            } else {
+        if initial_paths.is_empty() {
+            let active_path = session
+                .open_paths
+                .get(session.active)
+                .map(|path| file_identity(path));
+            for path in unique_existing_files(session.open_paths) {
                 this.open_path(path, window, cx);
             }
+            this.active = active_path
+                .as_ref()
+                .and_then(|path| this.document_index(path, cx))
+                .unwrap_or_else(|| session.active.min(this.documents.len().saturating_sub(1)));
+        } else {
+            this.restoring = false;
+            for path in initial_paths {
+                if path.is_dir() {
+                    this.open_folder(path.clone(), cx);
+                } else {
+                    this.open_path(path.clone(), window, cx);
+                }
+            }
         }
-        if initial_paths.is_empty() {
-            this.active = session.active.min(this.documents.len().saturating_sub(1));
-        }
+        this.restoring = false;
+        this.sync_explorer_selection(cx);
+        this.focus_active(window, cx);
+        let owner = cx.weak_entity();
+        window.on_window_should_close(cx, move |_, cx| {
+            if let Some(owner) = owner.upgrade() {
+                owner.read(cx).persist(cx);
+            }
+            true
+        });
         cx.spawn(async move |this, cx| {
             loop {
                 cx.background_executor()
@@ -351,13 +407,23 @@ impl Mdpeek {
     }
 
     fn persist(&self, cx: &App) {
+        if self.restoring {
+            return;
+        }
+        let open_paths: Vec<_> = self
+            .documents
+            .iter()
+            .filter_map(|document| document.read(cx).path.clone())
+            .collect();
+        let active = self
+            .active_document()
+            .and_then(|document| document.read(cx).path.as_ref())
+            .and_then(|path| open_paths.iter().position(|open| open == path))
+            .unwrap_or(0);
         let state = SessionState {
-            open_paths: self
-                .documents
-                .iter()
-                .filter_map(|document| document.read(cx).path.clone())
-                .collect(),
-            active: self.active,
+            open_paths,
+            recent_paths: self.recent_paths.clone(),
+            active,
             root_dir: self.root_dir.clone(),
             sidebar_visible: self.sidebar_visible,
             dark_mode: cx.theme().is_dark(),
@@ -371,6 +437,75 @@ impl Mdpeek {
         self.documents.get(self.active).cloned()
     }
 
+    fn remember_path(&mut self, path: PathBuf) {
+        self.recent_paths =
+            recent_files(std::iter::once(path).chain(std::mem::take(&mut self.recent_paths)));
+    }
+
+    fn document_index(&self, identity: &StdPath, cx: &App) -> Option<usize> {
+        self.documents.iter().position(|document| {
+            document
+                .read(cx)
+                .path
+                .as_deref()
+                .is_some_and(|path| file_identity(path) == identity)
+        })
+    }
+
+    fn focus_active(&self, window: &mut Window, cx: &mut Context<Self>) {
+        let focus = self
+            .active_document()
+            .and_then(|document| document.read(cx).editor_focus(cx))
+            .unwrap_or_else(|| self.focus_handle.clone());
+        window.defer(cx, move |window, cx| focus.focus(window, cx));
+    }
+
+    fn sync_explorer_selection(&self, cx: &mut Context<Self>) {
+        let id = self.root_dir.as_deref().and_then(|root| {
+            let document = self.active_document()?;
+            let path = document.read(cx).path.as_deref()?;
+            path.starts_with(root)
+                .then(|| SharedString::from(file_tree_id(root, path)))
+        });
+        self.tree_state.update(cx, |tree, cx| {
+            let index = id.as_ref().and_then(|id| tree.index_of(id));
+            if tree.selected_index() != index {
+                tree.set_selected_index(index, cx);
+            }
+        });
+    }
+
+    fn add_document(
+        &mut self,
+        document: Entity<DocumentView>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let owner = cx.weak_entity();
+        let settings = self.settings.clone();
+        document.update(cx, |document, cx| {
+            document.set_owner(owner);
+            document.apply_editor_settings(&settings, window, cx);
+        });
+        cx.observe(&document, |_, _, cx| cx.notify()).detach();
+        self.documents.push(document);
+        self.active = self.documents.len() - 1;
+    }
+
+    fn copy_file_path(&mut self, cx: &mut Context<Self>) {
+        let path = self
+            .active_document()
+            .and_then(|document| document.read(cx).path.clone());
+        let Some(path) = path else {
+            self.set_status("Save or open a file before copying its path", cx);
+            return;
+        };
+        cx.write_to_clipboard(ClipboardItem::new_string(
+            path.to_string_lossy().into_owned(),
+        ));
+        self.set_status("File path copied", cx);
+    }
+
     fn set_status(&mut self, message: impl Into<SharedString>, cx: &mut Context<Self>) {
         self.status_message = Some(message.into());
         cx.notify();
@@ -382,15 +517,10 @@ impl Mdpeek {
     }
 
     fn new_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let owner = cx.weak_entity();
         let document = cx.new(|cx| DocumentView::untitled(window, cx));
-        let settings = self.settings.clone();
-        document.update(cx, |document, cx| {
-            document.set_owner(owner);
-            document.apply_editor_settings(&settings, window, cx);
-        });
-        self.documents.push(document);
-        self.active = self.documents.len() - 1;
+        self.add_document(document, window, cx);
+        self.sync_explorer_selection(cx);
+        self.focus_active(window, cx);
         self.clear_status(cx);
     }
 
@@ -438,13 +568,16 @@ impl Mdpeek {
     }
 
     fn open_folder(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+        let path = std::path::absolute(&path).unwrap_or(path);
         let items = build_file_items(&path);
         self.tree_state.update(cx, |tree, cx| {
             tree.set_items(items, cx);
         });
         self.root_dir = Some(path.clone());
+        self.sync_explorer_selection(cx);
         self.sidebar_visible = true;
         self.set_status(format!("Opened {}", path.display()), cx);
+        self.persist(cx);
     }
 
     pub fn open_path(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
@@ -458,52 +591,38 @@ impl Mdpeek {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(index) = self.documents.iter().position(|document| {
-            document
-                .read(cx)
-                .path
-                .as_ref()
-                .is_some_and(|open| *open == path)
-        }) {
+        let path = std::path::absolute(&path).unwrap_or(path);
+        if let Some(index) = self.document_index(&file_identity(&path), cx) {
             self.active = index;
-            if self.documents[index].read(cx).kind == crate::document::DocumentKind::Image {
-                self.focus_handle.focus(window, cx);
-            }
             if record {
-                self.record_navigation(path);
+                self.record_navigation(path.clone());
             }
-            cx.notify();
-            return;
-        }
-
-        let this_settings = self.settings.clone();
-        match read_document(&path) {
-            Ok((content, kind)) => {
-                let owner = cx.weak_entity();
-                let document =
-                    cx.new(|cx| DocumentView::new(Some(path.clone()), content, kind, window, cx));
-                document.update(cx, |document, cx| {
-                    document.set_owner(owner);
-                    document.apply_editor_settings(&this_settings, window, cx);
-                });
-                let is_image = kind == crate::document::DocumentKind::Image;
-                self.documents.push(document);
-                self.active = self.documents.len() - 1;
-                if is_image {
-                    self.focus_handle.focus(window, cx);
+        } else {
+            match read_document(&path) {
+                Ok((content, kind)) => {
+                    let document = cx
+                        .new(|cx| DocumentView::new(Some(path.clone()), content, kind, window, cx));
+                    self.add_document(document, window, cx);
+                    if record {
+                        self.record_navigation(path.clone());
+                    }
                 }
-                if record {
-                    self.record_navigation(path);
+                Err(error) => {
+                    self.set_status(format!("Could not open {}: {error}", path.display()), cx);
+                    return;
                 }
-                self.clear_status(cx);
-            }
-            Err(error) => {
-                self.set_status(format!("Could not open {}: {error}", path.display()), cx);
             }
         }
+        if !self.restoring {
+            self.remember_path(path);
+            self.sync_explorer_selection(cx);
+            self.persist(cx);
+            self.focus_active(window, cx);
+        }
+        self.clear_status(cx);
     }
 
-    fn close_tab(&mut self, index: usize, cx: &mut Context<Self>) {
+    fn close_tab(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
         if index >= self.documents.len() {
             return;
         }
@@ -513,10 +632,15 @@ impl Mdpeek {
         }
         if self.documents.is_empty() {
             self.active = 0;
+        } else if index < self.active {
+            self.active -= 1;
         } else {
             self.active = self.active.min(self.documents.len() - 1);
         }
-        cx.notify();
+        self.sync_explorer_selection(cx);
+        self.persist(cx);
+        self.focus_active(window, cx);
+        self.clear_status(cx);
     }
 
     fn zoom_active(&mut self, operation: ZoomOperation, cx: &mut Context<Self>) {
@@ -562,14 +686,9 @@ impl Mdpeek {
         };
         self.navigation_index = next_index;
         self.open_path_with_history(path, false, window, cx);
-        if let Some(document) = self.active_document() {
-            document.update(cx, |document, cx| {
-                document.focus_editor(window, cx);
-            });
-        }
     }
 
-    fn close_other_tabs(&mut self, cx: &mut Context<Self>) {
+    fn close_other_tabs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let mut skipped = 0;
         for index in (0..self.documents.len()).rev() {
             if index == self.active {
@@ -579,46 +698,43 @@ impl Mdpeek {
                 skipped += 1;
                 continue;
             }
-            self.close_tab(index, cx);
-            if index < self.active {
-                self.active = self.active.saturating_sub(1);
-            }
+            self.close_tab(index, window, cx);
         }
         if skipped > 0 {
             self.set_status(format!("Kept {skipped} modified tab(s) open"), cx);
         }
     }
 
-    fn close_tabs_to_right(&mut self, cx: &mut Context<Self>) {
+    fn close_tabs_to_right(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let mut skipped = 0;
         for index in ((self.active + 1)..self.documents.len()).rev() {
             if self.documents[index].read(cx).is_dirty() {
                 skipped += 1;
                 continue;
             }
-            self.close_tab(index, cx);
+            self.close_tab(index, window, cx);
         }
         if skipped > 0 {
             self.set_status(format!("Kept {skipped} modified tab(s) open"), cx);
         }
     }
 
-    fn close_all_tabs(&mut self, cx: &mut Context<Self>) {
+    fn close_all_tabs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let mut skipped = 0;
         for index in (0..self.documents.len()).rev() {
             if self.documents[index].read(cx).is_dirty() {
                 skipped += 1;
                 continue;
             }
-            self.close_tab(index, cx);
+            self.close_tab(index, window, cx);
         }
         if skipped > 0 {
             self.set_status(format!("Kept {skipped} modified tab(s) open"), cx);
         }
     }
 
-    fn close_active_tab(&mut self, cx: &mut Context<Self>) {
-        self.close_tab(self.active, cx);
+    fn close_active_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.close_tab(self.active, window, cx);
     }
 
     fn reopen_closed_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -633,6 +749,9 @@ impl Mdpeek {
         let Some(document) = self.active_document() else {
             return;
         };
+        if !document.read(cx).kind.is_text_editable() {
+            return;
+        }
         let path = document.read(cx).path.clone();
         if let Some(path) = path {
             let content = document.read(cx).value(cx);
@@ -656,6 +775,9 @@ impl Mdpeek {
         let Some(document) = self.active_document() else {
             return;
         };
+        if !document.read(cx).kind.is_text_editable() {
+            return;
+        }
         let title = document.read(cx).title().to_string();
         let start_dir = document
             .read(cx)
@@ -685,12 +807,16 @@ impl Mdpeek {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let path = std::path::absolute(&path).unwrap_or(path);
         let content = document.read(cx).value(cx);
         match std::fs::write(&path, content) {
             Ok(()) => {
                 document.update(cx, |document, cx| {
                     document.mark_saved(path.clone(), cx);
                 });
+                self.remember_path(path.clone());
+                self.sync_explorer_selection(cx);
+                self.persist(cx);
                 self.set_status(format!("Saved {}", path.display()), cx);
             }
             Err(error) => {
@@ -857,29 +983,36 @@ impl Mdpeek {
         }
     }
 
-    fn select_tab(&mut self, index: usize, cx: &mut Context<Self>) {
+    fn select_tab(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
         if index < self.documents.len() {
             self.active = index;
             self.record_tab_navigation(index, cx);
-            cx.notify();
+            self.sync_explorer_selection(cx);
+            self.focus_active(window, cx);
+            self.persist(cx);
+            self.clear_status(cx);
         }
     }
 
-    fn step_tab(&mut self, delta: isize, cx: &mut Context<Self>) {
-        if self.documents.is_empty() {
-            return;
+    fn step_tab(&mut self, delta: isize, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.documents.is_empty() {
+            let len = self.documents.len() as isize;
+            let index = ((self.active as isize + delta).rem_euclid(len)) as usize;
+            self.select_tab(index, window, cx);
         }
-        let len = self.documents.len() as isize;
-        self.active = ((self.active as isize + delta).rem_euclid(len)) as usize;
-        self.record_tab_navigation(self.active, cx);
-        cx.notify();
     }
 
     fn toggle_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(document) = self.active_document() {
             document.update(cx, |document, cx| document.toggle_edit(cx));
+            self.focus_active(window, cx);
         }
-        self.focus_handle.focus(window, cx);
+    }
+
+    fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {
+        self.sidebar_visible = !self.sidebar_visible;
+        self.persist(cx);
+        cx.notify();
     }
 
     fn toggle_theme(&mut self, cx: &mut Context<Self>) {
@@ -889,6 +1022,8 @@ impl Mdpeek {
             ThemeMode::Dark
         };
         Theme::change(next, None, cx);
+        self.persist(cx);
+        cx.notify();
     }
 
     fn reload_externally_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -1075,6 +1210,7 @@ impl Mdpeek {
             let owner = owner.clone();
             let focus_on_mount = focus_on_mount.clone();
             dialog
+                .w(px(560.))
                 .close_button(false)
                 .p_0()
                 .content(move |content, window, cx| {
@@ -1087,10 +1223,14 @@ impl Mdpeek {
                     let confirm_owner = owner.clone();
                     content.child(
                         Command::new(&command)
-                            .w(px(560.))
+                            .w_full()
+                            .max_h(
+                                (window.viewport_size().height - px(120.))
+                                    .clamp(px(100.), px(350.)),
+                            )
                             .bordered(false)
                             .rounded(cx.theme().radius_lg)
-                            .placeholder("Run a command...")
+                            .placeholder("Run a command…")
                             .items(command_palette_entries().iter().map(|(label, shortcut)| {
                                 CommandItem::new()
                                     .label(*label)
@@ -1130,10 +1270,7 @@ impl Mdpeek {
             12 => self.reload_active(window, cx),
             13 => self.reopen_closed_tab(window, cx),
             14 => self.toggle_edit(window, cx),
-            15 => {
-                self.sidebar_visible = !self.sidebar_visible;
-                cx.notify();
-            }
+            15 => self.toggle_sidebar(cx),
             16 => self.toggle_reading(window, cx),
             17 => self.toggle_theme(cx),
             18 => self.export_active_html(window, cx),
@@ -1192,15 +1329,16 @@ impl Mdpeek {
             39 => self.zoom_active(ZoomOperation::Reset, cx),
             40 => self.navigate_history(true, window, cx),
             41 => self.navigate_history(false, window, cx),
-            42 => self.close_other_tabs(cx),
-            43 => self.close_tabs_to_right(cx),
-            44 => self.close_all_tabs(cx),
-            45 => self.close_active_tab(cx),
+            42 => self.close_other_tabs(window, cx),
+            43 => self.close_tabs_to_right(window, cx),
+            44 => self.close_all_tabs(window, cx),
+            45 => self.close_active_tab(window, cx),
             46 => self.open_settings(window, cx),
             47 => {
                 self.persist(cx);
                 cx.quit();
             }
+            48 => self.copy_file_path(cx),
             _ => {}
         }
     }
@@ -1339,8 +1477,7 @@ impl Mdpeek {
         if editor_focused {
             self.apply_markdown_format(crate::editor_format::FormatOperation::Bold, window, cx);
         } else {
-            self.sidebar_visible = !self.sidebar_visible;
-            cx.notify();
+            self.toggle_sidebar(cx);
         }
     }
 
@@ -2072,22 +2209,25 @@ impl Mdpeek {
     }
 
     fn open_quick_open(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let mut paths = self
+        let recent = recent_files(self.recent_paths.iter().cloned());
+        let recent_ids: HashSet<_> = recent.iter().map(|path| file_identity(path)).collect();
+        let paths = self
             .root_dir
             .as_ref()
             .map(|root| collect_files(root, 500))
             .unwrap_or_default();
-        paths.extend(
-            self.documents
-                .iter()
-                .filter_map(|document| document.read(cx).path.clone()),
-        );
-        paths.sort();
-        paths.dedup();
-        if paths.is_empty() {
-            self.set_status("Open a folder or file before using quick open", cx);
-            return;
-        }
+        let open = self
+            .documents
+            .iter()
+            .filter_map(|document| document.read(cx).path.clone());
+        let other: Vec<_> = unique_existing_files(paths.into_iter().chain(open))
+            .filter(|path| !recent_ids.contains(&file_identity(path)))
+            .collect();
+        let other_label = if self.root_dir.is_some() {
+            "Workspace and open files"
+        } else {
+            "Open files"
+        };
 
         let command = self.quick_open.clone();
         command.update(cx, |command, cx| {
@@ -2099,8 +2239,10 @@ impl Mdpeek {
             let command = command.clone();
             let owner = owner.clone();
             let focus_on_mount = focus_on_mount.clone();
-            let paths = paths.clone();
+            let recent = recent.clone();
+            let other = other.clone();
             dialog
+                .w(px(620.))
                 .close_button(false)
                 .p_0()
                 .content(move |content, window, cx| {
@@ -2111,90 +2253,206 @@ impl Mdpeek {
                         });
                     }
                     let confirm_owner = owner.clone();
-                    let confirm_paths = paths.clone();
+                    let recent_paths = recent.clone();
+                    let browse_owner = owner.clone();
+                    let other_paths = other.clone();
                     content.child(
                         Command::new(&command)
-                            .w(px(620.))
+                            .w_full()
+                            .max_h(
+                                (window.viewport_size().height - px(120.))
+                                    .clamp(px(100.), px(350.)),
+                            )
                             .bordered(false)
                             .rounded(cx.theme().radius_lg)
-                            .placeholder("Open a file...")
+                            .placeholder("Find a file…")
                             .highlight_matches(true)
-                            .items(paths.iter().map(|path| {
-                                let name = path
-                                    .file_name()
-                                    .and_then(|name| name.to_str())
-                                    .unwrap_or("file");
-                                CommandItem::new()
-                                    .label(format!("{} — {}", name, path.display()))
-                                    .keywords([path.display().to_string()])
-                                    .icon(IconName::File)
-                                    .action(Box::new(QuickOpenPick))
-                            }))
+                            .group(
+                                CommandGroup::new()
+                                    .label("Recent files")
+                                    .items(recent.iter().map(|path| quick_open_item(path))),
+                            )
+                            .group(
+                                CommandGroup::new()
+                                    .label(other_label)
+                                    .items(other.iter().map(|path| quick_open_item(path))),
+                            )
+                            .empty(|_, _, _| div().p_3().text_sm().child("No matching files"))
+                            .footer(move |_, _, cx| {
+                                let owner = browse_owner.clone();
+                                Button::new("browse-files")
+                                    .ghost()
+                                    .small()
+                                    .icon(IconName::FolderOpen)
+                                    .label("Browse files…")
+                                    .on_click(move |_, window, cx| {
+                                        window.close_dialog(cx);
+                                        let owner = owner.clone();
+                                        window.defer(cx, move |window, cx| {
+                                            _ = owner.update(cx, |this, cx| {
+                                                this.open_file_action(window, cx);
+                                            });
+                                        });
+                                    })
+                                    .text_color(cx.theme().muted_foreground)
+                            })
                             .on_confirm(move |index, window, cx| {
-                                if let Some(path) = confirm_paths.get(index.row).cloned() {
-                                    _ = confirm_owner.update(cx, |this, cx| {
-                                        this.open_path(path, window, cx);
+                                let paths = if index.section == 0 {
+                                    &recent_paths
+                                } else {
+                                    &other_paths
+                                };
+                                if let Some(path) = paths.get(index.row).cloned() {
+                                    window.close_dialog(cx);
+                                    let owner = confirm_owner.clone();
+                                    window.defer(cx, move |window, cx| {
+                                        _ = owner.update(cx, |this, cx| {
+                                            this.open_path(path, window, cx);
+                                        });
                                     });
                                 }
-                                let focus_owner = confirm_owner.clone();
-                                window.close_dialog(cx);
-                                window.defer(cx, move |window, cx| {
-                                    _ = focus_owner.update(cx, |this, cx| {
-                                        this.focus_handle.focus(window, cx);
-                                    });
-                                });
                             }),
                     )
                 })
         });
     }
 
-    fn render_tab_bar(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        TabBar::new("documents")
+    fn render_header(&self, width: Pixels, cx: &mut Context<Self>) -> impl IntoElement {
+        let dark = cx.theme().is_dark();
+        h_flex()
             .w_full()
-            .folder()
-            .selected_index(self.active)
-            .on_click(cx.listener(|this, index: &usize, _, cx| {
-                this.select_tab(*index, cx);
-            }))
-            .children(self.documents.iter().enumerate().map(|(index, document)| {
-                let document_ref = document.read(cx);
-                let title = document_ref.title();
-                let dirty = document_ref.is_dirty();
-                Tab::new()
-                    .px_2()
-                    .prefix(Icon::new(IconName::BookOpen))
-                    .label(if dirty {
-                        format!("• {title}")
-                    } else {
-                        title.to_string()
-                    })
-                    .selected(self.active == index)
-            }))
-            .suffix(
-                Button::new("new-tab")
-                    .ghost()
-                    .xsmall()
-                    .mx_1()
-                    .icon(IconName::Plus)
-                    .tooltip("New tab (Ctrl+N)")
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.new_tab(window, cx);
-                    })),
+            .h_12()
+            .flex_none()
+            .gap_2()
+            .px_3()
+            .border_b_1()
+            .border_color(cx.theme().border)
+            .bg(cx.theme().title_bar)
+            .child(
+                h_flex()
+                    .gap_2()
+                    .flex_1()
+                    .min_w_0()
+                    .overflow_hidden()
+                    .child(img(LOGO.clone()).size_5().flex_none())
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .truncate()
+                            .child("Mdpeek"),
+                    ),
+            )
+            .child(
+                Button::new("workspace-quick-open")
+                    .outline()
+                    .small()
+                    .icon(IconName::Search)
+                    .when(width >= px(350.), |button| button.label("Quick Open"))
+                    .tooltip("Quick Open (Ctrl+P)")
+                    .on_click(cx.listener(|this, _, window, cx| this.open_quick_open(window, cx))),
+            )
+            .child(
+                h_flex()
+                    .gap_0p5()
+                    .child(
+                        Button::new("workspace-explorer")
+                            .ghost()
+                            .small()
+                            .selected(self.sidebar_visible)
+                            .icon(IconName::PanelLeft)
+                            .tooltip("Toggle explorer (Ctrl+B)")
+                            .on_click(cx.listener(|this, _, _, cx| this.toggle_sidebar(cx))),
+                    )
+                    .child(
+                        Button::new("workspace-theme")
+                            .ghost()
+                            .small()
+                            .icon(if dark { IconName::Sun } else { IconName::Moon })
+                            .tooltip(if dark {
+                                "Switch to light theme"
+                            } else {
+                                "Switch to dark theme"
+                            })
+                            .on_click(cx.listener(|this, _, _, cx| this.toggle_theme(cx))),
+                    )
+                    .child(
+                        Button::new("workspace-commands")
+                            .ghost()
+                            .small()
+                            .icon(IconName::SquareTerminal)
+                            .tooltip("Command palette (Ctrl+Alt+P)")
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.open_command_palette(window, cx)
+                            })),
+                    ),
             )
     }
 
-    fn render_sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_tab_bar(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let warning = cx.theme().warning;
+        div()
+            .w_full()
+            .flex_none()
+            .px_2()
+            .border_b_1()
+            .border_color(cx.theme().border)
+            .bg(cx.theme().title_bar)
+            .child(
+                TabBar::new("documents")
+                    .w_full()
+                    .underline()
+                    .menu(true)
+                    .selected_index(self.active)
+                    .on_click(cx.listener(|this, index: &usize, window, cx| {
+                        this.select_tab(*index, window, cx);
+                    }))
+                    .children(self.documents.iter().map(|document| {
+                        let document = document.read(cx);
+                        let title = document.title();
+                        let dirty = document.is_dirty();
+                        Tab::new()
+                            .px_3()
+                            .gap_2()
+                            .max_w(px(200.))
+                            .aria_label(if dirty {
+                                format!("{title}, modified")
+                            } else {
+                                title.to_string()
+                            })
+                            .label(title)
+                            .suffix(
+                                div()
+                                    .size(px(6.))
+                                    .rounded_full()
+                                    .when(dirty, |dot| dot.bg(warning)),
+                            )
+                    }))
+                    .suffix(
+                        Button::new("new-tab")
+                            .ghost()
+                            .xsmall()
+                            .mx_1()
+                            .icon(IconName::Plus)
+                            .tooltip("New tab (Ctrl+N)")
+                            .on_click(cx.listener(|this, _, window, cx| this.new_tab(window, cx))),
+                    ),
+            )
+    }
+
+    fn render_sidebar(&self, width: Pixels, cx: &mut Context<Self>) -> impl IntoElement {
         let root_dir = self.root_dir.clone();
         let title = root_dir
             .as_ref()
             .and_then(|path| path.file_name())
             .and_then(|name| name.to_str())
-            .unwrap_or("Explorer")
+            .unwrap_or("No folder open")
             .to_string();
 
         v_flex()
-            .w(px(260.))
+            .w((width * 0.32).clamp(px(96.), px(238.)))
+            .flex_none()
+            .min_h_0()
             .h_full()
             .border_r_1()
             .border_color(cx.theme().border)
@@ -2202,17 +2460,31 @@ impl Mdpeek {
             .text_color(cx.theme().sidebar_foreground)
             .child(
                 h_flex()
-                    .h_9()
+                    .h_10()
+                    .gap_1()
+                    .flex_none()
                     .px_3()
                     .items_center()
                     .justify_between()
                     .border_b_1()
                     .border_color(cx.theme().border)
                     .child(
-                        div()
-                            .text_sm()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child(title),
+                        v_flex()
+                            .min_w_0()
+                            .gap_0p5()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child("Explorer"),
+                            )
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .truncate()
+                                    .child(title),
+                            ),
                     )
                     .child(
                         Button::new("open-folder")
@@ -2237,7 +2509,7 @@ impl Mdpeek {
                     .p_3()
                     .text_sm()
                     .text_color(cx.theme().muted_foreground)
-                    .child("Open a folder to browse files.")
+                    .child("Open a folder to browse its files.")
                     .into_any_element()
             })
             .child(self.render_outline(cx))
@@ -2262,10 +2534,17 @@ impl Mdpeek {
                     ListItem::new(index)
                         .w_full()
                         .rounded(cx.theme().radius)
-                        .py_0p5()
+                        .py_1()
                         .px_2()
-                        .pl(px(16.) * entry.depth() + px(8.))
-                        .child(h_flex().gap_2().child(icon).child(item.label.clone()))
+                        .pl(px(12.) * entry.depth().min(5) + px(6.))
+                        .child(
+                            h_flex()
+                                .w_full()
+                                .min_w_0()
+                                .gap_2()
+                                .child(Icon::new(icon).small().flex_none())
+                                .child(div().min_w_0().truncate().child(item.label.clone())),
+                        )
                         .on_click(cx.listener({
                             let item = item.clone();
                             let root = root.clone();
@@ -2289,13 +2568,17 @@ impl Mdpeek {
         let Some(document) = self.active_document() else {
             return div().into_any_element();
         };
-        let headings = markdown_headings(&document.read(cx).value(cx));
-        if headings.len() < 2 {
+        let active = document.read(cx);
+        if active.kind != DocumentKind::Markdown {
+            return div().into_any_element();
+        }
+        let headings = markdown_headings(&active.value(cx));
+        if headings.is_empty() {
             return div().into_any_element();
         }
         v_flex()
             .w_full()
-            .max_h(px(220.))
+            .max_h(relative(0.45))
             .flex_none()
             .overflow_hidden()
             .border_t_1()
@@ -2307,7 +2590,7 @@ impl Mdpeek {
                     .text_xs()
                     .font_weight(FontWeight::SEMIBOLD)
                     .text_color(cx.theme().muted_foreground)
-                    .child("OUTLINE"),
+                    .child("Outline"),
             )
             .child(
                 v_flex()
@@ -2322,8 +2605,9 @@ impl Mdpeek {
                             .xsmall()
                             .w_full()
                             .justify_start()
-                            .pl(px(8. + (level.saturating_sub(1) as f32 * 12.)))
-                            .label(text)
+                            .pl(px(8. + (level.saturating_sub(1) as f32 * 10.)))
+                            .tooltip(text.clone())
+                            .child(div().w_full().min_w_0().truncate().child(text))
                             .on_click(cx.listener(move |_, _, window, cx| {
                                 document.update(cx, |document, cx| {
                                     document.reveal_offset(offset, window, cx);
@@ -2335,73 +2619,139 @@ impl Mdpeek {
     }
 
     fn render_empty_state(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        v_flex()
+        let recent = self
+            .recent_paths
+            .iter()
+            .filter(|path| path.is_file())
+            .take(8);
+        let muted = cx.theme().muted_foreground;
+        let hover = cx.theme().accent;
+        div()
+            .id("welcome")
             .size_full()
-            .items_center()
-            .justify_center()
-            .gap_4()
+            .overflow_y_scroll()
+            .px_4()
+            .py_8()
             .child(
-                div()
-                    .text_xl()
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .child("Open a document"),
-            )
-            .child(
-                div()
-                    .text_sm()
-                    .text_color(cx.theme().muted_foreground)
-                    .child("Markdown, text, code, CSV, and images open in quiet native tabs."),
-            )
-            .child(
-                h_flex()
-                    .gap_2()
+                v_flex()
+                    .mx_auto()
+                    .max_w(px(446.))
+                    .gap_5()
                     .child(
-                        Button::new("empty-open")
-                            .primary()
-                            .icon(IconName::File)
-                            .label("Open file")
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.open_file_action(window, cx);
-                            })),
+                        v_flex()
+                            .items_start()
+                            .gap_2()
+                            .child(img(LOGO.clone()).size(px(48.)))
+                            .child(
+                                div()
+                                    .text_2xl()
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .child("Start reading or writing"),
+                            ),
                     )
                     .child(
-                        Button::new("empty-new")
-                            .outline()
-                            .icon(IconName::Plus)
-                            .label("New document")
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.new_tab(window, cx);
+                        h_flex()
+                            .gap_2()
+                            .flex_wrap()
+                            .child(
+                                Button::new("welcome-open")
+                                    .primary()
+                                    .small()
+                                    .icon(IconName::FolderOpen)
+                                    .label("Open file")
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.open_file_action(window, cx)
+                                    })),
+                            )
+                            .child(
+                                Button::new("welcome-new")
+                                    .outline()
+                                    .small()
+                                    .icon(IconName::Plus)
+                                    .label("New document")
+                                    .on_click(
+                                        cx.listener(|this, _, window, cx| this.new_tab(window, cx)),
+                                    ),
+                            ),
+                    )
+                    .child(
+                        v_flex()
+                            .gap_1()
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .child("Recent files"),
+                            )
+                            .when(
+                                !self.recent_paths.iter().any(|path| path.is_file()),
+                                |section| {
+                                    section.child(
+                                        div()
+                                            .text_sm()
+                                            .text_color(muted)
+                                            .child("Files you open will appear here."),
+                                    )
+                                },
+                            )
+                            .children(recent.enumerate().map(|(index, path)| {
+                                let path = path.clone();
+                                h_flex()
+                                    .id(("recent-file", index))
+                                    .w_full()
+                                    .min_w_0()
+                                    .gap_3()
+                                    .rounded_md()
+                                    .p_2()
+                                    .cursor_pointer()
+                                    .hover(move |style| style.bg(hover))
+                                    .child(
+                                        Icon::new(IconName::FileText)
+                                            .small()
+                                            .text_color(muted)
+                                            .flex_none(),
+                                    )
+                                    .child(
+                                        v_flex()
+                                            .min_w_0()
+                                            .child(
+                                                div().truncate().text_sm().child(
+                                                    path.file_name()
+                                                        .unwrap_or_default()
+                                                        .to_string_lossy()
+                                                        .into_owned(),
+                                                ),
+                                            )
+                                            .child(
+                                                div().truncate().text_xs().text_color(muted).child(
+                                                    path.parent()
+                                                        .map(|parent| parent.display().to_string())
+                                                        .unwrap_or_default(),
+                                                ),
+                                            ),
+                                    )
+                                    .on_click(cx.listener(move |this, _, window, cx| {
+                                        this.open_path(path.clone(), window, cx);
+                                    }))
                             })),
                     ),
             )
     }
 
     fn render_status_message(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        h_flex()
+        let message = self.status_message.clone().unwrap_or_default();
+        div()
             .w_full()
-            .h_6()
-            .px_2()
-            .items_center()
-            .justify_between()
+            .px_3()
+            .py_1()
+            .flex_none()
+            .text_xs()
+            .truncate()
             .border_t_1()
             .border_color(cx.theme().border)
+            .text_color(cx.theme().muted_foreground)
             .bg(cx.theme().title_bar)
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(cx.theme().muted_foreground)
-                    .child(
-                        self.status_message
-                            .clone()
-                            .unwrap_or_else(|| "Ready".into()),
-                    ),
-            )
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(cx.theme().muted_foreground)
-                    .child("Ctrl+O open · Ctrl+S save · Ctrl+E edit/preview"),
-            )
+            .child(message)
     }
 }
 
@@ -2519,60 +2869,6 @@ fn write_browser_preview(html: &str) -> std::io::Result<PathBuf> {
     ))
 }
 
-fn write_file_atomically(path: &StdPath, contents: &str) -> std::io::Result<()> {
-    let file_name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("document");
-    let parent = path.parent().unwrap_or_else(|| StdPath::new("."));
-    let mut temporary = None;
-    for counter in 0..100 {
-        let candidate = parent.join(format!(
-            ".{file_name}.mdpeek-{}-{counter}.tmp",
-            std::process::id()
-        ));
-        match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&candidate)
-        {
-            Ok(mut file) => {
-                use std::io::Write as _;
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt as _;
-                    let _ = std::fs::set_permissions(
-                        &candidate,
-                        std::fs::Permissions::from_mode(0o600),
-                    );
-                }
-                file.write_all(contents.as_bytes())?;
-                file.sync_all()?;
-                if let Ok(metadata) = std::fs::metadata(path) {
-                    let _ = std::fs::set_permissions(&candidate, metadata.permissions());
-                }
-                temporary = Some(candidate);
-                break;
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(error),
-        }
-    }
-    let Some(temporary) = temporary else {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::AlreadyExists,
-            "could not allocate temporary replacement file",
-        ));
-    };
-    match std::fs::rename(&temporary, path) {
-        Ok(()) => Ok(()),
-        Err(error) => {
-            let _ = std::fs::remove_file(&temporary);
-            Err(error)
-        }
-    }
-}
-
 impl Focusable for Mdpeek {
     fn focus_handle(&self, _: &App) -> FocusHandle {
         self.focus_handle.clone()
@@ -2580,7 +2876,8 @@ impl Focusable for Mdpeek {
 }
 
 impl Render for Mdpeek {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let width = window.viewport_size().width;
         let active_document = self.active_document();
         v_flex()
             .id("mdpeek-root")
@@ -2751,17 +3048,17 @@ impl Render for Mdpeek {
             .on_action(cx.listener(|this, _: &SaveAs, window, cx| {
                 this.save_active_as(window, cx);
             }))
-            .on_action(cx.listener(|this, _: &CloseTab, _, cx| {
-                this.close_active_tab(cx);
+            .on_action(cx.listener(|this, _: &CloseTab, window, cx| {
+                this.close_active_tab(window, cx);
             }))
-            .on_action(cx.listener(|this, _: &CloseOtherTabs, _, cx| {
-                this.close_other_tabs(cx);
+            .on_action(cx.listener(|this, _: &CloseOtherTabs, window, cx| {
+                this.close_other_tabs(window, cx);
             }))
-            .on_action(cx.listener(|this, _: &CloseTabsToRight, _, cx| {
-                this.close_tabs_to_right(cx);
+            .on_action(cx.listener(|this, _: &CloseTabsToRight, window, cx| {
+                this.close_tabs_to_right(window, cx);
             }))
-            .on_action(cx.listener(|this, _: &CloseAllTabs, _, cx| {
-                this.close_all_tabs(cx);
+            .on_action(cx.listener(|this, _: &CloseAllTabs, window, cx| {
+                this.close_all_tabs(window, cx);
             }))
             .on_action(cx.listener(|this, _: &ToggleEdit, window, cx| {
                 this.toggle_edit(window, cx);
@@ -2796,17 +3093,20 @@ impl Render for Mdpeek {
             .on_action(cx.listener(|this, _: &ExportPdf, window, cx| {
                 this.export_active_pdf(window, cx);
             }))
-            .on_action(cx.listener(|this, _: &NextTab, _, cx| {
-                this.step_tab(1, cx);
+            .on_action(cx.listener(|this, _: &NextTab, window, cx| {
+                this.step_tab(1, window, cx);
             }))
-            .on_action(cx.listener(|this, _: &PreviousTab, _, cx| {
-                this.step_tab(-1, cx);
+            .on_action(cx.listener(|this, _: &PreviousTab, window, cx| {
+                this.step_tab(-1, window, cx);
             }))
             .on_action(cx.listener(|this, _: &Quit, _, cx| {
                 this.persist(cx);
                 cx.quit();
             }))
             .child(gpui_kit::base::TextSelectionLayer)
+            .when(!self.reading_mode, |this| {
+                this.child(self.render_header(width, cx))
+            })
             .when(!self.documents.is_empty() && !self.reading_mode, |this| {
                 this.child(self.render_tab_bar(cx))
             })
@@ -2815,18 +3115,26 @@ impl Render for Mdpeek {
                     .flex_1()
                     .overflow_hidden()
                     .when(self.sidebar_visible && !self.reading_mode, |this| {
-                        this.child(self.render_sidebar(cx))
+                        this.child(self.render_sidebar(width, cx))
                     })
-                    .child(div().flex_1().h_full().overflow_hidden().map(|this| {
-                        if let Some(document) = active_document {
-                            this.child(document).into_any_element()
-                        } else {
-                            this.child(self.render_empty_state(cx)).into_any_element()
-                        }
-                    })),
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .h_full()
+                            .overflow_hidden()
+                            .map(|this| {
+                                if let Some(document) = active_document {
+                                    this.child(document).into_any_element()
+                                } else {
+                                    this.child(self.render_empty_state(cx)).into_any_element()
+                                }
+                            }),
+                    ),
             )
-            .when(!self.reading_mode, |this| {
-                this.child(self.render_status_message(cx))
-            })
+            .when(
+                !self.reading_mode && self.status_message.is_some(),
+                |this| this.child(self.render_status_message(cx)),
+            )
     }
 }

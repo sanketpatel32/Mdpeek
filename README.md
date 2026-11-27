@@ -13,10 +13,19 @@ Mdpeek is being rebuilt as a pure Rust desktop application using GPUI. The forme
 
 </div>
 
+## What’s new in v3.2.0
+
+- A refreshed light and dark workspace with a compact header, clearer tabs, a file explorer and outline, and a welcome screen.
+- Direct **Edit**, **Split**, and **Preview** controls. Split stacks vertically in narrow windows.
+- Recent files appear on the welcome screen and in **Quick Open** across restarts.
+- Use **Copy file path** from the command palette. Markdown reading time appears in the document status bar.
+
+[Download v3.2.0 for Windows, Linux, or macOS](https://github.com/sanketpatel32/Mdpeek/releases/tag/v3.2.0).
+
 ## Current native feature set
 
 - Multi-tab Markdown, text, code, CSV/TSV, and image documents
-- Split, editor-only, and preview-only modes
+- Split, editor-only, and preview-only modes for text documents, plus image preview
 - Markdown rendering with GFM tables, task lists, frontmatter, MDX parsing, alert/callout surfaces, basic Mermaid flowcharts, and local images
 - Source editing with line numbers, indentation guides, folding, syntax highlighting, editor search/replace, Markdown autocomplete, formatting toolbar, and line operations
 - Clickable preview task checkboxes that update the Markdown source
@@ -39,7 +48,13 @@ Mdpeek is being rebuilt as a pure Rust desktop application using GPUI. The forme
 
 ## Build and run
 
-Requirements: a current stable Rust toolchain and the platform system libraries required by GPUI.
+Use stable Rust with `rustfmt` and `clippy`. On Debian or Ubuntu, install the same system libraries as CI.
+
+```bash
+rustup component add rustfmt clippy
+sudo apt-get update
+sudo apt-get install -y libxkbcommon-x11-dev libwayland-dev libxkbcommon-dev libfontconfig-dev
+```
 
 ```bash
 cargo run -p mdpeek
@@ -49,9 +64,9 @@ Run checks:
 
 ```bash
 cargo fmt --check
-cargo clippy -p mdpeek -- -D warnings
-cargo test -p mdpeek
-cargo build --release -p mdpeek
+cargo clippy --locked -p mdpeek -- -D warnings
+cargo test --locked -p mdpeek
+cargo build --locked --release -p mdpeek
 ```
 
 Open files or folders directly:
