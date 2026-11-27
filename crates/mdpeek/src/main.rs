@@ -26,7 +26,7 @@ fn main() {
                 KeyBinding::new("ctrl-p", QuickOpen, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-f", WorkspaceSearch, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-d", DailyNote, Some("Mdpeek")),
-                KeyBinding::new("ctrl-alt-l", CheckLinks, Some("Mdpeek")),
+                KeyBinding::new("ctrl-alt-k", CheckLinks, Some("Mdpeek")),
                 KeyBinding::new("ctrl-alt-p", CommandPalette, Some("Mdpeek")),
                 KeyBinding::new("f11", ToggleReading, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-e", OpenFolder, Some("Mdpeek")),

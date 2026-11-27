@@ -102,7 +102,7 @@ fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
         ("Quick open", "Ctrl+P"),
         ("Search workspace", "Ctrl+Shift+F"),
         ("Open today's daily note", "Ctrl+Shift+D"),
-        ("Check document links", "Ctrl+Alt+L"),
+        ("Check document links", "Ctrl+Alt+K"),
         ("Save", "Ctrl+S"),
         ("Save as", "Ctrl+Alt+S"),
         ("Reload file", "Ctrl+R"),
@@ -986,14 +986,12 @@ impl Mdpeek {
                         .on_click(cx.listener({
                             let item = item.clone();
                             let root = root.clone();
-                            move |_, _, window, cx| {
+                            move |this, _, window, cx| {
                                 if item.is_folder() {
                                     return;
                                 }
                                 let path = resolve_tree_path(&root, item.id.as_str());
-                                cx.entity().update(cx, |this, cx| {
-                                    this.open_path(path, window, cx);
-                                });
+                                this.open_path(path, window, cx);
                             }
                         }))
                 })
