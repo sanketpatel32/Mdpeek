@@ -106,6 +106,10 @@ pub fn heading_slug(text: &str) -> String {
         .join("-")
 }
 
+fn is_ordered_list_marker_prefix(prefix: &str) -> bool {
+    !prefix.is_empty() && prefix.len() <= 9 && prefix.chars().all(|ch| ch.is_ascii_digit())
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MarkdownHeading {
     pub level: usize,
@@ -172,10 +176,10 @@ pub fn markdown_headings(source: &str) -> Vec<MarkdownHeading> {
             || title.starts_with("+ ")
             || title
                 .split_once(". ")
-                .is_some_and(|(number, _)| number.chars().all(|ch| ch.is_ascii_digit()))
+                .is_some_and(|(number, _)| is_ordered_list_marker_prefix(number))
             || title
                 .split_once(") ")
-                .is_some_and(|(number, _)| number.chars().all(|ch| ch.is_ascii_digit()))
+                .is_some_and(|(number, _)| is_ordered_list_marker_prefix(number))
         {
             continue;
         }
@@ -308,6 +312,16 @@ mod tests {
         let headings = markdown_headings(source);
         assert_eq!(headings.len(), 1);
         assert_eq!(headings[0].title, "Real");
+    }
+
+    #[test]
+    fn non_list_ordered_text_can_be_a_setext_heading() {
+        for title in [") item", "1234567890) item"] {
+            let source = format!("{title}\n---\n");
+            let headings = markdown_headings(&source);
+            assert_eq!(headings.len(), 1);
+            assert_eq!(headings[0].title, title);
+        }
     }
 
     #[test]
