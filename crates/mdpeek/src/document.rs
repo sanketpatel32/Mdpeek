@@ -8,7 +8,7 @@ use gpui_kit::component::{
     input::{Editor, EditorState, InputEvent, TabSize},
     resizable::{h_resizable, resizable_panel},
     status_bar::StatusBar,
-    text::{TextView, TextViewState},
+    text::{MarkdownExtensions, TextView, TextViewState},
     v_flex,
 };
 use gpui_kit::{prelude::FluentBuilder as _, *};
@@ -137,7 +137,8 @@ impl DocumentView {
                 .placeholder("Write Markdown…")
                 .default_value(content.clone())
         });
-        let preview = cx.new(|cx| TextViewState::markdown(content.as_str(), cx));
+        let preview_source = renderable_source(kind, &content);
+        let preview = cx.new(|cx| TextViewState::markdown(preview_source.as_str(), cx));
         let focus_handle = editor.focus_handle(cx);
         window.defer(cx, move |window, cx| {
             focus_handle.focus(window, cx);
@@ -147,8 +148,9 @@ impl DocumentView {
             if matches!(event, InputEvent::Change) {
                 let value = this.editor.read(cx).value().to_string();
                 this.dirty = value != this.saved_value;
+                let preview_source = renderable_source(this.kind, &value);
                 this.preview
-                    .update(cx, |preview, cx| preview.set_text(&value, cx));
+                    .update(cx, |preview, cx| preview.set_text(&preview_source, cx));
                 cx.notify();
             }
         })];
@@ -158,10 +160,10 @@ impl DocumentView {
             kind,
             editor,
             preview,
-            mode: if kind == DocumentKind::Markdown {
-                ViewMode::Split
-            } else {
-                ViewMode::Edit
+            mode: match kind {
+                DocumentKind::Markdown => ViewMode::Split,
+                DocumentKind::Csv | DocumentKind::Image => ViewMode::Preview,
+                _ => ViewMode::Edit,
             },
             saved_value: content,
             dirty: false,
@@ -228,8 +230,9 @@ impl DocumentView {
         self.editor.update(cx, |editor, cx| {
             editor.set_value(content.clone(), window, cx);
         });
+        let preview_source = renderable_source(self.kind, &content);
         self.preview
-            .update(cx, |preview, cx| preview.set_text(&content, cx));
+            .update(cx, |preview, cx| preview.set_text(&preview_source, cx));
         self.saved_value = content;
         self.dirty = false;
         cx.notify();
@@ -281,6 +284,7 @@ impl DocumentView {
     fn render_preview(&self, cx: &mut Context<Self>) -> impl IntoElement {
         div().size_full().child(
             TextView::new(&self.preview)
+                .markdown_extensions(markdown_extensions())
                 .code_block_actions(|code_block, _, _| {
                     h_flex().child(Clipboard::new("copy").value(code_block.code()))
                 })
@@ -294,14 +298,31 @@ impl DocumentView {
     }
 
     fn render_content(&self, cx: &mut Context<Self>) -> AnyElement {
-        if !self.kind.is_text_editable() {
-            return div()
-                .size_full()
-                .items_center()
-                .justify_center()
-                .text_color(cx.theme().muted_foreground)
-                .child("Image viewing is not yet available in the native rebuild")
-                .into_any_element();
+        if self.kind == DocumentKind::Image {
+            return if let Some(path) = self.path.clone() {
+                div()
+                    .size_full()
+                    .overflow_hidden()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .bg(cx.theme().secondary.opacity(0.25))
+                    .child(
+                        img(path)
+                            .object_fit(ObjectFit::Contain)
+                            .max_w_full()
+                            .max_h_full(),
+                    )
+                    .into_any_element()
+            } else {
+                div()
+                    .size_full()
+                    .items_center()
+                    .justify_center()
+                    .text_color(cx.theme().muted_foreground)
+                    .child("No image loaded")
+                    .into_any_element()
+            };
         }
 
         match self.mode {
@@ -384,6 +405,68 @@ impl Render for DocumentView {
             )
             .child(self.render_status(cx))
     }
+}
+
+fn markdown_extensions() -> MarkdownExtensions {
+    MarkdownExtensions::default()
+        .frontmatter()
+        .mdx()
+        .block_surface("note", |_, cx| alert_surface(cx, cx.theme().info))
+        .block_surface("tip", |_, cx| alert_surface(cx, cx.theme().success))
+        .block_surface("warning", |_, cx| alert_surface(cx, cx.theme().warning))
+        .block_surface("caution", |_, cx| alert_surface(cx, cx.theme().danger))
+        .block_surface("important", |_, cx| alert_surface(cx, cx.theme().primary))
+}
+
+fn alert_surface(cx: &App, color: Hsla) -> Div {
+    v_flex()
+        .p_3()
+        .rounded(cx.theme().radius_lg)
+        .border_1()
+        .border_color(color.opacity(0.3))
+        .bg(color.opacity(0.08))
+}
+
+fn renderable_source(kind: DocumentKind, source: &str) -> String {
+    if kind != DocumentKind::Csv {
+        return source.to_string();
+    }
+    let delimiter = if source
+        .lines()
+        .next()
+        .is_some_and(|line| line.contains('\t'))
+    {
+        b'\t'
+    } else {
+        b','
+    };
+    let mut reader = csv::ReaderBuilder::new()
+        .delimiter(delimiter)
+        .flexible(true)
+        .has_headers(false)
+        .from_reader(source.as_bytes());
+    let rows = reader
+        .records()
+        .filter_map(Result::ok)
+        .map(|record| {
+            record
+                .iter()
+                .map(|cell| cell.replace('|', "\\|").replace('\n', " "))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let Some(header) = rows.first() else {
+        return String::new();
+    };
+    let mut markdown = format!("| {} |\n", header.join(" | "));
+    markdown.push_str(&format!(
+        "|{}|\n",
+        header.iter().map(|_| " --- |").collect::<String>()
+    ));
+    for row in rows.iter().skip(1) {
+        markdown.push_str(&format!("| {} |\n", row.join(" | ")));
+    }
+    markdown
 }
 
 pub fn read_document(path: &Path) -> Result<(String, DocumentKind)> {
