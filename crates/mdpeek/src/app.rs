@@ -570,26 +570,50 @@ impl Mdpeek {
     }
 
     fn close_other_tabs(&mut self, cx: &mut Context<Self>) {
+        let mut skipped = 0;
         for index in (0..self.documents.len()).rev() {
-            if index != self.active {
-                self.close_tab(index, cx);
-                if index < self.active {
-                    self.active = self.active.saturating_sub(1);
-                }
+            if index == self.active {
+                continue;
             }
+            if self.documents[index].read(cx).is_dirty() {
+                skipped += 1;
+                continue;
+            }
+            self.close_tab(index, cx);
+            if index < self.active {
+                self.active = self.active.saturating_sub(1);
+            }
+        }
+        if skipped > 0 {
+            self.set_status(format!("Kept {skipped} modified tab(s) open"), cx);
         }
     }
 
     fn close_tabs_to_right(&mut self, cx: &mut Context<Self>) {
+        let mut skipped = 0;
         for index in ((self.active + 1)..self.documents.len()).rev() {
+            if self.documents[index].read(cx).is_dirty() {
+                skipped += 1;
+                continue;
+            }
             self.close_tab(index, cx);
+        }
+        if skipped > 0 {
+            self.set_status(format!("Kept {skipped} modified tab(s) open"), cx);
         }
     }
 
     fn close_all_tabs(&mut self, cx: &mut Context<Self>) {
-        while !self.documents.is_empty() {
-            let index = self.documents.len() - 1;
+        let mut skipped = 0;
+        for index in (0..self.documents.len()).rev() {
+            if self.documents[index].read(cx).is_dirty() {
+                skipped += 1;
+                continue;
+            }
             self.close_tab(index, cx);
+        }
+        if skipped > 0 {
+            self.set_status(format!("Kept {skipped} modified tab(s) open"), cx);
         }
     }
 
