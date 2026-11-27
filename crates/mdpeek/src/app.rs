@@ -27,6 +27,7 @@ actions!(
         OpenFile,
         QuickOpen,
         QuickOpenPick,
+        CheckLinks,
         DailyNote,
         WorkspaceSearch,
         WorkspaceSearchPick,
@@ -505,6 +506,40 @@ impl Mdpeek {
         }
     }
 
+    fn check_links(&mut self, cx: &mut Context<Self>) {
+        let Some(document) = self.active_document() else {
+            self.set_status("Open a document before checking links", cx);
+            return;
+        };
+        let (content, document_dir) = document.read_with(cx, |document, cx| {
+            (
+                document.value(cx),
+                document
+                    .path
+                    .as_ref()
+                    .and_then(|path| path.parent())
+                    .map(std::path::Path::to_path_buf)
+                    .unwrap_or_else(|| PathBuf::from(".")),
+            )
+        });
+        let broken = crate::links::broken_links(&content, &document_dir, self.root_dir.as_deref());
+        if broken.is_empty() {
+            self.set_status("All document links resolve", cx);
+        } else {
+            let first = &broken[0];
+            self.set_status(
+                format!(
+                    "{} broken link{}; first: '{}' on line {}",
+                    broken.len(),
+                    if broken.len() == 1 { "" } else { "s" },
+                    first.target,
+                    first.line
+                ),
+                cx,
+            );
+        }
+    }
+
     fn open_daily_note(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(root) = self.root_dir.clone() else {
             self.set_status("Open a folder before using daily notes", cx);
@@ -978,6 +1013,9 @@ impl Render for Mdpeek {
             }))
             .on_action(cx.listener(|this, _: &DailyNote, window, cx| {
                 this.open_daily_note(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &CheckLinks, _, cx| {
+                this.check_links(cx);
             }))
             .on_action(cx.listener(|this, _: &ToggleReading, _, cx| {
                 this.toggle_reading(cx);
