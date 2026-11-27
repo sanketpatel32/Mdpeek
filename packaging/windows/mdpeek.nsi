@@ -34,6 +34,71 @@ SetCompressor /SOLID lzma
 !define MANUPRODUCTKEY "${MANUKEY}\${PRODUCTNAME}"
 !define HOMEPAGE "https://github.com/sanketpatel32/Mdpeek"
 
+!macro MPEEK_ASSOCIATE EXT FILECLASS DESCRIPTION
+  ReadRegStr $R0 HKCR ".${EXT}" "${FILECLASS}_backup"
+  ${If} $R0 == ""
+    ReadRegStr $R0 HKCR ".${EXT}" ""
+    WriteRegStr HKCR ".${EXT}" "${FILECLASS}_backup" "$R0"
+  ${EndIf}
+  WriteRegStr HKCR ".${EXT}" "" "${FILECLASS}"
+  WriteRegStr HKCR "${FILECLASS}" "" "${DESCRIPTION}"
+  WriteRegStr HKCR "${FILECLASS}\DefaultIcon" "" "$\"$INSTDIR\${MAINBINARYNAME}$\",0"
+  WriteRegStr HKCR "${FILECLASS}\shell" "" "open"
+  WriteRegStr HKCR "${FILECLASS}\shell\open" "" "Open with mdpeek"
+  WriteRegStr HKCR "${FILECLASS}\shell\open\command" "" "$\"$INSTDIR\${MAINBINARYNAME}$\" $\"%1$\""
+!macroend
+
+!macro MPEEK_UNASSOCIATE EXT FILECLASS
+  ReadRegStr $R0 HKCR ".${EXT}" ""
+  ${If} $R0 == "${FILECLASS}"
+    ReadRegStr $R1 HKCR ".${EXT}" "${FILECLASS}_backup"
+    WriteRegStr HKCR ".${EXT}" "" "$R1"
+  ${EndIf}
+  DeleteRegKey HKCR "${FILECLASS}"
+!macroend
+
+!macro MPEEK_REMOVE_V2_OPENWITH_ENTRIES
+  DeleteRegValue HKCR ".md\OpenWithProgIDs" "mdpeek.md"
+  DeleteRegValue HKCR ".markdown\OpenWithProgIDs" "mdpeek.md"
+  DeleteRegValue HKCR ".mdx\OpenWithProgIDs" "mdpeek.md"
+  DeleteRegValue HKCR ".txt\OpenWithProgIDs" "mdpeek.txt"
+  DeleteRegKey HKCR "mdpeek.md"
+  DeleteRegKey HKCR "mdpeek.txt"
+!macroend
+
+!macro MPEEK_REMOVE_LEGACY_ASSOCIATIONS
+  !insertmacro MPEEK_UNASSOCIATE "pdf" "PDF"
+  !insertmacro MPEEK_UNASSOCIATE "excalidraw" "Excalidraw"
+  !insertmacro MPEEK_UNASSOCIATE "tldr" "TLDraw"
+  !insertmacro MPEEK_UNASSOCIATE "ipynb" "Jupyter Notebook"
+  !insertmacro MPEEK_UNASSOCIATE "mp3" "Audio"
+  !insertmacro MPEEK_UNASSOCIATE "wav" "Audio"
+  !insertmacro MPEEK_UNASSOCIATE "ogg" "Audio"
+  !insertmacro MPEEK_UNASSOCIATE "flac" "Audio"
+  !insertmacro MPEEK_UNASSOCIATE "m4a" "Audio"
+  !insertmacro MPEEK_UNASSOCIATE "aac" "Audio"
+  !insertmacro MPEEK_UNASSOCIATE "mp4" "Video"
+  !insertmacro MPEEK_UNASSOCIATE "webm" "Video"
+  !insertmacro MPEEK_UNASSOCIATE "mov" "Video"
+  !insertmacro MPEEK_UNASSOCIATE "avi" "Video"
+  !insertmacro MPEEK_UNASSOCIATE "m4v" "Video"
+  !insertmacro MPEEK_UNASSOCIATE "mkv" "Video"
+!macroend
+
+!macro MPEEK_CONTEXT_MENUS
+  WriteRegStr HKCR "*\shell\mdpeek" "" "Open with mdpeek"
+  WriteRegStr HKCR "*\shell\mdpeek" "Icon" "$INSTDIR\${MAINBINARYNAME}"
+  WriteRegStr HKCR "*\shell\mdpeek\command" "" "$\"$INSTDIR\${MAINBINARYNAME}$\" $\"%1$\""
+  WriteRegStr HKCR "Directory\shell\mdpeek" "" "Open folder in mdpeek"
+  WriteRegStr HKCR "Directory\shell\mdpeek" "Icon" "$INSTDIR\${MAINBINARYNAME}"
+  WriteRegStr HKCR "Directory\shell\mdpeek\command" "" "$\"$INSTDIR\${MAINBINARYNAME}$\" $\"%1$\""
+!macroend
+
+!macro MPEEK_REMOVE_CONTEXT_MENUS
+  DeleteRegKey HKCR "*\shell\mdpeek"
+  DeleteRegKey HKCR "Directory\shell\mdpeek"
+!macroend
+
 Var PassiveMode
 Var UpdateMode
 Var SilentMode
@@ -142,6 +207,15 @@ Section "Install"
   CreateDirectory "$SMPROGRAMS\${PRODUCTNAME}"
   CreateShortcut "$SMPROGRAMS\${PRODUCTNAME}\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}" "" "$INSTDIR\icon.ico" 0
 
+  !insertmacro MPEEK_ASSOCIATE "md" "Markdown" "Markdown document"
+  !insertmacro MPEEK_ASSOCIATE "markdown" "Markdown" "Markdown document"
+  !insertmacro MPEEK_ASSOCIATE "mdx" "Markdown" "Markdown document"
+  !insertmacro MPEEK_ASSOCIATE "txt" "Plain Text" "Plain text document"
+  !insertmacro MPEEK_REMOVE_LEGACY_ASSOCIATIONS
+  !insertmacro MPEEK_REMOVE_V2_OPENWITH_ENTRIES
+  !insertmacro MPEEK_CONTEXT_MENUS
+  System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'
+
   ${If} $PassiveMode = 1
   ${OrIf} $SilentMode = 1
     CreateShortcut "$DESKTOP\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}" "" "$INSTDIR\icon.ico" 0
@@ -181,6 +255,15 @@ Section "Uninstall"
   Delete "$SMPROGRAMS\${PRODUCTNAME}\${PRODUCTNAME}.lnk"
   RMDir "$SMPROGRAMS\${PRODUCTNAME}"
   Delete "$DESKTOP\${PRODUCTNAME}.lnk"
+
+  !insertmacro MPEEK_UNASSOCIATE "md" "Markdown"
+  !insertmacro MPEEK_UNASSOCIATE "markdown" "Markdown"
+  !insertmacro MPEEK_UNASSOCIATE "mdx" "Markdown"
+  !insertmacro MPEEK_UNASSOCIATE "txt" "Plain Text"
+  !insertmacro MPEEK_REMOVE_LEGACY_ASSOCIATIONS
+  !insertmacro MPEEK_REMOVE_V2_OPENWITH_ENTRIES
+  !insertmacro MPEEK_REMOVE_CONTEXT_MENUS
+  System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'
 
   DeleteRegKey HKLM "${UNINSTKEY}"
   DeleteRegKey /ifempty HKLM "${MANUPRODUCTKEY}"
