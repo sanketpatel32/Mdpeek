@@ -315,6 +315,35 @@ impl DocumentView {
         cx.notify();
     }
 
+    pub fn selected_range(&self, cx: &App) -> std::ops::Range<usize> {
+        self.editor.read(cx).selected_range()
+    }
+
+    pub fn apply_edit_result(
+        &mut self,
+        result: crate::editor_ops::EditResult,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if result.text == self.editor.read(cx).value().as_ref() {
+            return;
+        }
+        let length = result.text.len();
+        self.editor.update(cx, |editor, cx| {
+            let current_length = editor.value().len();
+            editor.set_selected_range(0..current_length, cx);
+            editor.replace(result.text, window, cx);
+            editor.set_selected_range(result.start.min(length)..result.end.min(length), cx);
+        });
+        self.dirty = self.editor.read(cx).value().as_ref() != self.saved_value;
+        cx.notify();
+    }
+
+    pub fn focus_editor(&self, window: &mut Window, cx: &mut Context<Self>) {
+        let focus_handle = self.editor.focus_handle(cx);
+        focus_handle.focus(window, cx);
+    }
+
     pub fn insert_text(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
         if !self.kind.is_text_editable() {
             return;

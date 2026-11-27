@@ -21,11 +21,7 @@ fn line_range(text: &str, start: usize, end: usize) -> (usize, usize) {
 pub fn duplicate_lines(text: &str, start: usize, end: usize) -> EditResult {
     let (line_start, line_end) = line_range(text, start, end);
     let block = &text[line_start..line_end];
-    let separator = if text.as_bytes().get(line_end) == Some(&b'\n') {
-        "\n"
-    } else {
-        "\n"
-    };
+    let separator = "\n";
     let mut output = String::with_capacity(text.len() + block.len() + 1);
     output.push_str(&text[..line_end]);
     output.push_str(separator);

@@ -12,10 +12,11 @@ mod table;
 mod workspace;
 
 use app::{
-    CheckLinks, CloseTab, CommandPalette, DailyNote, EditTable, ExportHtml, ExportPdf, ExportText,
-    Mdpeek, NewTab, NextTab, OpenFile, OpenFolder, PreviousTab, QuickOpen, Quit, ReloadFile,
-    ReopenClosedTab, Save, SaveAs, SnippetPicker, ToggleEdit, ToggleReading, ToggleSidebar,
-    ToggleTheme, WorkspaceReplace, WorkspaceSearch,
+    CheckLinks, CloseTab, CommandPalette, DailyNote, DuplicateLines, EditTable, ExportHtml,
+    ExportPdf, ExportText, GoToLine, JoinLines, Mdpeek, MoveLinesDown, MoveLinesUp, NewTab,
+    NextTab, OpenFile, OpenFolder, PreviousTab, QuickOpen, Quit, ReloadFile, ReopenClosedTab, Save,
+    SaveAs, SnippetPicker, ToggleEdit, ToggleReading, ToggleSidebar, ToggleTheme, WorkspaceReplace,
+    WorkspaceSearch,
 };
 use gpui_kit::*;
 
@@ -34,6 +35,11 @@ fn main() {
                 KeyBinding::new("ctrl-shift-s", SnippetPicker, Some("Mdpeek")),
                 KeyBinding::new("ctrl-alt-i", CheckLinks, Some("Mdpeek")),
                 KeyBinding::new("ctrl-alt-m", EditTable, Some("Mdpeek")),
+                KeyBinding::new("ctrl-g", GoToLine, Some("Mdpeek")),
+                KeyBinding::new("ctrl-d", DuplicateLines, Some("Mdpeek")),
+                KeyBinding::new("alt-up", MoveLinesUp, Some("Mdpeek")),
+                KeyBinding::new("alt-down", MoveLinesDown, Some("Mdpeek")),
+                KeyBinding::new("ctrl-j", JoinLines, Some("Mdpeek")),
                 KeyBinding::new("ctrl-alt-p", CommandPalette, Some("Mdpeek")),
                 KeyBinding::new("f11", ToggleReading, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-e", OpenFolder, Some("Mdpeek")),

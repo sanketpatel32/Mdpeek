@@ -40,6 +40,11 @@ actions!(
         SnippetPicker,
         SnippetPick,
         EditTable,
+        GoToLine,
+        DuplicateLines,
+        MoveLinesUp,
+        MoveLinesDown,
+        JoinLines,
         CheckLinks,
         DailyNote,
         WorkspaceSearch,
@@ -160,6 +165,11 @@ fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
         ("Export HTML", "Ctrl+Shift+H"),
         ("Export plain text", "Ctrl+Shift+T"),
         ("Export PDF", "Ctrl+Shift+P"),
+        ("Go to line", "Ctrl+G"),
+        ("Duplicate line", "Ctrl+D"),
+        ("Move line up", "Alt+Up"),
+        ("Move line down", "Alt+Down"),
+        ("Join line with next", "Ctrl+J"),
         ("Close tab", "Ctrl+W"),
         ("Quit", "Ctrl+Q"),
     ]
@@ -194,6 +204,14 @@ impl TableOperation {
             Self::CycleAlignment(_) => "Changed column alignment",
         }
     }
+}
+
+#[derive(Clone, Copy)]
+enum EditorLineOperation {
+    Duplicate,
+    MoveUp,
+    MoveDown,
+    Join,
 }
 
 impl Mdpeek {
@@ -729,8 +747,13 @@ impl Mdpeek {
             18 => self.export_active_html(window, cx),
             19 => self.export_active_text(window, cx),
             20 => self.export_active_pdf(window, cx),
-            21 => self.close_active_tab(cx),
-            22 => {
+            21 => self.open_go_to_line(window, cx),
+            22 => self.apply_line_operation(EditorLineOperation::Duplicate, window, cx),
+            23 => self.apply_line_operation(EditorLineOperation::MoveUp, window, cx),
+            24 => self.apply_line_operation(EditorLineOperation::MoveDown, window, cx),
+            25 => self.apply_line_operation(EditorLineOperation::Join, window, cx),
+            26 => self.close_active_tab(cx),
+            27 => {
                 self.persist(cx);
                 cx.quit();
             }
@@ -798,6 +821,122 @@ impl Mdpeek {
         };
         document.update(cx, |document, cx| document.insert_text(content, window, cx));
         self.set_status(format!("Inserted {label}"), cx);
+    }
+
+    fn apply_line_operation(
+        &mut self,
+        operation: EditorLineOperation,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(document) = self.active_document() else {
+            self.set_status("Open a document before editing lines", cx);
+            return;
+        };
+        let (kind, value, range) = document.read_with(cx, |document, cx| {
+            (
+                document.kind,
+                document.value(cx),
+                document.selected_range(cx),
+            )
+        });
+        if !kind.is_text_editable() {
+            self.set_status("Line operations require an editable text document", cx);
+            return;
+        }
+        let result = match operation {
+            EditorLineOperation::Duplicate => {
+                crate::editor_ops::duplicate_lines(&value, range.start, range.end)
+            }
+            EditorLineOperation::MoveUp => {
+                crate::editor_ops::move_lines(&value, range.start, range.end, true)
+            }
+            EditorLineOperation::MoveDown => {
+                crate::editor_ops::move_lines(&value, range.start, range.end, false)
+            }
+            EditorLineOperation::Join => crate::editor_ops::join_line(&value, range.start),
+        };
+        if result.text == value {
+            self.set_status("Line operation is not available here", cx);
+            return;
+        }
+        document.update(cx, |document, cx| {
+            document.apply_edit_result(result, window, cx);
+        });
+    }
+
+    fn open_go_to_line(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(document) = self.active_document() else {
+            self.set_status("Open a document before jumping to a line", cx);
+            return;
+        };
+        if !document.read(cx).kind.is_text_editable() {
+            self.set_status("Go to line requires an editable text document", cx);
+            return;
+        }
+        let line_input = cx.new(|cx| InputState::new(window, cx).placeholder("Line number"));
+        let owner = cx.weak_entity();
+        let focus_on_mount = Rc::new(Cell::new(true));
+        window.open_dialog(cx, move |dialog, _, _| {
+            let line_input = line_input.clone();
+            let owner = owner.clone();
+            let focus_on_mount = focus_on_mount.clone();
+            dialog
+                .title("Go to line")
+                .w(px(360.))
+                .content(move |content, window, cx| {
+                    if focus_on_mount.replace(false) {
+                        let line_input = line_input.clone();
+                        window.defer(cx, move |window, cx| {
+                            line_input.read(cx).focus_handle(cx).focus(window, cx);
+                        });
+                    }
+                    let go_owner = owner.clone();
+                    let go_input = line_input.clone();
+                    content.child(
+                        h_flex()
+                            .w_full()
+                            .gap_2()
+                            .p_4()
+                            .child(Input::new(&line_input).w_full())
+                            .child(
+                                Button::new("go-to-line-confirm")
+                                    .primary()
+                                    .label("Go")
+                                    .on_click(move |_, window, cx| {
+                                        let line =
+                                            go_input.read(cx).value().trim().parse::<usize>().ok();
+                                        _ = go_owner.update(cx, |this, cx| {
+                                            this.go_to_line(line, window, cx);
+                                        });
+                                        window.close_dialog(cx);
+                                    }),
+                            ),
+                    )
+                })
+        });
+    }
+
+    fn go_to_line(&mut self, line: Option<usize>, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(line) = line.filter(|line| *line > 0) else {
+            self.set_status("Enter a valid line number", cx);
+            return;
+        };
+        let Some(document) = self.active_document() else {
+            return;
+        };
+        let offset = document.read_with(cx, |document, cx| {
+            crate::editor_ops::line_start_offset(&document.value(cx), line)
+        });
+        let Some(offset) = offset else {
+            self.set_status("Line number is outside the document", cx);
+            return;
+        };
+        document.update(cx, |document, cx| {
+            document.reveal_offset(offset, window, cx);
+            document.focus_editor(window, cx);
+        });
+        self.set_status(format!("Line {line}"), cx);
     }
 
     fn open_table_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -1857,6 +1996,21 @@ impl Render for Mdpeek {
             }))
             .on_action(cx.listener(|this, _: &WorkspaceReplace, window, cx| {
                 this.open_workspace_replace(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &GoToLine, window, cx| {
+                this.open_go_to_line(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &DuplicateLines, window, cx| {
+                this.apply_line_operation(EditorLineOperation::Duplicate, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &MoveLinesUp, window, cx| {
+                this.apply_line_operation(EditorLineOperation::MoveUp, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &MoveLinesDown, window, cx| {
+                this.apply_line_operation(EditorLineOperation::MoveDown, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &JoinLines, window, cx| {
+                this.apply_line_operation(EditorLineOperation::Join, window, cx);
             }))
             .on_action(cx.listener(|this, _: &DailyNote, window, cx| {
                 this.open_daily_note(window, cx);
