@@ -212,6 +212,32 @@ impl DocumentView {
         cx.notify();
     }
 
+    pub fn toggle_task(
+        &mut self,
+        checked: bool,
+        marker_range: std::ops::Range<usize>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let mut value = self.editor.read(cx).value().to_string();
+        if marker_range.end > value.len()
+            || !value.is_char_boundary(marker_range.start)
+            || !value.is_char_boundary(marker_range.end)
+        {
+            return;
+        }
+        value.replace_range(marker_range, if checked { "[x]" } else { "[ ]" });
+        self.editor.update(cx, |editor, cx| {
+            editor.set_value(value.clone(), window, cx);
+        });
+        self.dirty = value != self.saved_value;
+        let preview_source = renderable_source(self.kind, &value);
+        self.preview.update(cx, |preview, cx| {
+            preview.set_text(&preview_source, cx);
+        });
+        cx.notify();
+    }
+
     pub fn set_owner(&mut self, owner: WeakEntity<Mdpeek>) {
         self.owner = Some(owner);
     }
@@ -308,6 +334,14 @@ impl DocumentView {
                 .markdown_extensions(markdown_extensions())
                 .plugin(MathPlugin)
                 .plugin(InlineMathPlugin)
+                .on_task_toggle({
+                    let this = cx.weak_entity();
+                    move |event, window, cx| {
+                        _ = this.update(cx, |document, cx| {
+                            document.toggle_task(event.checked(), event.marker_range(), window, cx);
+                        });
+                    }
+                })
                 .on_link_click({
                     let owner = self.owner.clone();
                     let base = self
@@ -351,6 +385,34 @@ impl DocumentView {
                 })
                 .code_block_actions(|code_block, _, _| {
                     h_flex().child(Clipboard::new("copy").value(code_block.code()))
+                })
+                .table_actions(|table, _, cx| {
+                    h_flex()
+                        .w_full()
+                        .justify_end()
+                        .items_center()
+                        .gap_1()
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(cx.theme().muted_foreground)
+                                .child(format!("{} × {}", table.rows.len(), table.headers.len())),
+                        )
+                        .child(
+                            Clipboard::new("copy-table-markdown")
+                                .value(table.markdown.clone())
+                                .tooltip("Copy as Markdown"),
+                        )
+                        .child(
+                            Clipboard::new("copy-table-csv")
+                                .value(table_to_csv(&table.headers, &table.rows))
+                                .tooltip("Copy as CSV"),
+                        )
+                        .child(
+                            Clipboard::new("copy-table-tsv")
+                                .value(table_to_tsv(&table.headers, &table.rows))
+                                .tooltip("Copy as TSV"),
+                        )
                 })
                 .text_size(rems(self.preview_zoom))
                 .px_5()
@@ -469,6 +531,46 @@ impl Render for DocumentView {
             )
             .child(self.render_status(cx))
     }
+}
+
+fn table_to_csv(headers: &[String], rows: &[Vec<String>]) -> String {
+    let field = |cell: &str| {
+        if cell.contains(['"', ',', '\n']) {
+            format!("\"{}\"", cell.replace('"', "\"\""))
+        } else {
+            cell.to_string()
+        }
+    };
+    let line = |cells: &[String]| {
+        cells
+            .iter()
+            .map(|cell| field(cell))
+            .collect::<Vec<_>>()
+            .join(",")
+    };
+    std::iter::once(line(headers))
+        .chain(rows.iter().map(|row| line(row)))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn table_to_tsv(headers: &[String], rows: &[Vec<String>]) -> String {
+    let field = |cell: &str| {
+        cell.replace('\t', "\\t")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r")
+    };
+    let line = |cells: &[String]| {
+        cells
+            .iter()
+            .map(|cell| field(cell))
+            .collect::<Vec<_>>()
+            .join("\t")
+    };
+    std::iter::once(line(headers))
+        .chain(rows.iter().map(|row| line(row)))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn markdown_extensions() -> MarkdownExtensions {
