@@ -296,7 +296,6 @@ mod tests {
     }
 
     #[test]
-    #[test]
     fn slug_suffixes_do_not_collide_with_literal_heading_slugs() {
         let source = "# A-1\n\n# A\n\n# A\n";
         let headings = markdown_headings(source);
