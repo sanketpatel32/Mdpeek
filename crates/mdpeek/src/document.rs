@@ -691,12 +691,13 @@ fn decode_wiki_target(encoded: &str) -> String {
     let mut out = Vec::new();
     let mut ix = 0;
     while ix < bytes.len() {
-        if bytes[ix] == b'%' && ix + 2 < bytes.len() {
-            if let Ok(value) = u8::from_str_radix(&encoded[ix + 1..ix + 3], 16) {
-                out.push(value);
-                ix += 3;
-                continue;
-            }
+        if bytes[ix] == b'%'
+            && ix + 2 < bytes.len()
+            && let Ok(value) = u8::from_str_radix(&encoded[ix + 1..ix + 3], 16)
+        {
+            out.push(value);
+            ix += 3;
+            continue;
         }
         out.push(bytes[ix]);
         ix += 1;
