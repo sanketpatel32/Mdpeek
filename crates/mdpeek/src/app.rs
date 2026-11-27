@@ -35,6 +35,9 @@ actions!(
         OpenFile,
         NavigateBack,
         NavigateForward,
+        ZoomIn,
+        ZoomOut,
+        ZoomReset,
         QuickOpen,
         QuickOpenPick,
         CommandPalette,
@@ -199,6 +202,9 @@ fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
         ("tOGGLE cASE selection", ""),
         ("Insert table of contents", ""),
         ("Insert today's date", ""),
+        ("Zoom in", "Ctrl+="),
+        ("Zoom out", "Ctrl+-"),
+        ("Reset zoom", "Ctrl+0"),
         ("Back", "Alt+Left"),
         ("Forward", "Alt+Right"),
         ("Close other tabs", ""),
@@ -246,6 +252,13 @@ enum EditorLineOperation {
     MoveUp,
     MoveDown,
     Join,
+}
+
+#[derive(Clone, Copy)]
+enum ZoomOperation {
+    In,
+    Out,
+    Reset,
 }
 
 impl Mdpeek {
@@ -473,6 +486,17 @@ impl Mdpeek {
             self.active = self.active.min(self.documents.len() - 1);
         }
         cx.notify();
+    }
+
+    fn zoom_active(&mut self, operation: ZoomOperation, cx: &mut Context<Self>) {
+        let Some(document) = self.active_document() else {
+            return;
+        };
+        document.update(cx, |document, cx| match operation {
+            ZoomOperation::In => document.zoom_in(cx),
+            ZoomOperation::Out => document.zoom_out(cx),
+            ZoomOperation::Reset => document.zoom_reset(cx),
+        });
     }
 
     fn record_navigation(&mut self, path: PathBuf) {
@@ -954,13 +978,16 @@ impl Mdpeek {
                 window,
                 cx,
             ),
-            37 => self.navigate_history(true, window, cx),
-            38 => self.navigate_history(false, window, cx),
-            39 => self.close_other_tabs(cx),
-            40 => self.close_tabs_to_right(cx),
-            41 => self.close_all_tabs(cx),
-            42 => self.close_active_tab(cx),
-            43 => {
+            37 => self.zoom_active(ZoomOperation::In, cx),
+            38 => self.zoom_active(ZoomOperation::Out, cx),
+            39 => self.zoom_active(ZoomOperation::Reset, cx),
+            40 => self.navigate_history(true, window, cx),
+            41 => self.navigate_history(false, window, cx),
+            42 => self.close_other_tabs(cx),
+            43 => self.close_tabs_to_right(cx),
+            44 => self.close_all_tabs(cx),
+            45 => self.close_active_tab(cx),
+            46 => {
                 self.persist(cx);
                 cx.quit();
             }
@@ -2262,6 +2289,15 @@ impl Render for Mdpeek {
             }))
             .on_action(cx.listener(|this, _: &NavigateForward, window, cx| {
                 this.navigate_history(false, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &ZoomIn, _, cx| {
+                this.zoom_active(ZoomOperation::In, cx);
+            }))
+            .on_action(cx.listener(|this, _: &ZoomOut, _, cx| {
+                this.zoom_active(ZoomOperation::Out, cx);
+            }))
+            .on_action(cx.listener(|this, _: &ZoomReset, _, cx| {
+                this.zoom_active(ZoomOperation::Reset, cx);
             }))
             .on_action(cx.listener(|this, _: &OpenFolder, window, cx| {
                 this.open_folder_action(window, cx);

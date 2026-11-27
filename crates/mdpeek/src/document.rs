@@ -249,6 +249,21 @@ impl DocumentView {
         self.modified_at.is_none_or(|known| modified != known)
     }
 
+    pub fn zoom_out(&mut self, cx: &mut Context<Self>) {
+        self.preview_zoom = (self.preview_zoom - 0.25).max(0.5);
+        cx.notify();
+    }
+
+    pub fn zoom_in(&mut self, cx: &mut Context<Self>) {
+        self.preview_zoom = (self.preview_zoom + 0.25).min(4.0);
+        cx.notify();
+    }
+
+    pub fn zoom_reset(&mut self, cx: &mut Context<Self>) {
+        self.preview_zoom = 1.0;
+        cx.notify();
+    }
+
     pub fn reveal_offset(&mut self, offset: usize, window: &mut Window, cx: &mut Context<Self>) {
         self.editor.update(cx, |editor, cx| {
             let value = editor.value();
