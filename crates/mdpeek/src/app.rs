@@ -11,7 +11,7 @@ use gpui_kit::component::{
     checkbox::Checkbox,
     command::{Command, CommandItem, CommandState},
     h_flex,
-    input::{Input, InputState},
+    input::{Input, InputEvent, InputState},
     list::ListItem,
     scroll::ScrollableElement,
     tab::{Tab, TabBar},
@@ -875,6 +875,19 @@ impl Mdpeek {
             return;
         }
         let line_input = cx.new(|cx| InputState::new(window, cx).placeholder("Line number"));
+        cx.subscribe(&line_input, |this, input, event: &InputEvent, cx| {
+            if matches!(
+                event,
+                InputEvent::PressEnter {
+                    secondary: false,
+                    ..
+                }
+            ) {
+                let line = input.read(cx).value().trim().parse::<usize>().ok();
+                this.go_to_line_without_window(line, cx);
+            }
+        })
+        .detach();
         let owner = cx.weak_entity();
         let focus_on_mount = Rc::new(Cell::new(true));
         window.open_dialog(cx, move |dialog, _, _| {
@@ -915,6 +928,25 @@ impl Mdpeek {
                     )
                 })
         });
+    }
+
+    fn go_to_line_without_window(&mut self, line: Option<usize>, cx: &mut Context<Self>) {
+        let Some(line) = line.filter(|line| *line > 0) else {
+            self.set_status("Enter a valid line number", cx);
+            return;
+        };
+        let Some(document) = self.active_document() else {
+            return;
+        };
+        let offset = document.read_with(cx, |document, cx| {
+            crate::editor_ops::line_start_offset(&document.value(cx), line)
+        });
+        let Some(offset) = offset else {
+            self.set_status("Line number is outside the document", cx);
+            return;
+        };
+        document.update(cx, |document, cx| document.select_offset(offset, cx));
+        self.set_status(format!("Line {line}"), cx);
     }
 
     fn go_to_line(&mut self, line: Option<usize>, window: &mut Window, cx: &mut Context<Self>) {

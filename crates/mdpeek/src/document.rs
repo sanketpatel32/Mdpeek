@@ -266,6 +266,13 @@ impl DocumentView {
         });
     }
 
+    pub fn select_offset(&mut self, offset: usize, cx: &mut Context<Self>) {
+        self.editor.update(cx, |editor, cx| {
+            let offset = offset.min(editor.value().len());
+            editor.set_selected_range(offset..offset, cx);
+        });
+    }
+
     pub fn toggle_task(
         &mut self,
         checked: bool,
@@ -758,6 +765,7 @@ impl DocumentView {
     fn render_image_surface(&self, path: PathBuf, cx: &mut Context<Self>) -> impl IntoElement {
         let strokes = self.annotation_strokes.clone();
         let current_stroke = self.current_annotation.clone();
+        let image_bounds = self.annotation_bounds;
         let state_entity = cx.entity();
         let zoom = self.preview_zoom;
         div()
@@ -768,23 +776,34 @@ impl DocumentView {
             .on_mouse_move(cx.listener(Self::annotation_mouse_move))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::annotation_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::annotation_mouse_up))
-            .on_prepaint(move |bounds, _, cx| {
-                state_entity.update(cx, |this, _| {
-                    this.annotation_bounds = Some(bounds);
-                });
-            })
             .child(
-                img(path)
-                    .object_fit(ObjectFit::Contain)
-                    .when(zoom == 1.0, |image| image.max_w_full().max_h_full())
-                    .when(zoom != 1.0, |image| image.w(relative(zoom))),
+                div()
+                    .on_prepaint(move |bounds, _, cx| {
+                        state_entity.update(cx, |this, _| {
+                            this.annotation_bounds = Some(bounds);
+                        });
+                    })
+                    .child(
+                        img(path)
+                            .object_fit(ObjectFit::Contain)
+                            .when(zoom == 1.0, |image| image.max_w_full().max_h_full())
+                            .when(zoom != 1.0, |image| image.w(relative(zoom))),
+                    ),
             )
             .child(
                 canvas(
-                    move |bounds, _, _| (strokes.clone(), current_stroke.clone(), bounds),
+                    move |bounds, _, _| {
+                        (
+                            strokes.clone(),
+                            current_stroke.clone(),
+                            image_bounds.or(Some(bounds)),
+                        )
+                    },
                     move |_, (strokes, current_stroke, bounds), window, _| {
                         for stroke in strokes.iter().chain(current_stroke.iter()) {
-                            if let Some(path) = stroke_path(stroke, bounds) {
+                            if let Some(path) =
+                                bounds.and_then(|bounds| stroke_path(stroke, bounds))
+                            {
                                 window.paint_path(path, stroke.color);
                             }
                         }
