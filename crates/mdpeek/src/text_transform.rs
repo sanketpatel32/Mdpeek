@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::editor_ops::EditResult;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -114,15 +116,27 @@ pub struct MarkdownHeading {
 }
 
 pub fn markdown_headings(source: &str) -> Vec<MarkdownHeading> {
+    let lines = source
+        .split_inclusive('\n')
+        .scan(0, |line_start, line| {
+            let start = *line_start;
+            *line_start += line.len();
+            let content = line.trim_end_matches(['\n', '\r']);
+            Some((content, start, start + content.len()))
+        })
+        .collect::<Vec<_>>();
     let mut in_fence = false;
     let mut headings = Vec::new();
-    let mut line_start = 0;
-    for line in source.split_inclusive('\n') {
-        let content = line.trim_end_matches(['\n', '\r']);
+    for (index, (content, start, end)) in lines.iter().enumerate() {
         let trimmed = content.trim_start();
         if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
             in_fence = !in_fence;
-        } else if !in_fence && trimmed.starts_with('#') {
+            continue;
+        }
+        if in_fence {
+            continue;
+        }
+        if trimmed.starts_with('#') {
             let hashes = trimmed.chars().take_while(|ch| *ch == '#').count();
             if (1..=6).contains(&hashes) && trimmed[hashes..].starts_with(' ') {
                 let title = trimmed[hashes..].trim();
@@ -131,13 +145,54 @@ pub fn markdown_headings(source: &str) -> Vec<MarkdownHeading> {
                         level: hashes,
                         title: title.to_string(),
                         slug: heading_slug(title),
-                        start: line_start,
-                        end: line_start + content.len(),
+                        start: *start,
+                        end: *end,
                     });
                 }
             }
+            continue;
         }
-        line_start += line.len();
+        let Some((underline, _, _)) = lines.get(index + 1) else {
+            continue;
+        };
+        let underline = underline.trim();
+        let level = if !underline.is_empty() && underline.chars().all(|ch| ch == '=') {
+            Some(1)
+        } else if !underline.is_empty() && underline.chars().all(|ch| ch == '-') {
+            Some(2)
+        } else {
+            None
+        };
+        let Some(level) = level else { continue };
+        let title = trimmed;
+        if title.is_empty()
+            || title.starts_with('>')
+            || title.starts_with("- ")
+            || title.starts_with("* ")
+            || title.starts_with("+ ")
+            || title
+                .split_once(". ")
+                .is_some_and(|(number, _)| number.chars().all(|ch| ch.is_ascii_digit()))
+        {
+            continue;
+        }
+        headings.push(MarkdownHeading {
+            level,
+            title: title.to_string(),
+            slug: heading_slug(title),
+            start: *start,
+            end: *end,
+        });
+    }
+    headings.sort_by_key(|heading| heading.start);
+    let mut occurrences = HashMap::<String, usize>::new();
+    for heading in &mut headings {
+        let base = heading.slug.clone();
+        let occurrence = occurrences.entry(base.clone()).or_insert(0);
+        if *occurrence > 0 {
+            heading.slug = format!("{base}-{occurrence}");
+        }
+        *occurrence += 1;
     }
     headings
 }
@@ -197,7 +252,7 @@ pub fn apply_transform(
 
 #[cfg(test)]
 mod tests {
-    use super::{TransformOperation, apply_transform, table_of_contents};
+    use super::{TransformOperation, apply_transform, markdown_headings, table_of_contents};
 
     #[test]
     fn sorts_selected_lines_case_insensitively() {
@@ -228,6 +283,20 @@ mod tests {
             table_of_contents(source),
             "- [Title](#title)\n  - [Details](#details)\n"
         );
+    }
+
+    #[test]
+    fn includes_setext_headings_and_uniquifies_repeated_slugs() {
+        let source = "Title\n=====\n\n# Title\n\n## Title\n";
+        let headings = markdown_headings(source);
+        assert_eq!(
+            headings
+                .iter()
+                .map(|heading| heading.slug.as_str())
+                .collect::<Vec<_>>(),
+            vec!["title", "title-1", "title-2"]
+        );
+        assert_eq!(headings[0].level, 1);
     }
 
     #[test]
