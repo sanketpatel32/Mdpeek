@@ -35,3 +35,6 @@ eng.traineddata
 # tool artifacts
 .mimosa/
 graphify-out/
+
+# Rust workspace build output
+target/

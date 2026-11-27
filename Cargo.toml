@@ -1,0 +1,14 @@
+[workspace]
+members = ["crates/mdpeek"]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/sanketpatel32/Mdpeek"
+
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1
+panic = "abort"
