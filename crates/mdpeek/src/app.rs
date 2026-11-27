@@ -1095,6 +1095,7 @@ impl Render for Mdpeek {
                 this.persist(cx);
                 cx.quit();
             }))
+            .child(gpui_kit::base::TextSelectionLayer)
             .when(!self.documents.is_empty() && !self.reading_mode, |this| {
                 this.child(self.render_tab_bar(cx))
             })
