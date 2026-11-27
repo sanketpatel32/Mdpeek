@@ -5,8 +5,8 @@ use std::{
 };
 
 use gpui_kit::component::{
-    ActiveTheme as _, Icon, IconName, Selectable as _, Sizable as _, Theme, ThemeMode,
-    WindowExt as _,
+    ActiveTheme as _, Icon, IconName, Selectable as _, Sizable as _, StyledExt as _, Theme,
+    ThemeMode, WindowExt as _,
     button::{Button, ButtonVariants as _},
     checkbox::Checkbox,
     command::{Command, CommandItem, CommandState},
@@ -22,7 +22,9 @@ use gpui_kit::{prelude::FluentBuilder as _, *};
 
 use crate::document::{DocumentView, read_document};
 use crate::export::{markdown_to_html_document, markdown_to_pdf, markdown_to_plain_text};
-use crate::settings::{SessionState, load_session, save_session};
+use crate::settings::{
+    AppSettings, SessionState, load_session, load_settings, save_session, save_settings,
+};
 use crate::table::{MarkdownTable, emit_table};
 use crate::workspace::{
     SearchMatch, build_file_items, collect_files, resolve_tree_path, search_files,
@@ -33,6 +35,7 @@ actions!(
     [
         NewTab,
         OpenFile,
+        OpenSettings,
         NavigateBack,
         NavigateForward,
         ZoomIn,
@@ -104,6 +107,7 @@ pub struct Mdpeek {
     reading_mode: bool,
     navigation_history: Vec<PathBuf>,
     navigation_index: usize,
+    settings: AppSettings,
     focus_handle: FocusHandle,
 }
 
@@ -211,6 +215,7 @@ fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
         ("Close tabs to the right", ""),
         ("Close all tabs", ""),
         ("Close tab", "Ctrl+W"),
+        ("Open settings", "Ctrl+,"),
         ("Quit", "Ctrl+Q"),
     ]
 }
@@ -255,6 +260,13 @@ enum EditorLineOperation {
 }
 
 #[derive(Clone, Copy)]
+enum SettingsToggle {
+    LineNumbers,
+    WordWrap,
+    Autosave,
+}
+
+#[derive(Clone, Copy)]
 enum ZoomOperation {
     In,
     Out,
@@ -280,6 +292,7 @@ impl Mdpeek {
             reading_mode: false,
             navigation_history: Vec::new(),
             navigation_index: 0,
+            settings: load_settings(),
             focus_handle: cx.focus_handle(),
         };
         if session.dark_mode {
@@ -361,7 +374,11 @@ impl Mdpeek {
     fn new_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let owner = cx.weak_entity();
         let document = cx.new(|cx| DocumentView::untitled(window, cx));
-        document.update(cx, |document, _| document.set_owner(owner));
+        let settings = self.settings.clone();
+        document.update(cx, |document, cx| {
+            document.set_owner(owner);
+            document.apply_editor_settings(&settings, window, cx);
+        });
         self.documents.push(document);
         self.active = self.documents.len() - 1;
         self.clear_status(cx);
@@ -449,12 +466,16 @@ impl Mdpeek {
             return;
         }
 
+        let this_settings = self.settings.clone();
         match read_document(&path) {
             Ok((content, kind)) => {
                 let owner = cx.weak_entity();
                 let document =
                     cx.new(|cx| DocumentView::new(Some(path.clone()), content, kind, window, cx));
-                document.update(cx, |document, _| document.set_owner(owner));
+                document.update(cx, |document, cx| {
+                    document.set_owner(owner);
+                    document.apply_editor_settings(&this_settings, window, cx);
+                });
                 let is_image = kind == crate::document::DocumentKind::Image;
                 self.documents.push(document);
                 self.active = self.documents.len() - 1;
@@ -822,6 +843,7 @@ impl Mdpeek {
     }
 
     fn reload_externally_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.autosave_dirty_documents(cx);
         for document in self.documents.clone() {
             let (path, dirty, changed) = document.read_with(cx, |document, _| {
                 (
@@ -852,6 +874,137 @@ impl Mdpeek {
                 self.set_status("Reloaded file changed on disk", cx);
             }
         }
+    }
+
+    fn autosave_dirty_documents(&mut self, cx: &mut Context<Self>) {
+        if !self.settings.autosave {
+            return;
+        }
+        for document in self.documents.clone() {
+            let Some((path, content)) = document.read_with(cx, |document, cx| {
+                (document.is_dirty() && document.kind.is_text_editable())
+                    .then(|| (document.path.clone(), document.value(cx)))
+                    .and_then(|(path, content)| path.map(|path| (path, content)))
+            }) else {
+                continue;
+            };
+            match std::fs::write(&path, content) {
+                Ok(()) => {
+                    document.update(cx, |document, cx| document.mark_saved(path.clone(), cx));
+                }
+                Err(error) => {
+                    self.set_status(
+                        format!("Autosave failed for {}: {error}", path.display()),
+                        cx,
+                    );
+                }
+            }
+        }
+    }
+
+    fn toggle_setting(
+        &mut self,
+        setting: SettingsToggle,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match setting {
+            SettingsToggle::LineNumbers => {
+                self.settings.editor_line_numbers = !self.settings.editor_line_numbers;
+            }
+            SettingsToggle::WordWrap => {
+                self.settings.editor_word_wrap = !self.settings.editor_word_wrap;
+            }
+            SettingsToggle::Autosave => {
+                self.settings.autosave = !self.settings.autosave;
+            }
+        }
+        let settings = self.settings.clone();
+        for document in self.documents.clone() {
+            document.update(cx, |document, cx| {
+                document.apply_editor_settings(&settings, window, cx);
+            });
+        }
+        match save_settings(&self.settings) {
+            Ok(()) => self.set_status("Settings saved", cx),
+            Err(error) => self.set_status(format!("Could not save settings: {error}"), cx),
+        }
+    }
+
+    fn open_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let owner = cx.weak_entity();
+        let current_settings = self.settings.clone();
+        window.open_dialog(cx, move |dialog, _, _| {
+            let owner = owner.clone();
+            let current_settings = current_settings.clone();
+            dialog.title("Settings").w(px(560.)).content(
+                move |content, _window, cx| {
+                    let line_owner = owner.clone();
+                    let wrap_owner = owner.clone();
+                    let autosave_owner = owner.clone();
+                    let theme_owner = owner.clone();
+                    content.child(
+                        v_flex()
+                            .w_full()
+                            .gap_4()
+                            .p_4()
+                            .child(
+                                v_flex()
+                                    .gap_2()
+                                    .child(div().text_sm().font_bold().child("Editor"))
+                                    .child(
+                                        Checkbox::new("settings-line-numbers")
+                                            .label("Show line numbers")
+                                            .checked(current_settings.editor_line_numbers)
+                                            .on_click(move |_, window, cx| {
+                                                _ = line_owner.update(cx, |this, cx| {
+                                                    this.toggle_setting(SettingsToggle::LineNumbers, window, cx);
+                                                });
+                                            }),
+                                    )
+                                    .child(
+                                        Checkbox::new("settings-word-wrap")
+                                            .label("Wrap long lines")
+                                            .checked(current_settings.editor_word_wrap)
+                                            .on_click(move |_, window, cx| {
+                                                _ = wrap_owner.update(cx, |this, cx| {
+                                                    this.toggle_setting(SettingsToggle::WordWrap, window, cx);
+                                                });
+                                            }),
+                                    )
+                                    .child(
+                                        Checkbox::new("settings-autosave")
+                                            .label("Autosave saved documents")
+                                            .checked(current_settings.autosave)
+                                            .on_click(move |_, window, cx| {
+                                                _ = autosave_owner.update(cx, |this, cx| {
+                                                    this.toggle_setting(SettingsToggle::Autosave, window, cx);
+                                                });
+                                            }),
+                                    ),
+                            )
+                            .child(
+                                v_flex()
+                                    .gap_2()
+                                    .child(div().text_sm().font_bold().child("Appearance"))
+                                    .child(
+                                        Button::new("settings-theme")
+                                            .label(if cx.theme().is_dark() { "Use light theme" } else { "Use dark theme" })
+                                            .on_click(move |_, _, cx| {
+                                                _ = theme_owner.update(cx, |this, cx| this.toggle_theme(cx));
+                                            }),
+                                    ),
+                            )
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child("More editor, export, and workspace preferences are still being ported from v2."),
+                            ),
+                    )
+                },
+            )
+        });
     }
 
     fn open_command_palette(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -987,7 +1140,8 @@ impl Mdpeek {
             43 => self.close_tabs_to_right(cx),
             44 => self.close_all_tabs(cx),
             45 => self.close_active_tab(cx),
-            46 => {
+            46 => self.open_settings(window, cx),
+            47 => {
                 self.persist(cx);
                 cx.quit();
             }
@@ -2298,6 +2452,9 @@ impl Render for Mdpeek {
             }))
             .on_action(cx.listener(|this, _: &ZoomReset, _, cx| {
                 this.zoom_active(ZoomOperation::Reset, cx);
+            }))
+            .on_action(cx.listener(|this, _: &OpenSettings, window, cx| {
+                this.open_settings(window, cx);
             }))
             .on_action(cx.listener(|this, _: &OpenFolder, window, cx| {
                 this.open_folder_action(window, cx);

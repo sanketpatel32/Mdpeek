@@ -17,8 +17,8 @@ mod workspace;
 use app::{
     CheckLinks, CloseTab, CommandPalette, DailyNote, DuplicateLines, EditTable, ExportHtml,
     ExportPdf, ExportText, GoToLine, JoinLines, Mdpeek, MoveLinesDown, MoveLinesUp, NavigateBack,
-    NavigateForward, NewTab, NextTab, OpenFile, OpenFolder, PreviousTab, QuickOpen, Quit,
-    ReloadFile, ReopenClosedTab, Save, SaveAs, SnippetPicker, ToggleEdit, ToggleReading,
+    NavigateForward, NewTab, NextTab, OpenFile, OpenFolder, OpenSettings, PreviousTab, QuickOpen,
+    Quit, ReloadFile, ReopenClosedTab, Save, SaveAs, SnippetPicker, ToggleEdit, ToggleReading,
     ToggleSidebar, ToggleTheme, WorkspaceReplace, WorkspaceSearch, ZoomIn, ZoomOut, ZoomReset,
 };
 use gpui_kit::*;
@@ -36,6 +36,7 @@ fn main() {
                 KeyBinding::new("ctrl-=", ZoomIn, Some("Mdpeek")),
                 KeyBinding::new("ctrl--", ZoomOut, Some("Mdpeek")),
                 KeyBinding::new("ctrl-0", ZoomReset, Some("Mdpeek")),
+                KeyBinding::new("ctrl-,", OpenSettings, Some("Mdpeek")),
                 KeyBinding::new("ctrl-p", QuickOpen, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-f", WorkspaceSearch, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-r", WorkspaceReplace, Some("Mdpeek")),

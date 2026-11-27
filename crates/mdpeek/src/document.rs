@@ -339,6 +339,18 @@ impl DocumentView {
         cx.notify();
     }
 
+    pub fn apply_editor_settings(
+        &mut self,
+        settings: &crate::settings::AppSettings,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.editor.update(cx, |editor, cx| {
+            editor.set_line_number(settings.editor_line_numbers, window, cx);
+            editor.set_soft_wrap(settings.editor_word_wrap, window, cx);
+        });
+    }
+
     pub fn selected_range(&self, cx: &App) -> std::ops::Range<usize> {
         self.editor.read(cx).selected_range()
     }
