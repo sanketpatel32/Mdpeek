@@ -137,7 +137,7 @@ pub fn markdown_headings(source: &str) -> Vec<MarkdownHeading> {
             in_fence = !in_fence;
             continue;
         }
-        if in_fence {
+        if in_fence || content.starts_with("    ") || content.starts_with('\t') {
             continue;
         }
         if trimmed.starts_with('#') {
@@ -309,6 +309,15 @@ mod tests {
     #[test]
     fn ordered_list_before_rule_is_not_a_setext_heading() {
         let source = "1) item\n---\n\n## Real\n";
+        let headings = markdown_headings(source);
+        assert_eq!(headings.len(), 1);
+        assert_eq!(headings[0].title, "Real");
+    }
+
+    #[test]
+    #[test]
+    fn indented_code_is_not_a_setext_heading() {
+        let source = "    1234567890. label\n    ---\n\n## Real\n";
         let headings = markdown_headings(source);
         assert_eq!(headings.len(), 1);
         assert_eq!(headings[0].title, "Real");
