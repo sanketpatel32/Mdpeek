@@ -27,6 +27,7 @@ actions!(
         OpenFile,
         QuickOpen,
         QuickOpenPick,
+        DailyNote,
         WorkspaceSearch,
         WorkspaceSearchPick,
         ToggleReading,
@@ -504,6 +505,31 @@ impl Mdpeek {
         }
     }
 
+    fn open_daily_note(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(root) = self.root_dir.clone() else {
+            self.set_status("Open a folder before using daily notes", cx);
+            return;
+        };
+        let directory = root.join("daily");
+        if let Err(error) = std::fs::create_dir_all(&directory) {
+            self.set_status(format!("Could not create daily notes folder: {error}"), cx);
+            return;
+        }
+        let date = chrono::Local::now().format("%Y-%m-%d");
+        let path = directory.join(format!("{date}.md"));
+        if !path.exists()
+            && let Err(error) = std::fs::write(
+                &path,
+                format!("# {date}\n\n## Notes\n\n## Tasks\n\n- [ ] \n"),
+            )
+        {
+            self.set_status(format!("Could not create daily note: {error}"), cx);
+            return;
+        }
+        self.open_path(path, window, cx);
+        self.set_status("Opened today's daily note", cx);
+    }
+
     fn open_workspace_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.root_dir.is_none() {
             self.set_status("Open a folder before searching the workspace", cx);
@@ -949,6 +975,9 @@ impl Render for Mdpeek {
             }))
             .on_action(cx.listener(|this, _: &WorkspaceSearch, window, cx| {
                 this.open_workspace_search(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &DailyNote, window, cx| {
+                this.open_daily_note(window, cx);
             }))
             .on_action(cx.listener(|this, _: &ToggleReading, _, cx| {
                 this.toggle_reading(cx);

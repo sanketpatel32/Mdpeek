@@ -7,9 +7,9 @@ mod settings;
 mod workspace;
 
 use app::{
-    CloseTab, ExportHtml, ExportText, Mdpeek, NewTab, NextTab, OpenFile, OpenFolder, PreviousTab,
-    QuickOpen, Quit, ReloadFile, ReopenClosedTab, Save, SaveAs, ToggleEdit, ToggleReading,
-    ToggleSidebar, ToggleTheme, WorkspaceSearch,
+    CloseTab, DailyNote, ExportHtml, ExportText, Mdpeek, NewTab, NextTab, OpenFile, OpenFolder,
+    PreviousTab, QuickOpen, Quit, ReloadFile, ReopenClosedTab, Save, SaveAs, ToggleEdit,
+    ToggleReading, ToggleSidebar, ToggleTheme, WorkspaceSearch,
 };
 use gpui_kit::*;
 
@@ -23,6 +23,7 @@ fn main() {
                 KeyBinding::new("ctrl-o", OpenFile, Some("Mdpeek")),
                 KeyBinding::new("ctrl-p", QuickOpen, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-f", WorkspaceSearch, Some("Mdpeek")),
+                KeyBinding::new("ctrl-shift-d", DailyNote, Some("Mdpeek")),
                 KeyBinding::new("f11", ToggleReading, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-e", OpenFolder, Some("Mdpeek")),
                 KeyBinding::new("ctrl-s", Save, Some("Mdpeek")),
