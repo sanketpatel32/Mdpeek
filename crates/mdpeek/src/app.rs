@@ -1,8 +1,10 @@
-use std::path::PathBuf;
+use std::{cell::Cell, path::PathBuf, rc::Rc};
 
 use gpui_kit::component::{
     ActiveTheme as _, Icon, IconName, Selectable as _, Sizable as _, Theme, ThemeMode,
+    WindowExt as _,
     button::{Button, ButtonVariants as _},
+    command::{Command, CommandItem, CommandState},
     h_flex,
     list::ListItem,
     tab::{Tab, TabBar},
@@ -14,13 +16,16 @@ use gpui_kit::{prelude::FluentBuilder as _, *};
 use crate::document::{DocumentView, read_document};
 use crate::export::{markdown_to_html_document, markdown_to_plain_text};
 use crate::settings::{SessionState, load_session, save_session};
-use crate::workspace::{build_file_items, resolve_tree_path};
+use crate::workspace::{build_file_items, collect_files, resolve_tree_path};
 
 actions!(
     mdpeek,
     [
         NewTab,
         OpenFile,
+        QuickOpen,
+        QuickOpenPick,
+        ToggleReading,
         OpenFolder,
         Save,
         SaveAs,
@@ -46,6 +51,8 @@ pub struct Mdpeek {
     root_dir: Option<PathBuf>,
     tree_state: Entity<TreeState>,
     status_message: Option<SharedString>,
+    quick_open: Entity<CommandState>,
+    reading_mode: bool,
     focus_handle: FocusHandle,
 }
 
@@ -60,6 +67,8 @@ impl Mdpeek {
             root_dir: session.root_dir.clone(),
             tree_state: cx.new(|cx| TreeState::new(cx)),
             status_message: None,
+            quick_open: cx.new(|cx| CommandState::new(window, cx)),
+            reading_mode: false,
             focus_handle: cx.focus_handle(),
         };
         if session.dark_mode {
@@ -408,6 +417,89 @@ impl Mdpeek {
         Theme::change(next, None, cx);
     }
 
+    fn toggle_reading(&mut self, cx: &mut Context<Self>) {
+        self.reading_mode = !self.reading_mode;
+        if self.reading_mode {
+            self.sidebar_visible = false;
+            if let Some(document) = self.active_document() {
+                document.update(cx, |document, cx| document.show_preview(cx));
+            }
+        }
+        cx.notify();
+    }
+
+    fn open_quick_open(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let mut paths = self
+            .root_dir
+            .as_ref()
+            .map(|root| collect_files(root, 500))
+            .unwrap_or_default();
+        paths.extend(
+            self.documents
+                .iter()
+                .filter_map(|document| document.read(cx).path.clone()),
+        );
+        paths.sort();
+        paths.dedup();
+        if paths.is_empty() {
+            self.set_status("Open a folder or file before using quick open", cx);
+            return;
+        }
+
+        let command = self.quick_open.clone();
+        command.update(cx, |command, cx| {
+            command.set_query("", window, cx);
+        });
+        let owner = cx.weak_entity();
+        let focus_on_mount = Rc::new(Cell::new(true));
+        window.open_dialog(cx, move |dialog, _, _| {
+            let command = command.clone();
+            let owner = owner.clone();
+            let focus_on_mount = focus_on_mount.clone();
+            let paths = paths.clone();
+            dialog
+                .close_button(false)
+                .p_0()
+                .content(move |content, window, cx| {
+                    if focus_on_mount.replace(false) {
+                        let command = command.clone();
+                        window.defer(cx, move |window, cx| {
+                            command.read(cx).focus_handle(cx).focus(window, cx);
+                        });
+                    }
+                    let confirm_owner = owner.clone();
+                    let confirm_paths = paths.clone();
+                    content.child(
+                        Command::new(&command)
+                            .w(px(620.))
+                            .bordered(false)
+                            .rounded(cx.theme().radius_lg)
+                            .placeholder("Open a file...")
+                            .highlight_matches(true)
+                            .items(paths.iter().map(|path| {
+                                let name = path
+                                    .file_name()
+                                    .and_then(|name| name.to_str())
+                                    .unwrap_or("file");
+                                CommandItem::new()
+                                    .label(format!("{} — {}", name, path.display()))
+                                    .keywords([path.display().to_string()])
+                                    .icon(IconName::File)
+                                    .action(Box::new(QuickOpenPick))
+                            }))
+                            .on_confirm(move |index, window, cx| {
+                                if let Some(path) = confirm_paths.get(index.row).cloned() {
+                                    _ = confirm_owner.update(cx, |this, cx| {
+                                        this.open_path(path, window, cx);
+                                    });
+                                }
+                                window.close_dialog(cx);
+                            }),
+                    )
+                })
+        });
+    }
+
     fn render_tab_bar(&self, cx: &mut Context<Self>) -> impl IntoElement {
         TabBar::new("documents")
             .w_full()
@@ -635,6 +727,12 @@ impl Render for Mdpeek {
             .on_action(cx.listener(|this, _: &OpenFolder, window, cx| {
                 this.open_folder_action(window, cx);
             }))
+            .on_action(cx.listener(|this, _: &QuickOpen, window, cx| {
+                this.open_quick_open(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &ToggleReading, _, cx| {
+                this.toggle_reading(cx);
+            }))
             .on_action(cx.listener(|this, _: &Save, window, cx| {
                 this.save_active(window, cx);
             }))
@@ -676,14 +774,14 @@ impl Render for Mdpeek {
                 this.persist(cx);
                 cx.quit();
             }))
-            .when(!self.documents.is_empty(), |this| {
+            .when(!self.documents.is_empty() && !self.reading_mode, |this| {
                 this.child(self.render_tab_bar(cx))
             })
             .child(
                 h_flex()
                     .flex_1()
                     .overflow_hidden()
-                    .when(self.sidebar_visible, |this| {
+                    .when(self.sidebar_visible && !self.reading_mode, |this| {
                         this.child(self.render_sidebar(cx))
                     })
                     .child(div().flex_1().h_full().overflow_hidden().map(|this| {
@@ -694,6 +792,8 @@ impl Render for Mdpeek {
                         }
                     })),
             )
-            .child(self.render_status_message(cx))
+            .when(!self.reading_mode, |this| {
+                this.child(self.render_status_message(cx))
+            })
     }
 }

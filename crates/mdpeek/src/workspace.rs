@@ -78,3 +78,34 @@ fn normalize_id(root: &Path, path: &Path) -> String {
 pub fn resolve_tree_path(root: &Path, id: &str) -> PathBuf {
     root.join(id)
 }
+
+pub fn collect_files(root: &Path, limit: usize) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    collect_files_inner(root, 0, limit, &mut files);
+    files.sort();
+    files
+}
+
+fn collect_files_inner(path: &Path, depth: usize, limit: usize, files: &mut Vec<PathBuf>) {
+    if files.len() >= limit || depth > MAX_DEPTH {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if files.len() >= limit {
+            return;
+        }
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        let path = entry.path();
+        if path.is_dir() {
+            if !SKIPPED_DIRECTORIES.contains(&name.as_ref()) {
+                collect_files_inner(&path, depth + 1, limit, files);
+            }
+        } else {
+            files.push(path);
+        }
+    }
+}

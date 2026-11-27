@@ -204,6 +204,13 @@ impl DocumentView {
         cx.notify();
     }
 
+    pub fn show_preview(&mut self, cx: &mut Context<Self>) {
+        if self.kind != DocumentKind::Image {
+            self.mode = ViewMode::Preview;
+            cx.notify();
+        }
+    }
+
     pub fn cycle_mode(&mut self, cx: &mut Context<Self>) {
         if !self.kind.is_text_editable() {
             return;

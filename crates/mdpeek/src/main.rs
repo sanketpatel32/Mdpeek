@@ -7,7 +7,8 @@ mod workspace;
 
 use app::{
     CloseTab, ExportHtml, ExportText, Mdpeek, NewTab, NextTab, OpenFile, OpenFolder, PreviousTab,
-    Quit, ReloadFile, ReopenClosedTab, Save, SaveAs, ToggleEdit, ToggleSidebar, ToggleTheme,
+    QuickOpen, Quit, ReloadFile, ReopenClosedTab, Save, SaveAs, ToggleEdit, ToggleReading,
+    ToggleSidebar, ToggleTheme,
 };
 use gpui_kit::*;
 
@@ -19,6 +20,8 @@ fn main() {
             cx.bind_keys([
                 KeyBinding::new("ctrl-n", NewTab, Some("Mdpeek")),
                 KeyBinding::new("ctrl-o", OpenFile, Some("Mdpeek")),
+                KeyBinding::new("ctrl-p", QuickOpen, Some("Mdpeek")),
+                KeyBinding::new("f11", ToggleReading, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-e", OpenFolder, Some("Mdpeek")),
                 KeyBinding::new("ctrl-s", Save, Some("Mdpeek")),
                 KeyBinding::new("ctrl-alt-s", SaveAs, Some("Mdpeek")),
