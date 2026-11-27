@@ -22,11 +22,12 @@ Mdpeek is being rebuilt as a pure Rust desktop application using GPUI. The forme
 - Clickable preview task checkboxes that update the Markdown source
 - Inline and block math fallback rendering with Unicode/script compaction
 - Wiki links (`[[Page]]`) and relative Markdown links open as documents
-- File explorer, quick open (`Ctrl+P`), reopen closed tab, and reading mode (`F11`)
+- File explorer, heading outline, quick open (`Ctrl+P`), workspace content search (`Ctrl+Shift+F`), daily notes (`Ctrl+Shift+D`), reopen closed tab, and reading mode (`F11`)
 - Session restoration for open documents, workspace, sidebar, theme, and active tab
 - Automatic reload for externally changed clean files
-- HTML and plain-text export
+- HTML, plain-text, and simple PDF export
 - Copy table contents as Markdown, CSV, or TSV; copy fenced code blocks
+- Document link checking (`Ctrl+Alt+L`)
 - Light and dark themes
 
 ## Build and run
@@ -59,6 +60,9 @@ cargo run -p mdpeek -- README.md path/to/workspace
 | New document | `Ctrl+N` |
 | Open file | `Ctrl+O` |
 | Quick open | `Ctrl+P` |
+| Workspace search | `Ctrl+Shift+F` |
+| Daily note | `Ctrl+Shift+D` |
+| Check links | `Ctrl+Alt+L` |
 | Open folder | `Ctrl+Shift+E` |
 | Save | `Ctrl+S` |
 | Save as | `Ctrl+Alt+S` |
@@ -69,13 +73,13 @@ cargo run -p mdpeek -- README.md path/to/workspace
 | Reading mode | `F11` |
 | Reload | `Ctrl+R` |
 | Theme | `Ctrl+Shift+L` |
-| Export HTML/text | `Ctrl+Shift+H` / `Ctrl+Shift+T` |
+| Export HTML/text/PDF | `Ctrl+Shift+H` / `Ctrl+Shift+T` / `Ctrl+Shift+P` |
 | Next/previous tab | `Ctrl+Tab` / `Ctrl+Shift+Tab` |
 | Quit | `Ctrl+Q` or `Alt+F4` |
 
 ## Rebuild status
 
-This is an alpha native rebuild. Core document workflows are implemented in Rust/GPUI, but the legacy application had a much larger feature surface. Not yet ported: Mermaid diagrams, full KaTeX-typeset math, PDF printing, visual table editing, daily notes, project-wide search/replace, workspace collaboration/graph/calendar views, installer signing, and automatic updates.
+This is an alpha native rebuild. Core document workflows are implemented in Rust/GPUI, but the legacy application had a much larger feature surface. Not yet ported: Mermaid diagrams, full KaTeX-typeset math, rich PDF pagination/print preview, visual table cell editing, project-wide replace, workspace collaboration/graph/calendar views, installer signing, and automatic updates. Workspace search is implemented, but replacement is not.
 
 ## Contributing
 
