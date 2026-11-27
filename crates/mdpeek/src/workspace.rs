@@ -155,3 +155,77 @@ pub fn search_files(root: &Path, query: &str, limit: usize) -> Vec<SearchMatch> 
     }
     matches
 }
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReplacementResult {
+    pub result: String,
+    pub count: usize,
+}
+
+pub fn apply_replacements(
+    content: &str,
+    query: &str,
+    replacement: &str,
+    case_sensitive: bool,
+) -> ReplacementResult {
+    if query.is_empty() {
+        return ReplacementResult {
+            result: content.to_string(),
+            count: 0,
+        };
+    }
+    let pattern = regex::escape(query);
+    let Ok(regex) = regex::RegexBuilder::new(&pattern)
+        .case_insensitive(!case_sensitive)
+        .build()
+    else {
+        return ReplacementResult {
+            result: content.to_string(),
+            count: 0,
+        };
+    };
+
+    let mut result = String::with_capacity(content.len());
+    let mut cursor = 0;
+    let mut count = 0;
+    for matched in regex.find_iter(content) {
+        result.push_str(&content[cursor..matched.start()]);
+        result.push_str(replacement);
+        cursor = matched.end();
+        count += 1;
+    }
+    if count == 0 {
+        return ReplacementResult {
+            result: content.to_string(),
+            count: 0,
+        };
+    }
+    result.push_str(&content[cursor..]);
+    ReplacementResult { result, count }
+}
+
+#[cfg(test)]
+mod replacement_tests {
+    use super::apply_replacements;
+
+    #[test]
+    fn replaces_plain_text_verbatim() {
+        let result = apply_replacements("alpha $0 alpha", "alpha", "$0 & beta", true);
+        assert_eq!(result.result, "$0 & beta $0 $0 & beta");
+        assert_eq!(result.count, 2);
+    }
+
+    #[test]
+    fn case_insensitive_replacement_preserves_unicode_boundaries() {
+        let result = apply_replacements("Café CAFÉ cafe", "café", "coffee", false);
+        assert_eq!(result.result, "coffee coffee cafe");
+        assert_eq!(result.count, 2);
+    }
+
+    #[test]
+    fn overlapping_matches_are_not_double_counted() {
+        let result = apply_replacements("aaaa", "aa", "b", true);
+        assert_eq!(result.result, "bb");
+        assert_eq!(result.count, 2);
+    }
+}

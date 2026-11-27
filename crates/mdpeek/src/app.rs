@@ -4,8 +4,10 @@ use gpui_kit::component::{
     ActiveTheme as _, Icon, IconName, Selectable as _, Sizable as _, Theme, ThemeMode,
     WindowExt as _,
     button::{Button, ButtonVariants as _},
+    checkbox::Checkbox,
     command::{Command, CommandItem, CommandState},
     h_flex,
+    input::{Input, InputState},
     list::ListItem,
     scroll::ScrollableElement,
     tab::{Tab, TabBar},
@@ -34,6 +36,7 @@ actions!(
         DailyNote,
         WorkspaceSearch,
         WorkspaceSearchPick,
+        WorkspaceReplace,
         ToggleReading,
         OpenFolder,
         Save,
@@ -102,6 +105,7 @@ fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
         ("Open folder", "Ctrl+Shift+E"),
         ("Quick open", "Ctrl+P"),
         ("Search workspace", "Ctrl+Shift+F"),
+        ("Replace in workspace", "Ctrl+Shift+R"),
         ("Open today's daily note", "Ctrl+Shift+D"),
         ("Check document links", "Ctrl+Alt+I"),
         ("Save", "Ctrl+S"),
@@ -629,29 +633,199 @@ impl Mdpeek {
             2 => self.open_folder_action(window, cx),
             3 => self.open_quick_open(window, cx),
             4 => self.open_workspace_search(window, cx),
-            5 => self.open_daily_note(window, cx),
-            6 => self.check_links(cx),
-            7 => self.save_active(window, cx),
-            8 => self.save_active_as(window, cx),
-            9 => self.reload_active(window, cx),
-            10 => self.reopen_closed_tab(window, cx),
-            11 => self.toggle_edit(window, cx),
-            12 => {
+            5 => self.open_workspace_replace(window, cx),
+            6 => self.open_daily_note(window, cx),
+            7 => self.check_links(cx),
+            8 => self.save_active(window, cx),
+            9 => self.save_active_as(window, cx),
+            10 => self.reload_active(window, cx),
+            11 => self.reopen_closed_tab(window, cx),
+            12 => self.toggle_edit(window, cx),
+            13 => {
                 self.sidebar_visible = !self.sidebar_visible;
                 cx.notify();
             }
-            13 => self.toggle_reading(window, cx),
-            14 => self.toggle_theme(cx),
-            15 => self.export_active_html(window, cx),
-            16 => self.export_active_text(window, cx),
-            17 => self.export_active_pdf(window, cx),
-            18 => self.close_active_tab(cx),
-            19 => {
+            14 => self.toggle_reading(window, cx),
+            15 => self.toggle_theme(cx),
+            16 => self.export_active_html(window, cx),
+            17 => self.export_active_text(window, cx),
+            18 => self.export_active_pdf(window, cx),
+            19 => self.close_active_tab(cx),
+            20 => {
                 self.persist(cx);
                 cx.quit();
             }
             _ => {}
         }
+    }
+
+    fn open_workspace_replace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.root_dir.is_none() {
+            self.set_status("Open a folder before replacing in the workspace", cx);
+            return;
+        }
+
+        let query_input = cx.new(|cx| InputState::new(window, cx).placeholder("Find"));
+        let replacement_input =
+            cx.new(|cx| InputState::new(window, cx).placeholder("Replace with"));
+        let case_sensitive = Rc::new(Cell::new(false));
+        let owner = cx.weak_entity();
+        let focus_on_mount = Rc::new(Cell::new(true));
+
+        window.open_dialog(cx, move |dialog, _, _| {
+            let query_input = query_input.clone();
+            let replacement_input = replacement_input.clone();
+            let case_sensitive = case_sensitive.clone();
+            let owner = owner.clone();
+            let focus_on_mount = focus_on_mount.clone();
+            dialog
+                .title("Replace in workspace")
+                .w(px(560.))
+                .content(move |content, window, cx| {
+                    if focus_on_mount.replace(false) {
+                        let query_input = query_input.clone();
+                        window.defer(cx, move |window, cx| {
+                            query_input.read(cx).focus_handle(cx).focus(window, cx);
+                        });
+                    }
+                    let replace_owner = owner.clone();
+                    let replace_query = query_input.clone();
+                    let replace_replacement = replacement_input.clone();
+                    let replace_case_sensitive = case_sensitive.clone();
+                    content.child(
+                        v_flex()
+                            .w_full()
+                            .gap_3()
+                            .p_4()
+                            .child(Input::new(&query_input).w_full())
+                            .child(Input::new(&replacement_input).w_full())
+                            .child(
+                                Checkbox::new("workspace-case-sensitive")
+                                    .label("Case sensitive")
+                                    .checked(case_sensitive.get())
+                                    .on_click({
+                                        let case_sensitive = case_sensitive.clone();
+                                        move |checked, _, _| {
+                                            case_sensitive.set(*checked);
+                                        }
+                                    }),
+                            )
+                            .child(
+                                h_flex().w_full().justify_end().gap_2().child(
+                                    Button::new("workspace-replace-all")
+                                        .primary()
+                                        .label("Replace all")
+                                        .on_click(move |_, window, cx| {
+                                            let query = replace_query.read(cx).value().to_string();
+                                            let replacement =
+                                                replace_replacement.read(cx).value().to_string();
+                                            let sensitive = replace_case_sensitive.get();
+                                            _ = replace_owner.update(cx, |this, cx| {
+                                                this.replace_in_workspace(
+                                                    query,
+                                                    replacement,
+                                                    sensitive,
+                                                    window,
+                                                    cx,
+                                                );
+                                            });
+                                            window.close_dialog(cx);
+                                        }),
+                                ),
+                            ),
+                    )
+                })
+        });
+    }
+
+    fn replace_in_workspace(
+        &mut self,
+        query: String,
+        replacement: String,
+        case_sensitive: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(root) = self.root_dir.clone() else {
+            self.set_status("Open a folder before replacing in the workspace", cx);
+            return;
+        };
+        if query.is_empty() {
+            self.set_status("Enter text to find before replacing", cx);
+            return;
+        }
+
+        let dirty_paths = self
+            .documents
+            .iter()
+            .filter_map(|document| {
+                document.read_with(cx, |document, _| {
+                    document.is_dirty().then(|| document.path.clone()).flatten()
+                })
+            })
+            .collect::<std::collections::HashSet<_>>();
+        let canonical_root = root.canonicalize().unwrap_or_else(|_| root.clone());
+        let mut files_changed = 0usize;
+        let mut replacements = 0usize;
+        let mut skipped_dirty = 0usize;
+        let mut errors = 0usize;
+
+        for path in collect_files(&root, 1_000) {
+            let Ok(metadata) = std::fs::metadata(&path) else {
+                continue;
+            };
+            if metadata.len() > 512_000 || dirty_paths.contains(&path) {
+                skipped_dirty += usize::from(dirty_paths.contains(&path));
+                continue;
+            }
+            if path
+                .canonicalize()
+                .is_ok_and(|canonical| !canonical.starts_with(&canonical_root))
+            {
+                continue;
+            }
+            let Ok(content) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            let result = crate::workspace::apply_replacements(
+                &content,
+                &query,
+                &replacement,
+                case_sensitive,
+            );
+            if result.count == 0 {
+                continue;
+            }
+            match std::fs::write(&path, result.result) {
+                Ok(()) => {
+                    files_changed += 1;
+                    replacements += result.count;
+                }
+                Err(_) => errors += 1,
+            }
+        }
+
+        for document in self.documents.clone() {
+            let should_reload = document.read_with(cx, |document, _| {
+                !document.is_dirty() && document.externally_changed()
+            });
+            if should_reload {
+                _ = document.update(cx, |document, cx| document.reload_from_disk(window, cx));
+            }
+        }
+
+        let mut message = format!(
+            "Replaced {replacements} occurrence{} in {files_changed} file{}",
+            if replacements == 1 { "" } else { "s" },
+            if files_changed == 1 { "" } else { "s" },
+        );
+        if skipped_dirty > 0 {
+            message.push_str(&format!("; skipped {skipped_dirty} dirty file"));
+        }
+        if errors > 0 {
+            message.push_str(&format!("; {errors} write error"));
+        }
+        self.set_status(message, cx);
     }
 
     fn check_links(&mut self, cx: &mut Context<Self>) {
@@ -1168,6 +1342,9 @@ impl Render for Mdpeek {
             }))
             .on_action(cx.listener(|this, _: &WorkspaceSearch, window, cx| {
                 this.open_workspace_search(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &WorkspaceReplace, window, cx| {
+                this.open_workspace_replace(window, cx);
             }))
             .on_action(cx.listener(|this, _: &DailyNote, window, cx| {
                 this.open_daily_note(window, cx);

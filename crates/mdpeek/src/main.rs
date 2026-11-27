@@ -11,7 +11,7 @@ use app::{
     CheckLinks, CloseTab, CommandPalette, DailyNote, ExportHtml, ExportPdf, ExportText, Mdpeek,
     NewTab, NextTab, OpenFile, OpenFolder, PreviousTab, QuickOpen, Quit, ReloadFile,
     ReopenClosedTab, Save, SaveAs, ToggleEdit, ToggleReading, ToggleSidebar, ToggleTheme,
-    WorkspaceSearch,
+    WorkspaceReplace, WorkspaceSearch,
 };
 use gpui_kit::*;
 
@@ -25,6 +25,7 @@ fn main() {
                 KeyBinding::new("ctrl-o", OpenFile, Some("Mdpeek")),
                 KeyBinding::new("ctrl-p", QuickOpen, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-f", WorkspaceSearch, Some("Mdpeek")),
+                KeyBinding::new("ctrl-shift-r", WorkspaceReplace, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-d", DailyNote, Some("Mdpeek")),
                 KeyBinding::new("ctrl-alt-i", CheckLinks, Some("Mdpeek")),
                 KeyBinding::new("ctrl-alt-p", CommandPalette, Some("Mdpeek")),
