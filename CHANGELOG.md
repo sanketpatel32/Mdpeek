@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added freehand image annotation with color/size controls and non-destructive annotated PNG export.
+- Added visual table row/column deletion, movement, and alignment cycling.
+- Added editor line operations: go to line, duplicate, move up/down, and join with next.
+- Added basic native Mermaid flowchart rendering in Markdown previews.
+
+### Known limitations
+- Mermaid support currently covers basic flowchart/graph edges rather than the full Mermaid diagram language.
+- KaTeX remains Unicode fallback rendering rather than full mathematical typesetting; PDF export remains a simple text pipeline rather than a system print preview.
+
 ## [3.0.1] - 2026-11-27
 
 ### Fixed

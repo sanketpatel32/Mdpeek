@@ -17,8 +17,8 @@ Mdpeek is being rebuilt as a pure Rust desktop application using GPUI. The forme
 
 - Multi-tab Markdown, text, code, CSV/TSV, and image documents
 - Split, editor-only, and preview-only modes
-- Markdown rendering with GFM tables, task lists, frontmatter, MDX parsing, alert/callout surfaces, and local images
-- Source editing with line numbers, indentation guides, folding, syntax highlighting, editor search/replace, and Markdown autocomplete
+- Markdown rendering with GFM tables, task lists, frontmatter, MDX parsing, alert/callout surfaces, basic Mermaid flowcharts, and local images
+- Source editing with line numbers, indentation guides, folding, syntax highlighting, editor search/replace, Markdown autocomplete, and line operations
 - Clickable preview task checkboxes that update the Markdown source
 - Inline and block math fallback rendering with Unicode/script compaction
 - Wiki links (`[[Page]]`) and relative Markdown links open as documents
@@ -26,9 +26,10 @@ Mdpeek is being rebuilt as a pure Rust desktop application using GPUI. The forme
 - Session restoration for open documents, workspace, sidebar, theme, and active tab
 - Automatic reload for externally changed clean files
 - HTML, plain-text, and simple PDF export
-- Visual table editing at the cursor (`Ctrl+Alt+M`), plus copying tables as Markdown, CSV, or TSV; copy fenced code blocks
+- Visual table editing at the cursor (`Ctrl+Alt+M`) with cell, row, column, movement, deletion, and alignment controls; copy tables as Markdown/CSV/TSV and fenced code blocks
 - Markdown snippet picker (`Ctrl+Shift+S`) for common blocks and structures
 - Zoom controls for previews and image documents
+- Freehand image annotation with color/size controls and non-destructive PNG export
 - Document link checking (`Ctrl+Alt+I`)
 - Light and dark themes
 
@@ -67,6 +68,10 @@ cargo run -p mdpeek -- README.md path/to/workspace
 | Workspace replace | `Ctrl+Shift+R` |
 | Insert snippet | `Ctrl+Shift+S` |
 | Edit table at cursor | `Ctrl+Alt+M` |
+| Go to line | `Ctrl+G` |
+| Duplicate line | `Ctrl+D` |
+| Move line up/down | `Alt+Up` / `Alt+Down` |
+| Join line with next | `Ctrl+J` |
 | Daily note | `Ctrl+Shift+D` |
 | Check links | `Ctrl+Alt+I` |
 | Open folder | `Ctrl+Shift+E` |
@@ -85,7 +90,7 @@ cargo run -p mdpeek -- README.md path/to/workspace
 
 ## Rebuild status
 
-This is an alpha native rebuild. Core document workflows are implemented in Rust/GPUI, but the legacy application had a much larger feature surface. Not yet ported: Mermaid diagrams, full KaTeX-typeset math, rich system print preview, image annotation, and automatic updates in the native application. Visual table editing currently supports cell editing plus row/column insertion; richer row/column movement, deletion, and alignment controls are still pending.
+This is an alpha native rebuild. Core document workflows are implemented in Rust/GPUI, but the legacy application had a much larger feature surface. Mermaid flowcharts, visual table operations, image annotation, and editor line operations are now ported. Not yet ported: full KaTeX-typeset math, sequence/class/other Mermaid diagram families, rich system print preview, typewriter scrolling, and automatic updates in the native application. The current PDF export is intentionally simple and is not a pixel-perfect print pipeline.
 
 ## Contributing
 
