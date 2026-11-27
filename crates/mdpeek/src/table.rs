@@ -86,14 +86,21 @@ pub fn parse_table_at(text: &str, cursor: usize) -> Option<MarkdownTable> {
     {
         bottom += 1;
     }
-    let mut in_fence = false;
+    let mut active_fence = None;
     let mut fenced_lines = Vec::new();
     for (_, line) in &lines {
         let trimmed = line.trim_start();
-        let fence = trimmed.starts_with("```") || trimmed.starts_with("~~~");
-        fenced_lines.push(in_fence || fence);
+        let marker = if trimmed.starts_with("```") {
+            Some('`')
+        } else if trimmed.starts_with("~~~") {
+            Some('~')
+        } else {
+            None
+        };
+        let fence = marker.is_some_and(|marker| active_fence.is_none_or(|active| active == marker));
+        fenced_lines.push(active_fence.is_some() || fence);
         if fence {
-            in_fence = !in_fence;
+            active_fence = if active_fence.is_some() { None } else { marker };
         }
     }
     if fenced_lines[row_index] || bottom - top < 2 {
@@ -107,7 +114,7 @@ pub fn parse_table_at(text: &str, cursor: usize) -> Option<MarkdownTable> {
                 .all(|cell| parse_alignment(cell).is_some())
     })?;
     top = delimiter_index - 1;
-    bottom = delimiter_index + 1;
+    bottom = delimiter_index;
     while bottom + 1 < lines.len()
         && !fenced_lines[bottom + 1]
         && lines[bottom + 1].1.trim().contains('|')
@@ -128,11 +135,13 @@ pub fn parse_table_at(text: &str, cursor: usize) -> Option<MarkdownTable> {
     }
 
     let mut rows = vec![header];
-    for (_, line) in &lines[top + 2..=bottom] {
-        let mut cells = split_row(line);
-        cells.resize(column_count, String::new());
-        cells.truncate(column_count);
-        rows.push(cells);
+    if bottom >= top + 2 {
+        for (_, line) in &lines[top + 2..=bottom] {
+            let mut cells = split_row(line);
+            cells.resize(column_count, String::new());
+            cells.truncate(column_count);
+            rows.push(cells);
+        }
     }
     let start = lines[top].0;
     let end = lines[bottom].0 + lines[bottom].1.len();

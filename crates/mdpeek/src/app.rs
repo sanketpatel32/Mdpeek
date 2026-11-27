@@ -1082,11 +1082,19 @@ impl Mdpeek {
         let mut errors = 0usize;
 
         for path in collect_files(&root, 1_000) {
+            if std::fs::symlink_metadata(&path)
+                .is_ok_and(|metadata| metadata.file_type().is_symlink())
+            {
+                continue;
+            }
             let Ok(metadata) = std::fs::metadata(&path) else {
                 continue;
             };
             let canonical_path = path.canonicalize().unwrap_or_else(|_| path.clone());
-            if metadata.len() > 512_000 || dirty_paths.contains(&canonical_path) {
+            if metadata.len() > 512_000
+                || metadata.permissions().readonly()
+                || dirty_paths.contains(&canonical_path)
+            {
                 skipped_dirty += usize::from(dirty_paths.contains(&canonical_path));
                 continue;
             }
@@ -1640,6 +1648,14 @@ fn write_file_atomically(path: &StdPath, contents: &str) -> std::io::Result<()> 
         {
             Ok(mut file) => {
                 use std::io::Write as _;
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt as _;
+                    let _ = std::fs::set_permissions(
+                        &candidate,
+                        std::fs::Permissions::from_mode(0o600),
+                    );
+                }
                 file.write_all(contents.as_bytes())?;
                 file.sync_all()?;
                 if let Ok(metadata) = std::fs::metadata(path) {
