@@ -27,6 +27,8 @@ actions!(
         OpenFile,
         QuickOpen,
         QuickOpenPick,
+        CommandPalette,
+        CommandPalettePick,
         CheckLinks,
         DailyNote,
         WorkspaceSearch,
@@ -60,6 +62,7 @@ pub struct Mdpeek {
     status_message: Option<SharedString>,
     quick_open: Entity<CommandState>,
     workspace_search: Entity<CommandState>,
+    command_palette: Entity<CommandState>,
     search_results: Vec<SearchMatch>,
     reading_mode: bool,
     focus_handle: FocusHandle,
@@ -91,6 +94,31 @@ fn markdown_headings(source: &str) -> Vec<(usize, String, usize)> {
     headings
 }
 
+fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
+    vec![
+        ("New document", "Ctrl+N"),
+        ("Open file", "Ctrl+O"),
+        ("Open folder", "Ctrl+Shift+E"),
+        ("Quick open", "Ctrl+P"),
+        ("Search workspace", "Ctrl+Shift+F"),
+        ("Open today's daily note", "Ctrl+Shift+D"),
+        ("Check document links", "Ctrl+Alt+L"),
+        ("Save", "Ctrl+S"),
+        ("Save as", "Ctrl+Alt+S"),
+        ("Reload file", "Ctrl+R"),
+        ("Reopen closed tab", "Ctrl+Alt+T"),
+        ("Cycle edit/preview", "Ctrl+E"),
+        ("Toggle sidebar", "Ctrl+B"),
+        ("Toggle reading mode", "F11"),
+        ("Toggle theme", "Ctrl+Shift+L"),
+        ("Export HTML", "Ctrl+Shift+H"),
+        ("Export plain text", "Ctrl+Shift+T"),
+        ("Export PDF", "Ctrl+Shift+P"),
+        ("Close tab", "Ctrl+W"),
+        ("Quit", "Ctrl+Q"),
+    ]
+}
+
 impl Mdpeek {
     pub fn new(window: &mut Window, cx: &mut Context<Self>, initial_paths: &[PathBuf]) -> Self {
         let session = load_session();
@@ -104,6 +132,7 @@ impl Mdpeek {
             status_message: None,
             quick_open: cx.new(|cx| CommandState::new(window, cx)),
             workspace_search: cx.new(|cx| CommandState::new(window, cx)),
+            command_palette: cx.new(|cx| CommandState::new(window, cx)),
             search_results: Vec::new(),
             reading_mode: false,
             focus_handle: cx.focus_handle(),
@@ -534,6 +563,84 @@ impl Mdpeek {
             {
                 self.set_status("Reloaded file changed on disk", cx);
             }
+        }
+    }
+
+    fn open_command_palette(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let command = self.command_palette.clone();
+        command.update(cx, |command, cx| {
+            command.set_query("", window, cx);
+        });
+        let owner = cx.weak_entity();
+        let focus_on_mount = Rc::new(Cell::new(true));
+        window.open_dialog(cx, move |dialog, _, _| {
+            let command = command.clone();
+            let owner = owner.clone();
+            let focus_on_mount = focus_on_mount.clone();
+            dialog
+                .close_button(false)
+                .p_0()
+                .content(move |content, window, cx| {
+                    if focus_on_mount.replace(false) {
+                        let command = command.clone();
+                        window.defer(cx, move |window, cx| {
+                            command.read(cx).focus_handle(cx).focus(window, cx);
+                        });
+                    }
+                    let confirm_owner = owner.clone();
+                    content.child(
+                        Command::new(&command)
+                            .w(px(560.))
+                            .bordered(false)
+                            .rounded(cx.theme().radius_lg)
+                            .placeholder("Run a command...")
+                            .items(command_palette_entries().iter().map(|(label, shortcut)| {
+                                CommandItem::new()
+                                    .label(*label)
+                                    .keywords([*shortcut])
+                                    .icon(IconName::Search)
+                                    .action(Box::new(CommandPalettePick))
+                            }))
+                            .on_confirm(move |index, window, cx| {
+                                _ = confirm_owner.update(cx, |this, cx| {
+                                    this.run_command_palette_row(index.row, window, cx);
+                                });
+                                window.close_dialog(cx);
+                            }),
+                    )
+                })
+        });
+    }
+
+    fn run_command_palette_row(&mut self, row: usize, window: &mut Window, cx: &mut Context<Self>) {
+        match row {
+            0 => self.new_tab(window, cx),
+            1 => self.open_file_action(window, cx),
+            2 => self.open_folder_action(window, cx),
+            3 => self.open_quick_open(window, cx),
+            4 => self.open_workspace_search(window, cx),
+            5 => self.open_daily_note(window, cx),
+            6 => self.check_links(cx),
+            7 => self.save_active(window, cx),
+            8 => self.save_active_as(window, cx),
+            9 => self.reload_active(window, cx),
+            10 => self.reopen_closed_tab(window, cx),
+            11 => self.toggle_edit(cx),
+            12 => {
+                self.sidebar_visible = !self.sidebar_visible;
+                cx.notify();
+            }
+            13 => self.toggle_reading(cx),
+            14 => self.toggle_theme(cx),
+            15 => self.export_active_html(window, cx),
+            16 => self.export_active_text(window, cx),
+            17 => self.export_active_pdf(window, cx),
+            18 => self.close_active_tab(cx),
+            19 => {
+                self.persist(cx);
+                cx.quit();
+            }
+            _ => {}
         }
     }
 
@@ -1047,6 +1154,9 @@ impl Render for Mdpeek {
             }))
             .on_action(cx.listener(|this, _: &CheckLinks, _, cx| {
                 this.check_links(cx);
+            }))
+            .on_action(cx.listener(|this, _: &CommandPalette, window, cx| {
+                this.open_command_palette(window, cx);
             }))
             .on_action(cx.listener(|this, _: &ToggleReading, _, cx| {
                 this.toggle_reading(cx);

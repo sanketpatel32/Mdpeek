@@ -60,6 +60,7 @@ cargo run -p mdpeek -- README.md path/to/workspace
 | New document | `Ctrl+N` |
 | Open file | `Ctrl+O` |
 | Quick open | `Ctrl+P` |
+| Command palette | `Ctrl+Alt+P` |
 | Workspace search | `Ctrl+Shift+F` |
 | Daily note | `Ctrl+Shift+D` |
 | Check links | `Ctrl+Alt+L` |
