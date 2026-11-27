@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-11-27
+
+### Fixed
+- Restored the Windows migration path for existing v2 installations by publishing a signed NSIS installer and Tauri-compatible `latest.json` updater manifest with the native release.
+- Pinned Linux release builds to Ubuntu 22.04 so the published binary runs on that LTS baseline instead of requiring the rolling `ubuntu-latest` glibc.
+
 ## [3.0.0] - 2026-11-27
 
 The native GPUI rebuild. mdpeek is now a pure Rust desktop application rather than a Tauri/WebView app.

@@ -16,7 +16,7 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             asset_os: windows-x64
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             asset_os: linux-x64
           - os: macos-latest
@@ -46,12 +46,77 @@ jobs:
         shell: bash
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Package Windows binary
+      - name: Install NSIS
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: choco install nsis --yes --no-progress
+
+      - name: Download NSIS updater plugin
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p packaging/windows/plugins
+          curl -L -o packaging/windows/plugins/nsis_tauri_utils.dll \
+            https://github.com/tauri-apps/nsis-tauri-utils/releases/download/nsis_tauri_utils-v0.5.3/nsis_tauri_utils.dll
+          echo "5ba143b5db4a87d32d6e7802e033330aae56cbceabe0d1e3ba41948385ad4709  packaging/windows/plugins/nsis_tauri_utils.dll" | sha256sum -c -
+
+      - name: Package Windows binary and installer
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          $version = "${{ steps.ver.outputs.version }}"
           New-Item -ItemType Directory -Force artifacts | Out-Null
-          Compress-Archive "target/${{ matrix.target }}/release/mdpeek.exe" "artifacts/mdpeek-${{ steps.ver.outputs.version }}-${{ matrix.asset_os }}.zip"
+          New-Item -ItemType Directory -Force nsis-build/plugins | Out-Null
+          Compress-Archive "target/${{ matrix.target }}/release/mdpeek.exe" "artifacts/mdpeek-$version-${{ matrix.asset_os }}.zip"
+          Copy-Item "target/${{ matrix.target }}/release/mdpeek.exe" "nsis-build/mdpeek.exe"
+          Copy-Item "packaging/windows/icon.ico" "nsis-build/icon.ico"
+          Copy-Item "packaging/windows/mdpeek.nsi" "nsis-build/mdpeek.nsi"
+          Copy-Item "packaging/windows/plugins/nsis_tauri_utils.dll" "nsis-build/plugins/nsis_tauri_utils.dll"
+          Push-Location nsis-build
+          $makensis = (Get-Command makensis -ErrorAction SilentlyContinue).Source
+          if (-not $makensis) { $makensis = "C:\Program Files (x86)\NSIS\makensis.exe" }
+          & $makensis "-DVERSION=$version" "-DOUTFILE=mdpeek-$version-setup.exe" "mdpeek.nsi"
+          if ($LASTEXITCODE -ne 0) { throw "makensis failed with exit code $LASTEXITCODE" }
+          Pop-Location
+          Copy-Item "nsis-build/mdpeek-$version-setup.exe" "artifacts/mdpeek-$version-setup.exe"
+
+      - name: Smoke test Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = "${{ steps.ver.outputs.version }}"
+          $installer = Resolve-Path "artifacts/mdpeek-$version-setup.exe"
+          $program = "C:\Program Files\mdpeek\mdpeek.exe"
+          $uninstaller = "C:\Program Files\mdpeek\uninstall.exe"
+          $install = Start-Process $installer -ArgumentList "/S" -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "installer exited with $($install.ExitCode)" }
+          if (-not (Test-Path $program)) { throw "installer did not install mdpeek.exe" }
+          if (-not (Test-Path $uninstaller)) { throw "installer did not install uninstall.exe" }
+          $uninstall = Start-Process $uninstaller -ArgumentList "/S" -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) { throw "uninstaller exited with $($uninstall.ExitCode)" }
+          if (Test-Path $program) { throw "uninstaller left mdpeek.exe behind" }
+
+      - name: Sign Windows updater installer
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          VERSION='${{ steps.ver.outputs.version }}'
+          npx --yes @tauri-apps/cli@2.12.6 signer sign --app-version "$VERSION" "artifacts/mdpeek-$VERSION-setup.exe"
+
+      - name: Build Windows updater manifest
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          VERSION='${{ steps.ver.outputs.version }}'
+          node scripts/make-updater-manifest.mjs \
+            "$VERSION" \
+            "artifacts/mdpeek-$VERSION-setup.exe.sig" \
+            "mdpeek-$VERSION-setup.exe" \
+            artifacts/latest.json
+          rm "artifacts/mdpeek-$VERSION-setup.exe.sig"
 
       - name: Package Unix binary
         if: runner.os != 'Windows'

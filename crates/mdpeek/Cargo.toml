@@ -1,6 +1,6 @@
 [package]
 name = "mdpeek"
-version = "3.0.0"
+version = "3.0.1"
 description = "A quiet, fast native Markdown reader and editor"
 edition.workspace = true
 license.workspace = true
