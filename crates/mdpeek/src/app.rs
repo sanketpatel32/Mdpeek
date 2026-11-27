@@ -102,7 +102,7 @@ fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
         ("Quick open", "Ctrl+P"),
         ("Search workspace", "Ctrl+Shift+F"),
         ("Open today's daily note", "Ctrl+Shift+D"),
-        ("Check document links", "Ctrl+Alt+K"),
+        ("Check document links", "Ctrl+Alt+I"),
         ("Save", "Ctrl+S"),
         ("Save as", "Ctrl+Alt+S"),
         ("Reload file", "Ctrl+R"),
@@ -1127,6 +1127,7 @@ impl Render for Mdpeek {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let active_document = self.active_document();
         v_flex()
+            .id("mdpeek-root")
             .key_context("Mdpeek")
             .track_focus(&self.focus_handle)
             .size_full()
@@ -1198,6 +1199,9 @@ impl Render for Mdpeek {
             }))
             .on_action(cx.listener(|this, _: &PreviousTab, _, cx| {
                 this.step_tab(-1, cx);
+            }))
+            .on_click(cx.listener(|this, _, window, cx| {
+                this.focus_handle.focus(window, cx);
             }))
             .on_action(cx.listener(|this, _: &Quit, _, cx| {
                 this.persist(cx);

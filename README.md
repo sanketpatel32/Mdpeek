@@ -27,7 +27,7 @@ Mdpeek is being rebuilt as a pure Rust desktop application using GPUI. The forme
 - Automatic reload for externally changed clean files
 - HTML, plain-text, and simple PDF export
 - Copy table contents as Markdown, CSV, or TSV; copy fenced code blocks
-- Document link checking (`Ctrl+Alt+K`)
+- Document link checking (`Ctrl+Alt+I`)
 - Light and dark themes
 
 ## Build and run
@@ -63,7 +63,7 @@ cargo run -p mdpeek -- README.md path/to/workspace
 | Command palette | `Ctrl+Alt+P` |
 | Workspace search | `Ctrl+Shift+F` |
 | Daily note | `Ctrl+Shift+D` |
-| Check links | `Ctrl+Alt+K` |
+| Check links | `Ctrl+Alt+I` |
 | Open folder | `Ctrl+Shift+E` |
 | Save | `Ctrl+S` |
 | Save as | `Ctrl+Alt+S` |
