@@ -92,6 +92,22 @@ impl Mdpeek {
         if initial_paths.is_empty() {
             this.active = session.active.min(this.documents.len().saturating_sub(1));
         }
+        cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor()
+                    .timer(std::time::Duration::from_secs(2))
+                    .await;
+                if this
+                    .update_in(cx, |this, window, cx| {
+                        this.reload_externally_changed(window, cx)
+                    })
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        })
+        .detach();
         this
     }
 
@@ -419,6 +435,39 @@ impl Mdpeek {
             ThemeMode::Dark
         };
         Theme::change(next, None, cx);
+    }
+
+    fn reload_externally_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        for document in self.documents.clone() {
+            let (path, dirty, changed) = document.read_with(cx, |document, _| {
+                (
+                    document.path.clone(),
+                    document.is_dirty(),
+                    document.externally_changed(),
+                )
+            });
+            if !changed {
+                continue;
+            }
+            if dirty {
+                if let Some(path) = path {
+                    self.set_status(
+                        format!(
+                            "{} changed on disk; save or reload carefully",
+                            path.display()
+                        ),
+                        cx,
+                    );
+                }
+                continue;
+            }
+            if document
+                .update(cx, |document, cx| document.reload_from_disk(window, cx))
+                .is_ok()
+            {
+                self.set_status("Reloaded file changed on disk", cx);
+            }
+        }
     }
 
     fn toggle_reading(&mut self, cx: &mut Context<Self>) {

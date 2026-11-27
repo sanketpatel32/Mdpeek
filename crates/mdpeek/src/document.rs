@@ -1,6 +1,7 @@
 use std::{
     path::{Path, PathBuf},
     sync::OnceLock,
+    time::SystemTime,
 };
 
 use gpui_kit::component::{
@@ -117,6 +118,7 @@ pub struct DocumentView {
     mode: ViewMode,
     saved_value: String,
     dirty: bool,
+    modified_at: Option<SystemTime>,
     preview_zoom: f32,
     owner: Option<WeakEntity<Mdpeek>>,
     _subscriptions: Vec<Subscription>,
@@ -165,7 +167,7 @@ impl DocumentView {
         })];
 
         Self {
-            path,
+            path: path.clone(),
             kind,
             editor,
             preview,
@@ -176,6 +178,10 @@ impl DocumentView {
             },
             saved_value: content,
             dirty: false,
+            modified_at: path
+                .as_ref()
+                .and_then(|path| std::fs::metadata(path).ok())
+                .and_then(|metadata| metadata.modified().ok()),
             preview_zoom: 1.0,
             owner: None,
             _subscriptions,
@@ -210,6 +216,16 @@ impl DocumentView {
         }
         self.mode = self.mode.next_for_edit_toggle();
         cx.notify();
+    }
+
+    pub fn externally_changed(&self) -> bool {
+        let Some(path) = &self.path else {
+            return false;
+        };
+        let Ok(modified) = std::fs::metadata(path).and_then(|metadata| metadata.modified()) else {
+            return false;
+        };
+        self.modified_at.is_none_or(|known| modified != known)
     }
 
     pub fn toggle_task(
@@ -265,6 +281,9 @@ impl DocumentView {
         self.saved_value = self.editor.read(cx).value().to_string();
         self.dirty = false;
         self.kind = DocumentKind::from_path(&path);
+        self.modified_at = std::fs::metadata(&path)
+            .ok()
+            .and_then(|metadata| metadata.modified().ok());
         self.path = Some(path);
         cx.notify();
     }
@@ -273,13 +292,16 @@ impl DocumentView {
         let Some(path) = self.path.clone() else {
             return Ok(());
         };
-        let content = std::fs::read_to_string(path)?;
+        let content = std::fs::read_to_string(&path)?;
         self.editor.update(cx, |editor, cx| {
             editor.set_value(content.clone(), window, cx);
         });
         let preview_source = renderable_source(self.kind, &content);
         self.preview
             .update(cx, |preview, cx| preview.set_text(&preview_source, cx));
+        self.modified_at = std::fs::metadata(&path)
+            .ok()
+            .and_then(|metadata| metadata.modified().ok());
         self.saved_value = content;
         self.dirty = false;
         cx.notify();
