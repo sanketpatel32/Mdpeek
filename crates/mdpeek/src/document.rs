@@ -22,6 +22,7 @@ use crate::{
     annotation::{AnnotationStroke, normalized_point, save_annotated_png, stroke_path},
     app::Mdpeek,
     math::{InlineMathPlugin, MathPlugin},
+    mermaid::MermaidPlugin,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -653,6 +654,7 @@ impl DocumentView {
                 .markdown_extensions(markdown_extensions())
                 .plugin(MathPlugin)
                 .plugin(InlineMathPlugin)
+                .plugin(MermaidPlugin)
                 .on_task_toggle({
                     let this = cx.weak_entity();
                     move |event, window, cx| {

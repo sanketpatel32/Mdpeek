@@ -7,6 +7,7 @@ mod editor_ops;
 mod export;
 mod links;
 mod math;
+mod mermaid;
 mod settings;
 mod table;
 mod workspace;
