@@ -16,10 +16,10 @@ mod workspace;
 
 use app::{
     CheckLinks, CloseTab, CommandPalette, DailyNote, DuplicateLines, EditTable, ExportHtml,
-    ExportPdf, ExportText, GoToLine, JoinLines, Mdpeek, MoveLinesDown, MoveLinesUp, NewTab,
-    NextTab, OpenFile, OpenFolder, PreviousTab, QuickOpen, Quit, ReloadFile, ReopenClosedTab, Save,
-    SaveAs, SnippetPicker, ToggleEdit, ToggleReading, ToggleSidebar, ToggleTheme, WorkspaceReplace,
-    WorkspaceSearch,
+    ExportPdf, ExportText, GoToLine, JoinLines, Mdpeek, MoveLinesDown, MoveLinesUp, NavigateBack,
+    NavigateForward, NewTab, NextTab, OpenFile, OpenFolder, PreviousTab, QuickOpen, Quit,
+    ReloadFile, ReopenClosedTab, Save, SaveAs, SnippetPicker, ToggleEdit, ToggleReading,
+    ToggleSidebar, ToggleTheme, WorkspaceReplace, WorkspaceSearch,
 };
 use gpui_kit::*;
 
@@ -31,6 +31,8 @@ fn main() {
             cx.bind_keys([
                 KeyBinding::new("ctrl-n", NewTab, Some("Mdpeek")),
                 KeyBinding::new("ctrl-o", OpenFile, Some("Mdpeek")),
+                KeyBinding::new("alt-left", NavigateBack, Some("Mdpeek")),
+                KeyBinding::new("alt-right", NavigateForward, Some("Mdpeek")),
                 KeyBinding::new("ctrl-p", QuickOpen, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-f", WorkspaceSearch, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-r", WorkspaceReplace, Some("Mdpeek")),

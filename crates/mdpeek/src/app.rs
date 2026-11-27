@@ -33,6 +33,8 @@ actions!(
     [
         NewTab,
         OpenFile,
+        NavigateBack,
+        NavigateForward,
         QuickOpen,
         QuickOpenPick,
         CommandPalette,
@@ -97,6 +99,8 @@ pub struct Mdpeek {
     snippet_picker: Entity<CommandState>,
     search_results: Vec<SearchMatch>,
     reading_mode: bool,
+    navigation_history: Vec<PathBuf>,
+    navigation_index: usize,
     focus_handle: FocusHandle,
 }
 
@@ -195,6 +199,8 @@ fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
         ("tOGGLE cASE selection", ""),
         ("Insert table of contents", ""),
         ("Insert today's date", ""),
+        ("Back", "Alt+Left"),
+        ("Forward", "Alt+Right"),
         ("Close other tabs", ""),
         ("Close tabs to the right", ""),
         ("Close all tabs", ""),
@@ -259,6 +265,8 @@ impl Mdpeek {
             snippet_picker: cx.new(|cx| CommandState::new(window, cx)),
             search_results: Vec::new(),
             reading_mode: false,
+            navigation_history: Vec::new(),
+            navigation_index: 0,
             focus_handle: cx.focus_handle(),
         };
         if session.dark_mode {
@@ -400,6 +408,16 @@ impl Mdpeek {
     }
 
     pub fn open_path(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
+        self.open_path_with_history(path, true, window, cx);
+    }
+
+    fn open_path_with_history(
+        &mut self,
+        path: PathBuf,
+        record: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if let Some(index) = self.documents.iter().position(|document| {
             document
                 .read(cx)
@@ -410,6 +428,9 @@ impl Mdpeek {
             self.active = index;
             if self.documents[index].read(cx).kind == crate::document::DocumentKind::Image {
                 self.focus_handle.focus(window, cx);
+            }
+            if record {
+                self.record_navigation(path);
             }
             cx.notify();
             return;
@@ -426,6 +447,9 @@ impl Mdpeek {
                 self.active = self.documents.len() - 1;
                 if is_image {
                     self.focus_handle.focus(window, cx);
+                }
+                if record {
+                    self.record_navigation(path);
                 }
                 self.clear_status(cx);
             }
@@ -449,6 +473,40 @@ impl Mdpeek {
             self.active = self.active.min(self.documents.len() - 1);
         }
         cx.notify();
+    }
+
+    fn record_navigation(&mut self, path: PathBuf) {
+        if self.navigation_history.get(self.navigation_index) == Some(&path) {
+            return;
+        }
+        self.navigation_history.truncate(self.navigation_index + 1);
+        self.navigation_history.push(path);
+        self.navigation_index = self.navigation_history.len() - 1;
+    }
+
+    fn navigate_history(&mut self, backward: bool, window: &mut Window, cx: &mut Context<Self>) {
+        let next_index = if backward {
+            self.navigation_index.checked_sub(1)
+        } else {
+            (self.navigation_index + 1 < self.navigation_history.len())
+                .then_some(self.navigation_index + 1)
+        };
+        let Some(next_index) = next_index else {
+            self.set_status(
+                if backward {
+                    "No earlier document"
+                } else {
+                    "No later document"
+                },
+                cx,
+            );
+            return;
+        };
+        let Some(path) = self.navigation_history.get(next_index).cloned() else {
+            return;
+        };
+        self.navigation_index = next_index;
+        self.open_path_with_history(path, false, window, cx);
     }
 
     fn close_other_tabs(&mut self, cx: &mut Context<Self>) {
@@ -896,11 +954,13 @@ impl Mdpeek {
                 window,
                 cx,
             ),
-            37 => self.close_other_tabs(cx),
-            38 => self.close_tabs_to_right(cx),
-            39 => self.close_all_tabs(cx),
-            40 => self.close_active_tab(cx),
-            41 => {
+            37 => self.navigate_history(true, window, cx),
+            38 => self.navigate_history(false, window, cx),
+            39 => self.close_other_tabs(cx),
+            40 => self.close_tabs_to_right(cx),
+            41 => self.close_all_tabs(cx),
+            42 => self.close_active_tab(cx),
+            43 => {
                 self.persist(cx);
                 cx.quit();
             }
@@ -2196,6 +2256,12 @@ impl Render for Mdpeek {
             }))
             .on_action(cx.listener(|this, _: &OpenFile, window, cx| {
                 this.open_file_action(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &NavigateBack, window, cx| {
+                this.navigate_history(true, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &NavigateForward, window, cx| {
+                this.navigate_history(false, window, cx);
             }))
             .on_action(cx.listener(|this, _: &OpenFolder, window, cx| {
                 this.open_folder_action(window, cx);
