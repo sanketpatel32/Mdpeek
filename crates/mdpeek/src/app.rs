@@ -527,10 +527,11 @@ impl Mdpeek {
         cx.notify();
     }
 
-    fn toggle_edit(&mut self, cx: &mut Context<Self>) {
+    fn toggle_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(document) = self.active_document() {
             document.update(cx, |document, cx| document.toggle_edit(cx));
         }
+        self.focus_handle.focus(window, cx);
     }
 
     fn toggle_theme(&mut self, cx: &mut Context<Self>) {
@@ -634,12 +635,12 @@ impl Mdpeek {
             8 => self.save_active_as(window, cx),
             9 => self.reload_active(window, cx),
             10 => self.reopen_closed_tab(window, cx),
-            11 => self.toggle_edit(cx),
+            11 => self.toggle_edit(window, cx),
             12 => {
                 self.sidebar_visible = !self.sidebar_visible;
                 cx.notify();
             }
-            13 => self.toggle_reading(cx),
+            13 => self.toggle_reading(window, cx),
             14 => self.toggle_theme(cx),
             15 => self.export_active_html(window, cx),
             16 => self.export_active_text(window, cx),
@@ -792,13 +793,14 @@ impl Mdpeek {
         });
     }
 
-    fn toggle_reading(&mut self, cx: &mut Context<Self>) {
+    fn toggle_reading(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.reading_mode = !self.reading_mode;
         if self.reading_mode
             && let Some(document) = self.active_document()
         {
             document.update(cx, |document, cx| document.show_preview(cx));
         }
+        self.focus_handle.focus(window, cx);
         cx.notify();
     }
 
@@ -867,7 +869,13 @@ impl Mdpeek {
                                         this.open_path(path, window, cx);
                                     });
                                 }
+                                let focus_owner = confirm_owner.clone();
                                 window.close_dialog(cx);
+                                window.defer(cx, move |window, cx| {
+                                    _ = focus_owner.update(cx, |this, cx| {
+                                        this.focus_handle.focus(window, cx);
+                                    });
+                                });
                             }),
                     )
                 })
@@ -1170,8 +1178,8 @@ impl Render for Mdpeek {
             .on_action(cx.listener(|this, _: &CommandPalette, window, cx| {
                 this.open_command_palette(window, cx);
             }))
-            .on_action(cx.listener(|this, _: &ToggleReading, _, cx| {
-                this.toggle_reading(cx);
+            .on_action(cx.listener(|this, _: &ToggleReading, window, cx| {
+                this.toggle_reading(window, cx);
             }))
             .on_action(cx.listener(|this, _: &Save, window, cx| {
                 this.save_active(window, cx);
@@ -1182,8 +1190,8 @@ impl Render for Mdpeek {
             .on_action(cx.listener(|this, _: &CloseTab, _, cx| {
                 this.close_active_tab(cx);
             }))
-            .on_action(cx.listener(|this, _: &ToggleEdit, _, cx| {
-                this.toggle_edit(cx);
+            .on_action(cx.listener(|this, _: &ToggleEdit, window, cx| {
+                this.toggle_edit(window, cx);
             }))
             .on_action(cx.listener(|this, _: &ToggleSidebar, _, cx| {
                 this.sidebar_visible = !this.sidebar_visible;
