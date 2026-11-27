@@ -146,6 +146,9 @@ pub fn markdown_headings(source: &str) -> Vec<MarkdownHeading> {
 }
 
 fn collect_headings(node: &markdown::mdast::Node, headings: &mut Vec<MarkdownHeading>) {
+    if matches!(node, markdown::mdast::Node::FootnoteDefinition(_)) {
+        return;
+    }
     if let markdown::mdast::Node::Heading(heading) = node {
         let title = heading
             .children
@@ -178,11 +181,20 @@ fn plain_text(node: &markdown::mdast::Node) -> String {
         markdown::mdast::Node::Text(text) => text.value.clone(),
         markdown::mdast::Node::InlineCode(code) => code.value.clone(),
         markdown::mdast::Node::InlineMath(math) => math.value.clone(),
+        markdown::mdast::Node::Image(image) => image.alt.clone(),
+        markdown::mdast::Node::ImageReference(image) => image.alt.clone(),
         _ => node
             .children()
             .map(|children| children.iter().map(plain_text).collect())
             .unwrap_or_default(),
     }
+}
+
+fn escape_toc_label(title: &str) -> String {
+    title
+        .replace('\\', "\\\\")
+        .replace('[', "\\[")
+        .replace(']', "\\]")
 }
 
 pub fn table_of_contents(source: &str) -> String {
@@ -192,7 +204,7 @@ pub fn table_of_contents(source: &str) -> String {
             format!(
                 "{}- [{}](#{})",
                 "  ".repeat(heading.level.saturating_sub(1)),
-                heading.title,
+                escape_toc_label(&heading.title),
                 heading.slug
             )
         })
@@ -271,6 +283,23 @@ mod tests {
             table_of_contents(source),
             "- [Title](#title)\n  - [Details](#details)\n"
         );
+    }
+
+    #[test]
+    fn image_only_headings_use_alt_text_and_escape_brackets() {
+        let source = "# ![Diagram alt](image.png)\n\n# Literal \\] bracket\n";
+        let headings = markdown_headings(source);
+        assert_eq!(headings[0].slug, "diagram-alt");
+        let toc = table_of_contents(source);
+        assert!(toc.contains("[Literal \\] bracket](#literal-bracket)"));
+    }
+
+    #[test]
+    fn footnote_definition_headings_are_excluded() {
+        let source = "# Body\n\n[^note]: # Footnote heading\n";
+        let headings = markdown_headings(source);
+        assert_eq!(headings.len(), 1);
+        assert_eq!(headings[0].title, "Body");
     }
 
     #[test]

@@ -1,4 +1,4 @@
-use crate::text_transform::markdown_headings;
+use crate::text_transform::heading_slug;
 
 pub fn markdown_to_html_document(title: &str, source: &str) -> String {
     markdown_to_html_document_with_base(title, source, None)
@@ -65,28 +65,26 @@ img {{ max-width: 100%; }}
     )
 }
 
-fn add_heading_ids(html: &str, source: &str) -> String {
-    let headings = markdown_headings(source);
-    if headings.is_empty() {
-        return html.to_string();
-    }
+fn add_heading_ids(html: &str, _source: &str) -> String {
     let pattern = regex::Regex::new(r"<h([1-6])>").expect("valid heading pattern");
-    let mut output = String::with_capacity(html.len() + headings.len() * 16);
+    let mut output = String::with_capacity(html.len() + 256);
     let mut last = 0;
-    let mut next_heading = 0;
+    let mut occurrences = std::collections::HashMap::<String, usize>::new();
+    let mut used = std::collections::HashSet::<String>::new();
     for captures in pattern.captures_iter(html) {
         let Some(whole) = captures.get(0) else {
             continue;
         };
         output.push_str(&html[last..whole.start()]);
         let level = captures[1].parse::<usize>().unwrap_or_default();
-        if headings
-            .get(next_heading)
-            .is_some_and(|heading| heading.level == level)
-        {
-            let heading = &headings[next_heading];
-            output.push_str(&format!("<h{} id=\"{}\">", heading.level, heading.slug));
-            next_heading += 1;
+        let close = format!("</h{level}>");
+        let slug = html[whole.end()..]
+            .find(&close)
+            .map(|close_start| html_heading_text(&html[whole.end()..whole.end() + close_start]))
+            .filter(|text| !text.is_empty())
+            .map(|text| unique_export_slug(&heading_slug(&text), &mut occurrences, &mut used));
+        if let Some(slug) = slug {
+            output.push_str(&format!("<h{level} id=\"{slug}\">"));
         } else {
             output.push_str(whole.as_str());
         }
@@ -94,6 +92,43 @@ fn add_heading_ids(html: &str, source: &str) -> String {
     }
     output.push_str(&html[last..]);
     output
+}
+
+fn unique_export_slug(
+    base: &str,
+    occurrences: &mut std::collections::HashMap<String, usize>,
+    used: &mut std::collections::HashSet<String>,
+) -> String {
+    let occurrence = occurrences.entry(base.to_string()).or_insert(0);
+    loop {
+        let candidate = if *occurrence == 0 {
+            base.to_string()
+        } else {
+            format!("{base}-{occurrence}")
+        };
+        if used.insert(candidate.clone()) {
+            *occurrence += 1;
+            return candidate;
+        }
+        *occurrence += 1;
+    }
+}
+
+fn html_heading_text(html: &str) -> String {
+    let image_pattern =
+        regex::Regex::new(r##"(?is)<img[^>]*alt="([^"]*)"[^>]*>"##).expect("valid image pattern");
+    let with_alt = image_pattern.replace_all(html, "$1");
+    let tag_pattern = regex::Regex::new(r"(?s)<[^>]+>").expect("valid tag pattern");
+    decode_html_entities(tag_pattern.replace_all(&with_alt, "").as_ref())
+}
+
+fn decode_html_entities(value: &str) -> String {
+    value
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&")
 }
 
 pub fn markdown_to_plain_text(source: &str) -> String {
@@ -157,6 +192,13 @@ mod tests {
         assert!(html.contains("<title>&lt;x&gt;</title>"));
         assert!(html.contains("<h1 id=\"hi\">Hi</h1>"));
         assert!(html.contains("a[href^=\"#\"]"));
+    }
+
+    #[test]
+    fn html_heading_ids_use_rendered_text_in_output_order() {
+        let html = markdown_to_html_document("x", "# ![Diagram alt](image.png)\n\n# Next\n");
+        assert!(html.contains("<h1 id=\"diagram-alt\">"));
+        assert!(html.contains("<h1 id=\"next\">Next</h1>"));
     }
 
     #[test]
