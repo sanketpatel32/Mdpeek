@@ -106,10 +106,6 @@ pub fn heading_slug(text: &str) -> String {
         .join("-")
 }
 
-fn is_ordered_list_marker_prefix(prefix: &str) -> bool {
-    !prefix.is_empty() && prefix.len() <= 9 && prefix.chars().all(|ch| ch.is_ascii_digit())
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MarkdownHeading {
     pub level: usize,
@@ -120,77 +116,12 @@ pub struct MarkdownHeading {
 }
 
 pub fn markdown_headings(source: &str) -> Vec<MarkdownHeading> {
-    let lines = source
-        .split_inclusive('\n')
-        .scan(0, |line_start, line| {
-            let start = *line_start;
-            *line_start += line.len();
-            let content = line.trim_end_matches(['\n', '\r']);
-            Some((content, start, start + content.len()))
-        })
-        .collect::<Vec<_>>();
-    let mut in_fence = false;
+    let parse_options = markdown::ParseOptions::gfm();
+    let Ok(markdown::mdast::Node::Root(root)) = markdown::to_mdast(source, &parse_options) else {
+        return Vec::new();
+    };
     let mut headings = Vec::new();
-    for (index, (content, start, end)) in lines.iter().enumerate() {
-        let trimmed = content.trim_start();
-        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
-            in_fence = !in_fence;
-            continue;
-        }
-        if in_fence || content.starts_with("    ") || content.starts_with('\t') {
-            continue;
-        }
-        if trimmed.starts_with('#') {
-            let hashes = trimmed.chars().take_while(|ch| *ch == '#').count();
-            if (1..=6).contains(&hashes) && trimmed[hashes..].starts_with(' ') {
-                let title = trimmed[hashes..].trim();
-                if !title.is_empty() {
-                    headings.push(MarkdownHeading {
-                        level: hashes,
-                        title: title.to_string(),
-                        slug: heading_slug(title),
-                        start: *start,
-                        end: *end,
-                    });
-                }
-            }
-            continue;
-        }
-        let Some((underline, _, _)) = lines.get(index + 1) else {
-            continue;
-        };
-        let underline = underline.trim();
-        let level = if !underline.is_empty() && underline.chars().all(|ch| ch == '=') {
-            Some(1)
-        } else if !underline.is_empty() && underline.chars().all(|ch| ch == '-') {
-            Some(2)
-        } else {
-            None
-        };
-        let Some(level) = level else { continue };
-        let title = trimmed;
-        if title.is_empty()
-            || title.starts_with('>')
-            || title.starts_with("- ")
-            || title.starts_with("* ")
-            || title.starts_with("+ ")
-            || title
-                .split_once(". ")
-                .is_some_and(|(number, _)| is_ordered_list_marker_prefix(number))
-            || title
-                .split_once(") ")
-                .is_some_and(|(number, _)| is_ordered_list_marker_prefix(number))
-        {
-            continue;
-        }
-        headings.push(MarkdownHeading {
-            level,
-            title: title.to_string(),
-            slug: heading_slug(title),
-            start: *start,
-            end: *end,
-        });
-    }
+    collect_headings(&markdown::mdast::Node::Root(root), &mut headings);
     headings.sort_by_key(|heading| heading.start);
     let mut occurrences = HashMap::<String, usize>::new();
     for heading in &mut headings {
@@ -202,6 +133,46 @@ pub fn markdown_headings(source: &str) -> Vec<MarkdownHeading> {
         *occurrence += 1;
     }
     headings
+}
+
+fn collect_headings(node: &markdown::mdast::Node, headings: &mut Vec<MarkdownHeading>) {
+    if let markdown::mdast::Node::Heading(heading) = node {
+        let title = heading
+            .children
+            .iter()
+            .map(plain_text)
+            .collect::<String>()
+            .trim()
+            .to_string();
+        if !title.is_empty()
+            && let Some(position) = &heading.position
+        {
+            headings.push(MarkdownHeading {
+                level: usize::from(heading.depth),
+                slug: heading_slug(&title),
+                title,
+                start: position.start.offset,
+                end: position.end.offset,
+            });
+        }
+    }
+    if let Some(children) = node.children() {
+        for child in children {
+            collect_headings(child, headings);
+        }
+    }
+}
+
+fn plain_text(node: &markdown::mdast::Node) -> String {
+    match node {
+        markdown::mdast::Node::Text(text) => text.value.clone(),
+        markdown::mdast::Node::InlineCode(code) => code.value.clone(),
+        markdown::mdast::Node::InlineMath(math) => math.value.clone(),
+        _ => node
+            .children()
+            .map(|children| children.iter().map(plain_text).collect())
+            .unwrap_or_default(),
+    }
 }
 
 pub fn table_of_contents(source: &str) -> String {
