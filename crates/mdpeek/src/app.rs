@@ -62,6 +62,32 @@ pub struct Mdpeek {
     focus_handle: FocusHandle,
 }
 
+fn markdown_headings(source: &str) -> Vec<(usize, String, usize)> {
+    let mut headings = Vec::new();
+    let mut in_fence = false;
+    let mut offset = 0;
+    for line in source.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+            in_fence = !in_fence;
+        } else if !in_fence {
+            let level = trimmed.chars().take_while(|ch| *ch == '#').count();
+            if (1..=6).contains(&level) && trimmed[level..].starts_with(char::is_whitespace) {
+                let text = trimmed[level..]
+                    .trim()
+                    .trim_end_matches('#')
+                    .trim()
+                    .to_string();
+                if !text.is_empty() {
+                    headings.push((level, text, offset));
+                }
+            }
+        }
+        offset += line.len() + 1;
+    }
+    headings
+}
+
 impl Mdpeek {
     pub fn new(window: &mut Window, cx: &mut Context<Self>, initial_paths: &[PathBuf]) -> Self {
         let session = load_session();
@@ -718,15 +744,21 @@ impl Mdpeek {
                     ),
             )
             .child(if root_dir.is_some() {
-                self.render_file_tree(cx).into_any_element()
+                div()
+                    .flex_1()
+                    .overflow_hidden()
+                    .child(self.render_file_tree(cx))
+                    .into_any_element()
             } else {
                 div()
+                    .flex_1()
                     .p_3()
                     .text_sm()
                     .text_color(cx.theme().muted_foreground)
                     .child("Open a folder to browse files.")
                     .into_any_element()
             })
+            .child(self.render_outline(cx))
     }
 
     fn render_file_tree(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -771,6 +803,50 @@ impl Mdpeek {
         .text_sm()
         .p_1()
         .h_full()
+    }
+
+    fn render_outline(&self, cx: &mut Context<Self>) -> AnyElement {
+        let Some(document) = self.active_document() else {
+            return div().into_any_element();
+        };
+        let headings = markdown_headings(&document.read(cx).value(cx));
+        if headings.len() < 2 {
+            return div().into_any_element();
+        }
+        v_flex()
+            .w_full()
+            .max_h(px(220.))
+            .flex_none()
+            .overflow_hidden()
+            .border_t_1()
+            .border_color(cx.theme().border)
+            .child(
+                div()
+                    .px_3()
+                    .py_2()
+                    .text_xs()
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(cx.theme().muted_foreground)
+                    .child("OUTLINE"),
+            )
+            .child(v_flex().flex_1().overflow_hidden().px_1().pb_1().children(
+                headings.into_iter().map(|(level, text, offset)| {
+                    let document = document.clone();
+                    Button::new(("outline-heading", offset))
+                        .ghost()
+                        .xsmall()
+                        .w_full()
+                        .justify_start()
+                        .pl(px(8. + (level.saturating_sub(1) as f32 * 12.)))
+                        .label(text)
+                        .on_click(cx.listener(move |_, _, window, cx| {
+                            document.update(cx, |document, cx| {
+                                document.reveal_offset(offset, window, cx);
+                            });
+                        }))
+                }),
+            ))
+            .into_any_element()
     }
 
     fn render_empty_state(&self, cx: &mut Context<Self>) -> impl IntoElement {
