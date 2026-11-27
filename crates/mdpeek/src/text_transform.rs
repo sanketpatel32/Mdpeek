@@ -315,7 +315,6 @@ mod tests {
     }
 
     #[test]
-    #[test]
     fn indented_code_is_not_a_setext_heading() {
         let source = "    1234567890. label\n    ---\n\n## Real\n";
         let headings = markdown_headings(source);
