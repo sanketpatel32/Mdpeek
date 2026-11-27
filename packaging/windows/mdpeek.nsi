@@ -34,18 +34,11 @@ SetCompressor /SOLID lzma
 !define MANUPRODUCTKEY "${MANUKEY}\${PRODUCTNAME}"
 !define HOMEPAGE "https://github.com/sanketpatel32/Mdpeek"
 
-!macro MPEEK_ASSOCIATE EXT FILECLASS DESCRIPTION
-  ReadRegStr $R0 HKCR ".${EXT}" "${FILECLASS}_backup"
-  ${If} $R0 == ""
-    ReadRegStr $R0 HKCR ".${EXT}" ""
-    WriteRegStr HKCR ".${EXT}" "${FILECLASS}_backup" "$R0"
-  ${EndIf}
-  WriteRegStr HKCR ".${EXT}" "" "${FILECLASS}"
-  WriteRegStr HKCR "${FILECLASS}" "" "${DESCRIPTION}"
-  WriteRegStr HKCR "${FILECLASS}\DefaultIcon" "" "$\"$INSTDIR\${MAINBINARYNAME}$\",0"
-  WriteRegStr HKCR "${FILECLASS}\shell" "" "open"
-  WriteRegStr HKCR "${FILECLASS}\shell\open" "" "Open with mdpeek"
-  WriteRegStr HKCR "${FILECLASS}\shell\open\command" "" "$\"$INSTDIR\${MAINBINARYNAME}$\" $\"%1$\""
+!macro MPEEK_OPENWITH EXT PROGID DESCRIPTION
+  WriteRegStr HKCR ".${EXT}\OpenWithProgIDs" "${PROGID}" ""
+  WriteRegStr HKCR "${PROGID}" "" "${DESCRIPTION}"
+  WriteRegStr HKCR "${PROGID}\DefaultIcon" "" "$\"$INSTDIR\${MAINBINARYNAME}$\",0"
+  WriteRegStr HKCR "${PROGID}\shell\open\command" "" "$\"$INSTDIR\${MAINBINARYNAME}$\" $\"%1$\""
 !macroend
 
 !macro MPEEK_UNASSOCIATE EXT FILECLASS
@@ -227,12 +220,11 @@ Section "Install"
   CreateDirectory "$SMPROGRAMS\${PRODUCTNAME}"
   CreateShortcut "$SMPROGRAMS\${PRODUCTNAME}\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}" "" "$INSTDIR\icon.ico" 0
 
-  !insertmacro MPEEK_ASSOCIATE "md" "Markdown" "Markdown document"
-  !insertmacro MPEEK_ASSOCIATE "markdown" "Markdown" "Markdown document"
-  !insertmacro MPEEK_ASSOCIATE "mdx" "Markdown" "Markdown document"
-  !insertmacro MPEEK_ASSOCIATE "txt" "Plain Text" "Plain text document"
+  !insertmacro MPEEK_OPENWITH "md" "mdpeek.md" "Markdown document"
+  !insertmacro MPEEK_OPENWITH "markdown" "mdpeek.md" "Markdown document"
+  !insertmacro MPEEK_OPENWITH "mdx" "mdpeek.md" "Markdown document"
+  !insertmacro MPEEK_OPENWITH "txt" "mdpeek.txt" "Plain text document"
   !insertmacro MPEEK_REMOVE_LEGACY_ASSOCIATIONS
-  !insertmacro MPEEK_REMOVE_V2_OPENWITH_ENTRIES
   !insertmacro MPEEK_CONTEXT_MENUS
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'
 
