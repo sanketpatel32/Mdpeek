@@ -84,36 +84,6 @@ Function SkipIfPassive
   ${EndIf}
 FunctionEnd
 
-Function CloseRunningMdpeek
-  nsis_tauri_utils::FindProcessCurrentUser "${MAINBINARYNAME}"
-  Pop $0
-  ${If} $0 = 0
-    ${If} $PassiveMode = 1
-    ${OrIf} $UpdateMode = 1
-    ${OrIf} $SilentMode = 1
-      Goto kill_mdpeek
-    ${EndIf}
-
-    MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "mdpeek is currently running. Close it to continue installation." IDOK kill_mdpeek IDCANCEL cancel_install
-
-    kill_mdpeek:
-      nsis_tauri_utils::KillProcessCurrentUser "${MAINBINARYNAME}"
-      Pop $0
-      ${If} $0 = 1
-        ${If} $SilentMode <> 1
-        ${AndIf} $PassiveMode <> 1
-          MessageBox MB_ICONSTOP "Could not close mdpeek. Close it manually and run the installer again."
-        ${EndIf}
-        Abort
-      ${EndIf}
-      Goto close_done
-
-    cancel_install:
-      Abort
-  ${EndIf}
-  close_done:
-FunctionEnd
-
 Function .onInit
   StrCpy $PassiveMode 0
   StrCpy $UpdateMode 0
@@ -152,8 +122,6 @@ FunctionEnd
 Section "Install"
   SetOutPath $INSTDIR
   SetOverwrite on
-
-  Call CloseRunningMdpeek
 
   File "${BINARY}"
   File "${ICONFILE}"
@@ -197,10 +165,15 @@ Section "Uninstall"
   SetShellVarContext all
   SetRegView 64
 
-  nsis_tauri_utils::KillProcessCurrentUser "${MAINBINARYNAME}"
-  Pop $0
+  ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}"
+    ClearErrors
+    Delete "$INSTDIR\${MAINBINARYNAME}"
+    ${If} ${Errors}
+      MessageBox MB_ICONSTOP "Could not remove mdpeek because it is still running or locked. Close all mdpeek windows and try uninstalling again."
+      Abort
+    ${EndIf}
+  ${EndIf}
 
-  Delete "$INSTDIR\${MAINBINARYNAME}"
   Delete "$INSTDIR\icon.ico"
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"
