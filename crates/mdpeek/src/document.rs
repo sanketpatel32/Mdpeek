@@ -594,6 +594,7 @@ impl DocumentView {
     }
 
     fn reveal_heading(&self, fragment: &str, cx: &mut Context<Self>) {
+        let fragment = percent_decode(fragment);
         let source = self.editor.read(cx).value().to_string();
         let Some(heading) = crate::text_transform::markdown_headings(&source)
             .into_iter()
@@ -602,7 +603,13 @@ impl DocumentView {
             return;
         };
         self.preview.update(cx, |preview, cx| {
-            _ = preview.reveal_range(heading.start..heading.end, cx);
+            let range = {
+                let text = preview.rendered_text();
+                text.range_for_source(heading.start..heading.end)
+            };
+            if let Some(range) = range {
+                _ = preview.reveal_range(range, cx);
+            }
         });
     }
 
@@ -1118,6 +1125,25 @@ impl Render for DocumentView {
             )
             .child(self.render_status(cx))
     }
+}
+
+fn percent_decode(value: &str) -> String {
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' && index + 2 < bytes.len() {
+            let hex = &value[index + 1..index + 3];
+            if let Ok(byte) = u8::from_str_radix(hex, 16) {
+                decoded.push(byte);
+                index += 3;
+                continue;
+            }
+        }
+        decoded.push(bytes[index]);
+        index += 1;
+    }
+    String::from_utf8_lossy(&decoded).to_string()
 }
 
 fn table_to_csv(headers: &[String], rows: &[Vec<String>]) -> String {
