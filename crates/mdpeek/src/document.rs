@@ -9,7 +9,7 @@ use gpui_kit::component::{
     button::{Button, ButtonVariants as _},
     clipboard::Clipboard,
     h_flex,
-    input::{Editor, EditorState, InputEvent, TabSize},
+    input::{Editor, EditorState, InputEvent, Position, TabSize},
     resizable::{h_resizable, resizable_panel},
     status_bar::StatusBar,
     text::{MarkdownExtensions, TextView, TextViewState},
@@ -226,6 +226,24 @@ impl DocumentView {
             return false;
         };
         self.modified_at.is_none_or(|known| modified != known)
+    }
+
+    pub fn reveal_offset(&mut self, offset: usize, window: &mut Window, cx: &mut Context<Self>) {
+        self.editor.update(cx, |editor, cx| {
+            let value = editor.value();
+            let offset = offset.min(value.len());
+            let mut line = 0u32;
+            let mut character = 0u32;
+            for ch in value[..offset].chars() {
+                if ch == '\n' {
+                    line += 1;
+                    character = 0;
+                } else {
+                    character += ch.len_utf16() as u32;
+                }
+            }
+            editor.set_cursor_position(Position { line, character }, window, cx);
+        });
     }
 
     pub fn toggle_task(
@@ -622,42 +640,7 @@ fn renderable_source(kind: DocumentKind, source: &str) -> String {
     if kind != DocumentKind::Csv {
         return source.to_string();
     }
-    let delimiter = if source
-        .lines()
-        .next()
-        .is_some_and(|line| line.contains('\t'))
-    {
-        b'\t'
-    } else {
-        b','
-    };
-    let mut reader = csv::ReaderBuilder::new()
-        .delimiter(delimiter)
-        .flexible(true)
-        .has_headers(false)
-        .from_reader(source.as_bytes());
-    let rows = reader
-        .records()
-        .filter_map(Result::ok)
-        .map(|record| {
-            record
-                .iter()
-                .map(|cell| cell.replace('|', "\\|").replace('\n', " "))
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
-    let Some(header) = rows.first() else {
-        return String::new();
-    };
-    let mut markdown = format!("| {} |\n", header.join(" | "));
-    markdown.push_str(&format!(
-        "|{}|\n",
-        header.iter().map(|_| " --- |").collect::<String>()
-    ));
-    for row in rows.iter().skip(1) {
-        markdown.push_str(&format!("| {} |\n", row.join(" | ")));
-    }
-    markdown
+    crate::csv::to_markdown_table(source)
 }
 
 fn expand_wiki_links(source: &str) -> String {

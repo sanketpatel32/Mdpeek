@@ -16,7 +16,9 @@ use gpui_kit::{prelude::FluentBuilder as _, *};
 use crate::document::{DocumentView, read_document};
 use crate::export::{markdown_to_html_document, markdown_to_plain_text};
 use crate::settings::{SessionState, load_session, save_session};
-use crate::workspace::{build_file_items, collect_files, resolve_tree_path};
+use crate::workspace::{
+    SearchMatch, build_file_items, collect_files, resolve_tree_path, search_files,
+};
 
 actions!(
     mdpeek,
@@ -25,6 +27,8 @@ actions!(
         OpenFile,
         QuickOpen,
         QuickOpenPick,
+        WorkspaceSearch,
+        WorkspaceSearchPick,
         ToggleReading,
         OpenFolder,
         Save,
@@ -52,6 +56,8 @@ pub struct Mdpeek {
     tree_state: Entity<TreeState>,
     status_message: Option<SharedString>,
     quick_open: Entity<CommandState>,
+    workspace_search: Entity<CommandState>,
+    search_results: Vec<SearchMatch>,
     reading_mode: bool,
     focus_handle: FocusHandle,
 }
@@ -68,6 +74,8 @@ impl Mdpeek {
             tree_state: cx.new(|cx| TreeState::new(cx)),
             status_message: None,
             quick_open: cx.new(|cx| CommandState::new(window, cx)),
+            workspace_search: cx.new(|cx| CommandState::new(window, cx)),
+            search_results: Vec::new(),
             reading_mode: false,
             focus_handle: cx.focus_handle(),
         };
@@ -470,6 +478,86 @@ impl Mdpeek {
         }
     }
 
+    fn open_workspace_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.root_dir.is_none() {
+            self.set_status("Open a folder before searching the workspace", cx);
+            return;
+        }
+        self.search_results.clear();
+        let command = self.workspace_search.clone();
+        command.update(cx, |command, cx| {
+            command.set_query("", window, cx);
+        });
+        let owner = cx.weak_entity();
+        let focus_on_mount = Rc::new(Cell::new(true));
+        window.open_dialog(cx, move |dialog, _, _| {
+            let command = command.clone();
+            let owner = owner.clone();
+            let focus_on_mount = focus_on_mount.clone();
+            dialog
+                .close_button(false)
+                .p_0()
+                .content(move |content, window, cx| {
+                    if focus_on_mount.replace(false) {
+                        let command = command.clone();
+                        window.defer(cx, move |window, cx| {
+                            command.read(cx).focus_handle(cx).focus(window, cx);
+                        });
+                    }
+                    let query_owner = owner.clone();
+                    let confirm_owner = owner.clone();
+                    let results = owner
+                        .read_with(cx, |this, _| this.search_results.clone())
+                        .unwrap_or_default();
+                    content.child(
+                        Command::new(&command)
+                            .w(px(680.))
+                            .bordered(false)
+                            .rounded(cx.theme().radius_lg)
+                            .placeholder("Search workspace content...")
+                            .filterable(false)
+                            .items(results.iter().map(|result| {
+                                let name = result
+                                    .path
+                                    .file_name()
+                                    .and_then(|name| name.to_str())
+                                    .unwrap_or("file");
+                                CommandItem::new()
+                                    .label(format!("{}:{} — {}", name, result.line, result.text))
+                                    .keywords([result.path.display().to_string()])
+                                    .icon(IconName::Search)
+                                    .action(Box::new(WorkspaceSearchPick))
+                            }))
+                            .on_query(move |query, _, cx| {
+                                _ = query_owner.update(cx, |this, cx| {
+                                    this.search_results = this
+                                        .root_dir
+                                        .as_ref()
+                                        .map(|root| search_files(root, query, 100))
+                                        .unwrap_or_default();
+                                    cx.notify();
+                                });
+                            })
+                            .on_confirm(move |index, window, cx| {
+                                _ = confirm_owner.update(cx, |this, cx| {
+                                    if let Some(result) =
+                                        this.search_results.get(index.row).cloned()
+                                    {
+                                        this.open_path(result.path, window, cx);
+                                        if let Some(document) = this.active_document() {
+                                            document.update(cx, |document, cx| {
+                                                document.reveal_offset(result.offset, window, cx);
+                                            });
+                                        }
+                                    }
+                                });
+                                window.close_dialog(cx);
+                            }),
+                    )
+                })
+        });
+    }
+
     fn toggle_reading(&mut self, cx: &mut Context<Self>) {
         self.reading_mode = !self.reading_mode;
         if self.reading_mode {
@@ -782,6 +870,9 @@ impl Render for Mdpeek {
             }))
             .on_action(cx.listener(|this, _: &QuickOpen, window, cx| {
                 this.open_quick_open(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &WorkspaceSearch, window, cx| {
+                this.open_workspace_search(window, cx);
             }))
             .on_action(cx.listener(|this, _: &ToggleReading, _, cx| {
                 this.toggle_reading(cx);

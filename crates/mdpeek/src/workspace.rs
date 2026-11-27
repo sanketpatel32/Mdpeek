@@ -109,3 +109,49 @@ fn collect_files_inner(path: &Path, depth: usize, limit: usize, files: &mut Vec<
         }
     }
 }
+
+#[derive(Clone, Debug)]
+pub struct SearchMatch {
+    pub path: PathBuf,
+    pub line: usize,
+    pub offset: usize,
+    pub text: String,
+}
+
+pub fn search_files(root: &Path, query: &str, limit: usize) -> Vec<SearchMatch> {
+    let query = query.trim().to_lowercase();
+    if query.len() < 2 {
+        return Vec::new();
+    }
+    let mut matches = Vec::new();
+    for path in collect_files(root, 1_000) {
+        if matches.len() >= limit {
+            break;
+        }
+        let Ok(metadata) = std::fs::metadata(&path) else {
+            continue;
+        };
+        if metadata.len() > 512_000 {
+            continue;
+        }
+        let Ok(content) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let mut offset = 0;
+        for (line_ix, line) in content.lines().enumerate() {
+            if let Some(column) = line.to_lowercase().find(&query) {
+                matches.push(SearchMatch {
+                    path: path.clone(),
+                    line: line_ix + 1,
+                    offset: offset + column,
+                    text: line.trim().chars().take(120).collect(),
+                });
+                if matches.len() >= limit {
+                    break;
+                }
+            }
+            offset += line.len() + 1;
+        }
+    }
+    matches
+}
