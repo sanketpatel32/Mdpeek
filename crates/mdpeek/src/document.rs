@@ -5,7 +5,7 @@ use std::{
 };
 
 use gpui_kit::component::{
-    ActiveTheme as _, Sizable as _,
+    ActiveTheme as _, ElementExt as _, Sizable as _, WindowExt as _,
     button::{Button, ButtonVariants as _},
     clipboard::Clipboard,
     h_flex,
@@ -19,6 +19,7 @@ use gpui_kit::component::{
 use gpui_kit::{prelude::FluentBuilder as _, *};
 
 use crate::{
+    annotation::{AnnotationStroke, normalized_point, save_annotated_png, stroke_path},
     app::Mdpeek,
     math::{InlineMathPlugin, MathPlugin},
 };
@@ -121,6 +122,12 @@ pub struct DocumentView {
     dirty: bool,
     modified_at: Option<SystemTime>,
     preview_zoom: f32,
+    annotation_enabled: bool,
+    annotation_color_index: usize,
+    annotation_size: f32,
+    annotation_strokes: Vec<AnnotationStroke>,
+    current_annotation: Option<AnnotationStroke>,
+    annotation_bounds: Option<Bounds<Pixels>>,
     owner: Option<WeakEntity<Mdpeek>>,
     _subscriptions: Vec<Subscription>,
 }
@@ -189,6 +196,12 @@ impl DocumentView {
                 .and_then(|path| std::fs::metadata(path).ok())
                 .and_then(|metadata| metadata.modified().ok()),
             preview_zoom: 1.0,
+            annotation_enabled: false,
+            annotation_color_index: 0,
+            annotation_size: 4.0,
+            annotation_strokes: Vec::new(),
+            current_annotation: None,
+            annotation_bounds: None,
             owner: None,
             _subscriptions,
         }
@@ -367,6 +380,108 @@ impl DocumentView {
         Ok(())
     }
 
+    fn annotation_color(&self) -> Hsla {
+        const COLORS: [Hsla; 6] = [red(), yellow(), green(), blue(), white(), black()];
+        COLORS[self.annotation_color_index % COLORS.len()]
+    }
+
+    fn normalized_annotation_point(&self, position: Point<Pixels>) -> Option<(f32, f32)> {
+        self.annotation_bounds
+            .map(|bounds| normalized_point(position, bounds))
+    }
+
+    fn annotation_mouse_down(
+        &mut self,
+        event: &MouseDownEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.annotation_enabled || event.button != MouseButton::Left {
+            return;
+        }
+        let Some(point) = self.normalized_annotation_point(event.position) else {
+            return;
+        };
+        let width = self
+            .annotation_bounds
+            .map(|bounds| f32::from(bounds.size.width))
+            .unwrap_or(1.0)
+            .max(1.0);
+        self.current_annotation = Some(AnnotationStroke::new(
+            point,
+            self.annotation_color().opacity(0.9),
+            self.annotation_size / width,
+        ));
+        cx.notify();
+    }
+
+    fn annotation_mouse_move(
+        &mut self,
+        event: &MouseMoveEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.annotation_enabled {
+            return;
+        }
+        let Some(point) = self.normalized_annotation_point(event.position) else {
+            return;
+        };
+        if let Some(stroke) = self.current_annotation.as_mut()
+            && stroke.points.last().is_none_or(|last| {
+                (last.0 - point.0).abs() > 0.001 || (last.1 - point.1).abs() > 0.001
+            })
+        {
+            stroke.points.push(point);
+            cx.notify();
+        }
+    }
+
+    fn annotation_mouse_up(&mut self, _: &MouseUpEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some(stroke) = self.current_annotation.take() {
+            if stroke.points.len() > 1 {
+                self.annotation_strokes.push(stroke);
+            }
+            cx.notify();
+        }
+    }
+
+    fn clear_annotations(&mut self, cx: &mut Context<Self>) {
+        self.annotation_strokes.clear();
+        self.current_annotation = None;
+        cx.notify();
+    }
+
+    fn save_annotations(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(path) = self.path.clone() else {
+            return;
+        };
+        match save_annotated_png(&path, &self.annotation_strokes) {
+            Ok(output) => window
+                .push_notification(format!("Saved annotated image to {}", output.display()), cx),
+            Err(error) => window.push_notification(error, cx),
+        }
+    }
+
+    fn render_annotation_color_picker(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .id("annotation-color")
+            .w(px(18.))
+            .h(px(18.))
+            .rounded_full()
+            .bg(self.annotation_color())
+            .border_1()
+            .border_color(cx.theme().border)
+            .cursor_pointer()
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, _, _, cx| {
+                    this.annotation_color_index = (this.annotation_color_index + 1) % 6;
+                    cx.notify();
+                }),
+            )
+    }
+
     fn render_toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement {
         h_flex()
             .w_full()
@@ -378,14 +493,73 @@ impl DocumentView {
             .border_b_1()
             .border_color(cx.theme().border)
             .bg(cx.theme().title_bar)
-            .child(
-                Button::new("mode")
-                    .ghost()
-                    .xsmall()
-                    .label(self.mode.label())
-                    .tooltip("Cycle preview/edit/split")
-                    .on_click(cx.listener(|this, _, _, cx| this.cycle_mode(cx))),
-            )
+            .when(self.kind != DocumentKind::Image, |this| {
+                this.child(
+                    Button::new("mode")
+                        .ghost()
+                        .xsmall()
+                        .label(self.mode.label())
+                        .tooltip("Cycle preview/edit/split")
+                        .on_click(cx.listener(|this, _, _, cx| this.cycle_mode(cx))),
+                )
+            })
+            .when(self.kind == DocumentKind::Image, |this| {
+                this.child(
+                    Button::new("annotate")
+                        .ghost()
+                        .xsmall()
+                        .label(if self.annotation_enabled {
+                            "Annotating"
+                        } else {
+                            "Annotate"
+                        })
+                        .tooltip("Toggle freehand image annotation")
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.annotation_enabled = !this.annotation_enabled;
+                            this.current_annotation = None;
+                            cx.notify();
+                        })),
+                )
+                .when(self.annotation_enabled, |this| {
+                    this.child(self.render_annotation_color_picker(cx))
+                        .child(
+                            Button::new("annotation-size")
+                                .ghost()
+                                .xsmall()
+                                .label(format!("Brush {:.0}", self.annotation_size))
+                                .tooltip("Cycle brush size")
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.annotation_size = match this.annotation_size as u32 {
+                                        0..=3 => 4.0,
+                                        4 => 8.0,
+                                        8 => 12.0,
+                                        _ => 2.0,
+                                    };
+                                    cx.notify();
+                                })),
+                        )
+                        .child(
+                            Button::new("annotation-clear")
+                                .ghost()
+                                .xsmall()
+                                .label("Clear")
+                                .tooltip("Clear annotations")
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.clear_annotations(cx);
+                                })),
+                        )
+                        .child(
+                            Button::new("annotation-save")
+                                .ghost()
+                                .xsmall()
+                                .label("Save PNG")
+                                .tooltip("Save annotated copy as PNG")
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.save_annotations(window, cx);
+                                })),
+                        )
+                })
+            })
             .child(
                 Button::new("zoom-out")
                     .ghost()
@@ -539,6 +713,45 @@ impl DocumentView {
         )
     }
 
+    fn render_image_surface(&self, path: PathBuf, cx: &mut Context<Self>) -> impl IntoElement {
+        let strokes = self.annotation_strokes.clone();
+        let current_stroke = self.current_annotation.clone();
+        let state_entity = cx.entity();
+        let zoom = self.preview_zoom;
+        div()
+            .id("image-annotation-surface")
+            .relative()
+            .when(self.annotation_enabled, |this| this.cursor_crosshair())
+            .on_mouse_down(MouseButton::Left, cx.listener(Self::annotation_mouse_down))
+            .on_mouse_move(cx.listener(Self::annotation_mouse_move))
+            .on_mouse_up(MouseButton::Left, cx.listener(Self::annotation_mouse_up))
+            .on_prepaint(move |bounds, _, cx| {
+                state_entity.update(cx, |this, _| {
+                    this.annotation_bounds = Some(bounds);
+                });
+            })
+            .child(
+                img(path)
+                    .object_fit(ObjectFit::Contain)
+                    .when(zoom == 1.0, |image| image.max_w_full().max_h_full())
+                    .when(zoom != 1.0, |image| image.w(relative(zoom))),
+            )
+            .child(
+                canvas(
+                    move |bounds, _, _| (strokes.clone(), current_stroke.clone(), bounds),
+                    move |_, (strokes, current_stroke, bounds), window, _| {
+                        for stroke in strokes.iter().chain(current_stroke.iter()) {
+                            if let Some(path) = stroke_path(stroke, bounds) {
+                                window.paint_path(path, stroke.color);
+                            }
+                        }
+                    },
+                )
+                .absolute()
+                .size_full(),
+            )
+    }
+
     fn render_content(&self, cx: &mut Context<Self>) -> AnyElement {
         if self.kind == DocumentKind::Image {
             return if let Some(path) = self.path.clone() {
@@ -553,16 +766,7 @@ impl DocumentView {
                             .flex()
                             .items_center()
                             .justify_center()
-                            .child(
-                                img(path)
-                                    .object_fit(ObjectFit::Contain)
-                                    .when(self.preview_zoom == 1.0, |image| {
-                                        image.max_w_full().max_h_full()
-                                    })
-                                    .when(self.preview_zoom != 1.0, |image| {
-                                        image.w(relative(self.preview_zoom))
-                                    }),
-                            ),
+                            .child(self.render_image_surface(path, cx)),
                     )
                     .into_any_element()
             } else {

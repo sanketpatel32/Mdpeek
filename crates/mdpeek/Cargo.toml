@@ -21,3 +21,4 @@ markdown = "1"
 anyhow = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 csv = "1"
+image = "0.25"

@@ -1,3 +1,4 @@
+mod annotation;
 mod app;
 mod completion;
 mod csv;
