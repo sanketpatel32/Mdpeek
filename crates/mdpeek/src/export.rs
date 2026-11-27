@@ -44,9 +44,10 @@ pub fn markdown_to_plain_text(source: &str) -> String {
         }
 
         let mut text = line.to_string();
-        for marker in ["#", ">", "-", "*", "+"] {
+        for marker in ["# ", "> ", "- ", "* ", "+ "] {
             if let Some(rest) = text.trim_start().strip_prefix(marker) {
                 text = rest.trim_start().to_string();
+                break;
             }
         }
         text = text

@@ -13,6 +13,8 @@ use gpui_kit::component::{
 };
 use gpui_kit::{prelude::FluentBuilder as _, *};
 
+use crate::math::{InlineMathPlugin, MathPlugin};
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DocumentKind {
     Markdown,
@@ -285,6 +287,8 @@ impl DocumentView {
         div().size_full().child(
             TextView::new(&self.preview)
                 .markdown_extensions(markdown_extensions())
+                .plugin(MathPlugin)
+                .plugin(InlineMathPlugin)
                 .code_block_actions(|code_block, _, _| {
                     h_flex().child(Clipboard::new("copy").value(code_block.code()))
                 })

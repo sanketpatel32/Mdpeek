@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SessionState {
     #[serde(default)]
     pub open_paths: Vec<PathBuf>,
@@ -14,6 +14,18 @@ pub struct SessionState {
     pub sidebar_visible: bool,
     #[serde(default)]
     pub dark_mode: bool,
+}
+
+impl Default for SessionState {
+    fn default() -> Self {
+        Self {
+            open_paths: Vec::new(),
+            active: 0,
+            root_dir: None,
+            sidebar_visible: true,
+            dark_mode: false,
+        }
+    }
 }
 
 fn default_sidebar() -> bool {

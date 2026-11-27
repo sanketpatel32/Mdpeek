@@ -1,6 +1,7 @@
 mod app;
 mod document;
 mod export;
+mod math;
 mod settings;
 mod workspace;
 
