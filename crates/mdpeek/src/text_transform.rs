@@ -155,7 +155,13 @@ pub fn apply_transform(
         TransformOperation::ToggleCase => replace(text, start, end, toggle_case(&text[start..end])),
         TransformOperation::InsertToc => {
             let toc = table_of_contents(text);
-            replace(text, start, end, format!("{toc}\n"))
+            let mut insertion = String::new();
+            if start > 0 && text.as_bytes().get(start - 1) != Some(&b'\n') {
+                insertion.push_str("\n\n");
+            }
+            insertion.push_str(&toc);
+            insertion.push('\n');
+            replace(text, start, end, insertion)
         }
         TransformOperation::InsertDate => replace(
             text,
@@ -199,5 +205,17 @@ mod tests {
             table_of_contents(source),
             "- [Title](#title)\n  - [Details](#details)\n"
         );
+    }
+
+    #[test]
+    fn starts_toc_on_a_new_block() {
+        let source = "# Title\nintro";
+        let result = apply_transform(
+            source,
+            source.len(),
+            source.len(),
+            TransformOperation::InsertToc,
+        );
+        assert_eq!(result.text, "# Title\nintro\n\n- [Title](#title)\n\n");
     }
 }
