@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-11-27
+
+The native GPUI rebuild. mdpeek is now a pure Rust desktop application rather than a Tauri/WebView app.
+
+### Added
+- Native GPUI application shell with multi-tab documents, split/edit/preview modes, file explorer, heading outline, quick open, command palette, workspace search, daily notes, session restoration, external-change reloads, and reading mode.
+- Markdown rendering with GFM tables, clickable task checkboxes, alert surfaces, wiki/relative links, local images, math fallback rendering, table copying, and code-block copying.
+- Markdown, text, code, CSV/TSV, and image document support.
+- Link checker plus HTML, plain-text, and simple PDF export.
+- Cross-platform Rust CI and release packaging for Windows, Linux, and macOS.
+
+### Removed
+- Tauri, Node.js, Vite, React, and the JavaScript application/runtime.
+
+### Known gaps in the initial native release
+- Mermaid diagrams, full KaTeX-typeset math, rich system print preview, visual table cell editing, project-wide replace, image annotation, installer signing, and automatic updates are not yet ported.
+
 ## [2.0.0] - 2026-11-21
 
 The simplification release. mdpeek is a Markdown viewer/editor again — everything that made it an IDE, notebook, or knowledge base is gone. ~28,500 lines removed; the app is faster to boot, lighter to build, and calmer to use.
