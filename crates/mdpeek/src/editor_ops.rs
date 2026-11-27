@@ -9,12 +9,14 @@ fn line_range(text: &str, start: usize, end: usize) -> (usize, usize) {
     let start = start.min(end).min(text.len());
     let end = end.max(start).min(text.len());
     let line_start = text[..start].rfind('\n').map_or(0, |index| index + 1);
-    let mut line_end = text[end..]
+    let effective_end = if end != start && end > 0 && text.as_bytes()[end - 1] == b'\n' {
+        end - 1
+    } else {
+        end
+    };
+    let line_end = text[effective_end..]
         .find('\n')
-        .map_or(text.len(), |index| end + index);
-    if end != start && end == line_end && end > 0 && text.as_bytes()[end - 1] == b'\n' {
-        line_end = end - 1;
-    }
+        .map_or(text.len(), |index| effective_end + index);
     (line_start, line_end)
 }
 
@@ -83,23 +85,26 @@ pub fn join_line(text: &str, position: usize) -> EditResult {
     let Some(line_end) = text[position..].find('\n').map(|index| position + index) else {
         return unchanged(text, position, position);
     };
+    let line_start = text[..position].rfind('\n').map_or(0, |index| index + 1);
     let next_start = line_end + 1;
     let next_end = text[next_start..]
         .find('\n')
         .map_or(text.len(), |index| next_start + index);
-    let left = text[..line_end].trim_end();
+    let prefix = &text[..line_start];
+    let current = text[line_start..line_end].trim_end();
     let next = text[next_start..next_end].trim_start();
-    let joiner = if left.is_empty() || next.is_empty() {
+    let joiner = if current.is_empty() || next.is_empty() {
         ""
     } else {
         " "
     };
     let mut output = String::with_capacity(text.len());
-    output.push_str(left);
+    output.push_str(prefix);
+    output.push_str(current);
     output.push_str(joiner);
     output.push_str(next);
     output.push_str(&text[next_end..]);
-    let caret = left.len() + joiner.len();
+    let caret = line_start + current.len() + joiner.len();
     EditResult {
         text: output,
         start: caret,
@@ -163,6 +168,18 @@ mod tests {
         let result = join_line("first  \n   second\nthird", 2);
         assert_eq!(result.text, "first second\nthird");
         assert_eq!(result.start, 6);
+    }
+
+    #[test]
+    fn join_blank_line_preserves_previous_line_break() {
+        let result = join_line("# Heading\n\nparagraph", 10);
+        assert_eq!(result.text, "# Heading\nparagraph");
+    }
+
+    #[test]
+    fn line_selection_ending_at_line_start_excludes_that_line() {
+        let result = duplicate_lines("one\ntwo\nthree", 0, 4);
+        assert_eq!(result.text, "one\none\ntwo\nthree");
     }
 
     #[test]
