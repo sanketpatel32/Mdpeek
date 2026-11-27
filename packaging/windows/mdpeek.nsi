@@ -49,6 +49,12 @@ SetCompressor /SOLID lzma
       ReadRegStr $R1 HKCR ".${EXT}" "${FILECLASS}_backup"
       WriteRegStr HKCR ".${EXT}" "" "$R1"
     ${EndIf}
+  ${EndIf}
+!macroend
+
+!macro MPEEK_DELETE_FILECLASS FILECLASS
+  ReadRegStr $R2 HKCR "${FILECLASS}\shell\open\command" ""
+  ${If} $R2 == "$\"$INSTDIR\${MAINBINARYNAME}$\" $\"%1$\""
     DeleteRegKey HKCR "${FILECLASS}"
   ${EndIf}
 !macroend
@@ -79,6 +85,12 @@ SetCompressor /SOLID lzma
   !insertmacro MPEEK_UNASSOCIATE "avi" "Video"
   !insertmacro MPEEK_UNASSOCIATE "m4v" "Video"
   !insertmacro MPEEK_UNASSOCIATE "mkv" "Video"
+  !insertmacro MPEEK_DELETE_FILECLASS "PDF"
+  !insertmacro MPEEK_DELETE_FILECLASS "Excalidraw"
+  !insertmacro MPEEK_DELETE_FILECLASS "TLDraw"
+  !insertmacro MPEEK_DELETE_FILECLASS "Jupyter Notebook"
+  !insertmacro MPEEK_DELETE_FILECLASS "Audio"
+  !insertmacro MPEEK_DELETE_FILECLASS "Video"
 !macroend
 
 !macro MPEEK_CONTEXT_MENUS
@@ -275,6 +287,8 @@ Section "Uninstall"
   !insertmacro MPEEK_UNASSOCIATE "markdown" "Markdown"
   !insertmacro MPEEK_UNASSOCIATE "mdx" "Markdown"
   !insertmacro MPEEK_UNASSOCIATE "txt" "Plain Text"
+  !insertmacro MPEEK_DELETE_FILECLASS "Markdown"
+  !insertmacro MPEEK_DELETE_FILECLASS "Plain Text"
   !insertmacro MPEEK_REMOVE_LEGACY_ASSOCIATIONS
   !insertmacro MPEEK_REMOVE_V2_OPENWITH_ENTRIES
   !insertmacro MPEEK_REMOVE_CONTEXT_MENUS
