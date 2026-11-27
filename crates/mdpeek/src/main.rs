@@ -52,7 +52,7 @@ fn main() {
                 KeyBinding::new("ctrl-`", InlineCodeSelection, Some("Mdpeek")),
                 KeyBinding::new("ctrl-k", LinkSelection, Some("Mdpeek")),
                 KeyBinding::new("ctrl-shift-x", StrikethroughSelection, Some("Mdpeek")),
-                KeyBinding::new("ctrl-shift-.", QuoteSelection, Some("Mdpeek")),
+                KeyBinding::new("ctrl->", QuoteSelection, Some("Mdpeek")),
                 KeyBinding::new("alt-up", MoveLinesUp, Some("Mdpeek")),
                 KeyBinding::new("alt-down", MoveLinesDown, Some("Mdpeek")),
                 KeyBinding::new("ctrl-j", JoinLines, Some("Mdpeek")),

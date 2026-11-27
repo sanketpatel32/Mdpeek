@@ -557,6 +557,11 @@ impl Mdpeek {
         };
         self.navigation_index = next_index;
         self.open_path_with_history(path, false, window, cx);
+        if let Some(document) = self.active_document() {
+            document.update(cx, |document, cx| {
+                document.focus_editor(window, cx);
+            });
+        }
     }
 
     fn close_other_tabs(&mut self, cx: &mut Context<Self>) {
