@@ -1,4 +1,8 @@
-use std::{cell::Cell, path::PathBuf, rc::Rc};
+use std::{
+    cell::Cell,
+    path::{Path as StdPath, PathBuf},
+    rc::Rc,
+};
 
 use gpui_kit::component::{
     ActiveTheme as _, Icon, IconName, Selectable as _, Sizable as _, Theme, ThemeMode,
@@ -661,10 +665,14 @@ impl Mdpeek {
                                     .action(Box::new(CommandPalettePick))
                             }))
                             .on_confirm(move |index, window, cx| {
-                                _ = confirm_owner.update(cx, |this, cx| {
-                                    this.run_command_palette_row(index.row, window, cx);
-                                });
+                                let row = index.row;
+                                let confirm_owner = confirm_owner.clone();
                                 window.close_dialog(cx);
+                                window.defer(cx, move |window, cx| {
+                                    _ = confirm_owner.update(cx, |this, cx| {
+                                        this.run_command_palette_row(row, window, cx);
+                                    });
+                                });
                             }),
                     )
                 })
@@ -1055,7 +1063,15 @@ impl Mdpeek {
             .iter()
             .filter_map(|document| {
                 document.read_with(cx, |document, _| {
-                    document.is_dirty().then(|| document.path.clone()).flatten()
+                    document
+                        .is_dirty()
+                        .then(|| {
+                            document
+                                .path
+                                .clone()
+                                .map(|path| path.canonicalize().unwrap_or(path))
+                        })
+                        .flatten()
                 })
             })
             .collect::<std::collections::HashSet<_>>();
@@ -1069,14 +1085,12 @@ impl Mdpeek {
             let Ok(metadata) = std::fs::metadata(&path) else {
                 continue;
             };
-            if metadata.len() > 512_000 || dirty_paths.contains(&path) {
-                skipped_dirty += usize::from(dirty_paths.contains(&path));
+            let canonical_path = path.canonicalize().unwrap_or_else(|_| path.clone());
+            if metadata.len() > 512_000 || dirty_paths.contains(&canonical_path) {
+                skipped_dirty += usize::from(dirty_paths.contains(&canonical_path));
                 continue;
             }
-            if path
-                .canonicalize()
-                .is_ok_and(|canonical| !canonical.starts_with(&canonical_root))
-            {
+            if !canonical_path.starts_with(&canonical_root) {
                 continue;
             }
             let Ok(content) = std::fs::read_to_string(&path) else {
@@ -1091,7 +1105,7 @@ impl Mdpeek {
             if result.count == 0 {
                 continue;
             }
-            match std::fs::write(&path, result.result) {
+            match write_file_atomically(&path, &result.result) {
                 Ok(()) => {
                     files_changed += 1;
                     replacements += result.count;
@@ -1604,6 +1618,52 @@ impl Mdpeek {
                     .text_color(cx.theme().muted_foreground)
                     .child("Ctrl+O open · Ctrl+S save · Ctrl+E edit/preview"),
             )
+    }
+}
+
+fn write_file_atomically(path: &StdPath, contents: &str) -> std::io::Result<()> {
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("document");
+    let parent = path.parent().unwrap_or_else(|| StdPath::new("."));
+    let mut temporary = None;
+    for counter in 0..100 {
+        let candidate = parent.join(format!(
+            ".{file_name}.mdpeek-{}-{counter}.tmp",
+            std::process::id()
+        ));
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&candidate)
+        {
+            Ok(mut file) => {
+                use std::io::Write as _;
+                file.write_all(contents.as_bytes())?;
+                file.sync_all()?;
+                if let Ok(metadata) = std::fs::metadata(path) {
+                    let _ = std::fs::set_permissions(&candidate, metadata.permissions());
+                }
+                temporary = Some(candidate);
+                break;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    let Some(temporary) = temporary else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            "could not allocate temporary replacement file",
+        ));
+    };
+    match std::fs::rename(&temporary, path) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            let _ = std::fs::remove_file(&temporary);
+            Err(error)
+        }
     }
 }
 
