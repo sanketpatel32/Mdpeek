@@ -91,14 +91,13 @@ fn main() {
                     }
                 })
                 .collect::<Vec<_>>();
-            let options = WindowOptions {
-                titlebar: Some(TitlebarOptions {
-                    title: Some("Mdpeek".into()),
-                    ..Default::default()
-                }),
+            let mut options = WindowOptions {
                 window_min_size: Some(size(px(300.), px(260.))),
-                ..Default::default()
+                ..gpui_kit::component::TitleBar::window_options()
             };
+            if let Some(titlebar) = options.titlebar.as_mut() {
+                titlebar.title = Some("Mdpeek".into());
+            }
             gpui_kit::open_window(options, cx, |window, cx| {
                 Mdpeek::view(window, cx, &initial_paths)
             })

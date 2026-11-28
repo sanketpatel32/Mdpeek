@@ -10,7 +10,7 @@ use std::{
 
 use gpui_kit::component::{
     ActiveTheme as _, Icon, IconName, Selectable as _, Sizable as _, StyledExt as _, Theme,
-    ThemeMode, WindowExt as _,
+    ThemeMode, TitleBar, WindowExt as _,
     button::{Button, ButtonVariants as _},
     checkbox::Checkbox,
     command::{Command, CommandGroup, CommandItem, CommandState},
@@ -2504,123 +2504,123 @@ impl Mdpeek {
         } else {
             Some(self.render_tab_bar(cx))
         };
-        h_flex()
-            .w_full()
-            .h(px(52.))
-            .flex_none()
-            .items_center()
-            .gap_3()
-            .px_3()
-            .border_b_1()
-            .border_color(cx.theme().border)
-            .bg(cx.theme().title_bar)
-            .child(
-                h_flex()
-                    .gap_2()
-                    .flex_none()
-                    .items_center()
-                    .px_1()
-                    .child(
-                        div()
-                            .size(px(32.))
-                            .flex_none()
-                            .rounded(cx.theme().radius * 0.75)
-                            .overflow_hidden()
-                            .child(img(LOGO.clone()).size_full()),
-                    )
-                    .when(width >= px(680.), |this| {
-                        this.child(
+        TitleBar::new().h(px(52.)).w_full().flex_none().child(
+            h_flex()
+                .w_full()
+                .h_full()
+                .items_center()
+                .gap_3()
+                .px_3()
+                .child(
+                    h_flex()
+                        .gap_2()
+                        .flex_none()
+                        .items_center()
+                        .px_1()
+                        .child(
                             div()
-                                .text_base()
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .child("Mdpeek"),
+                                .size(px(32.))
+                                .flex_none()
+                                .rounded(cx.theme().radius * 0.75)
+                                .overflow_hidden()
+                                .child(img(LOGO.clone()).size_full()),
                         )
-                    }),
-            )
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .h_full()
-                    .overflow_hidden()
-                    .when_some(document_tabs, |this, tabs| this.child(tabs)),
-            )
-            .child(
-                Button::new("workspace-quick-open")
-                    .outline()
-                    .small()
-                    .rounded_full()
-                    .bg(cx.theme().muted)
-                    .border_color(cx.theme().transparent)
-                    .text_color(cx.theme().muted_foreground)
-                    .when(width >= px(520.), |button| {
-                        button.w((width * 0.26).clamp(px(190.), px(340.)))
-                    })
-                    .icon(IconName::Search)
-                    .tooltip_with_action("Quick Open", &QuickOpen, None)
-                    .on_click(cx.listener(|this, _, window, cx| this.open_quick_open(window, cx)))
-                    .when(width >= px(520.), |button| {
-                        button.child(
-                            h_flex()
-                                .flex_1()
-                                .min_w_0()
-                                .items_center()
-                                .justify_between()
-                                .child(div().min_w_0().truncate().child("Quick Open"))
-                                .when(width >= px(700.), |this| {
-                                    this.child(
-                                        div()
-                                            .text_xs()
-                                            .text_color(cx.theme().muted_foreground)
-                                            .child("Ctrl+P"),
-                                    )
-                                }),
+                        .when(width >= px(680.), |this| {
+                            this.child(
+                                div()
+                                    .text_base()
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .child("Mdpeek"),
+                            )
+                        }),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .h_full()
+                        .overflow_hidden()
+                        .when_some(document_tabs, |this, tabs| this.child(tabs)),
+                )
+                .child(
+                    Button::new("workspace-quick-open")
+                        .outline()
+                        .small()
+                        .rounded_full()
+                        .bg(cx.theme().muted)
+                        .border_color(cx.theme().transparent)
+                        .text_color(cx.theme().muted_foreground)
+                        .when(width >= px(520.), |button| {
+                            button.w((width * 0.26).clamp(px(190.), px(340.)))
+                        })
+                        .icon(IconName::Search)
+                        .tooltip_with_action("Quick Open", &QuickOpen, None)
+                        .on_click(
+                            cx.listener(|this, _, window, cx| this.open_quick_open(window, cx)),
                         )
-                    }),
-            )
-            .child(
-                h_flex()
-                    .flex_none()
-                    .items_center()
-                    .gap_0p5()
-                    .p_0p5()
-                    .rounded_full()
-                    .bg(cx.theme().muted)
-                    .child(
-                        Button::new("workspace-explorer")
-                            .ghost()
-                            .small()
-                            .rounded_full()
-                            .selected(self.sidebar_visible)
-                            .icon(IconName::PanelLeft)
-                            .tooltip_with_action("Toggle explorer", &ToggleSidebar, None)
-                            .on_click(cx.listener(|this, _, _, cx| this.toggle_sidebar(cx))),
-                    )
-                    .child(
-                        Button::new("workspace-theme")
-                            .ghost()
-                            .small()
-                            .rounded_full()
-                            .icon(if dark { IconName::Sun } else { IconName::Moon })
-                            .tooltip(if dark {
-                                "Switch to light theme"
-                            } else {
-                                "Switch to dark theme"
-                            })
-                            .on_click(cx.listener(|this, _, _, cx| this.toggle_theme(cx))),
-                    )
-                    .child(
-                        Button::new("workspace-commands")
-                            .ghost()
-                            .small()
-                            .rounded_full()
-                            .icon(IconName::SquareTerminal)
-                            .tooltip_with_action("Command palette", &CommandPalette, None)
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.open_command_palette(window, cx)
-                            })),
-                    ),
-            )
+                        .when(width >= px(520.), |button| {
+                            button.child(
+                                h_flex()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .items_center()
+                                    .justify_between()
+                                    .child(div().min_w_0().truncate().child("Quick Open"))
+                                    .when(width >= px(700.), |this| {
+                                        this.child(
+                                            div()
+                                                .text_xs()
+                                                .text_color(cx.theme().muted_foreground)
+                                                .child("Ctrl+P"),
+                                        )
+                                    }),
+                            )
+                        }),
+                )
+                .child(
+                    h_flex()
+                        .flex_none()
+                        .items_center()
+                        .gap_0p5()
+                        .p_0p5()
+                        .rounded_full()
+                        .bg(cx.theme().muted)
+                        .child(
+                            Button::new("workspace-explorer")
+                                .ghost()
+                                .small()
+                                .rounded_full()
+                                .selected(self.sidebar_visible)
+                                .icon(IconName::PanelLeft)
+                                .tooltip_with_action("Toggle explorer", &ToggleSidebar, None)
+                                .on_click(cx.listener(|this, _, _, cx| this.toggle_sidebar(cx))),
+                        )
+                        .child(
+                            Button::new("workspace-theme")
+                                .ghost()
+                                .small()
+                                .rounded_full()
+                                .icon(if dark { IconName::Sun } else { IconName::Moon })
+                                .tooltip(if dark {
+                                    "Switch to light theme"
+                                } else {
+                                    "Switch to dark theme"
+                                })
+                                .on_click(cx.listener(|this, _, _, cx| this.toggle_theme(cx))),
+                        )
+                        .child(
+                            Button::new("workspace-commands")
+                                .ghost()
+                                .small()
+                                .rounded_full()
+                                .icon(IconName::SquareTerminal)
+                                .tooltip_with_action("Command palette", &CommandPalette, None)
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.open_command_palette(window, cx)
+                                })),
+                        ),
+                ),
+        )
     }
 
     fn render_tab_bar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
