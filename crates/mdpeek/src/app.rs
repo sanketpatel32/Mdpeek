@@ -125,7 +125,7 @@ pub struct Mdpeek {
     navigation_index: usize,
     settings: AppSettings,
     focus_handle: FocusHandle,
-    close_confirmation_open: bool,
+    close_confirmation_document: Option<Entity<DocumentView>>,
 }
 
 fn compact_label(label: &str, max_chars: usize) -> String {
@@ -324,7 +324,7 @@ impl Mdpeek {
             navigation_index: 0,
             settings: load_settings(),
             focus_handle: cx.focus_handle(),
-            close_confirmation_open: false,
+            close_confirmation_document: None,
         };
         let mode = if session.dark_mode {
             ThemeMode::Dark
@@ -632,7 +632,7 @@ impl Mdpeek {
         };
         let title = compact_label(&document.read(cx).title(), 40);
         let owner = cx.weak_entity();
-        self.close_confirmation_open = true;
+        self.close_confirmation_document = Some(document.clone());
         window.open_dialog(cx, move |dialog, _, _| {
             let owner = owner.clone();
             let close_owner = owner.clone();
@@ -642,7 +642,7 @@ impl Mdpeek {
                 .w(px(420.))
                 .on_close(move |_, _, cx| {
                     _ = close_owner.update(cx, |this, _| {
-                        this.close_confirmation_open = false;
+                        this.close_confirmation_document = None;
                     });
                 })
                 .content(move |content, _window, _cx| {
@@ -676,7 +676,7 @@ impl Mdpeek {
                                     let owner = owner.clone();
                                     move |_, window, cx| {
                                         _ = owner.update(cx, |this, _| {
-                                            this.close_confirmation_open = false;
+                                            this.close_confirmation_document = None;
                                         });
                                         window.close_dialog(cx);
                                     }
@@ -691,7 +691,7 @@ impl Mdpeek {
                                     move |_, window, cx| {
                                         window.close_dialog(cx);
                                         _ = owner.update(cx, |this, cx| {
-                                            this.close_confirmation_open = false;
+                                            this.close_confirmation_document = None;
                                             this.close_tab_unchecked(index, window, cx);
                                         });
                                     }
@@ -1142,10 +1142,17 @@ impl Mdpeek {
     }
 
     fn autosave_dirty_documents(&mut self, cx: &mut Context<Self>) {
-        if !self.settings.autosave || self.close_confirmation_open {
+        if !self.settings.autosave {
             return;
         }
         for document in self.documents.clone() {
+            if self
+                .close_confirmation_document
+                .as_ref()
+                .is_some_and(|pending| pending == &document)
+            {
+                continue;
+            }
             let Some((path, content)) = document.read_with(cx, |document, cx| {
                 (document.is_dirty()
                     && document.kind.is_text_editable()
