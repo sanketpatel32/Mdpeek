@@ -2498,7 +2498,18 @@ impl Mdpeek {
         });
     }
 
-    fn render_header(&self, width: Pixels, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_reading_title_bar(cx: &mut Context<Self>) -> TitleBar {
+        TitleBar::new().child(
+            h_flex().flex_1().items_center().justify_center().child(
+                div()
+                    .text_sm()
+                    .text_color(cx.theme().muted_foreground)
+                    .child("Reading Mode"),
+            ),
+        )
+    }
+
+    fn render_header(&self, width: Pixels, cx: &mut Context<Self>) -> TitleBar {
         let dark = cx.theme().is_dark();
         let document_tabs = if self.documents.is_empty() {
             None
@@ -3610,8 +3621,10 @@ impl Render for Mdpeek {
                 cx.quit();
             }))
             .child(gpui_kit::base::TextSelectionLayer)
-            .when(!self.reading_mode, |this| {
-                this.child(self.render_header(width, cx))
+            .child(if self.reading_mode {
+                Self::render_reading_title_bar(cx)
+            } else {
+                self.render_header(width, cx)
             })
             .child(
                 h_flex()
