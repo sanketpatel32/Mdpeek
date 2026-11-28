@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Set Markdown previews in a larger serif face with more line spacing. Increase the editor’s monospace text size and make the outline easier to scan.
+- Make table headers easier to read in both themes and let wide preview tables scroll horizontally.
+- Include underlined Markdown headings in the outline and scroll to headings without leaving Preview.
+- Add a Copy file path button to the document status bar.
+- Make welcome-screen recent files keyboard-accessible and shorten their folder labels within the workspace.
+
 ### Added
 - Added freehand image annotation with color/size controls and non-destructive annotated PNG export.
 - Added visual table row/column deletion, movement, and alignment cycling.
@@ -22,6 +28,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Known limitations
 - Mermaid support currently covers basic flowchart/graph edges rather than the full Mermaid diagram language.
 - KaTeX remains Unicode fallback rendering rather than full mathematical typesetting; PDF export remains a simple text pipeline rather than a system print preview.
+
+## [3.2.0] - 2026-11-27
+
+### Added
+
+- Persistent recent files on the welcome screen and in Quick Open, with duplicate and missing paths omitted.
+- Copy file path in the command palette and estimated reading time in the Markdown status bar.
+
+### Changed
+
+- Refreshed the light and dark workspace with Quick Open, explorer, theme, and command palette controls in the header.
+- Improved active and modified tab indicators, file and outline navigation, and the welcome screen.
+- Added direct Edit, Split, and Preview controls. Split stacks vertically in narrow windows, and the existing keyboard shortcuts still work.
+- Replaced the app and installer artwork with a Markdown M and down arrow.
+
+### Fixed
+
+- Preserve the active file when restoring a session with missing files or untitled tabs.
+- Keep save shortcuts from overwriting image files.
+
+## [3.1.0] - 2026-11-27
+
+### Added
+- Added project-wide plain-text replacement across workspace files, with dirty-document protection and case-sensitivity control.
+- Added a Markdown snippet picker and inline Markdown completion suggestions in the source editor.
+- Added visual table editing at the cursor, including cell editing and row/column insertion.
+- Added explicit zoom controls for Markdown previews and scrollable image zoom.
 
 ## [3.0.1] - 2026-11-27
 

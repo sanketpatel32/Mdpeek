@@ -1,21 +1,24 @@
 use std::{
+    cell::OnceCell,
+    ops::Range,
     path::{Path, PathBuf},
     sync::OnceLock,
     time::SystemTime,
 };
 
 use gpui_kit::component::{
-    ActiveTheme as _, ElementExt as _, Selectable as _, Sizable as _, WindowExt as _,
+    ActiveTheme as _, ElementExt as _, IconName, Selectable as _, Sizable as _, WindowExt as _,
     button::{Button, ButtonVariants as _},
     clipboard::Clipboard,
     h_flex,
     input::{Editor, EditorState, InputEvent, Position, TabSize},
     resizable::{h_resizable, resizable_panel, v_resizable},
     scroll::ScrollableElement,
-    text::{MarkdownExtensions, TextView, TextViewState},
+    text::{MarkdownExtensions, TextView, TextViewState, TextViewStyle},
     v_flex,
 };
 use gpui_kit::{prelude::FluentBuilder as _, *};
+use markdown::{ParseOptions, mdast::Node, to_mdast};
 
 use crate::{
     annotation::{AnnotationStroke, normalized_point, save_annotated_png, stroke_path},
@@ -113,11 +116,48 @@ impl ViewMode {
     }
 }
 
+pub struct MarkdownHeading {
+    pub level: u8,
+    pub title: String,
+    pub source: Range<usize>,
+}
+
+fn markdown_headings(kind: DocumentKind, source: &str) -> Vec<MarkdownHeading> {
+    if kind != DocumentKind::Markdown {
+        return Vec::new();
+    }
+    let mut options = ParseOptions::gfm();
+    options.constructs.frontmatter = true;
+    let Ok(Node::Root(root)) = to_mdast(source, &options) else {
+        return Vec::new();
+    };
+    root.children
+        .into_iter()
+        .filter_map(|node| {
+            let Node::Heading(heading) = &node else {
+                return None;
+            };
+            let position = heading.position.as_ref()?;
+            let title = node
+                .to_string()
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ");
+            (!title.is_empty()).then_some(MarkdownHeading {
+                level: heading.depth,
+                title,
+                source: position.start.offset..position.end.offset,
+            })
+        })
+        .collect()
+}
+
 pub struct DocumentView {
     pub path: Option<PathBuf>,
     pub kind: DocumentKind,
     editor: Entity<EditorState>,
     preview: Entity<TextViewState>,
+    headings: OnceCell<Vec<MarkdownHeading>>,
     mode: ViewMode,
     saved_value: String,
     dirty: bool,
@@ -168,9 +208,7 @@ impl DocumentView {
             if matches!(event, InputEvent::Change) {
                 let value = this.editor.read(cx).value().to_string();
                 this.dirty = value != this.saved_value;
-                let preview_source = renderable_source(this.kind, &value);
-                this.preview
-                    .update(cx, |preview, cx| preview.set_text(&preview_source, cx));
+                this.refresh_preview(&value, cx);
                 cx.notify();
             }
         })];
@@ -185,6 +223,7 @@ impl DocumentView {
                 DocumentKind::Csv | DocumentKind::Image => ViewMode::Preview,
                 _ => ViewMode::Edit,
             },
+            headings: OnceCell::new(),
             saved_value: content,
             dirty: false,
             modified_at: path
@@ -259,6 +298,45 @@ impl DocumentView {
         cx.notify();
     }
 
+    pub fn headings(&self, cx: &App) -> &[MarkdownHeading] {
+        self.headings
+            .get_or_init(|| markdown_headings(self.kind, &self.value(cx)))
+    }
+
+    pub fn reveal_heading(
+        &mut self,
+        source_range: Range<usize>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.mode != ViewMode::Edit {
+            let source = self.value(cx);
+            if let (Some(prefix), Some(heading)) = (
+                source.get(..source_range.start),
+                source.get(source_range.clone()),
+            ) {
+                let start = expand_wiki_links(prefix).len();
+                let end = start + expand_wiki_links(heading).len();
+                self.preview.update(cx, |preview, cx| {
+                    let rendered = preview.rendered_text();
+                    if let Some(range) = rendered.range_for_source(start..end) {
+                        _ = preview.reveal_range(range, cx);
+                    }
+                });
+            }
+        }
+        if self.mode != ViewMode::Preview {
+            self.reveal_offset(source_range.start, window, cx);
+        }
+    }
+
+    fn refresh_preview(&mut self, value: &str, cx: &mut Context<Self>) {
+        self.headings.take();
+        let preview_source = renderable_source(self.kind, value);
+        self.preview
+            .update(cx, |preview, cx| preview.set_text(&preview_source, cx));
+    }
+
     pub fn reveal_offset(&mut self, offset: usize, window: &mut Window, cx: &mut Context<Self>) {
         if self.mode == ViewMode::Preview {
             self.set_mode(ViewMode::Edit, cx);
@@ -306,10 +384,7 @@ impl DocumentView {
             editor.set_value(value.clone(), window, cx);
         });
         self.dirty = value != self.saved_value;
-        let preview_source = renderable_source(self.kind, &value);
-        self.preview.update(cx, |preview, cx| {
-            preview.set_text(&preview_source, cx);
-        });
+        self.refresh_preview(&value, cx);
         cx.notify();
     }
 
@@ -416,9 +491,14 @@ impl DocumentView {
     }
 
     pub fn mark_saved(&mut self, path: PathBuf, cx: &mut Context<Self>) {
-        self.saved_value = self.editor.read(cx).value().to_string();
+        let value = self.value(cx);
+        let kind = DocumentKind::from_path(&path);
+        if kind != self.kind {
+            self.kind = kind;
+            self.refresh_preview(&value, cx);
+        }
+        self.saved_value = value;
         self.dirty = false;
-        self.kind = DocumentKind::from_path(&path);
         self.modified_at = std::fs::metadata(&path)
             .ok()
             .and_then(|metadata| metadata.modified().ok());
@@ -434,9 +514,7 @@ impl DocumentView {
         self.editor.update(cx, |editor, cx| {
             editor.set_value(content.clone(), window, cx);
         });
-        let preview_source = renderable_source(self.kind, &content);
-        self.preview
-            .update(cx, |preview, cx| preview.set_text(&preview_source, cx));
+        self.refresh_preview(&content, cx);
         self.modified_at = std::fs::metadata(&path)
             .ok()
             .and_then(|metadata| metadata.modified().ok());
@@ -586,7 +664,7 @@ impl DocumentView {
             }))
     }
 
-    fn reveal_heading(&self, fragment: &str, cx: &mut Context<Self>) {
+    fn reveal_fragment(&mut self, fragment: &str, window: &mut Window, cx: &mut Context<Self>) {
         let fragment = percent_decode(fragment);
         let source = self.editor.read(cx).value().to_string();
         let Some(heading) = crate::text_transform::markdown_headings(&source)
@@ -595,15 +673,7 @@ impl DocumentView {
         else {
             return;
         };
-        self.preview.update(cx, |preview, cx| {
-            let range = {
-                let text = preview.rendered_text();
-                text.range_for_source(heading.start..heading.end)
-            };
-            if let Some(range) = range {
-                _ = preview.reveal_range(range, cx);
-            }
-        });
+        self.reveal_heading(heading.start..heading.end, window, cx);
     }
 
     fn render_toolbar(&self, compact: bool, cx: &mut Context<Self>) -> impl IntoElement {
@@ -848,14 +918,48 @@ impl DocumentView {
     }
 
     fn render_editor(&self) -> impl IntoElement {
-        div()
-            .size_full()
-            .child(Editor::new(&self.editor).h(relative(1.)).p_0().border_0())
+        div().size_full().child(
+            Editor::new(&self.editor)
+                .h(relative(1.))
+                .text_size(px(14.))
+                .line_height(relative(1.55))
+                .p_0()
+                .border_0(),
+        )
     }
 
     fn render_preview(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let mut table = StyleRefinement::default();
+        table.overflow.x = Some(Overflow::Scroll);
+        let header = StyleRefinement::default()
+            .bg(cx.theme().muted)
+            .text_color(cx.theme().foreground)
+            .font_weight(FontWeight::SEMIBOLD);
+        let cells = StyleRefinement::default().font_family(cx.theme().font_family.clone());
+        let markdown = self.kind == DocumentKind::Markdown;
+        let reading_size = px(18. * self.preview_zoom);
+        let mut style = TextViewStyle::default()
+            .table(table)
+            .table_head(header)
+            .table_cell(cells);
+        if markdown {
+            style.heading_base_font_size = reading_size;
+            style = style
+                .paragraph_gap(rems(0.9))
+                .heading_font_size(|level, body| {
+                    let scale = match level {
+                        1 => 1.65,
+                        2 => 1.35,
+                        3 => 1.18,
+                        4 => 1.08,
+                        _ => 1.0,
+                    };
+                    body * scale
+                });
+        }
         div().size_full().child(
             TextView::new(&self.preview)
+                .style(style)
                 .image_source({
                     let base = self
                         .path
@@ -916,7 +1020,7 @@ impl DocumentView {
                             cx.open_url(url);
                         } else if let Some(fragment) = url.strip_prefix('#') {
                             _ = document_entity.update(cx, |document, cx| {
-                                document.reveal_heading(fragment, cx);
+                                document.reveal_fragment(fragment, window, cx);
                             });
                         } else {
                             let path = base
@@ -963,6 +1067,11 @@ impl DocumentView {
                         )
                 })
                 .text_size(rems(self.preview_zoom))
+                .when(markdown, |view| {
+                    view.font_family(reading_font(cx))
+                        .text_size(reading_size)
+                        .line_height(relative(1.6))
+                })
                 .px_5()
                 .py_4()
                 .scrollable(true)
@@ -1093,6 +1202,24 @@ impl DocumentView {
             .border_t_1()
             .border_color(cx.theme().border)
             .child(div().flex_1().min_w_0().truncate().child(path))
+            .when_some(
+                self.owner.clone().filter(|_| self.path.is_some()),
+                |bar, owner| {
+                    bar.child(
+                        Button::new("copy-document-path")
+                            .ghost()
+                            .xsmall()
+                            .icon(IconName::Copy)
+                            .tooltip("Copy file path")
+                            .on_click(move |_, window, cx| {
+                                _ = owner.update(cx, |app, cx| {
+                                    app.copy_file_path(cx);
+                                    app.focus_active(window, cx);
+                                });
+                            }),
+                    )
+                },
+            )
             .when(self.dirty, |this| {
                 this.child(
                     div()
@@ -1168,6 +1295,26 @@ fn percent_decode(value: &str) -> String {
         index += 1;
     }
     String::from_utf8_lossy(&decoded).to_string()
+}
+
+fn reading_font(cx: &App) -> SharedString {
+    static FAMILY: OnceLock<Option<SharedString>> = OnceLock::new();
+    FAMILY
+        .get_or_init(|| {
+            let installed = cx.text_system().all_font_names();
+            [
+                "Georgia",
+                "Bitstream Charter",
+                "Noto Serif",
+                "Liberation Serif",
+                "DejaVu Serif",
+            ]
+            .into_iter()
+            .find(|family| installed.iter().any(|name| name == family))
+            .map(SharedString::from)
+        })
+        .clone()
+        .unwrap_or_else(|| cx.theme().font_family.clone())
 }
 
 fn table_to_csv(headers: &[String], rows: &[Vec<String>]) -> String {
@@ -1300,5 +1447,33 @@ mod tests {
     fn percent_decode_does_not_slice_through_utf8() {
         assert_eq!(percent_decode("100%完了"), "100%完了");
         assert_eq!(percent_decode("caf%C3%A9"), "café");
+    }
+}
+
+#[cfg(test)]
+mod outline_tests {
+    use super::{DocumentKind, markdown_headings};
+
+    #[test]
+    fn outline_uses_markdown_heading_positions_and_skips_code_and_frontmatter() {
+        let source = "---\r\ntitle: Example\r\n---\r\n\r\nReading *plan*\r\n============\r\n\r\n~~~md\r\n# Hidden\r\n~~~\r\n\r\n## Café facts\r\n";
+        let headings = markdown_headings(DocumentKind::Markdown, source);
+        let entries: Vec<_> = headings
+            .iter()
+            .map(|heading| {
+                (
+                    heading.level,
+                    heading.title.as_str(),
+                    &source[heading.source.clone()],
+                )
+            })
+            .collect();
+        assert_eq!(
+            entries,
+            [
+                (1, "Reading plan", "Reading *plan*\r\n============"),
+                (2, "Café facts", "## Café facts"),
+            ]
+        );
     }
 }

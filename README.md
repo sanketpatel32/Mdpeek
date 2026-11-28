@@ -46,6 +46,14 @@ Mdpeek is being rebuilt as a pure Rust desktop application using GPUI. The forme
 - Document link checking (`Ctrl+Alt+I`)
 - Light and dark themes
 
+## Screenshots
+
+| Light theme | Dark theme |
+| --- | --- |
+| [![Light theme with the Markdown editor and preview side by side](.github/assets/workspace-light-split.jpg)](.github/assets/workspace-light-split.jpg) | [![Dark theme with the Markdown editor and preview side by side](.github/assets/workspace-dark-split.jpg)](.github/assets/workspace-dark-split.jpg) |
+
+[Welcome screen](.github/assets/workspace-light-welcome.jpg) · [Stacked Split in a narrow window](.github/assets/workspace-narrow-split.jpg)
+
 ## Build and run
 
 Use stable Rust with `rustfmt` and `clippy`. On Debian or Ubuntu, install the same system libraries as CI.
