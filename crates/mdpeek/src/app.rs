@@ -1,19 +1,21 @@
 use std::{
     cell::Cell,
     collections::HashSet,
+    io::Write as _,
     path::{Path as StdPath, PathBuf},
     rc::Rc,
     sync::{Arc, LazyLock},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use gpui_kit::component::{
-    ActiveTheme as _, Icon, IconName, Selectable as _, Sizable as _, Theme, ThemeMode,
-    WindowExt as _,
+    ActiveTheme as _, Icon, IconName, Selectable as _, Sizable as _, StyledExt as _, Theme,
+    ThemeMode, WindowExt as _,
     button::{Button, ButtonVariants as _},
     checkbox::Checkbox,
     command::{Command, CommandGroup, CommandItem, CommandState},
     h_flex,
-    input::{Input, InputState},
+    input::{Input, InputEvent, InputState},
     list::ListItem,
     scroll::ScrollableElement,
     tab::{Tab, TabBar},
@@ -23,9 +25,13 @@ use gpui_kit::component::{
 use gpui_kit::{prelude::FluentBuilder as _, *};
 
 use crate::document::{DocumentKind, DocumentView, read_document};
-use crate::export::{markdown_to_html_document, markdown_to_pdf, markdown_to_plain_text};
+use crate::export::{
+    markdown_to_html_document, markdown_to_html_document_with_base, markdown_to_pdf,
+    markdown_to_plain_text,
+};
 use crate::settings::{
-    SessionState, file_identity, load_session, recent_files, save_session, unique_existing_files,
+    AppSettings, SessionState, file_identity, load_session, load_settings, recent_files,
+    save_session, save_settings, unique_existing_files,
 };
 use crate::table::{MarkdownTable, emit_table};
 use crate::workspace::{
@@ -38,6 +44,12 @@ actions!(
     [
         NewTab,
         OpenFile,
+        OpenSettings,
+        NavigateBack,
+        NavigateForward,
+        ZoomIn,
+        ZoomOut,
+        ZoomReset,
         QuickOpen,
         QuickOpenPick,
         CommandPalette,
@@ -45,6 +57,24 @@ actions!(
         SnippetPicker,
         SnippetPick,
         EditTable,
+        GoToLine,
+        DuplicateLines,
+        MoveLinesUp,
+        MoveLinesDown,
+        JoinLines,
+        SortLinesAscending,
+        SortLinesDescending,
+        UppercaseSelection,
+        LowercaseSelection,
+        TitleCaseSelection,
+        ToggleCaseSelection,
+        InsertToc,
+        InsertDate,
+        ItalicSelection,
+        InlineCodeSelection,
+        LinkSelection,
+        StrikethroughSelection,
+        QuoteSelection,
         CheckLinks,
         DailyNote,
         WorkspaceSearch,
@@ -55,12 +85,18 @@ actions!(
         Save,
         SaveAs,
         CloseTab,
+        CloseOtherTabs,
+        CloseTabsToRight,
+        CloseAllTabs,
         ToggleEdit,
         ToggleSidebar,
         ToggleTheme,
         ReloadFile,
         ReopenClosedTab,
         ExportHtml,
+        CopyHtml,
+        CopyPlainText,
+        OpenInBrowser,
         ExportText,
         ExportPdf,
         NextTab,
@@ -85,6 +121,9 @@ pub struct Mdpeek {
     snippet_picker: Entity<CommandState>,
     search_results: Vec<SearchMatch>,
     reading_mode: bool,
+    navigation_history: Vec<PathBuf>,
+    navigation_index: usize,
+    settings: AppSettings,
     focus_handle: FocusHandle,
 }
 
@@ -139,9 +178,34 @@ fn command_palette_entries() -> Vec<(&'static str, &'static str)> {
         ("Toggle reading mode", "F11"),
         ("Toggle theme", "Ctrl+Shift+L"),
         ("Export HTML", "Ctrl+Shift+H"),
+        ("Copy as HTML", ""),
+        ("Copy as plain text", ""),
+        ("Open rendered document in browser", ""),
         ("Export plain text", "Ctrl+Shift+T"),
         ("Export PDF", "Ctrl+Shift+P"),
+        ("Go to line", "Ctrl+G"),
+        ("Duplicate line", "Ctrl+D"),
+        ("Move line up", "Alt+Up"),
+        ("Move line down", "Alt+Down"),
+        ("Join line with next", "Ctrl+J"),
+        ("Sort lines A to Z", ""),
+        ("Sort lines Z to A", ""),
+        ("UPPERCASE selection", ""),
+        ("lowercase selection", ""),
+        ("Title Case selection", ""),
+        ("tOGGLE cASE selection", ""),
+        ("Insert table of contents", ""),
+        ("Insert today's date", ""),
+        ("Zoom in", "Ctrl+="),
+        ("Zoom out", "Ctrl+-"),
+        ("Reset zoom", "Ctrl+0"),
+        ("Back", "Alt+Left"),
+        ("Forward", "Alt+Right"),
+        ("Close other tabs", ""),
+        ("Close tabs to the right", ""),
+        ("Close all tabs", ""),
         ("Close tab", "Ctrl+W"),
+        ("Open settings", "Ctrl+,"),
         ("Quit", "Ctrl+Q"),
         ("Copy file path", ""),
     ]
@@ -152,6 +216,52 @@ enum TableOperation {
     None,
     AddRow,
     AddColumn,
+    RemoveRow(usize),
+    MoveRow(usize, bool),
+    RemoveColumn(usize),
+    MoveColumn(usize, bool),
+    CycleAlignment(usize),
+}
+
+impl TableOperation {
+    fn reopens_editor(self) -> bool {
+        !matches!(self, Self::None)
+    }
+
+    fn status_message(self) -> &'static str {
+        match self {
+            Self::None => "Updated table",
+            Self::AddRow => "Added table row",
+            Self::AddColumn => "Added table column",
+            Self::RemoveRow(_) => "Removed table row",
+            Self::MoveRow(_, _) => "Moved table row",
+            Self::RemoveColumn(_) => "Removed table column",
+            Self::MoveColumn(_, _) => "Moved table column",
+            Self::CycleAlignment(_) => "Changed column alignment",
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum EditorLineOperation {
+    Duplicate,
+    MoveUp,
+    MoveDown,
+    Join,
+}
+
+#[derive(Clone, Copy)]
+enum SettingsToggle {
+    LineNumbers,
+    WordWrap,
+    Autosave,
+}
+
+#[derive(Clone, Copy)]
+enum ZoomOperation {
+    In,
+    Out,
+    Reset,
 }
 
 static LOGO: LazyLock<Arc<Image>> = LazyLock::new(|| {
@@ -199,6 +309,9 @@ impl Mdpeek {
             snippet_picker: cx.new(|cx| CommandState::new(window, cx)),
             search_results: Vec::new(),
             reading_mode: false,
+            navigation_history: Vec::new(),
+            navigation_index: 0,
+            settings: load_settings(),
             focus_handle: cx.focus_handle(),
         };
         let mode = if session.dark_mode {
@@ -336,9 +449,18 @@ impl Mdpeek {
         });
     }
 
-    fn add_document(&mut self, document: Entity<DocumentView>, cx: &mut Context<Self>) {
+    fn add_document(
+        &mut self,
+        document: Entity<DocumentView>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let owner = cx.weak_entity();
-        document.update(cx, |document, _| document.set_owner(owner));
+        let settings = self.settings.clone();
+        document.update(cx, |document, cx| {
+            document.set_owner(owner);
+            document.apply_editor_settings(&settings, window, cx);
+        });
         cx.observe(&document, |_, _, cx| cx.notify()).detach();
         self.documents.push(document);
         self.active = self.documents.len() - 1;
@@ -370,7 +492,7 @@ impl Mdpeek {
 
     fn new_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let document = cx.new(|cx| DocumentView::untitled(window, cx));
-        self.add_document(document, cx);
+        self.add_document(document, window, cx);
         self.sync_explorer_selection(cx);
         self.focus_active(window, cx);
         self.clear_status(cx);
@@ -433,15 +555,32 @@ impl Mdpeek {
     }
 
     pub fn open_path(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
+        self.open_path_with_history(path, true, window, cx);
+    }
+
+    fn open_path_with_history(
+        &mut self,
+        path: PathBuf,
+        record: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let path = std::path::absolute(&path).unwrap_or(path);
         if let Some(index) = self.document_index(&file_identity(&path), cx) {
+            let switched_tabs = self.active != index;
             self.active = index;
+            if record && switched_tabs {
+                self.record_navigation(path.clone());
+            }
         } else {
             match read_document(&path) {
                 Ok((content, kind)) => {
                     let document = cx
                         .new(|cx| DocumentView::new(Some(path.clone()), content, kind, window, cx));
-                    self.add_document(document, cx);
+                    self.add_document(document, window, cx);
+                    if record {
+                        self.record_navigation(path.clone());
+                    }
                 }
                 Err(error) => {
                     self.set_status(format!("Could not open {}: {error}", path.display()), cx);
@@ -458,19 +597,119 @@ impl Mdpeek {
         self.clear_status(cx);
     }
 
-    fn close_active_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.active >= self.documents.len() {
+    fn close_tab(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
+        if index >= self.documents.len() {
             return;
         }
-        let document = self.documents.remove(self.active);
+        let document = self.documents.remove(index);
         if let Some(path) = document.read(cx).path.clone() {
             self.closed_paths.push(path);
         }
-        self.active = self.active.min(self.documents.len().saturating_sub(1));
+        if self.documents.is_empty() {
+            self.active = 0;
+        } else if index < self.active {
+            self.active -= 1;
+        } else {
+            self.active = self.active.min(self.documents.len() - 1);
+        }
         self.sync_explorer_selection(cx);
         self.persist(cx);
         self.focus_active(window, cx);
         self.clear_status(cx);
+    }
+
+    fn zoom_active(&mut self, operation: ZoomOperation, cx: &mut Context<Self>) {
+        let Some(document) = self.active_document() else {
+            return;
+        };
+        document.update(cx, |document, cx| match operation {
+            ZoomOperation::In => document.zoom_in(cx),
+            ZoomOperation::Out => document.zoom_out(cx),
+            ZoomOperation::Reset => document.zoom_reset(cx),
+        });
+    }
+
+    fn record_navigation(&mut self, path: PathBuf) {
+        if self.navigation_history.get(self.navigation_index) == Some(&path) {
+            return;
+        }
+        self.navigation_history.truncate(self.navigation_index + 1);
+        self.navigation_history.push(path);
+        self.navigation_index = self.navigation_history.len() - 1;
+    }
+
+    fn navigate_history(&mut self, backward: bool, window: &mut Window, cx: &mut Context<Self>) {
+        let next_index = if backward {
+            self.navigation_index.checked_sub(1)
+        } else {
+            (self.navigation_index + 1 < self.navigation_history.len())
+                .then_some(self.navigation_index + 1)
+        };
+        let Some(next_index) = next_index else {
+            self.set_status(
+                if backward {
+                    "No earlier document"
+                } else {
+                    "No later document"
+                },
+                cx,
+            );
+            return;
+        };
+        let Some(path) = self.navigation_history.get(next_index).cloned() else {
+            return;
+        };
+        self.navigation_index = next_index;
+        self.open_path_with_history(path, false, window, cx);
+    }
+
+    fn close_other_tabs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let mut skipped = 0;
+        for index in (0..self.documents.len()).rev() {
+            if index == self.active {
+                continue;
+            }
+            if self.documents[index].read(cx).is_dirty() {
+                skipped += 1;
+                continue;
+            }
+            self.close_tab(index, window, cx);
+        }
+        if skipped > 0 {
+            self.set_status(format!("Kept {skipped} modified tab(s) open"), cx);
+        }
+    }
+
+    fn close_tabs_to_right(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let mut skipped = 0;
+        for index in ((self.active + 1)..self.documents.len()).rev() {
+            if self.documents[index].read(cx).is_dirty() {
+                skipped += 1;
+                continue;
+            }
+            self.close_tab(index, window, cx);
+        }
+        if skipped > 0 {
+            self.set_status(format!("Kept {skipped} modified tab(s) open"), cx);
+        }
+    }
+
+    fn close_all_tabs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let mut skipped = 0;
+        for index in (0..self.documents.len()).rev() {
+            if self.documents[index].read(cx).is_dirty() {
+                skipped += 1;
+                continue;
+            }
+            self.close_tab(index, window, cx);
+        }
+        if skipped > 0 {
+            self.set_status(format!("Kept {skipped} modified tab(s) open"), cx);
+        }
+    }
+
+    fn close_active_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.close_tab(self.active, window, cx);
     }
 
     fn reopen_closed_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -550,6 +789,7 @@ impl Mdpeek {
                 document.update(cx, |document, cx| {
                     document.mark_saved(path.clone(), cx);
                 });
+                self.record_navigation(path.clone());
                 self.remember_path(path.clone());
                 self.sync_explorer_selection(cx);
                 self.persist(cx);
@@ -569,6 +809,53 @@ impl Mdpeek {
         match result {
             Ok(()) => self.set_status("Reloaded from disk", cx),
             Err(error) => self.set_status(format!("Could not reload: {error}"), cx),
+        }
+    }
+
+    fn copy_active_html(&mut self, cx: &mut Context<Self>) {
+        let Some(document) = self.active_document() else {
+            return;
+        };
+        let (title, content) = document.read_with(cx, |document, cx| {
+            (document.title().to_string(), document.value(cx))
+        });
+        cx.write_to_clipboard(ClipboardItem::new_string(markdown_to_html_document(
+            &title, &content,
+        )));
+        self.set_status("Copied rendered HTML", cx);
+    }
+
+    fn copy_active_plain_text(&mut self, cx: &mut Context<Self>) {
+        let Some(document) = self.active_document() else {
+            return;
+        };
+        let content = document.read_with(cx, |document, cx| document.value(cx));
+        cx.write_to_clipboard(ClipboardItem::new_string(markdown_to_plain_text(&content)));
+        self.set_status("Copied plain text", cx);
+    }
+
+    fn open_active_in_browser(&mut self, cx: &mut Context<Self>) {
+        let Some(document) = self.active_document() else {
+            return;
+        };
+        let (title, content, base_href) = document.read_with(cx, |document, cx| {
+            (
+                document.title().to_string(),
+                document.value(cx),
+                document
+                    .path
+                    .as_ref()
+                    .and_then(|path| path.parent())
+                    .map(file_uri_for_directory),
+            )
+        });
+        let html = markdown_to_html_document_with_base(&title, &content, base_href.as_deref());
+        match write_browser_preview(&html) {
+            Ok(path) => {
+                cx.open_url(&format!("file://{}", path.display()));
+                self.set_status("Opened rendered document in browser", cx);
+            }
+            Err(error) => self.set_status(format!("Could not open in browser: {error}"), cx),
         }
     }
 
@@ -662,9 +949,20 @@ impl Mdpeek {
         .detach();
     }
 
+    fn record_tab_navigation(&mut self, index: usize, cx: &App) {
+        if let Some(path) = self
+            .documents
+            .get(index)
+            .and_then(|document| document.read(cx).path.clone())
+        {
+            self.record_navigation(path);
+        }
+    }
+
     fn select_tab(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
         if index < self.documents.len() {
             self.active = index;
+            self.record_tab_navigation(index, cx);
             self.sync_explorer_selection(cx);
             self.focus_active(window, cx);
             self.persist(cx);
@@ -705,6 +1003,7 @@ impl Mdpeek {
     }
 
     fn reload_externally_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.autosave_dirty_documents(cx);
         for document in self.documents.clone() {
             let (path, dirty, changed) = document.read_with(cx, |document, _| {
                 (
@@ -735,6 +1034,144 @@ impl Mdpeek {
                 self.set_status("Reloaded file changed on disk", cx);
             }
         }
+    }
+
+    fn autosave_dirty_documents(&mut self, cx: &mut Context<Self>) {
+        if !self.settings.autosave {
+            return;
+        }
+        for document in self.documents.clone() {
+            let Some((path, content)) = document.read_with(cx, |document, cx| {
+                (document.is_dirty()
+                    && document.kind.is_text_editable()
+                    && !document.externally_changed())
+                .then(|| (document.path.clone(), document.value(cx)))
+                .and_then(|(path, content)| path.map(|path| (path, content)))
+            }) else {
+                continue;
+            };
+            match std::fs::write(&path, content) {
+                Ok(()) => {
+                    document.update(cx, |document, cx| document.mark_saved(path.clone(), cx));
+                }
+                Err(error) => {
+                    self.set_status(
+                        format!("Autosave failed for {}: {error}", path.display()),
+                        cx,
+                    );
+                }
+            }
+        }
+    }
+
+    fn toggle_setting(
+        &mut self,
+        setting: SettingsToggle,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match setting {
+            SettingsToggle::LineNumbers => {
+                self.settings.editor_line_numbers = !self.settings.editor_line_numbers;
+            }
+            SettingsToggle::WordWrap => {
+                self.settings.editor_word_wrap = !self.settings.editor_word_wrap;
+            }
+            SettingsToggle::Autosave => {
+                self.settings.autosave = !self.settings.autosave;
+            }
+        }
+        let settings = self.settings.clone();
+        for document in self.documents.clone() {
+            document.update(cx, |document, cx| {
+                document.apply_editor_settings(&settings, window, cx);
+            });
+        }
+        match save_settings(&self.settings) {
+            Ok(()) => self.set_status("Settings saved", cx),
+            Err(error) => self.set_status(format!("Could not save settings: {error}"), cx),
+        }
+        cx.refresh_windows();
+    }
+
+    fn open_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let owner = cx.weak_entity();
+        let current_settings = self.settings.clone();
+        window.open_dialog(cx, move |dialog, _, _| {
+            let owner = owner.clone();
+            let current_settings = current_settings.clone();
+            dialog.title("Settings").w(px(560.)).content(
+                move |content, _window, cx| {
+                    let current_settings = owner
+                        .upgrade()
+                        .map(|entity| entity.read(cx).settings.clone())
+                        .unwrap_or_else(|| current_settings.clone());
+                    let line_owner = owner.clone();
+                    let wrap_owner = owner.clone();
+                    let autosave_owner = owner.clone();
+                    let theme_owner = owner.clone();
+                    content.child(
+                        v_flex()
+                            .w_full()
+                            .gap_4()
+                            .p_4()
+                            .child(
+                                v_flex()
+                                    .gap_2()
+                                    .child(div().text_sm().font_bold().child("Editor"))
+                                    .child(
+                                        Checkbox::new("settings-line-numbers")
+                                            .label("Show line numbers")
+                                            .checked(current_settings.editor_line_numbers)
+                                            .on_click(move |_, window, cx| {
+                                                _ = line_owner.update(cx, |this, cx| {
+                                                    this.toggle_setting(SettingsToggle::LineNumbers, window, cx);
+                                                });
+                                            }),
+                                    )
+                                    .child(
+                                        Checkbox::new("settings-word-wrap")
+                                            .label("Wrap long lines")
+                                            .checked(current_settings.editor_word_wrap)
+                                            .on_click(move |_, window, cx| {
+                                                _ = wrap_owner.update(cx, |this, cx| {
+                                                    this.toggle_setting(SettingsToggle::WordWrap, window, cx);
+                                                });
+                                            }),
+                                    )
+                                    .child(
+                                        Checkbox::new("settings-autosave")
+                                            .label("Autosave saved documents")
+                                            .checked(current_settings.autosave)
+                                            .on_click(move |_, window, cx| {
+                                                _ = autosave_owner.update(cx, |this, cx| {
+                                                    this.toggle_setting(SettingsToggle::Autosave, window, cx);
+                                                });
+                                            }),
+                                    ),
+                            )
+                            .child(
+                                v_flex()
+                                    .gap_2()
+                                    .child(div().text_sm().font_bold().child("Appearance"))
+                                    .child(
+                                        Button::new("settings-theme")
+                                            .label(if cx.theme().is_dark() { "Use light theme" } else { "Use dark theme" })
+                                            .on_click(move |_, _, cx| {
+                                                _ = theme_owner.update(cx, |this, cx| this.toggle_theme(cx));
+                                            }),
+                                    ),
+                            )
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child("More editor, export, and workspace preferences are still being ported from v2."),
+                            ),
+                    )
+                },
+            )
+        });
     }
 
     fn open_command_palette(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -813,14 +1250,71 @@ impl Mdpeek {
             16 => self.toggle_reading(window, cx),
             17 => self.toggle_theme(cx),
             18 => self.export_active_html(window, cx),
-            19 => self.export_active_text(window, cx),
-            20 => self.export_active_pdf(window, cx),
-            21 => self.close_active_tab(window, cx),
-            22 => {
+            19 => self.copy_active_html(cx),
+            20 => self.copy_active_plain_text(cx),
+            21 => self.open_active_in_browser(cx),
+            22 => self.export_active_text(window, cx),
+            23 => self.export_active_pdf(window, cx),
+            24 => self.open_go_to_line(window, cx),
+            25 => self.apply_line_operation(EditorLineOperation::Duplicate, window, cx),
+            26 => self.apply_line_operation(EditorLineOperation::MoveUp, window, cx),
+            27 => self.apply_line_operation(EditorLineOperation::MoveDown, window, cx),
+            28 => self.apply_line_operation(EditorLineOperation::Join, window, cx),
+            29 => self.apply_text_transform(
+                crate::text_transform::TransformOperation::SortAscending,
+                window,
+                cx,
+            ),
+            30 => self.apply_text_transform(
+                crate::text_transform::TransformOperation::SortDescending,
+                window,
+                cx,
+            ),
+            31 => self.apply_text_transform(
+                crate::text_transform::TransformOperation::Uppercase,
+                window,
+                cx,
+            ),
+            32 => self.apply_text_transform(
+                crate::text_transform::TransformOperation::Lowercase,
+                window,
+                cx,
+            ),
+            33 => self.apply_text_transform(
+                crate::text_transform::TransformOperation::TitleCase,
+                window,
+                cx,
+            ),
+            34 => self.apply_text_transform(
+                crate::text_transform::TransformOperation::ToggleCase,
+                window,
+                cx,
+            ),
+            35 => self.apply_text_transform(
+                crate::text_transform::TransformOperation::InsertToc,
+                window,
+                cx,
+            ),
+            36 => self.apply_text_transform(
+                crate::text_transform::TransformOperation::InsertDate,
+                window,
+                cx,
+            ),
+            37 => self.zoom_active(ZoomOperation::In, cx),
+            38 => self.zoom_active(ZoomOperation::Out, cx),
+            39 => self.zoom_active(ZoomOperation::Reset, cx),
+            40 => self.navigate_history(true, window, cx),
+            41 => self.navigate_history(false, window, cx),
+            42 => self.close_other_tabs(window, cx),
+            43 => self.close_tabs_to_right(window, cx),
+            44 => self.close_all_tabs(window, cx),
+            45 => self.close_active_tab(window, cx),
+            46 => self.open_settings(window, cx),
+            47 => {
                 self.persist(cx);
                 cx.quit();
             }
-            23 => self.copy_file_path(cx),
+            48 => self.copy_file_path(cx),
             _ => {}
         }
     }
@@ -887,6 +1381,221 @@ impl Mdpeek {
         self.set_status(format!("Inserted {label}"), cx);
     }
 
+    fn apply_line_operation(
+        &mut self,
+        operation: EditorLineOperation,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(document) = self.active_document() else {
+            self.set_status("Open a document before editing lines", cx);
+            return;
+        };
+        let (kind, value, range) = document.read_with(cx, |document, cx| {
+            (
+                document.kind,
+                document.value(cx),
+                document.selected_range(cx),
+            )
+        });
+        if !kind.is_text_editable() {
+            self.set_status("Line operations require an editable text document", cx);
+            return;
+        }
+        let result = match operation {
+            EditorLineOperation::Duplicate => {
+                crate::editor_ops::duplicate_lines(&value, range.start, range.end)
+            }
+            EditorLineOperation::MoveUp => {
+                crate::editor_ops::move_lines(&value, range.start, range.end, true)
+            }
+            EditorLineOperation::MoveDown => {
+                crate::editor_ops::move_lines(&value, range.start, range.end, false)
+            }
+            EditorLineOperation::Join => crate::editor_ops::join_line(&value, range.start),
+        };
+        if result.text == value {
+            self.set_status("Line operation is not available here", cx);
+            return;
+        }
+        document.update(cx, |document, cx| {
+            document.apply_edit_result(result, window, cx);
+        });
+    }
+
+    fn apply_markdown_format(
+        &mut self,
+        operation: crate::editor_format::FormatOperation,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(document) = self.active_document() else {
+            return;
+        };
+        if document.read(cx).kind != crate::document::DocumentKind::Markdown {
+            self.set_status("Markdown formatting requires a Markdown document", cx);
+            return;
+        }
+        if document.read(cx).is_preview_only() {
+            self.set_status("Switch to edit or split mode to format Markdown", cx);
+            return;
+        }
+        document.update(cx, |document, cx| {
+            document.apply_formatting(operation, window, cx);
+        });
+    }
+
+    fn toggle_sidebar_or_bold(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let editor_focused = self.active_document().is_some_and(|document| {
+            document.read(cx).kind == crate::document::DocumentKind::Markdown
+                && document.read(cx).editor_is_focused(window, cx)
+        });
+        if editor_focused {
+            self.apply_markdown_format(crate::editor_format::FormatOperation::Bold, window, cx);
+        } else {
+            self.toggle_sidebar(cx);
+        }
+    }
+
+    fn apply_text_transform(
+        &mut self,
+        operation: crate::text_transform::TransformOperation,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(document) = self.active_document() else {
+            self.set_status("Open a document before transforming text", cx);
+            return;
+        };
+        let (kind, value, range) = document.read_with(cx, |document, cx| {
+            (
+                document.kind,
+                document.value(cx),
+                document.selected_range(cx),
+            )
+        });
+        if !kind.is_text_editable() {
+            self.set_status("Text transforms require an editable text document", cx);
+            return;
+        }
+        let result =
+            crate::text_transform::apply_transform(&value, range.start, range.end, operation);
+        if result.text == value {
+            self.set_status("Text transform made no changes", cx);
+            return;
+        }
+        document.update(cx, |document, cx| {
+            document.apply_edit_result(result, window, cx);
+            document.focus_editor(window, cx);
+        });
+    }
+
+    fn open_go_to_line(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(document) = self.active_document() else {
+            self.set_status("Open a document before jumping to a line", cx);
+            return;
+        };
+        if !document.read(cx).kind.is_text_editable() {
+            self.set_status("Go to line requires an editable text document", cx);
+            return;
+        }
+        let line_input = cx.new(|cx| InputState::new(window, cx).placeholder("Line number"));
+        cx.subscribe(&line_input, |this, input, event: &InputEvent, cx| {
+            if matches!(
+                event,
+                InputEvent::PressEnter {
+                    secondary: false,
+                    ..
+                }
+            ) {
+                let line = input.read(cx).value().trim().parse::<usize>().ok();
+                this.go_to_line_without_window(line, cx);
+            }
+        })
+        .detach();
+        let owner = cx.weak_entity();
+        let focus_on_mount = Rc::new(Cell::new(true));
+        window.open_dialog(cx, move |dialog, _, _| {
+            let line_input = line_input.clone();
+            let owner = owner.clone();
+            let focus_on_mount = focus_on_mount.clone();
+            dialog
+                .title("Go to line")
+                .w(px(360.))
+                .content(move |content, window, cx| {
+                    if focus_on_mount.replace(false) {
+                        let line_input = line_input.clone();
+                        window.defer(cx, move |window, cx| {
+                            line_input.read(cx).focus_handle(cx).focus(window, cx);
+                        });
+                    }
+                    let go_owner = owner.clone();
+                    let go_input = line_input.clone();
+                    content.child(
+                        h_flex()
+                            .w_full()
+                            .gap_2()
+                            .p_4()
+                            .child(Input::new(&line_input).w_full())
+                            .child(
+                                Button::new("go-to-line-confirm")
+                                    .primary()
+                                    .label("Go")
+                                    .on_click(move |_, window, cx| {
+                                        let line =
+                                            go_input.read(cx).value().trim().parse::<usize>().ok();
+                                        _ = go_owner.update(cx, |this, cx| {
+                                            this.go_to_line(line, window, cx);
+                                        });
+                                        window.close_dialog(cx);
+                                    }),
+                            ),
+                    )
+                })
+        });
+    }
+
+    fn go_to_line_without_window(&mut self, line: Option<usize>, cx: &mut Context<Self>) {
+        let Some(line) = line.filter(|line| *line > 0) else {
+            self.set_status("Enter a valid line number", cx);
+            return;
+        };
+        let Some(document) = self.active_document() else {
+            return;
+        };
+        let offset = document.read_with(cx, |document, cx| {
+            crate::editor_ops::line_start_offset(&document.value(cx), line)
+        });
+        let Some(offset) = offset else {
+            self.set_status("Line number is outside the document", cx);
+            return;
+        };
+        document.update(cx, |document, cx| document.select_offset(offset, cx));
+        self.set_status(format!("Line {line}"), cx);
+    }
+
+    fn go_to_line(&mut self, line: Option<usize>, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(line) = line.filter(|line| *line > 0) else {
+            self.set_status("Enter a valid line number", cx);
+            return;
+        };
+        let Some(document) = self.active_document() else {
+            return;
+        };
+        let offset = document.read_with(cx, |document, cx| {
+            crate::editor_ops::line_start_offset(&document.value(cx), line)
+        });
+        let Some(offset) = offset else {
+            self.set_status("Line number is outside the document", cx);
+            return;
+        };
+        document.update(cx, |document, cx| {
+            document.reveal_offset(offset, window, cx);
+            document.focus_editor(window, cx);
+        });
+        self.set_status(format!("Line {line}"), cx);
+    }
+
     fn open_table_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(document) = self.active_document() else {
             self.set_status("Open a Markdown document before editing a table", cx);
@@ -919,33 +1628,112 @@ impl Mdpeek {
             let owner = owner.clone();
             dialog
                 .title("Edit table")
-                .w(px(760.))
+                .w(px(900.))
                 .content(move |content, _, cx| {
-                    let rows =
-                        inputs
-                            .iter()
-                            .enumerate()
-                            .map(|(row_index, row)| {
-                                h_flex()
-                                    .gap_2()
-                                    .items_center()
-                                    .child(
-                                        div()
-                                            .w(px(44.))
-                                            .text_xs()
-                                            .text_color(cx.theme().muted_foreground)
-                                            .child(if row_index == 0 {
-                                                "Header".to_string()
-                                            } else {
-                                                format!("Row {row_index}")
-                                            }),
-                                    )
-                                    .children(row.iter().map(|input| {
+                    let column_controls = h_flex()
+                        .gap_2()
+                        .items_center()
+                        .child(div().w(px(64.)))
+                        .children((0..table.alignments.len()).map(|column| {
+                            h_flex()
+                                .w(px(132.))
+                                .justify_center()
+                                .gap_1()
+                                .child(table_operation_button(
+                                    ("table-column-left", column),
+                                    "<",
+                                    owner.clone(),
+                                    table.clone(),
+                                    inputs.clone(),
+                                    TableOperation::MoveColumn(column, true),
+                                ))
+                                .child(table_operation_button(
+                                    ("table-column-align", column),
+                                    "A",
+                                    owner.clone(),
+                                    table.clone(),
+                                    inputs.clone(),
+                                    TableOperation::CycleAlignment(column),
+                                ))
+                                .child(table_operation_button(
+                                    ("table-column-remove", column),
+                                    "x",
+                                    owner.clone(),
+                                    table.clone(),
+                                    inputs.clone(),
+                                    TableOperation::RemoveColumn(column),
+                                ))
+                                .child(table_operation_button(
+                                    ("table-column-right", column),
+                                    ">",
+                                    owner.clone(),
+                                    table.clone(),
+                                    inputs.clone(),
+                                    TableOperation::MoveColumn(column, false),
+                                ))
+                                .into_any_element()
+                        }))
+                        .into_any_element();
+                    let rows = inputs
+                        .iter()
+                        .enumerate()
+                        .map(|(row_index, row)| {
+                            h_flex()
+                                .gap_2()
+                                .items_center()
+                                .child(
+                                    v_flex()
+                                        .w(px(64.))
+                                        .gap_1()
+                                        .child(
+                                            div()
+                                                .text_xs()
+                                                .text_color(cx.theme().muted_foreground)
+                                                .child(if row_index == 0 {
+                                                    "Header".to_string()
+                                                } else {
+                                                    format!("Row {row_index}")
+                                                }),
+                                        )
+                                        .when(row_index > 0, |controls| {
+                                            controls.child(
+                                                h_flex()
+                                                    .gap_1()
+                                                    .child(table_operation_button(
+                                                        ("table-row-up", row_index),
+                                                        "^",
+                                                        owner.clone(),
+                                                        table.clone(),
+                                                        inputs.clone(),
+                                                        TableOperation::MoveRow(row_index, true),
+                                                    ))
+                                                    .child(table_operation_button(
+                                                        ("table-row-down", row_index),
+                                                        "v",
+                                                        owner.clone(),
+                                                        table.clone(),
+                                                        inputs.clone(),
+                                                        TableOperation::MoveRow(row_index, false),
+                                                    ))
+                                                    .child(table_operation_button(
+                                                        ("table-row-remove", row_index),
+                                                        "x",
+                                                        owner.clone(),
+                                                        table.clone(),
+                                                        inputs.clone(),
+                                                        TableOperation::RemoveRow(row_index),
+                                                    )),
+                                            )
+                                        }),
+                                )
+                                .children(
+                                    row.iter().map(|input| {
                                         Input::new(input).w(px(132.)).into_any_element()
-                                    }))
-                                    .into_any_element()
-                            })
-                            .collect::<Vec<_>>();
+                                    }),
+                                )
+                                .into_any_element()
+                        })
+                        .collect::<Vec<_>>();
                     let apply_owner = owner.clone();
                     let apply_inputs = inputs.clone();
                     let apply_table = table.clone();
@@ -962,8 +1750,9 @@ impl Mdpeek {
                             .child(
                                 v_flex()
                                     .gap_2()
-                                    .max_h(px(420.))
+                                    .max_h(px(430.))
                                     .overflow_y_scrollbar()
+                                    .child(column_controls)
                                     .children(rows),
                             )
                             .child(
@@ -975,16 +1764,14 @@ impl Mdpeek {
                                             .outline()
                                             .label("Add row")
                                             .on_click(move |_, window, cx| {
-                                                _ = add_row_owner.update(cx, |this, cx| {
-                                                    this.apply_table_edit(
-                                                        add_row_table.clone(),
-                                                        this.read_table_inputs(&add_row_inputs, cx),
-                                                        TableOperation::AddRow,
-                                                        window,
-                                                        cx,
-                                                    );
-                                                });
-                                                window.close_dialog(cx);
+                                                perform_table_operation(
+                                                    add_row_owner.clone(),
+                                                    add_row_table.clone(),
+                                                    add_row_inputs.clone(),
+                                                    TableOperation::AddRow,
+                                                    window,
+                                                    cx,
+                                                );
                                             }),
                                     )
                                     .child(
@@ -992,19 +1779,14 @@ impl Mdpeek {
                                             .outline()
                                             .label("Add column")
                                             .on_click(move |_, window, cx| {
-                                                _ = add_column_owner.update(cx, |this, cx| {
-                                                    this.apply_table_edit(
-                                                        add_column_table.clone(),
-                                                        this.read_table_inputs(
-                                                            &add_column_inputs,
-                                                            cx,
-                                                        ),
-                                                        TableOperation::AddColumn,
-                                                        window,
-                                                        cx,
-                                                    );
-                                                });
-                                                window.close_dialog(cx);
+                                                perform_table_operation(
+                                                    add_column_owner.clone(),
+                                                    add_column_table.clone(),
+                                                    add_column_inputs.clone(),
+                                                    TableOperation::AddColumn,
+                                                    window,
+                                                    cx,
+                                                );
                                             }),
                                     )
                                     .child(
@@ -1012,16 +1794,14 @@ impl Mdpeek {
                                             .primary()
                                             .label("Apply")
                                             .on_click(move |_, window, cx| {
-                                                _ = apply_owner.update(cx, |this, cx| {
-                                                    this.apply_table_edit(
-                                                        apply_table.clone(),
-                                                        this.read_table_inputs(&apply_inputs, cx),
-                                                        TableOperation::None,
-                                                        window,
-                                                        cx,
-                                                    );
-                                                });
-                                                window.close_dialog(cx);
+                                                perform_table_operation(
+                                                    apply_owner.clone(),
+                                                    apply_table.clone(),
+                                                    apply_inputs.clone(),
+                                                    TableOperation::None,
+                                                    window,
+                                                    cx,
+                                                );
                                             }),
                                     ),
                             ),
@@ -1054,6 +1834,11 @@ impl Mdpeek {
             TableOperation::None => {}
             TableOperation::AddRow => table.add_row(),
             TableOperation::AddColumn => table.add_column(),
+            TableOperation::RemoveRow(index) => table.remove_row(index),
+            TableOperation::MoveRow(index, upward) => table.move_row(index, upward),
+            TableOperation::RemoveColumn(index) => table.remove_column(index),
+            TableOperation::MoveColumn(index, left) => table.move_column(index, left),
+            TableOperation::CycleAlignment(index) => table.cycle_alignment(index),
         }
         let replacement = emit_table(&table);
         let range = table.start..table.end;
@@ -1063,14 +1848,7 @@ impl Mdpeek {
         document.update(cx, |document, cx| {
             document.replace_range(range, replacement, window, cx);
         });
-        self.set_status(
-            match operation {
-                TableOperation::None => "Updated table",
-                TableOperation::AddRow => "Added table row; reopen table editor to continue",
-                TableOperation::AddColumn => "Added table column; reopen table editor to continue",
-            },
-            cx,
-        );
+        self.set_status(operation.status_message(), cx);
     }
 
     fn open_workspace_replace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -1974,6 +2752,120 @@ impl Mdpeek {
     }
 }
 
+fn table_operation_button(
+    id: impl Into<ElementId>,
+    label: &'static str,
+    owner: WeakEntity<Mdpeek>,
+    table: MarkdownTable,
+    inputs: Vec<Vec<Entity<InputState>>>,
+    operation: TableOperation,
+) -> Button {
+    Button::new(id)
+        .ghost()
+        .xsmall()
+        .label(label)
+        .on_click(move |_, window, cx| {
+            perform_table_operation(
+                owner.clone(),
+                table.clone(),
+                inputs.clone(),
+                operation,
+                window,
+                cx,
+            );
+        })
+}
+
+fn perform_table_operation(
+    owner: WeakEntity<Mdpeek>,
+    table: MarkdownTable,
+    inputs: Vec<Vec<Entity<InputState>>>,
+    operation: TableOperation,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let reopen = operation.reopens_editor();
+    let reopen_owner = owner.clone();
+    _ = owner.update(cx, |this, cx| {
+        let rows = this.read_table_inputs(&inputs, cx);
+        this.apply_table_edit(table, rows, operation, window, cx);
+    });
+    window.close_dialog(cx);
+    if reopen {
+        window.defer(cx, move |window, cx| {
+            _ = reopen_owner.update(cx, |this, cx| {
+                this.open_table_editor(window, cx);
+            });
+        });
+    }
+}
+
+fn percent_encode_file_path(value: &str) -> String {
+    value
+        .bytes()
+        .map(|byte| match byte {
+            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'/' | b':' | b'-' | b'.' | b'_' | b'~' => {
+                (byte as char).to_string()
+            }
+            _ => format!("%{byte:02X}"),
+        })
+        .collect()
+}
+
+fn file_uri_for_directory(path: &StdPath) -> String {
+    let raw = path.to_string_lossy().replace('\\', "/");
+    let prefix = if raw.starts_with('/') {
+        "file://"
+    } else {
+        "file:///"
+    };
+    let mut uri = format!("{prefix}{}", percent_encode_file_path(&raw));
+    if !uri.ends_with('/') {
+        uri.push('/');
+    }
+    uri
+}
+
+fn write_browser_preview(html: &str) -> std::io::Result<PathBuf> {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    for attempt in 0..100 {
+        let directory = std::env::temp_dir().join(format!(
+            "mdpeek-preview-{}-{nonce}-{attempt}",
+            std::process::id()
+        ));
+        match std::fs::create_dir(&directory) {
+            Ok(()) => {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt as _;
+                    std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o700))?;
+                }
+                let path = directory.join("preview.html");
+                let mut options = std::fs::OpenOptions::new();
+                options.write(true).create_new(true);
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::OpenOptionsExt as _;
+                    options.mode(0o600);
+                }
+                let mut file = options.open(&path)?;
+                file.write_all(html.as_bytes())?;
+                file.sync_all()?;
+                return Ok(path);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    Err(std::io::Error::new(
+        std::io::ErrorKind::AlreadyExists,
+        "could not allocate a private browser preview directory",
+    ))
+}
+
 impl Focusable for Mdpeek {
     fn focus_handle(&self, _: &App) -> FocusHandle {
         self.focus_handle.clone()
@@ -1997,6 +2889,24 @@ impl Render for Mdpeek {
             .on_action(cx.listener(|this, _: &OpenFile, window, cx| {
                 this.open_file_action(window, cx);
             }))
+            .on_action(cx.listener(|this, _: &NavigateBack, window, cx| {
+                this.navigate_history(true, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &NavigateForward, window, cx| {
+                this.navigate_history(false, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &ZoomIn, _, cx| {
+                this.zoom_active(ZoomOperation::In, cx);
+            }))
+            .on_action(cx.listener(|this, _: &ZoomOut, _, cx| {
+                this.zoom_active(ZoomOperation::Out, cx);
+            }))
+            .on_action(cx.listener(|this, _: &ZoomReset, _, cx| {
+                this.zoom_active(ZoomOperation::Reset, cx);
+            }))
+            .on_action(cx.listener(|this, _: &OpenSettings, window, cx| {
+                this.open_settings(window, cx);
+            }))
             .on_action(cx.listener(|this, _: &OpenFolder, window, cx| {
                 this.open_folder_action(window, cx);
             }))
@@ -2008,6 +2918,108 @@ impl Render for Mdpeek {
             }))
             .on_action(cx.listener(|this, _: &WorkspaceReplace, window, cx| {
                 this.open_workspace_replace(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &GoToLine, window, cx| {
+                this.open_go_to_line(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &DuplicateLines, window, cx| {
+                this.apply_line_operation(EditorLineOperation::Duplicate, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &MoveLinesUp, window, cx| {
+                this.apply_line_operation(EditorLineOperation::MoveUp, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &MoveLinesDown, window, cx| {
+                this.apply_line_operation(EditorLineOperation::MoveDown, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &JoinLines, window, cx| {
+                this.apply_line_operation(EditorLineOperation::Join, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &ItalicSelection, window, cx| {
+                this.apply_markdown_format(
+                    crate::editor_format::FormatOperation::Italic,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &InlineCodeSelection, window, cx| {
+                this.apply_markdown_format(
+                    crate::editor_format::FormatOperation::InlineCode,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &LinkSelection, window, cx| {
+                this.apply_markdown_format(crate::editor_format::FormatOperation::Link, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &StrikethroughSelection, window, cx| {
+                this.apply_markdown_format(
+                    crate::editor_format::FormatOperation::Strikethrough,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &QuoteSelection, window, cx| {
+                this.apply_markdown_format(
+                    crate::editor_format::FormatOperation::Quote,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &SortLinesAscending, window, cx| {
+                this.apply_text_transform(
+                    crate::text_transform::TransformOperation::SortAscending,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &SortLinesDescending, window, cx| {
+                this.apply_text_transform(
+                    crate::text_transform::TransformOperation::SortDescending,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &UppercaseSelection, window, cx| {
+                this.apply_text_transform(
+                    crate::text_transform::TransformOperation::Uppercase,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &LowercaseSelection, window, cx| {
+                this.apply_text_transform(
+                    crate::text_transform::TransformOperation::Lowercase,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &TitleCaseSelection, window, cx| {
+                this.apply_text_transform(
+                    crate::text_transform::TransformOperation::TitleCase,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &ToggleCaseSelection, window, cx| {
+                this.apply_text_transform(
+                    crate::text_transform::TransformOperation::ToggleCase,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &InsertToc, window, cx| {
+                this.apply_text_transform(
+                    crate::text_transform::TransformOperation::InsertToc,
+                    window,
+                    cx,
+                );
+            }))
+            .on_action(cx.listener(|this, _: &InsertDate, window, cx| {
+                this.apply_text_transform(
+                    crate::text_transform::TransformOperation::InsertDate,
+                    window,
+                    cx,
+                );
             }))
             .on_action(cx.listener(|this, _: &DailyNote, window, cx| {
                 this.open_daily_note(window, cx);
@@ -2036,11 +3048,20 @@ impl Render for Mdpeek {
             .on_action(cx.listener(|this, _: &CloseTab, window, cx| {
                 this.close_active_tab(window, cx);
             }))
+            .on_action(cx.listener(|this, _: &CloseOtherTabs, window, cx| {
+                this.close_other_tabs(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &CloseTabsToRight, window, cx| {
+                this.close_tabs_to_right(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &CloseAllTabs, window, cx| {
+                this.close_all_tabs(window, cx);
+            }))
             .on_action(cx.listener(|this, _: &ToggleEdit, window, cx| {
                 this.toggle_edit(window, cx);
             }))
-            .on_action(cx.listener(|this, _: &ToggleSidebar, _, cx| {
-                this.toggle_sidebar(cx);
+            .on_action(cx.listener(|this, _: &ToggleSidebar, window, cx| {
+                this.toggle_sidebar_or_bold(window, cx);
             }))
             .on_action(cx.listener(|this, _: &ToggleTheme, _, cx| {
                 this.toggle_theme(cx);
@@ -2053,6 +3074,15 @@ impl Render for Mdpeek {
             }))
             .on_action(cx.listener(|this, _: &ExportHtml, window, cx| {
                 this.export_active_html(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &CopyHtml, _, cx| {
+                this.copy_active_html(cx);
+            }))
+            .on_action(cx.listener(|this, _: &CopyPlainText, _, cx| {
+                this.copy_active_plain_text(cx);
+            }))
+            .on_action(cx.listener(|this, _: &OpenInBrowser, _, cx| {
+                this.open_active_in_browser(cx);
             }))
             .on_action(cx.listener(|this, _: &ExportText, window, cx| {
                 this.export_active_text(window, cx);

@@ -7,7 +7,7 @@ use std::{
 };
 
 use gpui_kit::component::{
-    ActiveTheme as _, IconName, Selectable as _, Sizable as _,
+    ActiveTheme as _, ElementExt as _, IconName, Selectable as _, Sizable as _, WindowExt as _,
     button::{Button, ButtonVariants as _},
     clipboard::Clipboard,
     h_flex,
@@ -21,8 +21,11 @@ use gpui_kit::{prelude::FluentBuilder as _, *};
 use markdown::{ParseOptions, mdast::Node, to_mdast};
 
 use crate::{
+    annotation::{AnnotationStroke, normalized_point, save_annotated_png, stroke_path},
     app::Mdpeek,
+    editor_format::FormatOperation,
     math::{InlineMathPlugin, MathPlugin},
+    mermaid::MermaidPlugin,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -160,6 +163,12 @@ pub struct DocumentView {
     dirty: bool,
     modified_at: Option<SystemTime>,
     preview_zoom: f32,
+    annotation_enabled: bool,
+    annotation_color_index: usize,
+    annotation_size: f32,
+    annotation_strokes: Vec<AnnotationStroke>,
+    current_annotation: Option<AnnotationStroke>,
+    annotation_bounds: Option<Bounds<Pixels>>,
     owner: Option<WeakEntity<Mdpeek>>,
     _subscriptions: Vec<Subscription>,
 }
@@ -222,6 +231,12 @@ impl DocumentView {
                 .and_then(|path| std::fs::metadata(path).ok())
                 .and_then(|metadata| metadata.modified().ok()),
             preview_zoom: 1.0,
+            annotation_enabled: false,
+            annotation_color_index: 0,
+            annotation_size: 4.0,
+            annotation_strokes: Vec::new(),
+            current_annotation: None,
+            annotation_bounds: None,
             owner: None,
             _subscriptions,
         }
@@ -268,6 +283,21 @@ impl DocumentView {
         self.modified_at.is_none_or(|known| modified != known)
     }
 
+    pub fn zoom_out(&mut self, cx: &mut Context<Self>) {
+        self.preview_zoom = (self.preview_zoom - 0.25).max(0.5);
+        cx.notify();
+    }
+
+    pub fn zoom_in(&mut self, cx: &mut Context<Self>) {
+        self.preview_zoom = (self.preview_zoom + 0.25).min(4.0);
+        cx.notify();
+    }
+
+    pub fn zoom_reset(&mut self, cx: &mut Context<Self>) {
+        self.preview_zoom = 1.0;
+        cx.notify();
+    }
+
     pub fn headings(&self, cx: &App) -> &[MarkdownHeading] {
         self.headings
             .get_or_init(|| markdown_headings(self.kind, &self.value(cx)))
@@ -285,8 +315,15 @@ impl DocumentView {
                 source.get(..source_range.start),
                 source.get(source_range.clone()),
             ) {
-                let start = expand_wiki_links(prefix).len();
-                let end = start + expand_wiki_links(heading).len();
+                let rendered_len = |text: &str| {
+                    if self.kind == DocumentKind::Markdown {
+                        expand_wiki_links(text).len()
+                    } else {
+                        text.len()
+                    }
+                };
+                let start = rendered_len(prefix);
+                let end = start + rendered_len(heading);
                 self.preview.update(cx, |preview, cx| {
                     let rendered = preview.rendered_text();
                     if let Some(range) = rendered.range_for_source(start..end) {
@@ -325,6 +362,13 @@ impl DocumentView {
                 }
             }
             editor.set_cursor_position(Position { line, character }, window, cx);
+        });
+    }
+
+    pub fn select_offset(&mut self, offset: usize, cx: &mut Context<Self>) {
+        self.editor.update(cx, |editor, cx| {
+            let offset = offset.min(editor.value().len());
+            editor.set_selected_range(offset..offset, cx);
         });
     }
 
@@ -373,6 +417,55 @@ impl DocumentView {
         });
         self.dirty = self.editor.read(cx).value().as_ref() != self.saved_value;
         cx.notify();
+    }
+
+    pub fn apply_editor_settings(
+        &mut self,
+        settings: &crate::settings::AppSettings,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.editor.update(cx, |editor, cx| {
+            editor.set_line_number(settings.editor_line_numbers, window, cx);
+            editor.set_soft_wrap(settings.editor_word_wrap, window, cx);
+        });
+    }
+
+    pub fn selected_range(&self, cx: &App) -> std::ops::Range<usize> {
+        self.editor.read(cx).selected_range()
+    }
+
+    pub fn apply_edit_result(
+        &mut self,
+        result: crate::editor_ops::EditResult,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if result.text == self.editor.read(cx).value().as_ref() {
+            return;
+        }
+        let length = result.text.len();
+        self.editor.update(cx, |editor, cx| {
+            let current_length = editor.value().len();
+            editor.set_selected_range(0..current_length, cx);
+            editor.replace(result.text, window, cx);
+            editor.set_selected_range(result.start.min(length)..result.end.min(length), cx);
+        });
+        self.dirty = self.editor.read(cx).value().as_ref() != self.saved_value;
+        cx.notify();
+    }
+
+    pub fn editor_is_focused(&self, window: &Window, cx: &App) -> bool {
+        self.editor.focus_handle(cx).is_focused(window)
+    }
+
+    pub fn focus_editor(&self, window: &mut Window, cx: &mut Context<Self>) {
+        let focus_handle = self.editor.focus_handle(cx);
+        focus_handle.focus(window, cx);
+    }
+
+    pub fn is_preview_only(&self) -> bool {
+        self.mode == ViewMode::Preview
     }
 
     pub fn insert_text(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
@@ -438,80 +531,395 @@ impl DocumentView {
         Ok(())
     }
 
+    fn is_svg_image(&self) -> bool {
+        self.path
+            .as_ref()
+            .and_then(|path| path.extension())
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("svg"))
+    }
+
+    fn annotation_color(&self) -> Hsla {
+        const COLORS: [Hsla; 6] = [red(), yellow(), green(), blue(), white(), black()];
+        COLORS[self.annotation_color_index % COLORS.len()]
+    }
+
+    fn normalized_annotation_point(&self, position: Point<Pixels>) -> Option<(f32, f32)> {
+        self.annotation_bounds
+            .map(|bounds| normalized_point(position, bounds))
+    }
+
+    fn annotation_mouse_down(
+        &mut self,
+        event: &MouseDownEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.annotation_enabled || event.button != MouseButton::Left {
+            return;
+        }
+        let Some(point) = self.normalized_annotation_point(event.position) else {
+            return;
+        };
+        let width = self
+            .annotation_bounds
+            .map(|bounds| f32::from(bounds.size.width))
+            .unwrap_or(1.0)
+            .max(1.0);
+        self.current_annotation = Some(AnnotationStroke::new(
+            point,
+            self.annotation_color().opacity(0.9),
+            self.annotation_size / width,
+        ));
+        cx.notify();
+    }
+
+    fn annotation_mouse_move(
+        &mut self,
+        event: &MouseMoveEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.annotation_enabled {
+            return;
+        }
+        let Some(point) = self.normalized_annotation_point(event.position) else {
+            return;
+        };
+        if let Some(stroke) = self.current_annotation.as_mut()
+            && stroke.points.last().is_none_or(|last| {
+                (last.0 - point.0).abs() > 0.001 || (last.1 - point.1).abs() > 0.001
+            })
+        {
+            stroke.points.push(point);
+            cx.notify();
+        }
+    }
+
+    fn annotation_mouse_up(&mut self, _: &MouseUpEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some(stroke) = self.current_annotation.take() {
+            if stroke.points.len() > 1 {
+                self.annotation_strokes.push(stroke);
+            }
+            cx.notify();
+        }
+    }
+
+    fn clear_annotations(&mut self, cx: &mut Context<Self>) {
+        self.annotation_strokes.clear();
+        self.current_annotation = None;
+        cx.notify();
+    }
+
+    fn save_annotations(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(path) = self.path.clone() else {
+            return;
+        };
+        match save_annotated_png(&path, &self.annotation_strokes) {
+            Ok(output) => window
+                .push_notification(format!("Saved annotated image to {}", output.display()), cx),
+            Err(error) => window.push_notification(error, cx),
+        }
+    }
+
+    fn render_annotation_color_picker(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .id("annotation-color")
+            .w(px(18.))
+            .h(px(18.))
+            .rounded_full()
+            .bg(self.annotation_color())
+            .border_1()
+            .border_color(cx.theme().border)
+            .cursor_pointer()
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, _, _, cx| {
+                    this.annotation_color_index = (this.annotation_color_index + 1) % 6;
+                    cx.notify();
+                }),
+            )
+    }
+
+    pub fn apply_formatting(
+        &mut self,
+        operation: FormatOperation,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let value = self.editor.read(cx).value().to_string();
+        let range = self.editor.read(cx).selected_range();
+        let result = crate::editor_format::apply_format(&value, range.start, range.end, operation);
+        self.apply_edit_result(result, window, cx);
+        self.focus_editor(window, cx);
+    }
+
+    fn format_button(
+        id: &'static str,
+        label: &'static str,
+        tooltip: &'static str,
+        operation: FormatOperation,
+        cx: &mut Context<Self>,
+    ) -> Button {
+        Button::new(id)
+            .ghost()
+            .xsmall()
+            .label(label)
+            .tooltip(tooltip)
+            .on_click(cx.listener(move |this, _, window, cx| {
+                this.apply_formatting(operation, window, cx);
+            }))
+    }
+
+    fn reveal_fragment(&mut self, fragment: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let fragment = percent_decode(fragment);
+        let source = self.editor.read(cx).value().to_string();
+        let Some(heading) = crate::text_transform::markdown_headings(&source)
+            .into_iter()
+            .find(|heading| heading.slug == fragment)
+        else {
+            return;
+        };
+        self.reveal_heading(heading.start..heading.end, window, cx);
+    }
+
     fn render_toolbar(&self, compact: bool, cx: &mut Context<Self>) -> impl IntoElement {
         h_flex()
             .w_full()
             .flex_none()
             .min_h(px(36.))
             .px_2()
-            .gap_1()
+            .gap_2()
             .items_center()
             .justify_between()
             .flex_wrap()
             .border_b_1()
             .border_color(cx.theme().border)
             .bg(cx.theme().title_bar)
-            .child(h_flex().gap_0p5().p_0p5().rounded_md().when(
-                self.kind.is_text_editable(),
-                |this| {
-                    this.bg(cx.theme().muted).children(
-                        [ViewMode::Edit, ViewMode::Split, ViewMode::Preview]
-                            .into_iter()
-                            .map(|mode| {
-                                Button::new(mode.label())
-                                    .ghost()
-                                    .xsmall()
-                                    .selected(self.mode == mode)
-                                    .label(mode.label())
-                                    .on_click(cx.listener(move |this, _, window, cx| {
-                                        this.set_mode(mode, cx);
-                                        if let Some(focus) = this.editor_focus(cx) {
-                                            window.defer(cx, move |window, cx| {
-                                                focus.focus(window, cx)
-                                            });
-                                        }
-                                    }))
-                            }),
-                    )
-                },
-            ))
             .child(
                 h_flex()
-                    .gap_0p5()
-                    .child(
-                        Button::new("zoom-out")
-                            .ghost()
-                            .xsmall()
-                            .label("−")
-                            .tooltip("Zoom out")
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.preview_zoom = (this.preview_zoom - 0.25).max(0.5);
-                                cx.notify();
-                            })),
+                    .gap_1()
+                    .items_center()
+                    .flex_wrap()
+                    .when(
+                        self.kind == DocumentKind::Markdown && self.mode != ViewMode::Preview,
+                        |this| {
+                            this.child(Self::format_button(
+                                "fmt-bold",
+                                "B",
+                                "Bold",
+                                FormatOperation::Bold,
+                                cx,
+                            ))
+                            .child(Self::format_button(
+                                "fmt-italic",
+                                "I",
+                                "Italic",
+                                FormatOperation::Italic,
+                                cx,
+                            ))
+                            .child(Self::format_button(
+                                "fmt-strike",
+                                "S",
+                                "Strikethrough",
+                                FormatOperation::Strikethrough,
+                                cx,
+                            ))
+                            .child(Self::format_button(
+                                "fmt-code",
+                                "<>",
+                                "Inline code",
+                                FormatOperation::InlineCode,
+                                cx,
+                            ))
+                            .child(Self::format_button(
+                                "fmt-link",
+                                "Link",
+                                "Insert link",
+                                FormatOperation::Link,
+                                cx,
+                            ))
+                            .child(Self::format_button(
+                                "fmt-ul",
+                                "• List",
+                                "Bulleted list",
+                                FormatOperation::BulletList,
+                                cx,
+                            ))
+                            .child(Self::format_button(
+                                "fmt-table",
+                                "Table",
+                                "Insert table",
+                                FormatOperation::Table,
+                                cx,
+                            ))
+                            .when(!compact, |this| {
+                                this.child(Self::format_button(
+                                    "fmt-ol",
+                                    "1. List",
+                                    "Numbered list",
+                                    FormatOperation::OrderedList,
+                                    cx,
+                                ))
+                                .child(Self::format_button(
+                                    "fmt-task",
+                                    "Task",
+                                    "Task list",
+                                    FormatOperation::TaskList,
+                                    cx,
+                                ))
+                                .child(Self::format_button(
+                                    "fmt-quote",
+                                    "Quote",
+                                    "Blockquote",
+                                    FormatOperation::Quote,
+                                    cx,
+                                ))
+                                .child(Self::format_button(
+                                    "fmt-fence",
+                                    "{ }",
+                                    "Code block",
+                                    FormatOperation::CodeBlock,
+                                    cx,
+                                ))
+                                .child(Self::format_button(
+                                    "fmt-hr",
+                                    "HR",
+                                    "Horizontal rule",
+                                    FormatOperation::HorizontalRule,
+                                    cx,
+                                ))
+                            })
+                        },
                     )
-                    .when(!compact, |this| {
-                        this.child(
-                            Button::new("zoom-reset")
-                                .ghost()
-                                .xsmall()
-                                .label(format!("{:.0}%", self.preview_zoom * 100.0))
-                                .tooltip("Reset zoom to 100%")
-                                .on_click(cx.listener(|this, _, _, cx| {
-                                    this.preview_zoom = 1.0;
-                                    cx.notify();
-                                })),
-                        )
-                    })
+                    .when(
+                        self.kind == DocumentKind::Image && !self.is_svg_image(),
+                        |this| {
+                            this.child(
+                                Button::new("annotate")
+                                    .ghost()
+                                    .xsmall()
+                                    .label(if self.annotation_enabled {
+                                        "Annotating"
+                                    } else {
+                                        "Annotate"
+                                    })
+                                    .tooltip("Toggle freehand image annotation")
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.annotation_enabled = !this.annotation_enabled;
+                                        this.current_annotation = None;
+                                        cx.notify();
+                                    })),
+                            )
+                            .when(self.annotation_enabled, |this| {
+                                this.child(self.render_annotation_color_picker(cx))
+                                    .child(
+                                        Button::new("annotation-size")
+                                            .ghost()
+                                            .xsmall()
+                                            .label(format!("Brush {:.0}", self.annotation_size))
+                                            .tooltip("Cycle brush size")
+                                            .on_click(cx.listener(|this, _, _, cx| {
+                                                this.annotation_size =
+                                                    match this.annotation_size as u32 {
+                                                        0..=3 => 4.0,
+                                                        4 => 8.0,
+                                                        8 => 12.0,
+                                                        _ => 2.0,
+                                                    };
+                                                cx.notify();
+                                            })),
+                                    )
+                                    .child(
+                                        Button::new("annotation-clear")
+                                            .ghost()
+                                            .xsmall()
+                                            .label("Clear")
+                                            .tooltip("Clear annotations")
+                                            .on_click(cx.listener(|this, _, _, cx| {
+                                                this.clear_annotations(cx);
+                                            })),
+                                    )
+                                    .child(
+                                        Button::new("annotation-save")
+                                            .ghost()
+                                            .xsmall()
+                                            .label("Save PNG")
+                                            .tooltip("Save annotated copy as PNG")
+                                            .on_click(cx.listener(|this, _, window, cx| {
+                                                this.save_annotations(window, cx);
+                                            })),
+                                    )
+                            })
+                        },
+                    ),
+            )
+            .child(
+                h_flex()
+                    .gap_2()
+                    .items_center()
+                    .child(h_flex().gap_0p5().p_0p5().rounded_md().when(
+                        self.kind.is_text_editable(),
+                        |this| {
+                            this.bg(cx.theme().muted).children(
+                                [ViewMode::Edit, ViewMode::Split, ViewMode::Preview]
+                                    .into_iter()
+                                    .map(|mode| {
+                                        Button::new(mode.label())
+                                            .ghost()
+                                            .xsmall()
+                                            .selected(self.mode == mode)
+                                            .label(mode.label())
+                                            .on_click(cx.listener(move |this, _, window, cx| {
+                                                this.set_mode(mode, cx);
+                                                if let Some(focus) = this.editor_focus(cx) {
+                                                    window.defer(cx, move |window, cx| {
+                                                        focus.focus(window, cx)
+                                                    });
+                                                }
+                                            }))
+                                    }),
+                            )
+                        },
+                    ))
                     .child(
-                        Button::new("zoom-in")
-                            .ghost()
-                            .xsmall()
-                            .label("+")
-                            .tooltip("Zoom in")
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.preview_zoom = (this.preview_zoom + 0.25).min(4.0);
-                                cx.notify();
-                            })),
+                        h_flex()
+                            .gap_0p5()
+                            .child(
+                                Button::new("zoom-out")
+                                    .ghost()
+                                    .xsmall()
+                                    .label("−")
+                                    .tooltip("Zoom out")
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.preview_zoom = (this.preview_zoom - 0.25).max(0.5);
+                                        cx.notify();
+                                    })),
+                            )
+                            .when(!compact, |this| {
+                                this.child(
+                                    Button::new("zoom-reset")
+                                        .ghost()
+                                        .xsmall()
+                                        .label(format!("{:.0}%", self.preview_zoom * 100.0))
+                                        .tooltip("Reset zoom to 100%")
+                                        .on_click(cx.listener(|this, _, _, cx| {
+                                            this.preview_zoom = 1.0;
+                                            cx.notify();
+                                        })),
+                                )
+                            })
+                            .child(
+                                Button::new("zoom-in")
+                                    .ghost()
+                                    .xsmall()
+                                    .label("+")
+                                    .tooltip("Zoom in")
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.preview_zoom = (this.preview_zoom + 0.25).min(4.0);
+                                        cx.notify();
+                                    })),
+                            ),
                     ),
             )
     }
@@ -579,6 +987,7 @@ impl DocumentView {
                 .markdown_extensions(markdown_extensions())
                 .plugin(MathPlugin)
                 .plugin(InlineMathPlugin)
+                .plugin(MermaidPlugin)
                 .on_task_toggle({
                     let this = cx.weak_entity();
                     move |event, window, cx| {
@@ -589,6 +998,7 @@ impl DocumentView {
                 })
                 .on_link_click({
                     let owner = self.owner.clone();
+                    let document_entity = cx.weak_entity();
                     let base = self
                         .path
                         .as_ref()
@@ -615,7 +1025,11 @@ impl DocumentView {
                             || url.starts_with("mailto:")
                         {
                             cx.open_url(url);
-                        } else if !url.starts_with('#') {
+                        } else if let Some(fragment) = url.strip_prefix('#') {
+                            _ = document_entity.update(cx, |document, cx| {
+                                document.reveal_fragment(fragment, window, cx);
+                            });
+                        } else {
                             let path = base
                                 .as_ref()
                                 .map(|base| base.join(url.as_str()))
@@ -673,6 +1087,61 @@ impl DocumentView {
         )
     }
 
+    fn render_image_surface(&self, path: PathBuf, cx: &mut Context<Self>) -> impl IntoElement {
+        let strokes = self.annotation_strokes.clone();
+        let current_stroke = self.current_annotation.clone();
+        let image_bounds = self.annotation_bounds;
+        let state_entity = cx.entity();
+        let zoom = self.preview_zoom;
+        div()
+            .id("image-annotation-surface")
+            .relative()
+            .when(self.annotation_enabled, |this| this.cursor_crosshair())
+            .on_mouse_down(MouseButton::Left, cx.listener(Self::annotation_mouse_down))
+            .on_mouse_move(cx.listener(Self::annotation_mouse_move))
+            .on_mouse_up(MouseButton::Left, cx.listener(Self::annotation_mouse_up))
+            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::annotation_mouse_up))
+            .child(
+                div()
+                    .on_prepaint(move |bounds, _, cx| {
+                        state_entity.update(cx, |this, cx| {
+                            if this.annotation_bounds != Some(bounds) {
+                                this.annotation_bounds = Some(bounds);
+                                cx.notify();
+                            }
+                        });
+                    })
+                    .child(
+                        img(path)
+                            .object_fit(ObjectFit::Contain)
+                            .when(zoom == 1.0, |image| image.max_w_full().max_h_full())
+                            .when(zoom != 1.0, |image| image.w(relative(zoom))),
+                    ),
+            )
+            .child(
+                canvas(
+                    move |bounds, _, _| {
+                        (
+                            strokes.clone(),
+                            current_stroke.clone(),
+                            image_bounds.or(Some(bounds)),
+                        )
+                    },
+                    move |_, (strokes, current_stroke, bounds), window, _| {
+                        for stroke in strokes.iter().chain(current_stroke.iter()) {
+                            if let Some(path) =
+                                bounds.and_then(|bounds| stroke_path(stroke, bounds))
+                            {
+                                window.paint_path(path, stroke.color);
+                            }
+                        }
+                    },
+                )
+                .absolute()
+                .size_full(),
+            )
+    }
+
     fn render_content(&self, compact: bool, cx: &mut Context<Self>) -> AnyElement {
         if self.kind == DocumentKind::Image {
             return if let Some(path) = self.path.clone() {
@@ -687,16 +1156,7 @@ impl DocumentView {
                             .flex()
                             .items_center()
                             .justify_center()
-                            .child(
-                                img(path)
-                                    .object_fit(ObjectFit::Contain)
-                                    .when(self.preview_zoom == 1.0, |image| {
-                                        image.max_w_full().max_h_full()
-                                    })
-                                    .when(self.preview_zoom != 1.0, |image| {
-                                        image.w(relative(self.preview_zoom))
-                                    }),
-                            ),
+                            .child(self.render_image_surface(path, cx)),
                     )
                     .into_any_element()
             } else {
@@ -727,6 +1187,10 @@ impl DocumentView {
     fn render_status(&self, compact: bool, cx: &mut Context<Self>) -> impl IntoElement {
         let value = self.editor.read(cx).value().to_string();
         let words = value.split_whitespace().count();
+        let paragraphs = value
+            .split("\n\n")
+            .filter(|part| !part.trim().is_empty())
+            .count();
         let path = self
             .path
             .as_ref()
@@ -773,7 +1237,7 @@ impl DocumentView {
             })
             .when(self.kind.is_text_editable() && !compact, |this| {
                 this.child(div().flex_none().child(format!(
-                    "{} lines · {words} words · {} chars",
+                    "{} lines · {words} words · {} chars · {paragraphs} paragraphs",
                     value.lines().count(),
                     value.chars().count()
                 )))
@@ -804,6 +1268,40 @@ impl Render for DocumentView {
             )
             .child(self.render_status(compact, cx))
     }
+}
+
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn percent_encoded_byte(bytes: &[u8], index: usize) -> Option<u8> {
+    if bytes.get(index) != Some(&b'%') {
+        return None;
+    }
+    let high = hex_value(*bytes.get(index + 1)?)?;
+    let low = hex_value(*bytes.get(index + 2)?)?;
+    Some(high * 16 + low)
+}
+
+fn percent_decode(value: &str) -> String {
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if let Some(byte) = percent_encoded_byte(bytes, index) {
+            decoded.push(byte);
+            index += 3;
+            continue;
+        }
+        decoded.push(bytes[index]);
+        index += 1;
+    }
+    String::from_utf8_lossy(&decoded).to_string()
 }
 
 fn reading_font(cx: &App) -> SharedString {
@@ -927,10 +1425,7 @@ fn decode_wiki_target(encoded: &str) -> String {
     let mut out = Vec::new();
     let mut ix = 0;
     while ix < bytes.len() {
-        if bytes[ix] == b'%'
-            && ix + 2 < bytes.len()
-            && let Ok(value) = u8::from_str_radix(&encoded[ix + 1..ix + 3], 16)
-        {
+        if let Some(value) = percent_encoded_byte(bytes, ix) {
             out.push(value);
             ix += 3;
             continue;
@@ -949,6 +1444,17 @@ pub fn read_document(path: &Path) -> Result<(String, DocumentKind)> {
         std::fs::read_to_string(path)?
     };
     Ok((content, kind))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::percent_decode;
+
+    #[test]
+    fn percent_decode_does_not_slice_through_utf8() {
+        assert_eq!(percent_decode("100%完了"), "100%完了");
+        assert_eq!(percent_decode("caf%C3%A9"), "café");
+    }
 }
 
 #[cfg(test)]

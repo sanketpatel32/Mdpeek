@@ -60,6 +60,48 @@ fn default_sidebar() -> bool {
     true
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AppSettings {
+    #[serde(default = "default_true")]
+    pub editor_line_numbers: bool,
+    #[serde(default = "default_true")]
+    pub editor_word_wrap: bool,
+    #[serde(default)]
+    pub autosave: bool,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            editor_line_numbers: true,
+            editor_word_wrap: true,
+            autosave: false,
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
+
+pub fn settings_path() -> PathBuf {
+    config_dir().join("settings.json")
+}
+
+pub fn load_settings() -> AppSettings {
+    std::fs::read_to_string(settings_path())
+        .ok()
+        .and_then(|json| serde_json::from_str(&json).ok())
+        .unwrap_or_default()
+}
+
+pub fn save_settings(settings: &AppSettings) -> std::io::Result<()> {
+    let dir = config_dir();
+    std::fs::create_dir_all(&dir)?;
+    let json = serde_json::to_string_pretty(settings).expect("settings serialize");
+    std::fs::write(settings_path(), json)
+}
+
 pub fn config_dir() -> PathBuf {
     if let Some(path) = std::env::var_os("LOCALAPPDATA") {
         return PathBuf::from(path).join("mdpeek");
@@ -94,6 +136,14 @@ pub fn save_session(state: &SessionState) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn settings_default_to_readable_editing() {
+        let settings = AppSettings::default();
+        assert!(settings.editor_line_numbers);
+        assert!(settings.editor_word_wrap);
+        assert!(!settings.autosave);
+    }
 
     #[test]
     fn session_defaults_are_empty_with_sidebar_visible() {

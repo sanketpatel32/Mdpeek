@@ -1,6 +1,40 @@
+use crate::text_transform::heading_slug;
+
 pub fn markdown_to_html_document(title: &str, source: &str) -> String {
+    markdown_to_html_document_with_base(title, source, None)
+}
+
+pub fn markdown_to_html_document_with_base(
+    title: &str,
+    source: &str,
+    base_href: Option<&str>,
+) -> String {
     let body = markdown::to_html_with_options(source, &markdown::Options::gfm())
         .unwrap_or_else(|error| format!("<pre>Markdown export failed: {error}</pre>"));
+    let body = add_heading_ids(&body, source);
+    let base_tag = base_href
+        .map(|href| format!("<base href=\"{}\">", escape_html(href)))
+        .unwrap_or_default();
+    let fragment_script = r##"<script>
+document.addEventListener('click', function (event) {
+  var anchor = event.target.closest('a[href^="#"]');
+  if (!anchor) return;
+  var id;
+  try {
+    id = decodeURIComponent(anchor.getAttribute('href').slice(1));
+  } catch (_) {
+    return;
+  }
+  var target = document.getElementById(id) || document.getElementsByName(id)[0];
+  if (!target) return;
+  event.preventDefault();
+  try {
+    var targetUrl = window.location.href.split('#')[0] + '#' + encodeURIComponent(id);
+    history.pushState(null, '', targetUrl);
+  } catch (_) {}
+  target.scrollIntoView();
+});
+</script>"##;
 
     format!(
         r#"<!doctype html>
@@ -8,6 +42,7 @@ pub fn markdown_to_html_document(title: &str, source: &str) -> String {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+{}
 <title>{}</title>
 <style>
 body {{ max-width: 760px; margin: 48px auto; padding: 0 24px; color: #24292f; font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
@@ -20,11 +55,84 @@ img {{ max-width: 100%; }}
 </head>
 <body>
 {}
+{}
 </body>
 </html>"#,
+        base_tag,
         escape_html(title),
-        body
+        body,
+        fragment_script
     )
+}
+
+fn add_heading_ids(html: &str, _source: &str) -> String {
+    let pattern = regex::Regex::new(r"<h([1-6])>").expect("valid heading pattern");
+    let mut output = String::with_capacity(html.len() + 256);
+    let mut last = 0;
+    let mut occurrences = std::collections::HashMap::<String, usize>::new();
+    let mut used = std::collections::HashSet::<String>::new();
+    for captures in pattern.captures_iter(html) {
+        let Some(whole) = captures.get(0) else {
+            continue;
+        };
+        output.push_str(&html[last..whole.start()]);
+        let level = captures[1].parse::<usize>().unwrap_or_default();
+        let close = format!("</h{level}>");
+        let slug = html[whole.end()..]
+            .find(&close)
+            .map(|close_start| html_heading_text(&html[whole.end()..whole.end() + close_start]))
+            .filter(|text| !text.is_empty())
+            .map(|text| unique_export_slug(&heading_slug(&text), &mut occurrences, &mut used));
+        if let Some(slug) = slug {
+            output.push_str(&format!("<h{level} id=\"{slug}\">"));
+        } else {
+            output.push_str(whole.as_str());
+        }
+        last = whole.end();
+    }
+    output.push_str(&html[last..]);
+    output
+}
+
+fn unique_export_slug(
+    base: &str,
+    occurrences: &mut std::collections::HashMap<String, usize>,
+    used: &mut std::collections::HashSet<String>,
+) -> String {
+    let occurrence = occurrences.entry(base.to_string()).or_insert(0);
+    loop {
+        let candidate = if *occurrence == 0 {
+            base.to_string()
+        } else {
+            format!("{base}-{occurrence}")
+        };
+        if used.insert(candidate.clone()) {
+            *occurrence += 1;
+            return candidate;
+        }
+        *occurrence += 1;
+    }
+}
+
+fn html_heading_text(html: &str) -> String {
+    let footnote_pattern =
+        regex::Regex::new(r##"(?is)<sup><a href="#(?:user-content-)?fn-[^"]*".*?</a></sup>"##)
+            .expect("valid footnote pattern");
+    let without_footnotes = footnote_pattern.replace_all(html, "");
+    let image_pattern =
+        regex::Regex::new(r##"(?is)<img[^>]*alt="([^"]*)"[^>]*>"##).expect("valid image pattern");
+    let with_alt = image_pattern.replace_all(&without_footnotes, "$1");
+    let tag_pattern = regex::Regex::new(r"(?s)<[^>]+>").expect("valid tag pattern");
+    decode_html_entities(tag_pattern.replace_all(&with_alt, "").as_ref())
+}
+
+fn decode_html_entities(value: &str) -> String {
+    value
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&")
 }
 
 pub fn markdown_to_plain_text(source: &str) -> String {
@@ -86,7 +194,22 @@ mod tests {
     fn html_export_escapes_title() {
         let html = markdown_to_html_document("<x>", "# Hi");
         assert!(html.contains("<title>&lt;x&gt;</title>"));
-        assert!(html.contains("<h1>Hi</h1>"));
+        assert!(html.contains("<h1 id=\"hi\">Hi</h1>"));
+        assert!(html.contains("a[href^=\"#\"]"));
+    }
+
+    #[test]
+    fn html_heading_ids_use_rendered_text_in_output_order() {
+        let html = markdown_to_html_document("x", "# ![Diagram alt](image.png)\n\n# Next\n");
+        assert!(html.contains("<h1 id=\"diagram-alt\">"));
+        assert!(html.contains("<h1 id=\"next\">Next</h1>"));
+    }
+
+    #[test]
+    fn html_heading_ids_ignore_footnote_reference_numbers() {
+        let html = markdown_to_html_document("x", "# Title[^note]\n\n[^note]: note\n");
+        assert!(html.contains("<h1 id=\"title\">"));
+        assert!(!html.contains("id=\"title1\""));
     }
 
     #[test]

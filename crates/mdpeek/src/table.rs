@@ -214,6 +214,69 @@ impl MarkdownTable {
             row.push(String::new());
         }
     }
+
+    pub fn remove_row(&mut self, index: usize) {
+        if index > 0 && index < self.rows.len() && self.rows.len() > 1 {
+            self.rows.remove(index);
+        }
+    }
+
+    pub fn move_row(&mut self, index: usize, upward: bool) {
+        if index == 0 || index >= self.rows.len() {
+            return;
+        }
+        let target = if upward {
+            index.saturating_sub(1).max(1)
+        } else {
+            (index + 1).min(self.rows.len() - 1)
+        };
+        if target != index {
+            self.rows.swap(index, target);
+        }
+    }
+
+    pub fn remove_column(&mut self, index: usize) {
+        if index >= self.alignments.len() || self.alignments.len() <= 1 {
+            return;
+        }
+        self.alignments.remove(index);
+        for row in &mut self.rows {
+            if index < row.len() {
+                row.remove(index);
+            }
+        }
+    }
+
+    pub fn move_column(&mut self, index: usize, left: bool) {
+        if index >= self.alignments.len() {
+            return;
+        }
+        let target = if left {
+            index.saturating_sub(1)
+        } else {
+            (index + 1).min(self.alignments.len() - 1)
+        };
+        if target == index {
+            return;
+        }
+        self.alignments.swap(index, target);
+        for row in &mut self.rows {
+            if index < row.len() && target < row.len() {
+                row.swap(index, target);
+            }
+        }
+    }
+
+    pub fn cycle_alignment(&mut self, index: usize) {
+        if let Some(alignment) = self.alignments.get_mut(index) {
+            *alignment = match alignment {
+                Alignment::None => Alignment::Left,
+                Alignment::Left => Alignment::Center,
+                Alignment::Center => Alignment::Right,
+                Alignment::Right => Alignment::None,
+            };
+        }
+    }
 }
 
 #[cfg(test)]
@@ -246,6 +309,47 @@ mod tests {
         let table = parse_table_at(text, text.find("| x").unwrap()).unwrap();
         assert_eq!(table.rows.len(), 2);
         assert!(!text[table.start..table.end].contains("heading"));
+    }
+
+    #[test]
+    fn row_and_column_operations_update_model() {
+        let mut table = MarkdownTable {
+            rows: vec![
+                vec!["H1".into(), "H2".into()],
+                vec!["a".into(), "b".into()],
+                vec!["c".into(), "d".into()],
+            ],
+            alignments: vec![Alignment::None, Alignment::None],
+            start: 0,
+            end: 0,
+        };
+        table.move_row(2, true);
+        assert_eq!(table.rows[1], vec!["c", "d"]);
+        table.move_column(1, true);
+        assert_eq!(table.rows[0], vec!["H2", "H1"]);
+        table.cycle_alignment(0);
+        assert_eq!(table.alignments[0], Alignment::Left);
+        table.remove_row(2);
+        assert_eq!(table.rows.len(), 2);
+        table.remove_column(1);
+        assert_eq!(table.rows[0], vec!["H2"]);
+    }
+
+    #[test]
+    fn row_and_column_operations_preserve_required_structure() {
+        let mut table = MarkdownTable {
+            rows: vec![vec!["H".into()], vec!["a".into()]],
+            alignments: vec![Alignment::None],
+            start: 0,
+            end: 0,
+        };
+        table.remove_row(0);
+        table.remove_column(0);
+        table.move_row(1, true);
+        assert_eq!(table.rows.len(), 2);
+        assert_eq!(table.alignments.len(), 1);
+        table.remove_row(1);
+        assert_eq!(table.rows.len(), 1);
     }
 
     #[test]
