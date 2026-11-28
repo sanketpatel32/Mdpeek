@@ -602,6 +602,12 @@ impl Mdpeek {
         if index >= self.documents.len() {
             return;
         }
+        let document = &self.documents[index];
+        if document.read(cx).is_dirty() {
+            let title = document.read(cx).title().to_string();
+            self.set_status(format!("Save {title} before closing it"), cx);
+            return;
+        }
         let document = self.documents.remove(index);
         if let Some(path) = document.read(cx).path.clone() {
             self.closed_paths.push(path);
