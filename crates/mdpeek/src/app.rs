@@ -217,7 +217,7 @@ fn welcome_action_button(
     if primary {
         button.primary()
     } else {
-        button.outline()
+        button.secondary()
     }
 }
 
