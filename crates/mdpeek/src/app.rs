@@ -128,6 +128,16 @@ pub struct Mdpeek {
     close_confirmation_open: bool,
 }
 
+fn compact_label(label: &str, max_chars: usize) -> String {
+    let mut chars = label.chars();
+    let compact: String = chars.by_ref().take(max_chars).collect();
+    if chars.next().is_some() {
+        format!("{compact}…")
+    } else {
+        compact
+    }
+}
+
 fn snippet_entries() -> Vec<(&'static str, &'static str)> {
     vec![
         ("Note callout", "> [!NOTE]\nUseful information.\n"),
@@ -620,7 +630,7 @@ impl Mdpeek {
         let Some(document) = self.documents.get(index) else {
             return;
         };
-        let title = document.read(cx).title().to_string();
+        let title = compact_label(&document.read(cx).title(), 40);
         let owner = cx.weak_entity();
         self.close_confirmation_open = true;
         window.open_dialog(cx, move |dialog, _, _| {
@@ -635,66 +645,59 @@ impl Mdpeek {
                         this.close_confirmation_open = false;
                     });
                 })
-                .content(
-                move |content, _window, _cx| {
+                .content(move |content, _window, _cx| {
                     content.child(
                         v_flex()
                             .w_full()
-                            .gap_4()
-                            .p_4()
+                            .gap_1()
                             .child(
-                                v_flex()
-                                    .gap_1()
-                                    .child(
-                                        div()
-                                            .text_sm()
-                                            .font_weight(FontWeight::SEMIBOLD)
-                                            .child(format!("Close {title}?")),
-                                    )
-                                    .child(
-                                        div()
-                                            .text_sm()
-                                            .child("This document has unsaved changes. Discarding closes it without saving."),
-                                    ),
+                                div()
+                                    .text_sm()
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .child(format!("Close {title}?")),
                             )
                             .child(
-                                h_flex()
-                                    .w_full()
-                                    .justify_end()
-                                    .gap_2()
-                                    .child(
-                                        Button::new("cancel-close-tab")
-                                            .outline()
-                                            .label("Cancel")
-                                            .on_click({
-                                                let owner = owner.clone();
-                                                move |_, window, cx| {
-                                                    _ = owner.update(cx, |this, _| {
-                                                        this.close_confirmation_open = false;
-                                                    });
-                                                    window.close_dialog(cx);
-                                                }
-                                            }),
-                                    )
-                                    .child(
-                                        Button::new("discard-close-tab")
-                                            .danger()
-                                            .label("Discard")
-                                            .on_click({
-                                                let owner = owner.clone();
-                                                move |_, window, cx| {
-                                                    window.close_dialog(cx);
-                                                    _ = owner.update(cx, |this, cx| {
-                                                        this.close_confirmation_open = false;
-                                                        this.close_tab_unchecked(index, window, cx);
-                                                    });
-                                                }
-                                            }),
-                                    ),
+                                div()
+                                    .text_sm()
+                                    .child("This document has unsaved changes. Discarding closes it without saving."),
                             ),
                     )
-                },
-            )
+                })
+                .footer(
+                    h_flex()
+                        .w_full()
+                        .justify_end()
+                        .gap_2()
+                        .child(
+                            Button::new("cancel-close-tab")
+                                .outline()
+                                .label("Cancel")
+                                .on_click({
+                                    let owner = owner.clone();
+                                    move |_, window, cx| {
+                                        _ = owner.update(cx, |this, _| {
+                                            this.close_confirmation_open = false;
+                                        });
+                                        window.close_dialog(cx);
+                                    }
+                                }),
+                        )
+                        .child(
+                            Button::new("discard-close-tab")
+                                .danger()
+                                .label("Discard")
+                                .on_click({
+                                    let owner = owner.clone();
+                                    move |_, window, cx| {
+                                        window.close_dialog(cx);
+                                        _ = owner.update(cx, |this, cx| {
+                                            this.close_confirmation_open = false;
+                                            this.close_tab_unchecked(index, window, cx);
+                                        });
+                                    }
+                                }),
+                        ),
+                )
         });
     }
 
