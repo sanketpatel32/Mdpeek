@@ -128,6 +128,98 @@ pub struct Mdpeek {
     close_confirmation_document: Option<Entity<DocumentView>>,
 }
 
+#[derive(Clone, Copy)]
+enum WelcomeAction {
+    OpenFile,
+    NewNote,
+    OpenFolder,
+}
+
+fn welcome_action_button(
+    id: &'static str,
+    icon: IconName,
+    title: &'static str,
+    subtitle: &'static str,
+    shortcut: &'static str,
+    primary: bool,
+    action: WelcomeAction,
+    cx: &mut Context<Mdpeek>,
+) -> Button {
+    let muted = cx.theme().muted_foreground;
+    let secondary = if primary {
+        cx.theme().primary_foreground.opacity(0.78)
+    } else {
+        muted
+    };
+    let chip_border = if primary {
+        cx.theme().primary_foreground.opacity(0.24)
+    } else {
+        cx.theme().border
+    };
+    let chip_background = if primary {
+        cx.theme().primary_foreground.opacity(0.1)
+    } else {
+        cx.theme().muted
+    };
+    let button = Button::new(id)
+        .large()
+        .w(px(260.))
+        .h(px(76.))
+        .accessibility_label(format!("{title}, {shortcut}"))
+        .on_click(cx.listener(move |this, _, window, cx| match action {
+            WelcomeAction::OpenFile => this.open_file_action(window, cx),
+            WelcomeAction::NewNote => this.new_tab(window, cx),
+            WelcomeAction::OpenFolder => this.open_folder_action(window, cx),
+        }))
+        .child(
+            h_flex()
+                .flex_1()
+                .min_w_0()
+                .items_center()
+                .gap_3()
+                .child(Icon::new(icon).flex_none())
+                .child(
+                    v_flex()
+                        .min_w_0()
+                        .flex_1()
+                        .text_left()
+                        .child(
+                            div()
+                                .text_base()
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .truncate()
+                                .child(title),
+                        )
+                        .child(
+                            div()
+                                .text_sm()
+                                .text_color(secondary)
+                                .line_height(relative(1.2))
+                                .truncate()
+                                .child(subtitle),
+                        ),
+                )
+                .child(
+                    div()
+                        .px_2()
+                        .py_0p5()
+                        .rounded_md()
+                        .border_1()
+                        .border_color(chip_border)
+                        .bg(chip_background)
+                        .text_xs()
+                        .text_color(secondary)
+                        .flex_none()
+                        .child(shortcut),
+                ),
+        );
+    if primary {
+        button.primary()
+    } else {
+        button.outline()
+    }
+}
+
 fn compact_label(label: &str, max_chars: usize) -> String {
     let mut chars = label.chars();
     let compact: String = chars.by_ref().take(max_chars).collect();
@@ -2414,11 +2506,11 @@ impl Mdpeek {
         };
         h_flex()
             .w_full()
-            .h(px(42.))
+            .h(px(52.))
             .flex_none()
             .items_center()
-            .gap_2()
-            .px_2()
+            .gap_3()
+            .px_3()
             .border_b_1()
             .border_color(cx.theme().border)
             .bg(cx.theme().title_bar)
@@ -2430,7 +2522,7 @@ impl Mdpeek {
                     .px_1()
                     .child(
                         div()
-                            .size(px(28.))
+                            .size(px(32.))
                             .flex_none()
                             .rounded(cx.theme().radius * 0.75)
                             .overflow_hidden()
@@ -2439,7 +2531,7 @@ impl Mdpeek {
                     .when(width >= px(680.), |this| {
                         this.child(
                             div()
-                                .text_sm()
+                                .text_base()
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .child("Mdpeek"),
                         )
@@ -2457,8 +2549,12 @@ impl Mdpeek {
                 Button::new("workspace-quick-open")
                     .outline()
                     .small()
+                    .rounded_full()
+                    .bg(cx.theme().muted)
+                    .border_color(cx.theme().transparent)
+                    .text_color(cx.theme().muted_foreground)
                     .when(width >= px(520.), |button| {
-                        button.w((width * 0.24).clamp(px(150.), px(280.)))
+                        button.w((width * 0.26).clamp(px(190.), px(340.)))
                     })
                     .icon(IconName::Search)
                     .tooltip_with_action("Quick Open", &QuickOpen, None)
@@ -2487,10 +2583,14 @@ impl Mdpeek {
                     .flex_none()
                     .items_center()
                     .gap_0p5()
+                    .p_0p5()
+                    .rounded_full()
+                    .bg(cx.theme().muted)
                     .child(
                         Button::new("workspace-explorer")
                             .ghost()
                             .small()
+                            .rounded_full()
                             .selected(self.sidebar_visible)
                             .icon(IconName::PanelLeft)
                             .tooltip_with_action("Toggle explorer", &ToggleSidebar, None)
@@ -2500,6 +2600,7 @@ impl Mdpeek {
                         Button::new("workspace-theme")
                             .ghost()
                             .small()
+                            .rounded_full()
                             .icon(if dark { IconName::Sun } else { IconName::Moon })
                             .tooltip(if dark {
                                 "Switch to light theme"
@@ -2512,6 +2613,7 @@ impl Mdpeek {
                         Button::new("workspace-commands")
                             .ghost()
                             .small()
+                            .rounded_full()
                             .icon(IconName::SquareTerminal)
                             .tooltip_with_action("Command palette", &CommandPalette, None)
                             .on_click(cx.listener(|this, _, window, cx| {
@@ -2525,7 +2627,8 @@ impl Mdpeek {
         let warning = cx.theme().warning;
         TabBar::new("documents")
             .w_full()
-            .folder()
+            .small()
+            .pill()
             .menu(true)
             .max_width(px(220.))
             .selected_index(self.active)
@@ -2588,7 +2691,7 @@ impl Mdpeek {
             .to_string();
 
         v_flex()
-            .w((width * 0.32).clamp(px(96.), px(238.)))
+            .w((width * 0.26).clamp(px(190.), px(280.)))
             .flex_none()
             .min_h_0()
             .h_full()
@@ -2598,10 +2701,10 @@ impl Mdpeek {
             .text_color(cx.theme().sidebar_foreground)
             .child(
                 h_flex()
-                    .h_10()
-                    .gap_1()
+                    .h_12()
+                    .gap_2()
                     .flex_none()
-                    .px_3()
+                    .px_4()
                     .items_center()
                     .justify_between()
                     .border_b_1()
@@ -2613,12 +2716,13 @@ impl Mdpeek {
                             .child(
                                 div()
                                     .text_xs()
+                                    .font_weight(FontWeight::SEMIBOLD)
                                     .text_color(cx.theme().muted_foreground)
-                                    .child("Explorer"),
+                                    .child("EXPLORER"),
                             )
                             .child(
                                 div()
-                                    .text_sm()
+                                    .text_base()
                                     .font_weight(FontWeight::SEMIBOLD)
                                     .truncate()
                                     .child(title),
@@ -2642,12 +2746,40 @@ impl Mdpeek {
                     .child(self.render_file_tree(cx))
                     .into_any_element()
             } else {
-                div()
+                v_flex()
                     .flex_1()
-                    .p_3()
-                    .text_sm()
-                    .text_color(cx.theme().muted_foreground)
-                    .child("Open a folder to browse its files.")
+                    .items_center()
+                    .justify_center()
+                    .gap_3()
+                    .p_5()
+                    .child(
+                        Icon::new(IconName::FolderOpen)
+                            .large()
+                            .text_color(cx.theme().muted_foreground),
+                    )
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(FontWeight::MEDIUM)
+                            .child("No folder open"),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(cx.theme().muted_foreground)
+                            .text_center()
+                            .child("Open a folder to browse its Markdown files."),
+                    )
+                    .child(
+                        Button::new("sidebar-open-folder-empty")
+                            .outline()
+                            .small()
+                            .rounded_full()
+                            .label("Open Folder")
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.open_folder_action(window, cx);
+                            })),
+                    )
                     .into_any_element()
             })
             .child(self.render_outline(cx))
@@ -2672,7 +2804,7 @@ impl Mdpeek {
                     ListItem::new(index)
                         .w_full()
                         .rounded(cx.theme().radius)
-                        .py_1()
+                        .py_2()
                         .px_2()
                         .pl(px(12.) * entry.depth().min(5) + px(6.))
                         .child(
@@ -2799,16 +2931,16 @@ impl Mdpeek {
                     .child(
                         v_flex()
                             .w_full()
-                            .max_w(px(620.))
+                            .max_w(px(760.))
                             .items_center()
-                            .gap_6()
+                            .gap_8()
                             .child(
                                 v_flex()
                                     .items_center()
                                     .gap_3()
                                     .child(
                                         div()
-                                            .size(px(64.))
+                                            .size(px(72.))
                                             .rounded(cx.theme().radius_lg)
                                             .overflow_hidden()
                                             .shadow_md()
@@ -2820,7 +2952,7 @@ impl Mdpeek {
                                             .gap_2()
                                             .child(
                                                 div()
-                                                    .text_3xl()
+                                                    .text_size(px(36.))
                                                     .font_weight(FontWeight::BOLD)
                                                     .line_height(relative(1.))
                                                     .child("mdpeek"),
@@ -2840,7 +2972,7 @@ impl Mdpeek {
                                     )
                                     .child(
                                         div()
-                                            .text_sm()
+                                            .text_base()
                                             .text_color(muted)
                                             .child("Featherlight Markdown viewer and editor"),
                                     ),
@@ -2851,112 +2983,43 @@ impl Mdpeek {
                                     .justify_center()
                                     .gap_3()
                                     .flex_wrap()
-                                    .child(
-                                        Button::new("welcome-open")
-                                            .primary()
-                                            .large()
-                                            .w(px(220.))
-                                            .h(px(64.))
-                                            .accessibility_label("Open file, Control O")
-                                            .on_click(cx.listener(|this, _, window, cx| {
-                                                this.open_file_action(window, cx)
-                                            }))
-                                            .child(
-                                                h_flex()
-                                                    .flex_1()
-                                                    .min_w_0()
-                                                    .items_center()
-                                                    .gap_3()
-                                                    .child(
-                                                        Icon::new(IconName::FolderOpen)
-                                                            .small()
-                                                            .flex_none(),
-                                                    )
-                                                    .child(
-                                                        v_flex()
-                                                            .min_w_0()
-                                                            .flex_1()
-                                                            .text_left()
-                                                            .child(
-                                                                div()
-                                                                    .text_sm()
-                                                                    .font_weight(
-                                                                        FontWeight::SEMIBOLD,
-                                                                    )
-                                                                    .child("Open File"),
-                                                            )
-                                                            .child(
-                                                                div()
-                                                                    .text_xs()
-                                                                    .line_height(relative(1.2))
-                                                                    .child("Browse for a document"),
-                                                            ),
-                                                    )
-                                                    .child(
-                                                        div().text_xs().flex_none().child("Ctrl+O"),
-                                                    ),
-                                            ),
-                                    )
-                                    .child(
-                                        Button::new("welcome-new")
-                                            .outline()
-                                            .large()
-                                            .w(px(220.))
-                                            .h(px(64.))
-                                            .accessibility_label("New document, Control N")
-                                            .on_click(cx.listener(|this, _, window, cx| {
-                                                this.new_tab(window, cx)
-                                            }))
-                                            .child(
-                                                h_flex()
-                                                    .flex_1()
-                                                    .min_w_0()
-                                                    .items_center()
-                                                    .gap_3()
-                                                    .child(
-                                                        Icon::new(IconName::Plus)
-                                                            .small()
-                                                            .flex_none(),
-                                                    )
-                                                    .child(
-                                                        v_flex()
-                                                            .min_w_0()
-                                                            .flex_1()
-                                                            .text_left()
-                                                            .child(
-                                                                div()
-                                                                    .text_sm()
-                                                                    .font_weight(
-                                                                        FontWeight::SEMIBOLD,
-                                                                    )
-                                                                    .child("New Note"),
-                                                            )
-                                                            .child(
-                                                                div()
-                                                                    .text_xs()
-                                                                    .text_color(muted)
-                                                                    .line_height(relative(1.2))
-                                                                    .child(
-                                                                        "Start writing instantly",
-                                                                    ),
-                                                            ),
-                                                    )
-                                                    .child(
-                                                        div()
-                                                            .text_xs()
-                                                            .text_color(muted)
-                                                            .flex_none()
-                                                            .child("Ctrl+N"),
-                                                    ),
-                                            ),
-                                    ),
+                                    .child(welcome_action_button(
+                                        "welcome-open",
+                                        IconName::FileText,
+                                        "Open File",
+                                        "Browse for a document",
+                                        "Ctrl+O",
+                                        true,
+                                        WelcomeAction::OpenFile,
+                                        cx,
+                                    ))
+                                    .child(welcome_action_button(
+                                        "welcome-new",
+                                        IconName::Plus,
+                                        "New Note",
+                                        "Start writing instantly",
+                                        "Ctrl+N",
+                                        false,
+                                        WelcomeAction::NewNote,
+                                        cx,
+                                    ))
+                                    .child(welcome_action_button(
+                                        "welcome-folder",
+                                        IconName::FolderOpen,
+                                        "Open Folder",
+                                        "Browse a workspace",
+                                        "Ctrl+Shift+E",
+                                        false,
+                                        WelcomeAction::OpenFolder,
+                                        cx,
+                                    )),
                             )
                             .child(
                                 v_flex()
                                     .w_full()
-                                    .max_w(px(520.))
+                                    .max_w(px(720.))
                                     .gap_2()
-                                    .p_4()
+                                    .p_5()
                                     .border_1()
                                     .border_color(cx.theme().border)
                                     .rounded(cx.theme().radius_lg)
@@ -3006,8 +3069,8 @@ impl Mdpeek {
                                         Button::new(("recent-file", index))
                                             .ghost()
                                             .w_full()
-                                            .h(px(48.))
-                                            .px_2()
+                                            .h(px(56.))
+                                            .px_3()
                                             .accessibility_label(title.clone())
                                             .child(
                                                 h_flex()
@@ -3201,19 +3264,89 @@ fn apply_brand_theme(cx: &mut App) {
         } else {
             hsla(0.575, 0.95, 0.36, 1.0)
         };
-        theme.colors.primary = primary;
-        theme.colors.primary_hover = primary_hover;
-        theme.colors.primary_active = primary_active;
-        theme.colors.button_primary = primary;
-        theme.colors.button_primary_hover = primary_hover;
-        theme.colors.button_primary_active = primary_active;
-        theme.colors.link = primary;
-        theme.colors.link_hover = primary_hover;
-        theme.colors.link_active = primary_active;
-        theme.colors.caret = primary;
-        theme.colors.ring = primary;
-        theme.colors.drag_border = primary;
-        theme.colors.list_active_border = primary;
+        let colors = &mut theme.colors;
+        if dark {
+            colors.background = hsla(0.619, 0.49, 0.08, 1.0);
+            colors.foreground = hsla(0.591, 0.48, 0.91, 1.0);
+            colors.border = hsla(0.593, 0.31, 0.22, 1.0);
+            colors.muted = hsla(0.603, 0.33, 0.17, 1.0);
+            colors.muted_foreground = hsla(0.597, 0.2, 0.65, 1.0);
+            colors.accent = hsla(0.598, 0.6, 0.23, 1.0);
+            colors.accent_foreground = hsla(0.588, 0.96, 0.78, 1.0);
+            colors.secondary = hsla(0.603, 0.33, 0.17, 1.0);
+            colors.secondary_hover = hsla(0.599, 0.37, 0.2, 1.0);
+            colors.secondary_active = hsla(0.598, 0.25, 0.27, 1.0);
+            colors.secondary_foreground = colors.foreground;
+            colors.group_box = hsla(0.609, 0.4, 0.14, 1.0);
+            colors.group_box_foreground = colors.foreground;
+            colors.sidebar = hsla(0.614, 0.39, 0.11, 1.0);
+            colors.sidebar_border = colors.border;
+            colors.sidebar_foreground = colors.foreground;
+            colors.sidebar_accent = hsla(0.598, 0.6, 0.23, 1.0);
+            colors.sidebar_accent_foreground = colors.accent_foreground;
+            colors.sidebar_primary = primary;
+            colors.sidebar_primary_foreground = hsla(0.0, 0.0, 1.0, 1.0);
+            colors.title_bar = hsla(0.609, 0.42, 0.11, 1.0);
+            colors.status_bar = colors.title_bar;
+            colors.tab_bar = colors.title_bar;
+            colors.tab_bar_segmented = colors.muted;
+            colors.tab_active = colors.background;
+            colors.tab_active_foreground = colors.foreground;
+            colors.tab_foreground = colors.muted_foreground;
+        } else {
+            colors.background = hsla(0.583, 0.4, 0.98, 1.0);
+            colors.foreground = hsla(0.617, 0.47, 0.11, 1.0);
+            colors.border = hsla(0.595, 0.32, 0.91, 1.0);
+            colors.muted = hsla(0.583, 0.4, 0.96, 1.0);
+            colors.muted_foreground = hsla(0.598, 0.16, 0.47, 1.0);
+            colors.accent = hsla(0.567, 0.94, 0.94, 1.0);
+            colors.accent_foreground = hsla(0.623, 0.76, 0.48, 1.0);
+            colors.secondary = hsla(0.595, 0.32, 0.91, 1.0);
+            colors.secondary_hover = hsla(0.59, 0.39, 0.94, 1.0);
+            colors.secondary_active = hsla(0.591, 0.27, 0.84, 1.0);
+            colors.secondary_foreground = colors.foreground;
+            colors.group_box = hsla(0.0, 0.0, 1.0, 1.0);
+            colors.group_box_foreground = colors.foreground;
+            colors.sidebar = hsla(0.583, 0.4, 0.98, 1.0);
+            colors.sidebar_border = colors.border;
+            colors.sidebar_foreground = colors.foreground;
+            colors.sidebar_accent = hsla(0.567, 0.94, 0.94, 1.0);
+            colors.sidebar_accent_foreground = colors.accent_foreground;
+            colors.sidebar_primary = primary;
+            colors.sidebar_primary_foreground = hsla(0.0, 0.0, 1.0, 1.0);
+            colors.title_bar = hsla(0.593, 0.36, 0.95, 1.0);
+            colors.status_bar = colors.title_bar;
+            colors.tab_bar = colors.title_bar;
+            colors.tab_bar_segmented = colors.muted;
+            colors.tab_active = colors.background;
+            colors.tab_active_foreground = colors.foreground;
+            colors.tab_foreground = colors.muted_foreground;
+        }
+        colors.title_bar_border = colors.border;
+        colors.status_bar_border = colors.border;
+        colors.button = colors.group_box;
+        colors.button_hover = colors.secondary_hover;
+        colors.button_active = colors.secondary_active;
+        colors.button_foreground = colors.foreground;
+        colors.button_secondary = colors.secondary;
+        colors.button_secondary_hover = colors.secondary_hover;
+        colors.button_secondary_active = colors.secondary_active;
+        colors.button_secondary_foreground = colors.secondary_foreground;
+        colors.primary = primary;
+        colors.primary_hover = primary_hover;
+        colors.primary_active = primary_active;
+        colors.primary_foreground = hsla(0.0, 0.0, 1.0, 1.0);
+        colors.button_primary = primary;
+        colors.button_primary_hover = primary_hover;
+        colors.button_primary_active = primary_active;
+        colors.button_primary_foreground = colors.primary_foreground;
+        colors.link = primary;
+        colors.link_hover = primary_hover;
+        colors.link_active = primary_active;
+        colors.caret = primary;
+        colors.ring = primary;
+        colors.drag_border = primary;
+        colors.list_active_border = primary;
     });
 }
 
