@@ -2457,6 +2457,7 @@ impl Mdpeek {
                                     .icon(IconName::Close)
                                     .tooltip("Close tab (Ctrl+W)")
                                     .on_click(cx.listener(move |this, _, window, cx| {
+                                        cx.stop_propagation();
                                         this.close_tab(index, window, cx);
                                     })),
                             ),
