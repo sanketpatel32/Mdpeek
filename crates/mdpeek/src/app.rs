@@ -163,7 +163,7 @@ fn welcome_action_button(
     };
     let button = Button::new(id)
         .large()
-        .w(px(260.))
+        .w(px(280.))
         .h(px(76.))
         .accessibility_label(format!("{title}, {shortcut}"))
         .on_click(cx.listener(move |this, _, window, cx| match action {
@@ -2987,7 +2987,7 @@ impl Mdpeek {
                                         "welcome-open",
                                         IconName::FileText,
                                         "Open File",
-                                        "Browse for a document",
+                                        "Browse documents",
                                         "Ctrl+O",
                                         true,
                                         WelcomeAction::OpenFile,
@@ -2997,7 +2997,7 @@ impl Mdpeek {
                                         "welcome-new",
                                         IconName::Plus,
                                         "New Note",
-                                        "Start writing instantly",
+                                        "Start writing",
                                         "Ctrl+N",
                                         false,
                                         WelcomeAction::NewNote,
@@ -3007,7 +3007,7 @@ impl Mdpeek {
                                         "welcome-folder",
                                         IconName::FolderOpen,
                                         "Open Folder",
-                                        "Browse a workspace",
+                                        "Browse workspaces",
                                         "Ctrl+Shift+E",
                                         false,
                                         WelcomeAction::OpenFolder,
