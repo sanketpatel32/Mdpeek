@@ -315,8 +315,15 @@ impl DocumentView {
                 source.get(..source_range.start),
                 source.get(source_range.clone()),
             ) {
-                let start = expand_wiki_links(prefix).len();
-                let end = start + expand_wiki_links(heading).len();
+                let rendered_len = |text: &str| {
+                    if self.kind == DocumentKind::Markdown {
+                        expand_wiki_links(text).len()
+                    } else {
+                        text.len()
+                    }
+                };
+                let start = rendered_len(prefix);
+                let end = start + rendered_len(heading);
                 self.preview.update(cx, |preview, cx| {
                     let rendered = preview.rendered_text();
                     if let Some(range) = rendered.range_for_source(start..end) {
