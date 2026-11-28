@@ -602,10 +602,85 @@ impl Mdpeek {
         if index >= self.documents.len() {
             return;
         }
-        let document = &self.documents[index];
-        if document.read(cx).is_dirty() {
-            let title = document.read(cx).title().to_string();
-            self.set_status(format!("Save {title} before closing it"), cx);
+        if self.documents[index].read(cx).is_dirty() {
+            self.open_close_tab_confirmation(index, window, cx);
+            return;
+        }
+        self.close_tab_unchecked(index, window, cx);
+    }
+
+    fn open_close_tab_confirmation(
+        &mut self,
+        index: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(document) = self.documents.get(index) else {
+            return;
+        };
+        let title = document.read(cx).title().to_string();
+        let owner = cx.weak_entity();
+        window.open_dialog(cx, move |dialog, _, _| {
+            let owner = owner.clone();
+            let title = title.clone();
+            dialog.title("Unsaved changes").w(px(420.)).content(
+                move |content, _window, _cx| {
+                    content.child(
+                        v_flex()
+                            .w_full()
+                            .gap_4()
+                            .p_4()
+                            .child(
+                                v_flex()
+                                    .gap_1()
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .font_weight(FontWeight::SEMIBOLD)
+                                            .child(format!("Close {title}?")),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .child("This document has unsaved changes. Discarding closes it without saving."),
+                                    ),
+                            )
+                            .child(
+                                h_flex()
+                                    .w_full()
+                                    .justify_end()
+                                    .gap_2()
+                                    .child(
+                                        Button::new("cancel-close-tab")
+                                            .outline()
+                                            .label("Cancel")
+                                            .on_click(move |_, window, cx| {
+                                                window.close_dialog(cx);
+                                            }),
+                                    )
+                                    .child(
+                                        Button::new("discard-close-tab")
+                                            .danger()
+                                            .label("Discard")
+                                            .on_click({
+                                                let owner = owner.clone();
+                                                move |_, window, cx| {
+                                                    window.close_dialog(cx);
+                                                    _ = owner.update(cx, |this, cx| {
+                                                        this.close_tab_unchecked(index, window, cx);
+                                                    });
+                                                }
+                                            }),
+                                    ),
+                            ),
+                    )
+                },
+            )
+        });
+    }
+
+    fn close_tab_unchecked(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
+        if index >= self.documents.len() {
             return;
         }
         let document = self.documents.remove(index);
