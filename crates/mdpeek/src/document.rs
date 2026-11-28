@@ -6,8 +6,9 @@ use std::{
     time::SystemTime,
 };
 
+use gpui_kit::assets::IconName;
 use gpui_kit::component::{
-    ActiveTheme as _, ElementExt as _, IconName, Selectable as _, Sizable as _, WindowExt as _,
+    ActiveTheme as _, ElementExt as _, Selectable as _, Sizable as _, WindowExt as _,
     button::{Button, ButtonVariants as _},
     clipboard::Clipboard,
     h_flex,
@@ -656,16 +657,17 @@ impl DocumentView {
 
     fn format_button(
         id: &'static str,
-        label: &'static str,
+        icon: IconName,
         tooltip: &'static str,
         operation: FormatOperation,
         cx: &mut Context<Self>,
     ) -> Button {
         Button::new(id)
             .ghost()
-            .xsmall()
-            .label(label)
+            .small()
+            .icon(icon)
             .tooltip(tooltip)
+            .accessibility_label(tooltip)
             .on_click(cx.listener(move |this, _, window, cx| {
                 this.apply_formatting(operation, window, cx);
             }))
@@ -687,8 +689,8 @@ impl DocumentView {
         h_flex()
             .w_full()
             .flex_none()
-            .min_h(px(36.))
-            .px_2()
+            .min_h(px(44.))
+            .px_3()
             .gap_2()
             .items_center()
             .justify_between()
@@ -706,49 +708,49 @@ impl DocumentView {
                         |this| {
                             this.child(Self::format_button(
                                 "fmt-bold",
-                                "B",
+                                IconName::Bold,
                                 "Bold",
                                 FormatOperation::Bold,
                                 cx,
                             ))
                             .child(Self::format_button(
                                 "fmt-italic",
-                                "I",
+                                IconName::Italic,
                                 "Italic",
                                 FormatOperation::Italic,
                                 cx,
                             ))
                             .child(Self::format_button(
                                 "fmt-strike",
-                                "S",
+                                IconName::Strikethrough,
                                 "Strikethrough",
                                 FormatOperation::Strikethrough,
                                 cx,
                             ))
                             .child(Self::format_button(
                                 "fmt-code",
-                                "<>",
+                                IconName::Code,
                                 "Inline code",
                                 FormatOperation::InlineCode,
                                 cx,
                             ))
                             .child(Self::format_button(
                                 "fmt-link",
-                                "Link",
+                                IconName::Link,
                                 "Insert link",
                                 FormatOperation::Link,
                                 cx,
                             ))
                             .child(Self::format_button(
                                 "fmt-ul",
-                                "• List",
+                                IconName::List,
                                 "Bulleted list",
                                 FormatOperation::BulletList,
                                 cx,
                             ))
                             .child(Self::format_button(
                                 "fmt-table",
-                                "Table",
+                                IconName::Table,
                                 "Insert table",
                                 FormatOperation::Table,
                                 cx,
@@ -756,35 +758,35 @@ impl DocumentView {
                             .when(!compact, |this| {
                                 this.child(Self::format_button(
                                     "fmt-ol",
-                                    "1. List",
+                                    IconName::ListOrdered,
                                     "Numbered list",
                                     FormatOperation::OrderedList,
                                     cx,
                                 ))
                                 .child(Self::format_button(
                                     "fmt-task",
-                                    "Task",
+                                    IconName::ListTodo,
                                     "Task list",
                                     FormatOperation::TaskList,
                                     cx,
                                 ))
                                 .child(Self::format_button(
                                     "fmt-quote",
-                                    "Quote",
+                                    IconName::Quote,
                                     "Blockquote",
                                     FormatOperation::Quote,
                                     cx,
                                 ))
                                 .child(Self::format_button(
                                     "fmt-fence",
-                                    "{ }",
+                                    IconName::SquareCode,
                                     "Code block",
                                     FormatOperation::CodeBlock,
                                     cx,
                                 ))
                                 .child(Self::format_button(
                                     "fmt-hr",
-                                    "HR",
+                                    IconName::Minus,
                                     "Horizontal rule",
                                     FormatOperation::HorizontalRule,
                                     cx,
@@ -858,7 +860,7 @@ impl DocumentView {
                 h_flex()
                     .gap_2()
                     .items_center()
-                    .child(h_flex().gap_0p5().p_0p5().rounded_md().when(
+                    .child(h_flex().gap_0p5().p_0p5().rounded_full().when(
                         self.kind.is_text_editable(),
                         |this| {
                             this.bg(cx.theme().muted).children(
@@ -867,7 +869,8 @@ impl DocumentView {
                                     .map(|mode| {
                                         Button::new(mode.label())
                                             .ghost()
-                                            .xsmall()
+                                            .small()
+                                            .rounded_full()
                                             .selected(self.mode == mode)
                                             .label(mode.label())
                                             .on_click(cx.listener(move |this, _, window, cx| {
@@ -885,11 +888,15 @@ impl DocumentView {
                     .child(
                         h_flex()
                             .gap_0p5()
+                            .p_0p5()
+                            .rounded_full()
+                            .bg(cx.theme().muted)
                             .child(
                                 Button::new("zoom-out")
                                     .ghost()
-                                    .xsmall()
-                                    .label("−")
+                                    .small()
+                                    .rounded_full()
+                                    .icon(IconName::ZoomOut)
                                     .tooltip("Zoom out")
                                     .on_click(cx.listener(|this, _, _, cx| {
                                         this.preview_zoom = (this.preview_zoom - 0.25).max(0.5);
@@ -900,7 +907,8 @@ impl DocumentView {
                                 this.child(
                                     Button::new("zoom-reset")
                                         .ghost()
-                                        .xsmall()
+                                        .small()
+                                        .rounded_full()
                                         .label(format!("{:.0}%", self.preview_zoom * 100.0))
                                         .tooltip("Reset zoom to 100%")
                                         .on_click(cx.listener(|this, _, _, cx| {
@@ -912,8 +920,9 @@ impl DocumentView {
                             .child(
                                 Button::new("zoom-in")
                                     .ghost()
-                                    .xsmall()
-                                    .label("+")
+                                    .small()
+                                    .rounded_full()
+                                    .icon(IconName::ZoomIn)
                                     .tooltip("Zoom in")
                                     .on_click(cx.listener(|this, _, _, cx| {
                                         this.preview_zoom = (this.preview_zoom + 0.25).min(4.0);
@@ -928,9 +937,9 @@ impl DocumentView {
         div().size_full().child(
             Editor::new(&self.editor)
                 .h(relative(1.))
-                .text_size(px(14.))
-                .line_height(relative(1.55))
-                .p_0()
+                .text_size(px(15.))
+                .line_height(relative(1.6))
+                .p_2()
                 .border_0(),
         )
     }
@@ -964,7 +973,7 @@ impl DocumentView {
                     body * scale
                 });
         }
-        div().size_full().child(
+        div().size_full().px_5().py_4().child(
             TextView::new(&self.preview)
                 .style(style)
                 .image_source({
@@ -1200,14 +1209,14 @@ impl DocumentView {
         h_flex()
             .flex_none()
             .w_full()
-            .h_7()
+            .h_8()
             .gap_3()
             .px_3()
             .text_xs()
             .text_color(cx.theme().muted_foreground)
-            .bg(cx.theme().title_bar)
+            .bg(cx.theme().status_bar)
             .border_t_1()
-            .border_color(cx.theme().border)
+            .border_color(cx.theme().status_bar_border)
             .child(div().flex_1().min_w_0().truncate().child(path))
             .when_some(
                 self.owner.clone().filter(|_| self.path.is_some()),

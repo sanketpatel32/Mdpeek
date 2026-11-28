@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Include underlined Markdown headings in the outline and scroll to headings without leaving Preview.
 - Add a Copy file path button to the document status bar.
 - Make welcome-screen recent files keyboard-accessible and shorten their folder labels within the workspace.
+- Rebuild application chrome around an integrated custom title bar, modern slate/blue surfaces, pill tabs, and compact workspace controls.
+- Redesign the welcome screen with a layered backdrop, branded action cards, a recent-files panel, and visible keyboard shortcuts.
+- Modernize the document toolbar with icon controls, roomier editor/preview typography, and direct tab close buttons.
 
 ### Added
 - Added freehand image annotation with color/size controls and non-destructive annotated PNG export.
