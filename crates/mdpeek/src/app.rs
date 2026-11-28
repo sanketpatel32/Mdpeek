@@ -320,6 +320,7 @@ impl Mdpeek {
             ThemeMode::Light
         };
         Theme::change(mode, None, cx);
+        apply_brand_theme(cx);
         if let Some(root) = session.root_dir.filter(|root| root.is_dir()) {
             this.open_folder(root, cx);
             this.sidebar_visible = session.sidebar_visible;
@@ -998,6 +999,7 @@ impl Mdpeek {
             ThemeMode::Dark
         };
         Theme::change(next, None, cx);
+        apply_brand_theme(cx);
         self.persist(cx);
         cx.notify();
     }
@@ -2295,41 +2297,85 @@ impl Mdpeek {
 
     fn render_header(&self, width: Pixels, cx: &mut Context<Self>) -> impl IntoElement {
         let dark = cx.theme().is_dark();
+        let document_tabs = if self.documents.is_empty() {
+            None
+        } else {
+            Some(self.render_tab_bar(cx))
+        };
         h_flex()
             .w_full()
-            .h_12()
+            .h(px(42.))
             .flex_none()
+            .items_center()
             .gap_2()
-            .px_3()
+            .px_2()
             .border_b_1()
             .border_color(cx.theme().border)
             .bg(cx.theme().title_bar)
             .child(
                 h_flex()
                     .gap_2()
-                    .flex_1()
-                    .min_w_0()
-                    .overflow_hidden()
-                    .child(img(LOGO.clone()).size_5().flex_none())
+                    .flex_none()
+                    .items_center()
+                    .px_1()
                     .child(
                         div()
-                            .text_base()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .truncate()
-                            .child("Mdpeek"),
-                    ),
+                            .size(px(28.))
+                            .flex_none()
+                            .rounded(cx.theme().radius * 0.75)
+                            .overflow_hidden()
+                            .child(img(LOGO.clone()).size_full()),
+                    )
+                    .when(width >= px(680.), |this| {
+                        this.child(
+                            div()
+                                .text_sm()
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .child("Mdpeek"),
+                        )
+                    }),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .h_full()
+                    .overflow_hidden()
+                    .when_some(document_tabs, |this, tabs| this.child(tabs)),
             )
             .child(
                 Button::new("workspace-quick-open")
                     .outline()
                     .small()
+                    .when(width >= px(520.), |button| {
+                        button.w((width * 0.24).clamp(px(150.), px(280.)))
+                    })
                     .icon(IconName::Search)
-                    .when(width >= px(350.), |button| button.label("Quick Open"))
-                    .tooltip("Quick Open (Ctrl+P)")
-                    .on_click(cx.listener(|this, _, window, cx| this.open_quick_open(window, cx))),
+                    .tooltip_with_action("Quick Open", &QuickOpen, None)
+                    .on_click(cx.listener(|this, _, window, cx| this.open_quick_open(window, cx)))
+                    .when(width >= px(520.), |button| {
+                        button.child(
+                            h_flex()
+                                .flex_1()
+                                .min_w_0()
+                                .items_center()
+                                .justify_between()
+                                .child(div().min_w_0().truncate().child("Quick Open"))
+                                .when(width >= px(700.), |this| {
+                                    this.child(
+                                        div()
+                                            .text_xs()
+                                            .text_color(cx.theme().muted_foreground)
+                                            .child("Ctrl+P"),
+                                    )
+                                }),
+                        )
+                    }),
             )
             .child(
                 h_flex()
+                    .flex_none()
+                    .items_center()
                     .gap_0p5()
                     .child(
                         Button::new("workspace-explorer")
@@ -2337,7 +2383,7 @@ impl Mdpeek {
                             .small()
                             .selected(self.sidebar_visible)
                             .icon(IconName::PanelLeft)
-                            .tooltip("Toggle explorer (Ctrl+B)")
+                            .tooltip_with_action("Toggle explorer", &ToggleSidebar, None)
                             .on_click(cx.listener(|this, _, _, cx| this.toggle_sidebar(cx))),
                     )
                     .child(
@@ -2357,7 +2403,7 @@ impl Mdpeek {
                             .ghost()
                             .small()
                             .icon(IconName::SquareTerminal)
-                            .tooltip("Command palette (Ctrl+Alt+P)")
+                            .tooltip_with_action("Command palette", &CommandPalette, None)
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.open_command_palette(window, cx)
                             })),
@@ -2365,54 +2411,59 @@ impl Mdpeek {
             )
     }
 
-    fn render_tab_bar(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_tab_bar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let warning = cx.theme().warning;
-        div()
+        TabBar::new("documents")
             .w_full()
-            .flex_none()
-            .px_2()
-            .border_b_1()
-            .border_color(cx.theme().border)
-            .bg(cx.theme().title_bar)
-            .child(
-                TabBar::new("documents")
-                    .w_full()
-                    .underline()
-                    .menu(true)
-                    .selected_index(self.active)
-                    .on_click(cx.listener(|this, index: &usize, window, cx| {
-                        this.select_tab(*index, window, cx);
-                    }))
-                    .children(self.documents.iter().map(|document| {
-                        let document = document.read(cx);
-                        let title = document.title();
-                        let dirty = document.is_dirty();
-                        Tab::new()
-                            .px_3()
-                            .gap_2()
-                            .max_w(px(200.))
-                            .aria_label(if dirty {
-                                format!("{title}, modified")
-                            } else {
-                                title.to_string()
-                            })
-                            .label(title)
-                            .suffix(
-                                div()
-                                    .size(px(6.))
-                                    .rounded_full()
-                                    .when(dirty, |dot| dot.bg(warning)),
-                            )
-                    }))
+            .folder()
+            .menu(true)
+            .max_width(px(220.))
+            .selected_index(self.active)
+            .on_click(cx.listener(|this, index: &usize, window, cx| {
+                this.select_tab(*index, window, cx);
+            }))
+            .children(self.documents.iter().enumerate().map(|(index, document)| {
+                let document = document.read(cx);
+                let title = document.title();
+                let dirty = document.is_dirty();
+                Tab::new()
+                    .px_3()
+                    .gap_2()
+                    .max_w(px(200.))
+                    .aria_label(if dirty {
+                        format!("{title}, modified")
+                    } else {
+                        title.to_string()
+                    })
+                    .label(title)
                     .suffix(
-                        Button::new("new-tab")
-                            .ghost()
-                            .xsmall()
-                            .mx_1()
-                            .icon(IconName::Plus)
-                            .tooltip("New tab (Ctrl+N)")
-                            .on_click(cx.listener(|this, _, window, cx| this.new_tab(window, cx))),
-                    ),
+                        h_flex()
+                            .items_center()
+                            .gap_1()
+                            .when(dirty, |this| {
+                                this.child(div().size(px(6.)).rounded_full().bg(warning))
+                            })
+                            .child(
+                                Button::new(format!("close-tab-{index}"))
+                                    .ghost()
+                                    .xsmall()
+                                    .compact()
+                                    .icon(IconName::Close)
+                                    .tooltip("Close tab (Ctrl+W)")
+                                    .on_click(cx.listener(move |this, _, window, cx| {
+                                        this.close_tab(index, window, cx);
+                                    })),
+                            ),
+                    )
+            }))
+            .suffix(
+                Button::new("new-tab")
+                    .ghost()
+                    .xsmall()
+                    .mx_1()
+                    .icon(IconName::Plus)
+                    .tooltip_with_action("New tab", &NewTab, None)
+                    .on_click(cx.listener(|this, _, window, cx| this.new_tab(window, cx))),
             )
     }
 
@@ -2619,119 +2670,254 @@ impl Mdpeek {
             .recent_paths
             .iter()
             .filter(|path| path.is_file())
-            .take(8);
+            .take(5);
         let muted = cx.theme().muted_foreground;
+        let version = env!("CARGO_PKG_VERSION");
         div()
             .id("welcome")
             .size_full()
             .overflow_y_scroll()
-            .px_4()
+            .px_6()
             .py_8()
             .child(
-                v_flex()
-                    .mx_auto()
-                    .max_w(px(446.))
-                    .gap_5()
-                    .child(
-                        v_flex()
-                            .items_start()
-                            .gap_2()
-                            .child(img(LOGO.clone()).size(px(48.)))
-                            .child(
-                                div()
-                                    .text_2xl()
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .child("Start reading or writing"),
-                            ),
-                    )
-                    .child(
-                        h_flex()
-                            .gap_2()
-                            .flex_wrap()
-                            .child(
-                                Button::new("welcome-open")
-                                    .primary()
-                                    .small()
-                                    .icon(IconName::FolderOpen)
-                                    .label("Open file")
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.open_file_action(window, cx)
-                                    })),
-                            )
-                            .child(
-                                Button::new("welcome-new")
-                                    .outline()
-                                    .small()
-                                    .icon(IconName::Plus)
-                                    .label("New document")
-                                    .on_click(
-                                        cx.listener(|this, _, window, cx| this.new_tab(window, cx)),
-                                    ),
-                            ),
-                    )
-                    .child(
-                        v_flex()
-                            .gap_1()
-                            .child(
-                                div()
-                                    .text_sm()
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .child("Recent files"),
-                            )
-                            .when(
-                                !self.recent_paths.iter().any(|path| path.is_file()),
-                                |section| {
-                                    section.child(
-                                        div()
-                                            .text_sm()
-                                            .text_color(muted)
-                                            .child("Files you open will appear here."),
-                                    )
-                                },
-                            )
-                            .children(recent.enumerate().map(|(index, path)| {
-                                let path = path.clone();
-                                let title = path
-                                    .file_name()
-                                    .unwrap_or_default()
-                                    .to_string_lossy()
-                                    .into_owned();
-                                Button::new(("recent-file", index))
-                                    .ghost()
-                                    .w_full()
-                                    .h(px(52.))
-                                    .px_2()
-                                    .accessibility_label(title.clone())
-                                    .child(
-                                        h_flex()
-                                            .w_full()
-                                            .min_w_0()
-                                            .gap_3()
-                                            .child(
-                                                Icon::new(IconName::FileText)
-                                                    .small()
-                                                    .text_color(muted)
-                                                    .flex_none(),
-                                            )
-                                            .child(
-                                                v_flex()
-                                                    .min_w_0()
-                                                    .text_left()
-                                                    .child(div().truncate().text_sm().child(title))
-                                                    .child(
-                                                        div()
-                                                            .truncate()
-                                                            .text_xs()
-                                                            .text_color(muted)
-                                                            .child(self.recent_parent_label(&path)),
-                                                    ),
-                                            ),
-                                    )
-                                    .on_click(cx.listener(move |this, _, window, cx| {
-                                        this.open_path(path.clone(), window, cx);
-                                    }))
-                            })),
-                    ),
+                v_flex().size_full().items_center().justify_center().child(
+                    v_flex()
+                        .w_full()
+                        .max_w(px(620.))
+                        .items_center()
+                        .gap_6()
+                        .child(
+                            v_flex()
+                                .items_center()
+                                .gap_3()
+                                .child(
+                                    div()
+                                        .size(px(64.))
+                                        .rounded(cx.theme().radius_lg)
+                                        .overflow_hidden()
+                                        .shadow_md()
+                                        .child(img(LOGO.clone()).size_full()),
+                                )
+                                .child(
+                                    h_flex()
+                                        .items_center()
+                                        .gap_2()
+                                        .child(
+                                            div()
+                                                .text_3xl()
+                                                .font_weight(FontWeight::BOLD)
+                                                .line_height(relative(1.))
+                                                .child("mdpeek"),
+                                        )
+                                        .child(
+                                            div()
+                                                .px_2()
+                                                .py_0p5()
+                                                .rounded_full()
+                                                .border_1()
+                                                .border_color(cx.theme().border)
+                                                .bg(cx.theme().secondary)
+                                                .text_xs()
+                                                .text_color(cx.theme().secondary_foreground)
+                                                .child(format!("v{version}")),
+                                        ),
+                                )
+                                .child(
+                                    div()
+                                        .text_sm()
+                                        .text_color(muted)
+                                        .child("Featherlight Markdown viewer and editor"),
+                                ),
+                        )
+                        .child(
+                            h_flex()
+                                .w_full()
+                                .justify_center()
+                                .gap_3()
+                                .flex_wrap()
+                                .child(
+                                    Button::new("welcome-open")
+                                        .primary()
+                                        .large()
+                                        .w(px(220.))
+                                        .h(px(64.))
+                                        .accessibility_label("Open file, Control O")
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.open_file_action(window, cx)
+                                        }))
+                                        .child(
+                                            h_flex()
+                                                .flex_1()
+                                                .min_w_0()
+                                                .items_center()
+                                                .gap_3()
+                                                .child(
+                                                    Icon::new(IconName::FolderOpen)
+                                                        .small()
+                                                        .flex_none(),
+                                                )
+                                                .child(
+                                                    v_flex()
+                                                        .min_w_0()
+                                                        .flex_1()
+                                                        .text_left()
+                                                        .child(
+                                                            div()
+                                                                .text_sm()
+                                                                .font_weight(FontWeight::SEMIBOLD)
+                                                                .child("Open File"),
+                                                        )
+                                                        .child(
+                                                            div()
+                                                                .text_xs()
+                                                                .line_height(relative(1.2))
+                                                                .child("Browse for a document"),
+                                                        ),
+                                                )
+                                                .child(div().text_xs().flex_none().child("Ctrl+O")),
+                                        ),
+                                )
+                                .child(
+                                    Button::new("welcome-new")
+                                        .outline()
+                                        .large()
+                                        .w(px(220.))
+                                        .h(px(64.))
+                                        .accessibility_label("New document, Control N")
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.new_tab(window, cx)
+                                        }))
+                                        .child(
+                                            h_flex()
+                                                .flex_1()
+                                                .min_w_0()
+                                                .items_center()
+                                                .gap_3()
+                                                .child(
+                                                    Icon::new(IconName::Plus).small().flex_none(),
+                                                )
+                                                .child(
+                                                    v_flex()
+                                                        .min_w_0()
+                                                        .flex_1()
+                                                        .text_left()
+                                                        .child(
+                                                            div()
+                                                                .text_sm()
+                                                                .font_weight(FontWeight::SEMIBOLD)
+                                                                .child("New Note"),
+                                                        )
+                                                        .child(
+                                                            div()
+                                                                .text_xs()
+                                                                .text_color(muted)
+                                                                .line_height(relative(1.2))
+                                                                .child("Start writing instantly"),
+                                                        ),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .text_xs()
+                                                        .text_color(muted)
+                                                        .flex_none()
+                                                        .child("Ctrl+N"),
+                                                ),
+                                        ),
+                                ),
+                        )
+                        .child(
+                            v_flex()
+                                .w_full()
+                                .max_w(px(520.))
+                                .gap_2()
+                                .p_4()
+                                .border_1()
+                                .border_color(cx.theme().border)
+                                .rounded(cx.theme().radius_lg)
+                                .bg(cx.theme().group_box)
+                                .child(
+                                    div()
+                                        .text_xs()
+                                        .font_weight(FontWeight::SEMIBOLD)
+                                        .text_color(muted)
+                                        .child("RECENT"),
+                                )
+                                .when(
+                                    !self.recent_paths.iter().any(|path| path.is_file()),
+                                    |section| {
+                                        section.child(
+                                            v_flex()
+                                                .items_center()
+                                                .gap_2()
+                                                .py_6()
+                                                .child(
+                                                    Icon::new(IconName::FileText)
+                                                        .large()
+                                                        .text_color(muted),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .text_sm()
+                                                        .font_weight(FontWeight::MEDIUM)
+                                                        .child("No recent files"),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .text_xs()
+                                                        .text_color(muted)
+                                                        .child("Opened files will appear here"),
+                                                ),
+                                        )
+                                    },
+                                )
+                                .children(recent.enumerate().map(|(index, path)| {
+                                    let path = path.clone();
+                                    let title = path
+                                        .file_name()
+                                        .unwrap_or_default()
+                                        .to_string_lossy()
+                                        .into_owned();
+                                    Button::new(("recent-file", index))
+                                        .ghost()
+                                        .w_full()
+                                        .h(px(48.))
+                                        .px_2()
+                                        .accessibility_label(title.clone())
+                                        .child(
+                                            h_flex()
+                                                .w_full()
+                                                .min_w_0()
+                                                .gap_3()
+                                                .child(
+                                                    Icon::new(IconName::FileText)
+                                                        .small()
+                                                        .text_color(muted)
+                                                        .flex_none(),
+                                                )
+                                                .child(
+                                                    v_flex()
+                                                        .min_w_0()
+                                                        .text_left()
+                                                        .child(
+                                                            div().truncate().text_sm().child(title),
+                                                        )
+                                                        .child(
+                                                            div()
+                                                                .truncate()
+                                                                .text_xs()
+                                                                .text_color(muted)
+                                                                .child(
+                                                                    self.recent_parent_label(&path),
+                                                                ),
+                                                        ),
+                                                ),
+                                        )
+                                        .on_click(cx.listener(move |this, _, window, cx| {
+                                            this.open_path(path.clone(), window, cx);
+                                        }))
+                                })),
+                        ),
+                ),
             )
     }
 
@@ -2864,6 +3050,40 @@ fn write_browser_preview(html: &str) -> std::io::Result<PathBuf> {
         std::io::ErrorKind::AlreadyExists,
         "could not allocate a private browser preview directory",
     ))
+}
+
+fn apply_brand_theme(cx: &mut App) {
+    Theme::update(cx, |theme| {
+        let dark = theme.mode.is_dark();
+        let primary = if dark {
+            hsla(0.575, 0.9, 0.56, 1.0)
+        } else {
+            hsla(0.575, 0.95, 0.42, 1.0)
+        };
+        let primary_hover = if dark {
+            hsla(0.575, 0.9, 0.62, 1.0)
+        } else {
+            hsla(0.575, 0.95, 0.48, 1.0)
+        };
+        let primary_active = if dark {
+            hsla(0.575, 0.9, 0.5, 1.0)
+        } else {
+            hsla(0.575, 0.95, 0.36, 1.0)
+        };
+        theme.colors.primary = primary;
+        theme.colors.primary_hover = primary_hover;
+        theme.colors.primary_active = primary_active;
+        theme.colors.button_primary = primary;
+        theme.colors.button_primary_hover = primary_hover;
+        theme.colors.button_primary_active = primary_active;
+        theme.colors.link = primary;
+        theme.colors.link_hover = primary_hover;
+        theme.colors.link_active = primary_active;
+        theme.colors.caret = primary;
+        theme.colors.ring = primary;
+        theme.colors.drag_border = primary;
+        theme.colors.list_active_border = primary;
+    });
 }
 
 impl Focusable for Mdpeek {
@@ -3103,9 +3323,6 @@ impl Render for Mdpeek {
             .child(gpui_kit::base::TextSelectionLayer)
             .when(!self.reading_mode, |this| {
                 this.child(self.render_header(width, cx))
-            })
-            .when(!self.documents.is_empty() && !self.reading_mode, |this| {
-                this.child(self.render_tab_bar(cx))
             })
             .child(
                 h_flex()
