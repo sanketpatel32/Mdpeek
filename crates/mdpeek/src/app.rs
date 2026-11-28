@@ -3348,6 +3348,7 @@ fn apply_brand_theme(cx: &mut App) {
         }
         colors.title_bar_border = colors.border;
         colors.status_bar_border = colors.border;
+        colors.input = colors.group_box;
         colors.button = colors.group_box;
         colors.button_hover = colors.secondary_hover;
         colors.button_active = colors.secondary_active;
