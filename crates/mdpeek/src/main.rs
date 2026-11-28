@@ -92,7 +92,7 @@ fn main() {
                 })
                 .collect::<Vec<_>>();
             let mut options = WindowOptions {
-                window_min_size: Some(size(px(300.), px(260.))),
+                window_min_size: Some(size(px(640.), px(480.))),
                 ..gpui_kit::component::TitleBar::window_options()
             };
             if let Some(titlebar) = options.titlebar.as_mut() {
