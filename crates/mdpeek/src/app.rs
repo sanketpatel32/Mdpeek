@@ -2920,8 +2920,31 @@ impl Mdpeek {
             .id("welcome")
             .size_full()
             .overflow_y_scroll()
+            .bg(linear_gradient(
+                180.,
+                linear_color_stop(cx.theme().group_box, 0.),
+                linear_color_stop(cx.theme().background, 1.),
+            ))
             .px_6()
             .py_8()
+            .child(
+                div()
+                    .absolute()
+                    .top(px(-140.))
+                    .right(px(-120.))
+                    .size(px(360.))
+                    .rounded_full()
+                    .bg(cx.theme().primary.opacity(0.06)),
+            )
+            .child(
+                div()
+                    .absolute()
+                    .bottom(px(-160.))
+                    .left(px(-120.))
+                    .size(px(320.))
+                    .rounded_full()
+                    .bg(cx.theme().primary.opacity(0.045)),
+            )
             .child(
                 v_flex()
                     .w_full()
