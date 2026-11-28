@@ -135,6 +135,7 @@ enum WelcomeAction {
     OpenFolder,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn welcome_action_button(
     id: &'static str,
     icon: IconName,
